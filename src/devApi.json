@@ -1,0 +1,1567 @@
+{
+    "openapi": "3.0.1",
+    "info": {
+        "title": "API",
+        "version": "v1"
+    },
+    "paths": {
+        "/api/projects/memberships": {
+            "post": {
+                "tags": [
+                    "Membership"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AddMemberRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AddMemberRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AddMemberRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            },
+            "patch": {
+                "tags": [
+                    "Membership"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateMemberRoleRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateMemberRoleRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateMemberRoleRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Membership"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RemoveMemberRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RemoveMemberRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RemoveMemberRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/api/projects/memberships/status": {
+            "patch": {
+                "tags": [
+                    "Membership"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateMemberStatusRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateMemberStatusRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateMemberStatusRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/api/projects/{projectId}/members": {
+            "get": {
+                "tags": [
+                    "Membership"
+                ],
+                "parameters": [
+                    {
+                        "name": "projectId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/api/projects/milestones": {
+            "post": {
+                "tags": [
+                    "Milestone"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AddMilestoneRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AddMilestoneRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AddMilestoneRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            },
+            "patch": {
+                "tags": [
+                    "Milestone"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateMilestoneRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateMilestoneRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateMilestoneRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/api/projects/milestones/{milestoneId}": {
+            "get": {
+                "tags": [
+                    "Milestone"
+                ],
+                "parameters": [
+                    {
+                        "name": "milestoneId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Milestone"
+                ],
+                "parameters": [
+                    {
+                        "name": "milestoneId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/api/projects/{projectId}/milestones": {
+            "get": {
+                "tags": [
+                    "Milestone"
+                ],
+                "parameters": [
+                    {
+                        "name": "projectId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/api/projects": {
+            "post": {
+                "tags": [
+                    "Project"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateProjectRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateProjectRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateProjectRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            },
+            "patch": {
+                "tags": [
+                    "Project"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateProjectRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateProjectRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateProjectRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Project"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RemoveProjectRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RemoveProjectRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RemoveProjectRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            },
+            "get": {
+                "tags": [
+                    "Project"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/api/projects/status": {
+            "patch": {
+                "tags": [
+                    "Project"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateProjectStatusRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateProjectStatusRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateProjectStatusRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/api/projects/{projectId}": {
+            "get": {
+                "tags": [
+                    "Project"
+                ],
+                "parameters": [
+                    {
+                        "name": "projectId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/api/projects/public": {
+            "get": {
+                "tags": [
+                    "Project"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/api/ProjectRole": {
+            "get": {
+                "tags": [
+                    "ProjectRole"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/api/ResearchField": {
+            "get": {
+                "tags": [
+                    "ResearchField"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "ResearchField"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateResearchFieldRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateResearchFieldRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateResearchFieldRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/api/ResearchField/{id}": {
+            "get": {
+                "tags": [
+                    "ResearchField"
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "ResearchField"
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateResearchFieldRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateResearchFieldRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateResearchFieldRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "ResearchField"
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/api/Tag": {
+            "post": {
+                "tags": [
+                    "Tag"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateTagRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateTagRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateTagRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "Tag"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateTagRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateTagRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateTagRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/api/Tag/{id}": {
+            "delete": {
+                "tags": [
+                    "Tag"
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            },
+            "get": {
+                "tags": [
+                    "Tag"
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/api/Tag/project/{projectId}": {
+            "get": {
+                "tags": [
+                    "Tag"
+                ],
+                "parameters": [
+                    {
+                        "name": "projectId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/api/projects/tasks": {
+            "post": {
+                "tags": [
+                    "Task"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateTaskRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateTaskRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateTaskRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "Task"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateTaskRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateTaskRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateTaskRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/api/projects/tasks/{taskId}": {
+            "get": {
+                "tags": [
+                    "Task"
+                ],
+                "parameters": [
+                    {
+                        "name": "taskId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Task"
+                ],
+                "parameters": [
+                    {
+                        "name": "taskId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/api/projects/{projectId}/tasks": {
+            "get": {
+                "tags": [
+                    "Task"
+                ],
+                "parameters": [
+                    {
+                        "name": "projectId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/api/projects/tasks/member/{memberId}": {
+            "get": {
+                "tags": [
+                    "Task"
+                ],
+                "parameters": [
+                    {
+                        "name": "memberId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/api/projects/tasks/{taskId}/members": {
+            "post": {
+                "tags": [
+                    "TaskMember"
+                ],
+                "parameters": [
+                    {
+                        "name": "taskId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AddTaskMemberRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AddTaskMemberRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AddTaskMemberRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            },
+            "get": {
+                "tags": [
+                    "TaskMember"
+                ],
+                "parameters": [
+                    {
+                        "name": "taskId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/api/projects/tasks/members/{taskMemberId}": {
+            "delete": {
+                "tags": [
+                    "TaskMember"
+                ],
+                "parameters": [
+                    {
+                        "name": "taskMemberId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/api/test/token/Admin": {
+            "get": {
+                "tags": [
+                    "TestToken"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/api/test/token/LabDirector": {
+            "get": {
+                "tags": [
+                    "TestToken"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/api/test/token/{role}": {
+            "get": {
+                "tags": [
+                    "TestToken"
+                ],
+                "parameters": [
+                    {
+                        "name": "role",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "days",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 1
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/api/test/users": {
+            "get": {
+                "tags": [
+                    "TestToken"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/api/test/token/user/{userId}": {
+            "get": {
+                "tags": [
+                    "TestToken"
+                ],
+                "parameters": [
+                    {
+                        "name": "userId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "days",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 1
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "AddMemberRequest": {
+                "required": [
+                    "projectId",
+                    "projectRoleId",
+                    "userId"
+                ],
+                "type": "object",
+                "properties": {
+                    "projectId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "userId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "projectRoleId": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "AddMilestoneRequest": {
+                "required": [
+                    "dueDate",
+                    "name",
+                    "projectId",
+                    "startDate"
+                ],
+                "type": "object",
+                "properties": {
+                    "projectId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "name": {
+                        "maxLength": 200,
+                        "minLength": 1,
+                        "type": "string"
+                    },
+                    "description": {
+                        "maxLength": 2000,
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "startDate": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "dueDate": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "AddTaskMemberRequest": {
+                "type": "object",
+                "properties": {
+                    "membershipId": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "CreateProjectRequest": {
+                "required": [
+                    "projectName"
+                ],
+                "type": "object",
+                "properties": {
+                    "projectName": {
+                        "maxLength": 200,
+                        "minLength": 1,
+                        "type": "string"
+                    },
+                    "projectDescription": {
+                        "maxLength": 2000,
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "researchFieldIds": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "CreateResearchFieldRequest": {
+                "required": [
+                    "name"
+                ],
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "maxLength": 200,
+                        "minLength": 1,
+                        "type": "string"
+                    },
+                    "description": {
+                        "maxLength": 2000,
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "status": {
+                        "$ref": "#/components/schemas/ResearchFieldStatus"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "CreateTagRequest": {
+                "required": [
+                    "name",
+                    "projectId"
+                ],
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "maxLength": 200,
+                        "minLength": 1,
+                        "type": "string"
+                    },
+                    "description": {
+                        "maxLength": 2000,
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "projectId": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "CreateTaskRequest": {
+                "required": [
+                    "name",
+                    "projectId"
+                ],
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "maxLength": 200,
+                        "minLength": 1,
+                        "type": "string"
+                    },
+                    "description": {
+                        "maxLength": 2000,
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "priority": {
+                        "$ref": "#/components/schemas/PriorityEnum"
+                    },
+                    "status": {
+                        "$ref": "#/components/schemas/TaskStatusEnum"
+                    },
+                    "memberId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "nullable": true
+                    },
+                    "projectId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "startDate": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    },
+                    "dueDate": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    },
+                    "tagIds": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "MemberStatus": {
+                "enum": [
+                    1,
+                    2,
+                    3
+                ],
+                "type": "integer",
+                "format": "int32"
+            },
+            "MilestoneStatus": {
+                "enum": [
+                    0,
+                    1,
+                    2,
+                    3,
+                    4
+                ],
+                "type": "integer",
+                "format": "int32"
+            },
+            "PriorityEnum": {
+                "enum": [
+                    1,
+                    2,
+                    3,
+                    4
+                ],
+                "type": "integer",
+                "format": "int32"
+            },
+            "ProjectStatus": {
+                "enum": [
+                    1,
+                    2,
+                    3,
+                    4
+                ],
+                "type": "integer",
+                "format": "int32"
+            },
+            "RemoveMemberRequest": {
+                "required": [
+                    "memberId",
+                    "projectId"
+                ],
+                "type": "object",
+                "properties": {
+                    "memberId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "projectId": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "RemoveProjectRequest": {
+                "required": [
+                    "projectId"
+                ],
+                "type": "object",
+                "properties": {
+                    "projectId": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "ResearchFieldStatus": {
+                "enum": [
+                    1,
+                    2
+                ],
+                "type": "integer",
+                "format": "int32"
+            },
+            "TaskStatusEnum": {
+                "enum": [
+                    1,
+                    2,
+                    3,
+                    4
+                ],
+                "type": "integer",
+                "format": "int32"
+            },
+            "UpdateMemberRoleRequest": {
+                "required": [
+                    "memberId",
+                    "projectId",
+                    "projectRoleCode"
+                ],
+                "type": "object",
+                "properties": {
+                    "memberId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "projectId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "projectRoleCode": {
+                        "minLength": 1,
+                        "type": "string"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "UpdateMemberStatusRequest": {
+                "required": [
+                    "memberId",
+                    "projectId"
+                ],
+                "type": "object",
+                "properties": {
+                    "memberId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "projectId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "newStatus": {
+                        "$ref": "#/components/schemas/MemberStatus"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "UpdateMilestoneRequest": {
+                "required": [
+                    "milestoneId"
+                ],
+                "type": "object",
+                "properties": {
+                    "milestoneId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "name": {
+                        "maxLength": 200,
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "description": {
+                        "maxLength": 2000,
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "startDate": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    },
+                    "dueDate": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    },
+                    "status": {
+                        "$ref": "#/components/schemas/MilestoneStatus"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "UpdateProjectRequest": {
+                "type": "object",
+                "properties": {
+                    "projectId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "projectName": {
+                        "maxLength": 200,
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "projectDescription": {
+                        "maxLength": 2000,
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "researchFieldIds": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "UpdateProjectStatusRequest": {
+                "required": [
+                    "projectId"
+                ],
+                "type": "object",
+                "properties": {
+                    "projectId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "newStatus": {
+                        "$ref": "#/components/schemas/ProjectStatus"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "UpdateResearchFieldRequest": {
+                "required": [
+                    "id"
+                ],
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "name": {
+                        "maxLength": 200,
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "description": {
+                        "maxLength": 2000,
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "status": {
+                        "$ref": "#/components/schemas/ResearchFieldStatus"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "UpdateTagRequest": {
+                "required": [
+                    "id"
+                ],
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "name": {
+                        "maxLength": 200,
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "description": {
+                        "maxLength": 2000,
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "UpdateTaskRequest": {
+                "required": [
+                    "id"
+                ],
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "name": {
+                        "maxLength": 200,
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "description": {
+                        "maxLength": 2000,
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "priority": {
+                        "$ref": "#/components/schemas/PriorityEnum"
+                    },
+                    "status": {
+                        "$ref": "#/components/schemas/TaskStatusEnum"
+                    },
+                    "memberId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "nullable": true
+                    },
+                    "startDate": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    },
+                    "dueDate": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    },
+                    "tagIds": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            }
+        },
+        "securitySchemes": {
+            "Bearer": {
+                "type": "http",
+                "description": "Nhập JWT token",
+                "scheme": "bearer",
+                "bearerFormat": "JWT"
+            }
+        }
+    },
+    "security": [
+        {
+            "Bearer": []
+        }
+    ]
+}
