@@ -4,14 +4,17 @@ import Header from '@/components/navigation/Header';
 
 interface MainLayoutProps {
     children: React.ReactNode;
+    role: string;
+    userName: string;
+    customSidebar?: React.ReactNode;
 }
 
-const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
+const MainLayout: React.FC<MainLayoutProps> = ({ children, role, userName, customSidebar }) => {
     return (
         <div className="app-layout">
-            <Sidebar />
+            {customSidebar || <Sidebar />}
             <div style={{ flex: 1 }}>
-                <Header />
+                <Header role={role} userName={userName} />
                 <main className="main-content">
                     {children}
                 </main>

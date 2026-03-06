@@ -1,7 +1,12 @@
 import React from 'react';
 import { User, Bell, Search } from 'lucide-react';
 
-const Header: React.FC = () => {
+interface HeaderProps {
+    role: string;
+    userName: string;
+}
+
+const Header: React.FC<HeaderProps> = ({ role, userName }) => {
     return (
         <header className="top-header">
             <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
@@ -26,10 +31,13 @@ const Header: React.FC = () => {
             <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
                 <Bell size={20} style={{ color: 'var(--text-secondary)', cursor: 'pointer' }} />
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
-                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--accent-color)', display: 'flex', alignItems: 'center', justifySelf: 'center', color: 'white', justifyContent: 'center' }}>
-                        <User size={18} />
+                    <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>{userName}</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{role}</div>
                     </div>
-                    <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>Admin</span>
+                    <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'var(--accent-color)', display: 'flex', alignItems: 'center', color: 'white', justifyContent: 'center' }}>
+                        <User size={20} />
+                    </div>
                 </div>
             </div>
         </header>

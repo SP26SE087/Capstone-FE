@@ -5,6 +5,18 @@
         "version": "v1"
     },
     "paths": {
+        "/api/dashboard/stats": {
+            "get": {
+                "tags": [
+                    "Dashboard"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
         "/api/projects/memberships": {
             "post": {
                 "tags": [
@@ -1125,6 +1137,16 @@
                         "type": "string",
                         "nullable": true
                     },
+                    "startDate": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    },
+                    "endDate": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    },
                     "researchFieldIds": {
                         "type": "array",
                         "items": {
@@ -1270,7 +1292,8 @@
                     1,
                     2,
                     3,
-                    4
+                    4,
+                    5
                 ],
                 "type": "integer",
                 "format": "int32"
@@ -1319,7 +1342,10 @@
                     1,
                     2,
                     3,
-                    4
+                    5,
+                    6,
+                    7,
+                    8
                 ],
                 "type": "integer",
                 "format": "int32"
@@ -1419,6 +1445,16 @@
                     "projectDescription": {
                         "maxLength": 2000,
                         "type": "string",
+                        "nullable": true
+                    },
+                    "startDate": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    },
+                    "endDate": {
+                        "type": "string",
+                        "format": "date-time",
                         "nullable": true
                     },
                     "researchFieldIds": {
