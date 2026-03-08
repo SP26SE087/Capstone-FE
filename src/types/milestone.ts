@@ -5,6 +5,9 @@ export interface Milestone {
     startDate: string;
     dueDate: string;
     status: MilestoneStatus;
+    createdBy?: string;
+    createdAt?: string;
+    updatedAt?: string;
 }
 
 export enum MilestoneStatus {

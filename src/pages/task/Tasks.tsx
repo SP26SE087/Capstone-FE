@@ -114,6 +114,8 @@ const Tasks: React.FC = () => {
                                     <th style={{ padding: '1rem 1.5rem', fontSize: '0.85rem', fontWeight: 600, color: '#475569' }}>Priority</th>
                                     <th style={{ padding: '1rem 1.5rem', fontSize: '0.85rem', fontWeight: 600, color: '#475569' }}>Status</th>
                                     <th style={{ padding: '1rem 1.5rem', fontSize: '0.85rem', fontWeight: 600, color: '#475569' }}>Due Date</th>
+                                    <th style={{ padding: '1rem 1.5rem', fontSize: '0.85rem', fontWeight: 600, color: '#475569' }}>Created By</th>
+                                    <th style={{ padding: '1rem 1.5rem', fontSize: '0.85rem', fontWeight: 600, color: '#475569' }}>Last Updated</th>
                                     <th style={{ padding: '1rem 1.5rem', fontSize: '0.85rem', fontWeight: 600, color: '#475569' }}></th>
                                 </tr>
                             </thead>
@@ -161,6 +163,12 @@ const Tasks: React.FC = () => {
                                                     <Calendar size={14} />
                                                     {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'No date'}
                                                 </div>
+                                            </td>
+                                            <td style={{ padding: '1.25rem 1.5rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                                                {task.createdBy || 'System'}
+                                            </td>
+                                            <td style={{ padding: '1.25rem 1.5rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                                                {task.updatedAt ? new Date(task.updatedAt).toLocaleDateString() : 'Recently'}
                                             </td>
                                             <td style={{ padding: '1.25rem 1.5rem', textAlign: 'right' }}>
                                                 <button style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}>

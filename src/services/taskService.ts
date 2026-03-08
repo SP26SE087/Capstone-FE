@@ -43,10 +43,44 @@ export const taskService = {
 
     create: async (taskData: any): Promise<any> => {
         try {
-            const response = await api.post('/api/projects/tasks', taskData);
-            return response.data;
+            // Separate support members from main task data
+            const { supportMembers, ...coreTaskData } = taskData;
+
+            const response = await api.post('/api/projects/tasks', coreTaskData);
+            const newTask = response.data.data || response.data;
+
+            // If there are support members, add them one by one (as per devApi)
+            if (newTask?.id && supportMembers && supportMembers.length > 0) {
+                console.log('Adding support members to task:', newTask.id);
+                await Promise.all(supportMembers.map((mId: string) =>
+                    taskService.addMember(newTask.id, mId)
+                ));
+            }
+
+            return newTask;
         } catch (error) {
             console.error('Error creating task:', error);
+            throw error;
+        }
+    },
+
+    addMember: async (taskId: string, memberId: string): Promise<any> => {
+        try {
+            const response = await api.post('/api/projects/tasks/members', { taskId, memberId });
+            return response.data;
+        } catch (error) {
+            console.error(`Error adding member ${memberId} to task ${taskId}:`, error);
+            throw error;
+        }
+    },
+
+    removeMember: async (taskId: string, memberId: string): Promise<any> => {
+        try {
+            // Per devApi, DELETE /api/projects/tasks/members/{taskId}/{memberId}
+            const response = await api.delete(`/api/projects/tasks/members/${taskId}/${memberId}`);
+            return response.data;
+        } catch (error) {
+            console.error(`Error removing member ${memberId} from task ${taskId}:`, error);
             throw error;
         }
     },

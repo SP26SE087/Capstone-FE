@@ -6,19 +6,18 @@ import {
     CheckSquare,
     Users,
     Calendar,
-    FileText,
-    HardDrive,
-    Terminal
+    Terminal,
+    Library
 } from 'lucide-react';
 
 const Sidebar: React.FC = () => {
     const navItems = [
-        { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/' },
-        { icon: <Briefcase size={20} />, label: 'Projects', path: '/projects' },
+        { icon: <Library size={20} />, label: 'Public Home', path: '/' },
+        { type: 'divider', label: 'WORK RESEARCHER SPACE' },
+        { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/dashboard' },
+        { icon: <Briefcase size={20} />, label: 'My Projects', path: '/projects' },
         { icon: <CheckSquare size={20} />, label: 'Tasks', path: '/tasks' },
         { icon: <Calendar size={20} />, label: 'Meetings', path: '/meetings' },
-        { icon: <FileText size={20} />, label: 'Reports', path: '/reports' },
-        { icon: <HardDrive size={20} />, label: 'Resources', path: '/resources' },
         { icon: <Users size={20} />, label: 'Members', path: '/members' },
     ];
 
@@ -29,27 +28,43 @@ const Sidebar: React.FC = () => {
             </div>
 
             <nav style={{ padding: '1rem 0' }}>
-                {navItems.map((item) => (
-                    <NavLink
-                        key={item.path}
-                        to={item.path}
-                        style={({ isActive }) => ({
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '12px',
-                            padding: '0.8rem 2rem',
-                            color: isActive ? 'white' : 'rgba(255,255,255,0.6)',
-                            background: isActive ? 'rgba(255,255,255,0.1)' : 'transparent',
-                            borderLeft: isActive ? '4px solid var(--accent-color)' : '4px solid transparent',
-                            textDecoration: 'none',
-                            fontSize: '0.9rem',
-                            transition: 'all 0.2s'
-                        })}
-                    >
-                        {item.icon}
-                        {item.label}
-                    </NavLink>
-                ))}
+                {navItems.map((item, index) => {
+                    if (item.type === 'divider') {
+                        return (
+                            <div key={`divider-${index}`} style={{
+                                padding: '1.5rem 2rem 0.5rem',
+                                fontSize: '0.65rem',
+                                fontWeight: 800,
+                                color: 'rgba(255,255,255,0.4)',
+                                textTransform: 'uppercase',
+                                letterSpacing: '1px'
+                            }}>
+                                {item.label}
+                            </div>
+                        );
+                    }
+                    return (
+                        <NavLink
+                            key={item.path}
+                            to={item.path || '/'}
+                            style={({ isActive }) => ({
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '12px',
+                                padding: '0.8rem 2rem',
+                                color: isActive ? 'white' : 'rgba(255,255,255,0.6)',
+                                background: isActive ? 'rgba(255,255,255,0.1)' : 'transparent',
+                                borderLeft: isActive ? '4px solid var(--accent-color)' : '4px solid transparent',
+                                textDecoration: 'none',
+                                fontSize: '0.9rem',
+                                transition: 'all 0.2s'
+                            })}
+                        >
+                            {item.icon}
+                            {item.label}
+                        </NavLink>
+                    );
+                })}
             </nav>
 
             <div style={{ position: 'absolute', bottom: '1rem', width: '100%' }}>

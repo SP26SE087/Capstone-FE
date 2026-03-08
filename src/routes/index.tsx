@@ -6,11 +6,18 @@ import Tasks from '@/pages/task/Tasks';
 import Members from '@/pages/member/Members';
 import ProjectDetails from '@/pages/project/ProjectDetails';
 import CreateProject from '@/pages/project/CreateProject';
+import EditProject from '@/pages/project/EditProject';
 import CreateTask from '@/pages/task/CreateTask';
+import Home from '@/pages/home/Home';
+import PublicProjectDetails from '@/pages/project/PublicProjectDetails';
 
 export const router = createBrowserRouter([
     {
         path: '/',
+        element: <Home />,
+    },
+    {
+        path: '/dashboard',
         element: <Dashboard />,
     },
     {
@@ -24,6 +31,14 @@ export const router = createBrowserRouter([
     {
         path: '/projects/:id',
         element: <ProjectDetails />,
+    },
+    {
+        path: '/explore/projects/:id',
+        element: <PublicProjectDetails />,
+    },
+    {
+        path: '/projects/edit/:id',
+        element: <EditProject />,
     },
     {
         path: '/tasks',

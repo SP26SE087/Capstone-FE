@@ -10,8 +10,9 @@ import {
     Layout
 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
-import { ProjectStatus, TaskStatus, DashboardStats, Project, Task } from '@/types';
+import { TaskStatus, DashboardStats, Project, Task } from '@/types';
 import { dashboardService, projectService, taskService } from '@/services';
+import { getProjectStatusStyle } from '@/utils/projectUtils';
 
 function Dashboard() {
     const navigate = useNavigate();
@@ -22,8 +23,8 @@ function Dashboard() {
 
     // These would normally come from a global state/store after login
     const user = {
-        name: "Alex Rivera",
-        role: "Lab Director"
+        name: "Current User",
+        role: "Researcher"
     };
 
     useEffect(() => {
@@ -119,87 +120,116 @@ function Dashboard() {
                                         <p>Fetching your workspace...</p>
                                     </div>
                                 ) : projects.length > 0 ? (
-                                    projects.slice(0, 3).map((proj, index) => (
-                                        <div
-                                            key={proj.id || index}
-                                            onClick={() => navigate(`/projects/${proj.id}`)}
-                                            style={{
-                                                padding: '1.25rem',
-                                                background: '#fff',
-                                                borderRadius: '12px',
-                                                border: '1px solid var(--border-color)',
-                                                transition: 'all 0.2s ease',
-                                                cursor: 'pointer',
-                                                display: 'flex',
-                                                flexDirection: 'column',
-                                                justifyContent: 'space-between',
-                                                boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
-                                            }}
-                                            onMouseOver={(e) => {
-                                                e.currentTarget.style.transform = 'translateY(-2px)';
-                                                e.currentTarget.style.boxShadow = '0 8px 16px rgba(0,0,0,0.05)';
-                                            }}
-                                            onMouseOut={(e) => {
-                                                e.currentTarget.style.transform = 'translateY(0)';
-                                                e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.02)';
-                                            }}
-                                        >
-                                            <div>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
-                                                    <span style={{
-                                                        fontSize: '0.65rem',
-                                                        color: 'var(--text-secondary)',
-                                                        fontWeight: 700,
-                                                        background: '#f1f5f9',
-                                                        padding: '2px 6px',
-                                                        borderRadius: '4px'
-                                                    }}>
-                                                        #{(proj.id || '').substring(0, 6).toUpperCase()}
-                                                    </span>
-                                                    <span style={{
-                                                        fontSize: '0.65rem',
-                                                        padding: '2px 8px',
-                                                        borderRadius: '4px',
-                                                        background: proj.status === ProjectStatus.Active ? '#e1f5fe' : '#fff3e0',
-                                                        color: proj.status === ProjectStatus.Active ? '#0288d1' : '#f57c00',
-                                                        fontWeight: 600
-                                                    }}>{ProjectStatus[proj.status]}</span>
-                                                </div>
-                                                <h4 style={{ margin: '0 0 8px 0', fontSize: '1rem', color: 'var(--text-primary)' }}>
-                                                    {proj.projectName || (proj as any).name || 'Untitled Project'}
-                                                </h4>
-                                                <p style={{
-                                                    fontSize: '0.8rem',
-                                                    color: 'var(--text-secondary)',
-                                                    margin: '0 0 1.25rem 0',
-                                                    display: '-webkit-box',
-                                                    WebkitLineClamp: 2,
-                                                    WebkitBoxOrient: 'vertical',
-                                                    overflow: 'hidden',
-                                                    lineHeight: '1.4'
-                                                }}>
-                                                    {proj.projectDescription || "No description provided for this research."}
-                                                </p>
-                                            </div>
+                                    projects.slice(0, 3).map((proj, index) => {
+                                        const progress = proj.totalTasks && proj.totalTasks > 0
+                                            ? Math.round((proj.completedTasks || 0) / proj.totalTasks * 100)
+                                            : 0;
 
-                                            <div>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '6px' }}>
-                                                    <span style={{ color: 'var(--text-secondary)' }}>Research Progress</span>
-                                                    <span style={{ fontWeight: 600, color: 'var(--accent-color)' }}>
-                                                        {proj.status === ProjectStatus.Active ? '65%' : '0%'}
-                                                    </span>
+                                        return (
+                                            <div
+                                                key={proj.id || index}
+                                                onClick={() => navigate(`/projects/${proj.id}`)}
+                                                style={{
+                                                    padding: '1.25rem',
+                                                    background: '#fff',
+                                                    borderRadius: '12px',
+                                                    border: '1px solid var(--border-color)',
+                                                    transition: 'all 0.2s ease',
+                                                    cursor: 'pointer',
+                                                    display: 'flex',
+                                                    flexDirection: 'column',
+                                                    justifyContent: 'space-between',
+                                                    boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+                                                }}
+                                                onMouseOver={(e) => {
+                                                    e.currentTarget.style.transform = 'translateY(-2px)';
+                                                    e.currentTarget.style.boxShadow = '0 8px 16px rgba(0,0,0,0.05)';
+                                                }}
+                                                onMouseOut={(e) => {
+                                                    e.currentTarget.style.transform = 'translateY(0)';
+                                                    e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.02)';
+                                                }}
+                                            >
+                                                <div>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+                                                        <span style={{
+                                                            fontSize: '0.65rem',
+                                                            color: 'var(--text-secondary)',
+                                                            fontWeight: 700,
+                                                            background: '#f1f5f9',
+                                                            padding: '2px 6px',
+                                                            borderRadius: '4px'
+                                                        }}>
+                                                            #{(proj.id || '').substring(0, 6).toUpperCase()}
+                                                        </span>
+                                                        <span style={{
+                                                            fontSize: '0.7rem',
+                                                            padding: '4px 10px',
+                                                            borderRadius: '20px',
+                                                            background: getProjectStatusStyle(proj.status).bg,
+                                                            color: getProjectStatusStyle(proj.status).color,
+                                                            fontWeight: 600,
+                                                            textTransform: 'uppercase'
+                                                        }}>{getProjectStatusStyle(proj.status).label}</span>
+                                                    </div>
+                                                    <div style={{ marginBottom: '1rem' }}>
+                                                        <h3 style={{ margin: '0 0 8px 0', fontSize: '1.15rem' }}>
+                                                            {proj.projectName || (proj as any).name || 'Untitled Project'}
+                                                        </h3>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                                                            <div style={{
+                                                                width: '20px',
+                                                                height: '20px',
+                                                                borderRadius: '50%',
+                                                                background: 'var(--primary-color)',
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                justifyContent: 'center',
+                                                                color: 'white',
+                                                                fontSize: '0.6rem',
+                                                                fontWeight: 700
+                                                            }}>
+                                                                {(proj.nameProjectCreator || proj.NameProjectCreator || 'A')[0]}
+                                                            </div>
+                                                            <span style={{ fontSize: '0.75rem', fontWeight: 500, color: 'var(--text-secondary)' }}>
+                                                                {proj.NameProjectCreator || proj.nameProjectCreator || proj.createdBy || "Anonymous"}
+                                                            </span>
+                                                        </div>
+                                                        <p style={{
+                                                            margin: 0,
+                                                            fontSize: '0.85rem',
+                                                            color: 'var(--text-secondary)',
+                                                            display: '-webkit-box',
+                                                            WebkitLineClamp: 2,
+                                                            WebkitBoxOrient: 'vertical',
+                                                            overflow: 'hidden',
+                                                            lineHeight: '1.5'
+                                                        }}>
+                                                            {proj.projectDescription || (proj as any).description || "No description provided for this project."}
+                                                        </p>
+                                                    </div>
                                                 </div>
-                                                <div style={{ height: '6px', background: '#f1f5f9', borderRadius: '3px', overflow: 'hidden' }}>
-                                                    <div style={{
-                                                        width: proj.status === ProjectStatus.Active ? '65%' : '0%',
-                                                        height: '100%',
-                                                        background: 'linear-gradient(90deg, var(--accent-color), var(--primary-color))',
-                                                        borderRadius: '3px'
-                                                    }} />
+
+                                                <div>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '6px' }}>
+                                                        <span style={{ color: 'var(--text-secondary)' }}>Research Progress</span>
+                                                        <span style={{ fontWeight: 600, color: 'var(--accent-color)' }}>
+                                                            {progress}%
+                                                        </span>
+                                                    </div>
+                                                    <div style={{ height: '6px', background: '#f1f5f9', borderRadius: '3px', overflow: 'hidden' }}>
+                                                        <div style={{
+                                                            width: `${progress}%`,
+                                                            height: '100%',
+                                                            background: 'linear-gradient(90deg, var(--accent-color), var(--primary-color))',
+                                                            borderRadius: '3px'
+                                                        }} />
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    ))
+                                        );
+                                    })
+
                                 ) : (
                                     <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '2rem', background: '#f8fafc', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
                                         <p style={{ color: 'var(--text-secondary)', margin: 0 }}>You are not involved in any active projects yet.</p>

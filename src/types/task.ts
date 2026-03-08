@@ -9,6 +9,9 @@ export interface Task {
     projectId?: string;
     members?: TaskMember[];
     tagIds?: string[];
+    createdBy?: string;
+    createdAt?: string;
+    updatedAt?: string;
 }
 
 export enum Priority {

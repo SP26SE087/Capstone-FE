@@ -160,6 +160,29 @@
                 }
             }
         },
+        "/api/projects/{projectId}/member": {
+            "get": {
+                "tags": [
+                    "Membership"
+                ],
+                "parameters": [
+                    {
+                        "name": "projectId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
         "/api/projects/milestones": {
             "post": {
                 "tags": [
@@ -346,35 +369,6 @@
                     }
                 }
             },
-            "delete": {
-                "tags": [
-                    "Project"
-                ],
-                "requestBody": {
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/RemoveProjectRequest"
-                            }
-                        },
-                        "text/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/RemoveProjectRequest"
-                            }
-                        },
-                        "application/*+json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/RemoveProjectRequest"
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "200": {
-                        "description": "OK"
-                    }
-                }
-            },
             "get": {
                 "tags": [
                     "Project"
@@ -418,6 +412,35 @@
             }
         },
         "/api/projects/{projectId}": {
+            "delete": {
+                "tags": [
+                    "Project"
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "projectId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            },
             "get": {
                 "tags": [
                     "Project"
@@ -1112,9 +1135,17 @@
                 "additionalProperties": false
             },
             "AddTaskMemberRequest": {
+                "required": [
+                    "memberId",
+                    "taskId"
+                ],
                 "type": "object",
                 "properties": {
-                    "membershipId": {
+                    "taskId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "memberId": {
                         "type": "string",
                         "format": "uuid"
                     }
@@ -1292,8 +1323,7 @@
                     1,
                     2,
                     3,
-                    4,
-                    5
+                    4
                 ],
                 "type": "integer",
                 "format": "int32"
@@ -1305,24 +1335,11 @@
                 ],
                 "type": "object",
                 "properties": {
-                    "memberId": {
+                    "projectId": {
                         "type": "string",
                         "format": "uuid"
                     },
-                    "projectId": {
-                        "type": "string",
-                        "format": "uuid"
-                    }
-                },
-                "additionalProperties": false
-            },
-            "RemoveProjectRequest": {
-                "required": [
-                    "projectId"
-                ],
-                "type": "object",
-                "properties": {
-                    "projectId": {
+                    "memberId": {
                         "type": "string",
                         "format": "uuid"
                     }
@@ -1353,8 +1370,7 @@
             "UpdateMemberRoleRequest": {
                 "required": [
                     "memberId",
-                    "projectId",
-                    "projectRoleCode"
+                    "projectRoleId"
                 ],
                 "type": "object",
                 "properties": {
@@ -1362,13 +1378,9 @@
                         "type": "string",
                         "format": "uuid"
                     },
-                    "projectId": {
+                    "projectRoleId": {
                         "type": "string",
                         "format": "uuid"
-                    },
-                    "projectRoleCode": {
-                        "minLength": 1,
-                        "type": "string"
                     }
                 },
                 "additionalProperties": false
@@ -1376,7 +1388,7 @@
             "UpdateMemberStatusRequest": {
                 "required": [
                     "memberId",
-                    "projectId"
+                    "status"
                 ],
                 "type": "object",
                 "properties": {
@@ -1384,11 +1396,7 @@
                         "type": "string",
                         "format": "uuid"
                     },
-                    "projectId": {
-                        "type": "string",
-                        "format": "uuid"
-                    },
-                    "newStatus": {
+                    "status": {
                         "$ref": "#/components/schemas/MemberStatus"
                     }
                 },
