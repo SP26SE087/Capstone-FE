@@ -21,6 +21,8 @@ import { ProjectRoleEnum } from '@/types/project';
 import MilestoneItem from '@/components/milestone/MilestoneItem';
 import TaskItem from '@/components/task/TaskItem';
 import KanbanBoard from '@/features/tasks/KanbanBoard';
+import TaskFormModal from '@/features/tasks/TaskFormModal';
+import TaskDetailModal from '@/features/tasks/TaskDetailModal';
 
 const ProjectDetails: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -36,6 +38,9 @@ const ProjectDetails: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'home' | 'milestones' | 'members' | 'tasks'>(location.state?.activeTab || 'home');
     const [taskView, setTaskView] = useState<'list' | 'board'>('board');
+    const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
+    const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+    const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -92,6 +97,22 @@ const ProjectDetails: React.FC = () => {
             setTasks(tasksData);
         } catch (error) {
             console.error('Failed to refetch tasks:', error);
+        }
+    };
+
+    const handleTaskClick = (task: Task) => {
+        setSelectedTaskId(task.id);
+        setIsDetailModalOpen(true);
+    };
+
+    const handleTaskFormSubmit = async (taskData: any) => {
+        try {
+            await taskService.create({ ...taskData, projectId: id });
+            await refetchTasks();
+            setIsTaskModalOpen(false);
+        } catch (error) {
+            console.error('Failed to create task:', error);
+            alert('Failed to register research activity.');
         }
     };
 
@@ -449,7 +470,7 @@ const ProjectDetails: React.FC = () => {
                                         </div>
                                         <button
                                             className="btn btn-primary"
-                                            onClick={() => setTaskView('board')}
+                                            onClick={() => setIsTaskModalOpen(true)}
                                             style={{
                                                 display: 'flex',
                                                 alignItems: 'center',
@@ -475,7 +496,7 @@ const ProjectDetails: React.FC = () => {
                                     ) : (
                                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.25rem' }}>
                                             {tasks.map(task => (
-                                                <TaskItem key={task.id} task={task} />
+                                                <TaskItem key={task.id} task={task} onClick={handleTaskClick} />
                                             ))}
                                         </div>
                                     )
@@ -544,6 +565,20 @@ const ProjectDetails: React.FC = () => {
                     </aside>
                 </div>
             </div>
+
+            <TaskFormModal
+                isOpen={isTaskModalOpen}
+                onClose={() => setIsTaskModalOpen(false)}
+                onSubmit={handleTaskFormSubmit}
+                projectMembers={members}
+                initialStatus={TaskStatus.Todo}
+            />
+
+            <TaskDetailModal
+                isOpen={isDetailModalOpen}
+                onClose={() => setIsDetailModalOpen(false)}
+                taskId={selectedTaskId}
+            />
         </MainLayout>
 
     );

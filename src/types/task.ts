@@ -7,28 +7,30 @@ export interface Task {
     startDate: string | null;
     dueDate: string | null;
     projectId?: string;
+    memberId?: string; // Appears in the new response
     members?: TaskMember[];
     tagIds?: string[];
     createdBy?: string;
     createdAt?: string;
+    createdDate?: string; // Often comes as 'createdDate' in the new response
     updatedAt?: string;
+    updatedDate?: string; // Often comes as 'updatedDate' in the new response
 }
 
 export enum Priority {
     Low = 1,
     Medium = 2,
     High = 3,
-    Urgent = 4
+    Critical = 4
 }
 
 export enum TaskStatus {
     Todo = 1,
     InProgress = 2,
-    InReview = 3,
-    Completed = 5,
-    OnHold = 6,
-    Cancelled = 7,
-    Overdue = 8
+    Submitted = 3,
+    Approved = 4,
+    Rejected = 5,
+    Completed = 6
 }
 
 export interface TaskMember {

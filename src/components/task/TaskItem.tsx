@@ -20,15 +20,17 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onClick }) => {
         switch (status) {
             case TaskStatus.Todo: return { color: '#64748b', bg: '#f1f5f9', label: 'To Do', icon: <Clock size={14} /> };
             case TaskStatus.InProgress: return { color: '#0288d1', bg: '#e1f5fe', label: 'In Progress', icon: <div style={{ width: 8, height: 8, background: '#0288d1', borderRadius: '50%', marginRight: 4 }} /> };
+            case TaskStatus.Submitted: return { color: '#7c3aed', bg: '#ede9fe', label: 'Submitted', icon: <Clock size={14} /> };
+            case TaskStatus.Approved: return { color: '#059669', bg: '#d1fae5', label: 'Approved', icon: <CheckCircle2 size={14} /> };
+            case TaskStatus.Rejected: return { color: '#ef4444', bg: '#fee2e2', label: 'Rejected', icon: <AlertCircle size={14} /> };
             case TaskStatus.Completed: return { color: '#10b981', bg: '#ecfdf5', label: 'Completed', icon: <CheckCircle2 size={14} /> };
-            case TaskStatus.Overdue: return { color: '#e63946', bg: '#fef2f2', label: 'Overdue', icon: <AlertCircle size={14} /> };
-            default: return { color: '#64748b', bg: '#f1f5f9', label: 'On Hold', icon: <Clock size={14} /> };
+            default: return { color: '#64748b', bg: '#f1f5f9', label: 'Unknown', icon: <Clock size={14} /> };
         }
     };
 
     const getPriorityStyle = (priority: Priority) => {
         switch (priority) {
-            case Priority.Urgent: return { color: '#e63946', label: 'Urgent', bg: '#fef2f2' };
+            case Priority.Critical: return { color: '#e63946', label: 'Critical', bg: '#fef2f2' };
             case Priority.High: return { color: '#f59e0b', label: 'High', bg: '#fffbeb' };
             case Priority.Medium: return { color: '#0ea5e9', label: 'Medium', bg: '#f0f9ff' };
             case Priority.Low: return { color: '#94a3b8', label: 'Low', bg: '#f8fafc' };

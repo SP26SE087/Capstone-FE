@@ -12,11 +12,19 @@ import {
     Clock,
     CheckCircle2
 } from 'lucide-react';
+import TaskDetailModal from '@/features/tasks/TaskDetailModal';
 
 const Tasks: React.FC = () => {
     const [tasks, setTasks] = useState<Task[]>([]);
     const [loading, setLoading] = useState(true);
     const [filterStatus, setFilterStatus] = useState<string>('all');
+    const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+    const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+
+    const handleTaskClick = (taskId: string) => {
+        setSelectedTaskId(taskId);
+        setIsDetailModalOpen(true);
+    };
 
     useEffect(() => {
         const fetchTasks = async () => {
@@ -42,15 +50,17 @@ const Tasks: React.FC = () => {
         switch (status) {
             case TaskStatus.Todo: return { color: '#64748b', bg: '#f1f5f9', icon: <Clock size={14} /> };
             case TaskStatus.InProgress: return { color: '#0288d1', bg: '#e1f5fe', icon: <PlayIcon /> };
+            case TaskStatus.Submitted: return { color: '#7c3aed', bg: '#ede9fe', icon: <Clock size={14} /> };
+            case TaskStatus.Approved: return { color: '#059669', bg: '#d1fae5', icon: <CheckCircle2 size={14} /> };
+            case TaskStatus.Rejected: return { color: '#ef4444', bg: '#fee2e2', icon: <AlertCircleIcon /> };
             case TaskStatus.Completed: return { color: '#10b981', bg: '#ecfdf5', icon: <CheckCircle2 size={14} /> };
-            case TaskStatus.Overdue: return { color: '#e63946', bg: '#fef2f2', icon: <AlertCircleIcon /> };
             default: return { color: '#64748b', bg: '#f1f5f9', icon: <Clock size={14} /> };
         }
     };
 
     const getPriorityStyle = (priority: Priority) => {
         switch (priority) {
-            case Priority.Urgent: return { color: '#e63946', label: 'Urgent' };
+            case Priority.Critical: return { color: '#e63946', label: 'Critical' };
             case Priority.High: return { color: '#f59e0b', label: 'High' };
             case Priority.Medium: return { color: '#0ea5e9', label: 'Medium' };
             case Priority.Low: return { color: '#94a3b8', label: 'Low' };
@@ -124,7 +134,13 @@ const Tasks: React.FC = () => {
                                     const statusStyle = getStatusStyle(task.status);
                                     const priorityStyle = getPriorityStyle(task.priority);
                                     return (
-                                        <tr key={task.id} style={{ borderBottom: '1px solid var(--border-color)', transition: 'background 0.2s' }}>
+                                        <tr
+                                            key={task.id}
+                                            onClick={() => handleTaskClick(task.id)}
+                                            style={{ borderBottom: '1px solid var(--border-color)', transition: 'background 0.2s', cursor: 'pointer' }}
+                                            onMouseOver={(e) => e.currentTarget.style.background = '#f8fafc'}
+                                            onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                                        >
                                             <td style={{ padding: '1.25rem 1.5rem' }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                                     <div style={{ padding: '8px', background: 'var(--bg-secondary)', borderRadius: '8px', color: 'var(--accent-color)' }}>
@@ -183,6 +199,12 @@ const Tasks: React.FC = () => {
                     </div>
                 )}
             </div>
+
+            <TaskDetailModal
+                isOpen={isDetailModalOpen}
+                onClose={() => setIsDetailModalOpen(false)}
+                taskId={selectedTaskId}
+            />
         </MainLayout>
     );
 };

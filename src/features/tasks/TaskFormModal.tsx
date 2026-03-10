@@ -151,7 +151,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                                 <option value={Priority.Low}>Low Impact</option>
                                 <option value={Priority.Medium}>Medium Impact</option>
                                 <option value={Priority.High}>High Project Priority</option>
-                                <option value={Priority.Urgent}>CRITICAL / URGENT</option>
+                                <option value={Priority.Critical}>CRITICAL / URGENT</option>
                             </select>
                         </div>
 
@@ -165,7 +165,9 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                             >
                                 <option value={TaskStatus.Todo}>Backlog / To Do</option>
                                 <option value={TaskStatus.InProgress}>Active Research</option>
-                                <option value={TaskStatus.InReview}>Peer Review</option>
+                                <option value={TaskStatus.Submitted}>Submitted</option>
+                                <option value={TaskStatus.Approved}>Approved</option>
+                                <option value={TaskStatus.Rejected}>Rejected</option>
                                 <option value={TaskStatus.Completed}>Archived / Completed</option>
                             </select>
                         </div>
@@ -210,8 +212,8 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                             style={{ padding: '0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', background: 'white' }}
                         >
                             <option value="">Unassigned</option>
-                            {projectMembers.map(m => (
-                                <option key={m.id} value={m.id}>{m.userName} ({m.projectRoleName})</option>
+                            {projectMembers.map((m, index) => (
+                                <option key={m.memberId || m.id || index} value={m.memberId || m.id}>{m.fullName || m.userName} ({m.roleName || m.projectRoleName})</option>
                             ))}
                         </select>
                     </div>
@@ -229,10 +231,10 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                             overflowY: 'auto',
                             padding: '4px'
                         }}>
-                            {projectMembers.filter(m => m.id !== memberId).map(m => (
+                            {projectMembers.filter(m => (m.memberId || m.id) !== memberId).map((m, index) => (
                                 <div
-                                    key={m.id}
-                                    onClick={() => toggleSupportMember(m.id)}
+                                    key={m.memberId || m.id || index}
+                                    onClick={() => toggleSupportMember(m.memberId || m.id || '')}
                                     style={{
                                         padding: '6px 12px',
                                         borderRadius: '20px',
@@ -240,17 +242,17 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                                         fontWeight: 600,
                                         cursor: 'pointer',
                                         border: '1px solid',
-                                        borderColor: supportMemberIds.includes(m.id) ? 'var(--accent-color)' : '#e2e8f0',
-                                        background: supportMemberIds.includes(m.id) ? 'var(--accent-color)' : 'white',
-                                        color: supportMemberIds.includes(m.id) ? 'white' : '#64748b',
+                                        borderColor: supportMemberIds.includes(m.memberId || m.id || '') ? 'var(--accent-color)' : '#e2e8f0',
+                                        background: supportMemberIds.includes(m.memberId || m.id || '') ? 'var(--accent-color)' : 'white',
+                                        color: supportMemberIds.includes(m.memberId || m.id || '') ? 'white' : '#64748b',
                                         transition: 'all 0.2s',
                                         display: 'flex',
                                         alignItems: 'center',
                                         gap: '4px'
                                     }}
                                 >
-                                    {supportMemberIds.includes(m.id) && <Plus size={12} style={{ transform: 'rotate(45deg)' }} />}
-                                    {m.userName}
+                                    {supportMemberIds.includes(m.memberId || m.id || '') && <Plus size={12} style={{ transform: 'rotate(45deg)' }} />}
+                                    {m.fullName || m.userName}
                                 </div>
                             ))}
                             {projectMembers.length <= 1 && (
@@ -284,8 +286,8 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                         </button>
                     </div>
                 </form>
-            </div>
-        </div>
+            </div >
+        </div >
     );
 };
 

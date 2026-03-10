@@ -3,6 +3,7 @@ import { Task, TaskStatus, ProjectMember } from '@/types';
 import TaskItem from '@/components/task/TaskItem';
 import { Plus, MoreHorizontal } from 'lucide-react';
 import TaskFormModal from './TaskFormModal';
+import TaskDetailModal from './TaskDetailModal';
 import { taskService } from '@/services';
 
 interface KanbanBoardProps {
@@ -20,11 +21,15 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
 }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedStatus, setSelectedStatus] = useState<TaskStatus>(TaskStatus.Todo);
+    const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+    const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
     const columns = [
         { id: TaskStatus.Todo, title: 'To Do', color: '#64748b' },
         { id: TaskStatus.InProgress, title: 'In Progress', color: '#0288d1' },
-        { id: TaskStatus.InReview, title: 'In Review', color: '#7c3aed' },
+        { id: TaskStatus.Submitted, title: 'Submitted', color: '#7c3aed' },
+        { id: TaskStatus.Approved, title: 'Approved', color: '#059669' },
+        { id: TaskStatus.Rejected, title: 'Rejected', color: '#ef4444' },
         { id: TaskStatus.Completed, title: 'Completed', color: '#10b981' }
     ];
 
@@ -46,6 +51,11 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
             console.error('Failed to create task:', error);
             alert('Failed to register research activity. Please check console for details.');
         }
+    };
+
+    const handleTaskClick = (task: Task) => {
+        setSelectedTaskId(task.id);
+        setIsDetailModalOpen(true);
     };
 
     return (
@@ -98,7 +108,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                             {columnTasks.map(task => (
-                                <TaskItem key={task.id} task={task} />
+                                <TaskItem key={task.id} task={task} onClick={handleTaskClick} />
                             ))}
                         </div>
 
@@ -143,6 +153,12 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
                 onSubmit={handleFormSubmit}
                 projectMembers={projectMembers}
                 initialStatus={selectedStatus}
+            />
+
+            <TaskDetailModal
+                isOpen={isDetailModalOpen}
+                onClose={() => setIsDetailModalOpen(false)}
+                taskId={selectedTaskId}
             />
         </div>
     );
