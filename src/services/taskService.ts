@@ -1,58 +1,42 @@
 import api from './api';
-import { Task, TaskStatus } from '@/types';
+import { Task } from '@/types';
 
 // Mock priority tasks for development convenience
-const mockTasks: Task[] = [
-    {
-        id: '9f0e1d2c-3b4a-5987-6543-210fedcba987',
-        name: 'Submit Q1 Research Report',
-        description: 'Complete and submit the first quarter report on AI project.',
-        priority: 1, // High
-        status: TaskStatus.InProgress,
-        startDate: '2024-03-01T00:00:00Z',
-        dueDate: '2024-10-15T23:59:59Z',
-        tagIds: []
-    },
-    {
-        id: '8e9d0c1b-2a3f-4e5d-6c7b-8a9012345678',
-        name: 'Hardware Components Audit',
-        description: 'Periodic check of lab equipment and sensors.',
-        priority: 2, // Medium
-        status: TaskStatus.Todo,
-        startDate: '2024-03-05T00:00:00Z',
-        dueDate: '2024-11-20T23:59:59Z',
-        tagIds: []
-    }
-];
+const mockTasks: Task[] = [];
 
 export const taskService = {
     getPriorityTasks: async (): Promise<Task[]> => {
         try {
-            // Note: GET /api/projects/tasks?limit=5 currently returns 405 (Method Not Allowed).
-            // This endpoint only supports POST and PUT in devApi.json.
-            // Returning mock data until a correct GET endpoint for all tasks is available.
-            // const response = await api.get('/api/projects/tasks?limit=5'); 
-            // return response.data.data || response.data;
-            return mockTasks;
+            const response = await api.get('/api/projects/tasks?limit=5'); 
+            return response.data.data || response.data;
         } catch (error) {
             console.error('Error fetching tasks:', error);
-            // Fallback to more comprehensive mock for demonstration
-            return mockTasks;
+            return [];
         }
     },
 
     create: async (taskData: any): Promise<any> => {
         try {
-            // Separate support members from main task data
-            const { supportMembers, ...coreTaskData } = taskData;
+            // Filter fields for CreateTaskRequest as per updated model
+            const createPayload = {
+                name: taskData.name,
+                description: taskData.description,
+                priority: taskData.priority,
+                status: taskData.status,
+                memberId: taskData.memberId || null,
+                projectId: taskData.projectId,
+                startDate: taskData.startDate,
+                dueDate: taskData.dueDate,
+                milestoneId: taskData.milestoneId || null
+            };
 
-            const response = await api.post('/api/projects/tasks', coreTaskData);
+            const response = await api.post('/api/projects/tasks', createPayload);
             const newTask = response.data.data || response.data;
 
             // If there are support members, add them one by one (as per devApi)
-            if (newTask?.id && supportMembers && supportMembers.length > 0) {
+            if (newTask?.id && taskData.supportMembers && taskData.supportMembers.length > 0) {
                 console.log('Adding support members to task:', newTask.id);
-                await Promise.all(supportMembers.map((mId: string) =>
+                await Promise.all(taskData.supportMembers.map((mId: string) =>
                     taskService.addMember(newTask.id, mId)
                 ));
             }
@@ -81,6 +65,31 @@ export const taskService = {
             return response.data;
         } catch (error) {
             console.error(`Error removing member ${memberId} from task ${taskId}:`, error);
+            throw error;
+        }
+    },
+
+    update: async (taskId: string, taskData: any): Promise<any> => {
+        try {
+            // Per updated model: PUT /api/projects/tasks
+            const updatePayload = {
+                id: taskId,
+                name: taskData.name,
+                description: taskData.description,
+                priority: taskData.priority,
+                status: taskData.status,
+                memberId: taskData.memberId || null,
+                startDate: taskData.startDate,
+                dueDate: taskData.dueDate,
+                milestoneId: taskData.milestoneId || null
+            };
+
+            const response = await api.put('/api/projects/tasks', updatePayload);
+            const updatedTask = response.data.data || response.data;
+            
+            return updatedTask;
+        } catch (error) {
+            console.error(`Error updating task ${taskId}:`, error);
             throw error;
         }
     },
@@ -151,6 +160,16 @@ export const taskService = {
             console.error(`Error fetching task details for ${taskId}:`, error);
             const mockTask = mockTasks.find(t => t.id === taskId);
             return mockTask || null;
+        }
+    },
+
+    delete: async (taskId: string): Promise<any> => {
+        try {
+            const response = await api.delete(`/api/projects/tasks/${taskId}`);
+            return response.data;
+        } catch (error) {
+            console.error(`Error deleting task ${taskId}:`, error);
+            throw error;
         }
     }
 };

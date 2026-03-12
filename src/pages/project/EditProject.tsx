@@ -22,14 +22,16 @@ import {
     ShieldAlert,
     ChevronDown,
     Activity,
-    Settings
+    Search
 } from 'lucide-react';
+
+import { useAuth } from '@/hooks/useAuth';
 
 const EditProject: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const location = useLocation() as { state: { projectName?: string } };
-    const currentUser = { name: "Current User", role: "Researcher" };
+    const { user: currentUser } = useAuth();
     const [project, setProject] = useState<Project | null>(null);
     const [currentMember, setCurrentMember] = useState<any>(null);
     const [loading, setLoading] = useState(true);
@@ -46,14 +48,12 @@ const EditProject: React.FC = () => {
     const canDeleteProject = isAdmin || (Number(projectRoleValue) === ProjectRoleEnum.LabDirector);
 
     const isArchived = project?.status === ProjectStatus.Archived;
-    // Read-only if:
-    // 1. Project is archived and user is not global Admin
-    // 2. User is not project leader/director and not global Admin
     const isReadOnly = (isArchived && !isAdmin) || !isProjectLeader;
 
     const [submitting, setSubmitting] = useState(false);
     const [availableFields, setAvailableFields] = useState<ResearchField[]>([]);
     const [selectedFieldIds, setSelectedFieldIds] = useState<string[]>([]);
+    const [fieldSearchTerm, setFieldSearchTerm] = useState('');
 
     const [formData, setFormData] = useState({
         projectName: '',
@@ -79,19 +79,15 @@ const EditProject: React.FC = () => {
             if (!id) return;
             setLoading(true);
             try {
-                // 1. Get detailed member info first to check if user has access
                 const memberInfo = await projectService.getCurrentMember(id);
 
-                // 2. Security Check: If not member and not admin, redirect
                 if ((!memberInfo || !memberInfo.projectRole) && !isAdmin) {
-                    console.log("No project role found for editing, redirecting");
                     navigate(`/explore/projects/${id}`, { replace: true });
                     return;
                 }
 
                 setCurrentMember(memberInfo);
 
-                // 3. Get Project Detail
                 const projectData = await projectService.getById(id);
 
                 if (projectData) {
@@ -105,7 +101,6 @@ const EditProject: React.FC = () => {
                     });
                     setSelectedFieldIds(projectData.researchFields?.map(f => f.id) || []);
 
-                    // 4. Get available fields
                     const fields = await researchFieldService.getAll();
                     setAvailableFields(fields);
                 }
@@ -120,11 +115,8 @@ const EditProject: React.FC = () => {
 
     const handleTabChange = (tabId: string) => {
         if (tabId === 'settings') return;
-        // In EditProject, clicking other tabs should return to ProjectDetails
         navigate(`/projects/${id}`, { state: { activeTab: tabId } });
     };
-
-    // We no longer block access completely, isReadOnly will handle the view
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
@@ -140,7 +132,7 @@ const EditProject: React.FC = () => {
             case ProjectStatus.Completed:
                 return newStatus === ProjectStatus.Archived;
             case ProjectStatus.Archived:
-                return newStatus === ProjectStatus.Active; // Only allow unarchiving to Active
+                return newStatus === ProjectStatus.Active;
             default:
                 return false;
         }
@@ -150,14 +142,13 @@ const EditProject: React.FC = () => {
         if (!project) return;
         const nextStatus = newStatus as ProjectStatus;
 
-        // Admins can always change status, but non-admins are restricted by isReadOnly
         if (isReadOnly && !isAdmin) {
             showToast('You do not have permission to change the status of an archived project.', 'error');
             return;
         }
 
         if (!isValidTransition(project.status, nextStatus)) {
-            showToast(`Cannot transition from ${ProjectStatus[project.status]} to ${ProjectStatus[nextStatus]}. Transition is invalid.`, 'error');
+            showToast(`Cannot transition from ${ProjectStatus[project.status]} to ${ProjectStatus[nextStatus]}.`, 'error');
             return;
         }
         setPendingStatus(nextStatus);
@@ -173,10 +164,10 @@ const EditProject: React.FC = () => {
                     setProject({ ...project, status: pendingStatus });
                 }
                 setIsStatusConfirmOpen(false);
-                showToast(`Project status successfully updated to ${ProjectStatus[pendingStatus]}`, 'success');
+                showToast(`Project status updated to ${ProjectStatus[pendingStatus]}`, 'success');
             } catch (error) {
                 console.error('Failed to update project status:', error);
-                showToast('An error occurred while updating the status. Please try again.', 'error');
+                showToast('An error occurred while updating the status.', 'error');
             }
         }
     };
@@ -193,7 +184,7 @@ const EditProject: React.FC = () => {
         e.preventDefault();
         if (!id) return;
         if (isReadOnly) {
-            showToast(`This project is archived and cannot be modified by non-admins.`, 'warning');
+            showToast(`This project is archived and cannot be modified.`, 'warning');
             return;
         }
         setSubmitting(true);
@@ -214,7 +205,7 @@ const EditProject: React.FC = () => {
             setTimeout(() => navigate(`/projects/${id}`), 1500);
         } catch (error: any) {
             console.error('Failed to update project:', error);
-            showToast('Failed to update project details. Please try again.', 'error');
+            showToast('Failed to update project details.', 'error');
         } finally {
             setSubmitting(false);
         }
@@ -249,13 +240,13 @@ const EditProject: React.FC = () => {
                     />
                 }
             >
-                <div>
-                    <header style={{ marginBottom: '2.5rem', opacity: 0.6 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1rem', background: '#f8fafc', width: '200px', height: '16px' }}></div>
-                        <h1 style={{ margin: 0, fontSize: '2.25rem', fontWeight: 800, background: '#f1f5f9', width: '400px', height: '40px' }}>
-                            {location.state?.projectName ? `${location.state.projectName} - Configuration` : 'Loading Configuration...'}
-                        </h1>
-                    </header>
+                <div className="page-container">
+                    <div className="page-header">
+                        <div>
+                            <h1>Configuration</h1>
+                            <p>Loading project settings...</p>
+                        </div>
+                    </div>
                     <div style={{ padding: '4rem', textAlign: 'center' }}>
                         <div className="loader" style={{ margin: '0 auto 1.5rem' }}></div>
                     </div>
@@ -291,112 +282,111 @@ const EditProject: React.FC = () => {
                 />
             )}
 
-            <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '0 2rem 4rem' }}>
+            <div className="page-container">
+                {/* Page Header */}
+                <div className="page-header">
+                    <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                            <button
+                                onClick={() => navigate(`/projects/${id}`)}
+                                className="btn-ghost"
+                                style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    color: 'var(--accent-color)',
+                                    padding: 0,
+                                    font: 'inherit',
+                                    cursor: 'pointer',
+                                    fontSize: '0.8rem',
+                                    fontWeight: 600
+                                }}
+                            >
+                                Project Space
+                            </button>
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>/</span>
+                            <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', fontWeight: 600 }}>Configuration</span>
+                        </div>
+                        <h1>Project Configuration</h1>
+                        <p>Manage project identity, timeline, research fields, and status.</p>
+                    </div>
+                </div>
+
+                {/* Archive Warning Banner */}
                 {isArchived && (
-                    <div style={{
-                        marginBottom: '2rem',
-                        padding: '1.25rem 1.5rem',
-                        background: '#fff7ed',
-                        border: '1px solid',
-                        borderColor: '#ffedd5',
-                        borderRadius: '12px',
+                    <div className="card" style={{
+                        marginBottom: '1.5rem',
+                        padding: '1rem 1.25rem',
+                        background: 'var(--warning-bg)',
+                        border: '1px solid #FDE68A',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '16px',
-                        color: '#9a3412'
+                        gap: '14px',
+                        color: '#92400E'
                     }}>
-                        <ShieldAlert size={28} />
+                        <ShieldAlert size={24} />
                         <div>
-                            <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>Project Archived</h4>
-                            <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', opacity: 0.9 }}>
-                                This research initiative has been moved to archives. Configuration is typically locked.
-                                {isAdmin ? (
-                                    <strong> You have Administrative override permissions to modify this project.</strong>
-                                ) : (
-                                    <> <br />To make changes, you must first transition the status back to Active.</>
-                                )}
+                            <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 700, color: '#92400E' }}>Project Archived</h4>
+                            <p style={{ margin: '2px 0 0 0', fontSize: '0.82rem', opacity: 0.9 }}>
+                                {isAdmin
+                                    ? 'You have Administrative override to modify this project.'
+                                    : 'To make changes, transition the status back to Active first.'}
                             </p>
                         </div>
                     </div>
                 )}
-                {!isArchived && isReadOnly && ( // This condition will now only be true if isArchived is false, but isReadOnly is true, which is impossible with the new logic. This block will effectively not render.
-                    <div style={{
-                        marginBottom: '2rem',
+
+                {!isArchived && isReadOnly && (
+                    <div className="card" style={{
+                        marginBottom: '1.5rem',
                         padding: '1rem 1.25rem',
-                        background: '#f1f5f9',
-                        border: '1px solid #e2e8f0',
-                        borderRadius: '12px',
+                        background: 'var(--border-light)',
                         display: 'flex',
                         alignItems: 'center',
                         gap: '12px',
-                        color: '#475569'
+                        color: 'var(--text-secondary)'
                     }}>
                         <AlertCircle size={20} />
                         <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>
-                            Configuration View: You have read-only access to this project's settings.
+                            Read-only: You don't have permission to modify this project's settings.
                         </span>
                     </div>
                 )}
 
-                <header style={{
-                    marginBottom: '2rem',
-                    padding: '2rem 0',
-                    borderBottom: '1px solid #eef2f6',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center'
-                }}>
-                    <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--accent-color)', fontWeight: 600, fontSize: '0.85rem', marginBottom: '8px' }}>
-                            <Settings size={16} />
-                            <button
-                                onClick={() => navigate(`/projects/${id}`)}
-                                style={{ background: 'none', border: 'none', color: 'inherit', padding: 0, font: 'inherit', cursor: 'pointer', textTransform: 'uppercase' }}
-                            >
-                                Project Space
-                            </button>
-                            <span style={{ color: '#cbd5e1' }}>/</span>
-                            <span style={{ color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Configuration</span>
-                        </div>
-                        <h1 style={{ margin: 0, fontSize: '2.25rem', fontWeight: 800, letterSpacing: '-0.025em' }}>Configuration Project</h1>
-                    </div>
-                </header>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '2.5rem' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-                        {/* Summary Section */}
-                        <div className="card" style={{ padding: '2rem' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2rem' }}>
+                {/* Main Content */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '2rem' }}>
+                    {/* Left Column — Form */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                        {/* Project Identity Section */}
+                        <section className="card">
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                                 <div>
-                                    <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700 }}>Project Identity</h3>
-                                    <p style={{ margin: '4px 0 0 0', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Define the core vision and scope of the research.</p>
+                                    <h3 style={{ margin: 0 }}>Project Identity</h3>
+                                    <p style={{ margin: '4px 0 0', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Define the core vision and scope.</p>
                                 </div>
                                 <div style={{
-                                    padding: '8px 16px',
-                                    borderRadius: '12px',
-                                    background: '#f8fafc',
-                                    border: '1px solid #e2e8f0',
+                                    padding: '6px 14px',
+                                    borderRadius: 'var(--radius-sm)',
+                                    background: 'var(--surface-hover)',
+                                    border: '1px solid var(--border-color)',
                                     display: 'flex',
                                     alignItems: 'center',
-                                    gap: '12px'
+                                    gap: '10px'
                                 }}>
-                                    <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#64748b' }}>STATUS:</span>
+                                    <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)' }}>STATUS:</span>
                                     <div style={{ position: 'relative' }}>
                                         <select
                                             value={formData.status}
                                             onChange={(e) => handleStatusChange(parseInt(e.target.value))}
+                                            className="form-input"
                                             style={{
-                                                appearance: 'none',
-                                                padding: '6px 32px 6px 12px',
-                                                borderRadius: '8px',
-                                                border: '1px solid #cbd5e1',
-                                                background: 'white',
-                                                fontSize: '0.85rem',
+                                                padding: '4px 28px 4px 10px',
+                                                fontSize: '0.8rem',
                                                 fontWeight: 700,
                                                 color: getStatusStyle(formData.status).color,
-                                                cursor: 'pointer'
+                                                minWidth: '100px',
+                                                appearance: 'none'
                                             }}
-                                            disabled={isReadOnly && !isAdmin} // Disable if archived and not admin
+                                            disabled={isReadOnly && !isAdmin}
                                         >
                                             <option value={ProjectStatus.Active}>Active</option>
                                             <option value={ProjectStatus.Inactive}>Inactive</option>
@@ -405,16 +395,16 @@ const EditProject: React.FC = () => {
                                             )}
                                             <option value={ProjectStatus.Archived}>Archived</option>
                                         </select>
-                                        <ChevronDown size={14} style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+                                        <ChevronDown size={14} style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-muted)' }} />
                                     </div>
                                 </div>
                             </div>
 
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                                <div className="form-group">
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                                <div className="form-group" style={{ marginBottom: 0 }}>
                                     <label className="form-label" htmlFor="projectName">Project Name</label>
                                     <div style={{ position: 'relative' }}>
-                                        <Briefcase size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                                        <Briefcase size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                                         <input
                                             className="form-input"
                                             style={{ paddingLeft: '40px' }}
@@ -429,13 +419,13 @@ const EditProject: React.FC = () => {
                                     </div>
                                 </div>
 
-                                <div className="form-group">
+                                <div className="form-group" style={{ marginBottom: 0 }}>
                                     <label className="form-label" htmlFor="projectDescription">Description</label>
                                     <div style={{ position: 'relative' }}>
-                                        <FileText size={18} style={{ position: 'absolute', left: '12px', top: '12px', color: '#94a3b8' }} />
+                                        <FileText size={18} style={{ position: 'absolute', left: '12px', top: '12px', color: 'var(--text-muted)' }} />
                                         <textarea
                                             className="form-input"
-                                            style={{ paddingLeft: '40px', minHeight: '140px', resize: 'vertical' }}
+                                            style={{ paddingLeft: '40px', minHeight: '120px', resize: 'vertical' }}
                                             id="projectDescription"
                                             name="projectDescription"
                                             value={formData.projectDescription}
@@ -446,16 +436,16 @@ const EditProject: React.FC = () => {
                                     </div>
                                 </div>
                             </div>
-                        </div>
+                        </section>
 
-                        {/* Disciplines & Timeline */}
-                        <div className="card" style={{ padding: '2rem', opacity: isArchived ? 0.7 : 1 }}>
-                            <h3 style={{ marginTop: 0, marginBottom: '1.5rem', fontSize: '1.25rem', fontWeight: 700 }}>Operation Timeline</h3>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
-                                <div className="form-group">
-                                    <label className="form-label">Start Date</label>
+                        {/* Timeline & Fields Section */}
+                        <section className="card" style={{ opacity: isArchived ? 0.7 : 1 }}>
+                            <h3 style={{ margin: '0 0 1.25rem' }}>Operation Timeline</h3>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', marginBottom: '2rem' }}>
+                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                    <label className="form-label">Ngày bắt đầu dự kiến</label>
                                     <div style={{ position: 'relative' }}>
-                                        <Calendar size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                                        <Calendar size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                                         <input
                                             className="form-input"
                                             style={{ paddingLeft: '40px' }}
@@ -463,15 +453,14 @@ const EditProject: React.FC = () => {
                                             name="startDate"
                                             value={formData.startDate}
                                             onChange={handleInputChange}
-                                            required
                                             disabled={isReadOnly}
                                         />
                                     </div>
                                 </div>
-                                <div className="form-group">
-                                    <label className="form-label">End Date</label>
+                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                    <label className="form-label">Ngày kết thúc dự kiến</label>
                                     <div style={{ position: 'relative' }}>
-                                        <Calendar size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                                        <Calendar size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                                         <input
                                             className="form-input"
                                             style={{ paddingLeft: '40px' }}
@@ -485,56 +474,69 @@ const EditProject: React.FC = () => {
                                 </div>
                             </div>
 
-                            <h3 style={{ marginTop: '2rem', marginBottom: '1rem', fontSize: '1.25rem', fontWeight: 700 }}>Research Fields</h3>
+                            <h3 style={{ margin: '0 0 1rem' }}>Research Fields</h3>
+                            
+                            <div style={{ position: 'relative', marginBottom: '10px' }}>
+                                <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                                <input
+                                    type="text"
+                                    placeholder="Search research fields..."
+                                    className="form-input"
+                                    style={{ paddingLeft: '36px', height: '36px', fontSize: '0.85rem' }}
+                                    value={fieldSearchTerm}
+                                    onChange={(e) => setFieldSearchTerm(e.target.value)}
+                                    disabled={isArchived}
+                                />
+                            </div>
+
                             <div style={{
                                 display: 'flex',
                                 flexWrap: 'wrap',
-                                gap: '10px',
-                                padding: '1.25rem',
-                                background: '#f8fafc',
-                                borderRadius: '12px',
-                                border: '1px solid #e2e8f0'
+                                gap: '8px',
+                                padding: '1rem',
+                                background: 'var(--surface-hover)',
+                                borderRadius: 'var(--radius-sm)',
+                                border: '1px solid var(--border-color)',
+                                maxHeight: '200px',
+                                overflowY: 'auto'
                             }}>
-                                {availableFields.map((field) => (
-                                    <button
-                                        key={field.id}
-                                        type="button"
-                                        onClick={() => !isArchived && toggleField(field.id)}
-                                        style={{
-                                            padding: '6px 16px',
-                                            borderRadius: '20px',
-                                            fontSize: '0.85rem',
-                                            fontWeight: 600,
-                                            cursor: isArchived ? 'not-allowed' : 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '8px',
-                                            transition: 'all 0.2s',
-                                            background: selectedFieldIds.includes(field.id) ? 'var(--accent-color)' : 'white',
-                                            color: selectedFieldIds.includes(field.id) ? 'white' : 'var(--text-secondary)',
-                                            border: '1px solid',
-                                            borderColor: selectedFieldIds.includes(field.id) ? 'var(--accent-color)' : '#cbd5e1',
-                                            opacity: isArchived && !selectedFieldIds.includes(field.id) ? 0.5 : 1
-                                        }}
-                                        disabled={isArchived}
-                                    >
-                                        {selectedFieldIds.includes(field.id) ? <Check size={14} /> : <Plus size={14} />}
-                                        {field.name}
-                                    </button>
-                                ))}
+                                {availableFields
+                                    .filter(f => f.name.toLowerCase().includes(fieldSearchTerm.toLowerCase()))
+                                    .length > 0 ? (
+                                        availableFields
+                                            .filter(f => f.name.toLowerCase().includes(fieldSearchTerm.toLowerCase()))
+                                            .map((field) => (
+                                                <button
+                                                    key={field.id}
+                                                    type="button"
+                                                    onClick={() => !isArchived && toggleField(field.id)}
+                                                    className={`filter-chip ${selectedFieldIds.includes(field.id) ? 'active' : ''}`}
+                                                    style={{
+                                                        cursor: isArchived ? 'not-allowed' : 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '6px',
+                                                        opacity: isArchived && !selectedFieldIds.includes(field.id) ? 0.5 : 1
+                                                    }}
+                                                    disabled={isArchived}
+                                                >
+                                                    {selectedFieldIds.includes(field.id) ? <Check size={14} /> : <Plus size={14} />}
+                                                    {field.name}
+                                                </button>
+                                            ))
+                                    ) : (
+                                        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: '0 auto', padding: '10px' }}>
+                                            {availableFields.length > 0 ? "No fields match your search." : "Loading research fields..."}
+                                        </p>
+                                    )}
                             </div>
-                        </div>
+                        </section>
 
                         {/* Action Bar */}
-                        <div style={{
+                        <div className="card" style={{
                             display: 'flex',
                             justifyContent: 'flex-end',
-                            gap: '12px',
-                            background: 'white',
-                            padding: '1.5rem 2rem',
-                            borderRadius: '16px',
-                            border: '1px solid var(--border-color)',
-                            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)'
+                            gap: '12px'
                         }}>
                             <button
                                 type="button"
@@ -546,11 +548,7 @@ const EditProject: React.FC = () => {
                                 onClick={handleSubmit}
                                 className="btn btn-primary"
                                 style={{
-                                    minWidth: '180px',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: '8px',
+                                    minWidth: '170px',
                                     opacity: isArchived ? 0.5 : 1,
                                     cursor: isArchived ? 'not-allowed' : 'pointer'
                                 }}
@@ -561,46 +559,49 @@ const EditProject: React.FC = () => {
                         </div>
                     </div>
 
+                    {/* Right Column — Sidebar Info */}
                     <aside>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', position: 'sticky', top: 'calc(var(--header-height) + 2rem)' }}>
-                            {/* History & Meta Detail */}
-                            <div className="card" style={{ padding: '1.5rem', opacity: isArchived ? 0.8 : 1 }}>
-                                <h4 style={{ marginTop: 0, marginBottom: '1.25rem', fontSize: '1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <Activity size={18} color="var(--accent-color)" /> Project Timeline & Origin
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', position: 'sticky', top: 'calc(var(--header-height) + 2rem)' }}>
+                            {/* Project Timeline & Origin */}
+                            <div className="card" style={{ opacity: isArchived ? 0.8 : 1 }}>
+                                <h4 style={{ margin: '0 0 1.25rem', fontSize: '0.95rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <Activity size={18} color="var(--accent-color)" /> Project Timeline
                                 </h4>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                                     <div style={{ display: 'flex', gap: '12px' }}>
-                                        <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                            <User size={16} color="#64748b" />
+                                        <div className="avatar avatar-md" style={{ background: 'var(--border-light)', color: 'var(--text-secondary)' }}>
+                                            <User size={16} />
                                         </div>
                                         <div>
-                                            <p style={{ margin: 0, fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.05em' }}>Principal/Creator</p>
-                                            <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: 600 }}>{project?.NameProjectCreator || project?.createdBy || 'System Admin'}</p>
+                                            <p className="section-title" style={{ marginBottom: '2px' }}>Principal/Creator</p>
+                                            <p style={{ margin: 0, fontSize: '0.88rem', fontWeight: 600 }}>
+                                                {project?.NameProjectCreator || project?.createdBy || 'System Admin'}
+                                            </p>
                                         </div>
                                     </div>
                                     <div style={{ display: 'flex', gap: '12px' }}>
-                                        <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                            <Calendar size={16} color="#0ea5e9" />
+                                        <div className="avatar avatar-md" style={{ background: 'var(--info-bg)', color: 'var(--info)' }}>
+                                            <Calendar size={16} />
                                         </div>
                                         <div>
-                                            <p style={{ margin: 0, fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.05em' }}>Duration</p>
+                                            <p className="section-title" style={{ marginBottom: '2px' }}>Duration</p>
                                             <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600 }}>
-                                                {project?.startDate ? new Date(project.startDate).toLocaleDateString() : 'N/A'} - {project?.endDate ? new Date(project.endDate).toLocaleDateString() : 'Ongoing'}
+                                                {project?.startDate ? new Date(project.startDate).toLocaleDateString() : 'N/A'} — {project?.endDate ? new Date(project.endDate).toLocaleDateString() : 'Ongoing'}
                                             </p>
                                         </div>
                                     </div>
-                                    <div style={{ display: 'flex', gap: '12px', borderTop: '1px solid #f1f5f9', paddingTop: '1.25rem' }}>
-                                        <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                            <Clock size={16} color="#64748b" />
+                                    <div style={{ display: 'flex', gap: '12px', borderTop: '1px solid var(--border-light)', paddingTop: '1.25rem' }}>
+                                        <div className="avatar avatar-md" style={{ background: 'var(--border-light)', color: 'var(--text-secondary)' }}>
+                                            <Clock size={16} />
                                         </div>
                                         <div>
-                                            <p style={{ margin: 0, fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.05em' }}>System Log</p>
-                                            <p style={{ margin: 0, fontSize: '0.75rem', color: '#64748b' }}>
-                                                Created: {project?.createdAt ? new Date(project.createdAt).toLocaleString(undefined, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'N/A'}
+                                            <p className="section-title" style={{ marginBottom: '2px' }}>System Log</p>
+                                            <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                                                Created: {project?.createdAt ? new Date(project.createdAt).toLocaleString(undefined, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'N/A'}
                                                 {project?.NameProjectCreator && ` by ${project.NameProjectCreator}`}
                                             </p>
-                                            <p style={{ margin: 0, fontSize: '0.75rem', color: '#64748b' }}>
-                                                Modified: {project?.updatedAt ? new Date(project.updatedAt).toLocaleString(undefined, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Never'}
+                                            <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                                                Modified: {project?.updatedAt ? new Date(project.updatedAt).toLocaleString(undefined, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'Never'}
                                             </p>
                                         </div>
                                     </div>
@@ -609,50 +610,42 @@ const EditProject: React.FC = () => {
 
                             {/* Danger Zone */}
                             <div className="card" style={{
-                                padding: '1.5rem',
-                                background: canDeleteProject && !isArchived ? '#fff1f2' : '#f8fafc',
+                                background: canDeleteProject && !isArchived ? 'var(--danger-bg)' : 'var(--surface-hover)',
                                 border: '1px solid',
-                                borderColor: canDeleteProject && !isArchived ? '#ffe4e6' : '#e2e8f0',
+                                borderColor: canDeleteProject && !isArchived ? '#FECACA' : 'var(--border-color)',
                                 opacity: !canDeleteProject || isArchived ? 0.8 : 1
                             }}>
                                 <h4 style={{
-                                    marginTop: 0,
-                                    marginBottom: '0.75rem',
-                                    fontSize: '1rem',
-                                    color: canDeleteProject && !isArchived ? '#e11d48' : '#64748b',
+                                    margin: '0 0 0.75rem',
+                                    fontSize: '0.95rem',
+                                    color: canDeleteProject && !isArchived ? 'var(--danger)' : 'var(--text-secondary)',
                                     fontWeight: 700
                                 }}>Delete Project</h4>
 
                                 {!canDeleteProject ? (
-                                    <p style={{ fontSize: '0.85rem', color: '#64748b', lineHeight: 1.5, marginBottom: 0 }}>
-                                        Only the project's Principal/Lab Director or system administrators have the authorization to permanently delete projects.
+                                    <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 0 }}>
+                                        Only the project's Principal/Lab Director or system administrators can permanently delete projects.
                                     </p>
                                 ) : isArchived ? (
-                                    <p style={{ fontSize: '0.85rem', color: '#64748b', lineHeight: 1.5, marginBottom: 0 }}>
-                                        Archived projects are permanently preserved for historical audit and cannot be deleted. The record is locked.
+                                    <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 0 }}>
+                                        Archived projects are preserved for historical audit and cannot be deleted.
                                     </p>
                                 ) : (
                                     <>
-                                        <p style={{ fontSize: '0.85rem', color: '#9f1239', lineHeight: 1.5, marginBottom: '1.5rem' }}>
-                                            Once you delete a project, all its tasks, files and data will be gone forever. This action is not reversible.
+                                        <p style={{ fontSize: '0.82rem', color: '#991B1B', lineHeight: 1.5, marginBottom: '1rem' }}>
+                                            Once deleted, all tasks, files and data will be gone forever. This action is irreversible.
                                         </p>
                                         <button
                                             onClick={() => setIsDeleteConfirmOpen(true)}
                                             className="btn"
                                             style={{
                                                 width: '100%',
-                                                background: '#e11d48',
+                                                background: 'var(--danger)',
                                                 color: 'white',
-                                                border: 'none',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                gap: '8px',
-                                                fontWeight: 700,
-                                                cursor: 'pointer'
+                                                border: 'none'
                                             }}
                                         >
-                                            <Trash2 size={18} /> Permanently Delete Project
+                                            <Trash2 size={18} /> Delete Project
                                         </button>
                                     </>
                                 )}
@@ -677,7 +670,7 @@ const EditProject: React.FC = () => {
             >
                 <div style={{ display: 'flex', gap: '16px' }}>
                     <AlertCircle size={32} color="var(--accent-color)" style={{ flexShrink: 0 }} />
-                    <p style={{ margin: 0 }}>Transitioning space to <strong>{ProjectStatus[pendingStatus || 0]}</strong>. This update will be propagated to all researchers in real-time.</p>
+                    <p style={{ margin: 0 }}>Transitioning to <strong>{ProjectStatus[pendingStatus || 0]}</strong>. This update will be propagated to all researchers.</p>
                 </div>
             </Modal>
 
@@ -685,23 +678,23 @@ const EditProject: React.FC = () => {
             <Modal
                 isOpen={isDeleteConfirmOpen}
                 onClose={() => setIsDeleteConfirmOpen(false)}
-                title="Critical Destruction Order"
+                title="Delete Project"
                 variant="danger"
                 footer={(
                     <>
                         <button className="btn btn-secondary" onClick={() => setIsDeleteConfirmOpen(false)}>Cancel</button>
-                        <button className="btn" style={{ background: '#e11d48', color: 'white' }} onClick={handleDelete}>Delete Project</button>
+                        <button className="btn" style={{ background: 'var(--danger)', color: 'white' }} onClick={handleDelete}>Delete Project</button>
                     </>
                 )}
             >
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: '#e11d48' }}>
-                        <ShieldAlert size={32} />
-                        <strong style={{ fontSize: '1.1rem' }}>CONFIRM DELETE</strong>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: 'var(--danger)' }}>
+                        <ShieldAlert size={28} />
+                        <strong style={{ fontSize: '1rem' }}>Confirm Deletion</strong>
                     </div>
                     <p style={{ margin: 0, lineHeight: 1.6 }}>
-                        You are initiating a terminal operation to delete <strong>"{formData.projectName}"</strong>.
-                        This will result in irrevocable loss of all research data, task chains, and audit trails.
+                        You are about to permanently delete <strong>"{formData.projectName}"</strong>.
+                        All research data, tasks, and audit trails will be irreversibly lost.
                     </p>
                 </div>
             </Modal>

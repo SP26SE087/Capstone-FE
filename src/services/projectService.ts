@@ -2,38 +2,7 @@ import api from './api';
 import { Project } from '@/types';
 
 // Mock data to return if API fails or for initial development
-const mockProjects: Project[] = [
-    {
-        id: '1a2b3c4d-5e6f-7g8h-9i0j-1k2l3m4n5o6p',
-        projectName: 'AI Emotion Recognition',
-        projectDescription: 'Developing a real-time emotion recognition system using deep learning.',
-        startDate: '2024-01-15T00:00:00Z',
-        endDate: '2024-12-31T23:59:59Z',
-        status: 1, // Active
-        researchFields: [],
-        totalTasks: 45,
-        completedTasks: 30,
-        membersCount: 12,
-        members: [],
-        projectRole: 1, // LabDirector
-        roleName: 'Lab Director'
-    },
-    {
-        id: '2b3c4d5e-6f7g-8h9i-0j1k-2l3m4n5o6p7q',
-        projectName: 'Smart Lab Inventory',
-        projectDescription: 'IoT-based inventory management for lab equipment.',
-        startDate: '2024-03-01T00:00:00Z',
-        endDate: '2024-08-30T23:59:59Z',
-        status: 1, // Active
-        researchFields: [],
-        totalTasks: 100,
-        completedTasks: 15,
-        membersCount: 5,
-        members: [],
-        projectRole: 3, // Member
-        roleName: 'Member'
-    }
-];
+const mockProjects: Project[] = [];
 
 
 export const projectService = {

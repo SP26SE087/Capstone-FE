@@ -59,7 +59,7 @@ const PublicProjectDetails: React.FC = () => {
 
     if (loading) {
         return (
-            <MainLayout role="Visitor" userName="Guest">
+            <MainLayout role="Visitor" userName="Guest" hideSidebar={true}>
                 <div style={{ display: 'flex', justifyContent: 'center', padding: '5rem' }}>
                     <div className="loader"></div>
                     <p style={{ marginLeft: '1rem' }}>Bringing project history to light...</p>
@@ -70,7 +70,7 @@ const PublicProjectDetails: React.FC = () => {
 
     if (!project) {
         return (
-            <MainLayout role="Visitor" userName="Guest">
+            <MainLayout role="Visitor" userName="Guest" hideSidebar={true}>
                 <div style={{ textAlign: 'center', padding: '5rem' }}>
                     <h2>Project Not Found</h2>
                     <p>The project you are looking for might be private or does not exist.</p>
@@ -83,7 +83,7 @@ const PublicProjectDetails: React.FC = () => {
     const statusStyle = getProjectStatusStyle(project.status);
 
     return (
-        <MainLayout role="Visitor" userName="Guest">
+        <MainLayout role="Visitor" userName="Guest" hideSidebar={true}>
             <div style={{ maxWidth: '1000px', margin: '0 auto', paddingBottom: '5rem' }}>
                 <button
                     onClick={() => navigate(-1)}

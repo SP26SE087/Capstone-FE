@@ -785,6 +785,29 @@
                 }
             }
         },
+        "/api/projects/milestones/{milestoneId}/tasks": {
+            "get": {
+                "tags": [
+                    "Task"
+                ],
+                "parameters": [
+                    {
+                        "name": "milestoneId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
         "/api/projects/tasks/{taskId}/members": {
             "post": {
                 "tags": [
@@ -884,6 +907,18 @@
             }
         },
         "/api/test/token/LabDirector": {
+            "get": {
+                "tags": [
+                    "TestToken"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/api/test/token/Member": {
             "get": {
                 "tags": [
                     "TestToken"
@@ -1149,12 +1184,9 @@
                         "format": "date-time",
                         "nullable": true
                     },
-                    "tagIds": {
-                        "type": "array",
-                        "items": {
-                            "type": "string",
-                            "format": "uuid"
-                        },
+                    "milestoneId": {
+                        "type": "string",
+                        "format": "uuid",
                         "nullable": true
                     }
                 },
@@ -1430,12 +1462,9 @@
                         "format": "date-time",
                         "nullable": true
                     },
-                    "tagIds": {
-                        "type": "array",
-                        "items": {
-                            "type": "string",
-                            "format": "uuid"
-                        },
+                    "milestoneId": {
+                        "type": "string",
+                        "format": "uuid",
                         "nullable": true
                     }
                 },

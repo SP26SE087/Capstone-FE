@@ -11,21 +11,24 @@ import {
     Briefcase,
     AlertCircle,
     Plus,
-    Check
+    Check,
+    Search
 } from 'lucide-react';
+
+import { useAuth } from '@/hooks/useAuth';
 
 const CreateProject: React.FC = () => {
     const navigate = useNavigate();
+    const { user } = useAuth();
     const [submitting, setSubmitting] = useState(false);
     const [availableFields, setAvailableFields] = useState<ResearchField[]>([]);
     const [selectedFieldIds, setSelectedFieldIds] = useState<string[]>([]);
-
-    const today = new Date().toISOString().split('T')[0];
+    const [fieldSearchTerm, setFieldSearchTerm] = useState('');
 
     const [formData, setFormData] = useState({
         projectName: '',
         projectDescription: '',
-        startDate: today,
+        startDate: '',
         endDate: '',
     });
 
@@ -57,15 +60,14 @@ const CreateProject: React.FC = () => {
             // Helper to convert date input (YYYY-MM-DD) to ISO format (YYYY-MM-DDTHH:mm:ss.sssZ)
             const toIsoDate = (dateStr: string) => {
                 try {
-                    if (!dateStr) return new Date().toISOString();
-                    // If it's already an ISO string (contains T and Z), return as is
+                    if (!dateStr) return null;
                     if (dateStr.includes('T') && dateStr.endsWith('Z')) return dateStr;
 
                     const d = new Date(dateStr);
-                    if (isNaN(d.getTime())) return new Date().toISOString();
+                    if (isNaN(d.getTime())) return null;
                     return d.toISOString();
                 } catch (e) {
-                    return new Date().toISOString();
+                    return null;
                 }
             };
 
@@ -73,7 +75,7 @@ const CreateProject: React.FC = () => {
                 projectName: formData.projectName,
                 projectDescription: formData.projectDescription,
                 startDate: toIsoDate(formData.startDate),
-                endDate: toIsoDate(formData.endDate || formData.startDate),
+                endDate: toIsoDate(formData.endDate),
                 researchFieldIds: selectedFieldIds || []
             };
 
@@ -90,7 +92,7 @@ const CreateProject: React.FC = () => {
         }
     };
 
-    const user = { name: "Alex Rivera", role: "Lab Director" };
+
 
     return (
         <MainLayout role={user.role} userName={user.name}>
@@ -157,7 +159,7 @@ const CreateProject: React.FC = () => {
 
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }}>
                                 <div className="form-group" style={{ marginBottom: 0 }}>
-                                    <label className="form-label" htmlFor="startDate">Start Date</label>
+                                    <label className="form-label" htmlFor="startDate">Ngày bắt đầu dự kiến</label>
                                     <div style={{ position: 'relative' }}>
                                         <Calendar size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
                                         <input
@@ -168,12 +170,11 @@ const CreateProject: React.FC = () => {
                                             name="startDate"
                                             value={formData.startDate}
                                             onChange={handleInputChange}
-                                            required
                                         />
                                     </div>
                                 </div>
                                 <div className="form-group" style={{ marginBottom: 0 }}>
-                                    <label className="form-label" htmlFor="endDate">Expected End Date</label>
+                                    <label className="form-label" htmlFor="endDate">Ngày kết thúc dự kiến</label>
                                     <div style={{ position: 'relative' }}>
                                         <Calendar size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
                                         <input
@@ -191,6 +192,19 @@ const CreateProject: React.FC = () => {
 
                             <div>
                                 <label className="form-label">Research Fields (Select relevant areas)</label>
+                                
+                                <div style={{ position: 'relative', marginBottom: '10px' }}>
+                                    <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                                    <input
+                                        type="text"
+                                        placeholder="Search research fields..."
+                                        className="form-input"
+                                        style={{ paddingLeft: '36px', height: '36px', fontSize: '0.85rem' }}
+                                        value={fieldSearchTerm}
+                                        onChange={(e) => setFieldSearchTerm(e.target.value)}
+                                    />
+                                </div>
+
                                 <div style={{
                                     display: 'flex',
                                     flexWrap: 'wrap',
@@ -198,41 +212,57 @@ const CreateProject: React.FC = () => {
                                     padding: '1rem',
                                     background: '#f8f9fa',
                                     borderRadius: '12px',
-                                    border: '1px solid var(--border-color)'
+                                    border: '1px solid var(--border-color)',
+                                    maxHeight: '200px',
+                                    overflowY: 'auto'
                                 }}>
-                                    {availableFields.length > 0 ? availableFields.map((field) => (
-                                        <button
-                                            key={field.id}
-                                            type="button"
-                                            onClick={() => toggleField(field.id)}
-                                            style={{
-                                                padding: '8px 16px',
-                                                borderRadius: '20px',
-                                                fontSize: '0.85rem',
-                                                fontWeight: 500,
-                                                cursor: 'pointer',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '6px',
-                                                transition: 'all 0.2s',
-                                                background: selectedFieldIds.includes(field.id)
-                                                    ? 'var(--accent-color)'
-                                                    : 'white',
-                                                color: selectedFieldIds.includes(field.id)
-                                                    ? 'white'
-                                                    : 'var(--text-secondary)',
-                                                border: selectedFieldIds.includes(field.id)
-                                                    ? '1px solid var(--accent-color)'
-                                                    : '1px solid var(--border-color)',
-                                                boxShadow: selectedFieldIds.includes(field.id)
-                                                    ? '0 2px 4px rgba(42, 111, 151, 0.2)'
-                                                    : 'none'
-                                            }}
-                                        >
-                                            {selectedFieldIds.includes(field.id) ? <Check size={14} /> : <Plus size={14} />}
-                                            {field.name}
-                                        </button>
-                                    )) : <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>Loading research fields...</p>}
+                                    {availableFields.length > 0 ? (
+                                        availableFields
+                                            .filter(f => f.name.toLowerCase().includes(fieldSearchTerm.toLowerCase()))
+                                            .length > 0 ? (
+                                                availableFields
+                                                    .filter(f => f.name.toLowerCase().includes(fieldSearchTerm.toLowerCase()))
+                                                    .map((field) => (
+                                                        <button
+                                                            key={field.id}
+                                                            type="button"
+                                                            onClick={() => toggleField(field.id)}
+                                                            style={{
+                                                                padding: '8px 16px',
+                                                                borderRadius: '20px',
+                                                                fontSize: '0.85rem',
+                                                                fontWeight: 500,
+                                                                cursor: 'pointer',
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                gap: '6px',
+                                                                transition: 'all 0.2s',
+                                                                background: selectedFieldIds.includes(field.id)
+                                                                    ? 'var(--accent-color)'
+                                                                    : 'white',
+                                                                color: selectedFieldIds.includes(field.id)
+                                                                    ? 'white'
+                                                                    : 'var(--text-secondary)',
+                                                                border: selectedFieldIds.includes(field.id)
+                                                                    ? '1px solid var(--accent-color)'
+                                                                    : '1px solid var(--border-color)',
+                                                                boxShadow: selectedFieldIds.includes(field.id)
+                                                                    ? '0 2px 4px rgba(42, 111, 151, 0.2)'
+                                                                    : 'none'
+                                                            }}
+                                                        >
+                                                            {selectedFieldIds.includes(field.id) ? <Check size={14} /> : <Plus size={14} />}
+                                                            {field.name}
+                                                        </button>
+                                                    ))
+                                            ) : (
+                                                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: '0 auto', padding: '10px' }}>
+                                                    No fields match your search.
+                                                </p>
+                                            )
+                                    ) : (
+                                        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>Loading research fields...</p>
+                                    )}
                                 </div>
                                 <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '8px' }}>
                                     * Only Administrators can create new research fields. Contact admin if a field is missing.

@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import MainLayout from '@/layout/MainLayout';
-import { projectService, milestoneService, membershipService, taskService } from '@/services';
+import { projectService, milestoneService, membershipService, taskService, researchFieldService } from '@/services';
 import ProjectSidebar from '@/components/navigation/ProjectSidebar';
-import { Project, ProjectStatus, Milestone, Task, TaskStatus } from '@/types';
+import { Project, ProjectStatus, Milestone, MilestoneStatus, Task, TaskStatus, ResearchField } from '@/types';
 import { getProjectStatusStyle } from '@/utils/projectUtils';
-
+import Modal from '@/components/common/Modal';
+import Toast, { ToastType } from '@/components/common/Toast';
+import { useAuth } from '@/hooks/useAuth';
 
 import {
     Users,
@@ -15,7 +17,17 @@ import {
     Clock,
     ShieldAlert,
     Plus,
-    Activity
+    Activity,
+    ArrowLeft,
+    Save,
+    FileText,
+    Briefcase,
+    Check,
+    Trash2,
+    ChevronDown,
+    Calendar,
+    User,
+    Search
 } from 'lucide-react';
 import { ProjectRoleEnum } from '@/types/project';
 import MilestoneItem from '@/components/milestone/MilestoneItem';
@@ -23,10 +35,15 @@ import TaskItem from '@/components/task/TaskItem';
 import KanbanBoard from '@/features/tasks/KanbanBoard';
 import TaskFormModal from '@/features/tasks/TaskFormModal';
 import TaskDetailModal from '@/features/tasks/TaskDetailModal';
+import MilestoneFormModal from '@/features/milestones/MilestoneFormModal';
+import MilestoneDetailModal from '@/features/milestones/MilestoneDetailModal';
+
+type ActiveTab = 'home' | 'milestones' | 'members' | 'tasks' | 'settings';
 
 const ProjectDetails: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
+    const { user: currentUser } = useAuth();
 
     const [project, setProject] = useState<Project | null>(null);
     const [currentMember, setCurrentMember] = useState<any>(null);
@@ -36,31 +53,62 @@ const ProjectDetails: React.FC = () => {
 
     const location = useLocation();
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState<'home' | 'milestones' | 'members' | 'tasks'>(location.state?.activeTab || 'home');
+    const [activeTab, setActiveTab] = useState<ActiveTab>(location.state?.activeTab || 'home');
     const [taskView, setTaskView] = useState<'list' | 'board'>('board');
     const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
     const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+    const [editingTask, setEditingTask] = useState<Task | null>(null);
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+    const [isMilestoneModalOpen, setIsMilestoneModalOpen] = useState(false);
+    const [isMilestoneDetailOpen, setIsMilestoneDetailOpen] = useState(false);
+    const [selectedMilestoneId, setSelectedMilestoneId] = useState<string | null>(null);
+    const [editingMilestone, setEditingMilestone] = useState<Milestone | null>(null);
+
+    // ─── Task Search & Filter State ──────────────────────────────────────────
+    const [taskSearchQuery, setTaskSearchQuery] = useState('');
+    const [taskStatusFilter, setTaskStatusFilter] = useState<string>('all');
+    const [taskPriorityFilter, setTaskPriorityFilter] = useState<string>('all');
+
+    // ─── Milestone Search & Filter State ──────────────────────────────────────
+    const [milestoneSearchQuery, setMilestoneSearchQuery] = useState('');
+    const [milestoneStatusFilter, setMilestoneStatusFilter] = useState<string>('all');
+
+    // ─── Configuration (Settings) State ───────────────────────────────────────
+    const [availableFields, setAvailableFields] = useState<ResearchField[]>([]);
+    const [selectedFieldIds, setSelectedFieldIds] = useState<string[]>([]);
+    const [submitting, setSubmitting] = useState(false);
+    const [formData, setFormData] = useState({
+        projectName: '',
+        projectDescription: '',
+        startDate: '',
+        endDate: '',
+        status: ProjectStatus.Active
+    });
+    const [isStatusConfirmOpen, setIsStatusConfirmOpen] = useState(false);
+    const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+    const [pendingStatus, setPendingStatus] = useState<ProjectStatus | null>(null);
+    const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+
+    const showToast = (message: string, type: ToastType = 'info') => {
+        setToast({ message, type });
+    };
+    // ──────────────────────────────────────────────────────────────────────────
 
     useEffect(() => {
         const fetchData = async () => {
             if (!id) return;
             setLoading(true);
             try {
-                // 1. Get detailed member info first to check if user has access
                 const memberInfo = await projectService.getCurrentMember(id);
                 console.log("Current Member Info:", memberInfo);
 
-                // 2. Check if user is a member of this project
                 if (!memberInfo || !memberInfo.projectRole) {
-                    console.log("User is not a member of this project, redirecting to explore view");
                     navigate(`/explore/projects/${id}`, { replace: true });
                     return;
                 }
 
                 setCurrentMember(memberInfo);
 
-                // 3. Get Project Detail
                 const projectData = await projectService.getById(id);
 
                 if (!projectData) {
@@ -71,16 +119,27 @@ const ProjectDetails: React.FC = () => {
 
                 setProject(projectData);
 
-                // 4. Fetch the rest of the workspace data
-                const [milestonesData, membersData, tasksData] = await Promise.all([
+                // Sync form data for settings tab
+                setFormData({
+                    projectName: projectData.projectName || (projectData as any).name || '',
+                    projectDescription: projectData.projectDescription || (projectData as any).description || '',
+                    startDate: projectData.startDate ? new Date(projectData.startDate).toISOString().split('T')[0] : '',
+                    endDate: projectData.endDate ? new Date(projectData.endDate).toISOString().split('T')[0] : '',
+                    status: projectData.status
+                });
+                setSelectedFieldIds(projectData.researchFields?.map(f => f.id) || []);
+
+                const [milestonesData, membersData, tasksData, fieldsData] = await Promise.all([
                     milestoneService.getByProject(id),
                     membershipService.getProjectMembers(id),
-                    taskService.getByProject(id)
+                    taskService.getByProject(id),
+                    researchFieldService.getAll()
                 ]);
 
-                setMilestones(projectData.milestones?.length ? projectData.milestones : milestonesData);
-                setMembers(projectData.members?.length ? projectData.members : membersData);
-                setTasks(projectData.tasks?.length ? projectData.tasks : tasksData);
+                setMilestones(milestonesData.length ? milestonesData : (projectData.milestones || []));
+                setMembers(membersData.length ? membersData : (projectData.members || []));
+                setTasks(tasksData.length ? tasksData : (projectData.tasks || []));
+                setAvailableFields(fieldsData);
             } catch (error) {
                 console.error('Failed to fetch project workspace data:', error);
             } finally {
@@ -100,57 +159,171 @@ const ProjectDetails: React.FC = () => {
         }
     };
 
+    const refetchMilestones = async () => {
+        if (!id) return;
+        try {
+            const milestonesData = await milestoneService.getByProject(id);
+            setMilestones(milestonesData);
+        } catch (error) {
+            console.error('Failed to refetch milestones:', error);
+        }
+    };
+
+    const handleMilestoneSubmit = async (milestoneData: any) => {
+        try {
+            if (editingMilestone) {
+                await milestoneService.update(editingMilestone.id, { ...milestoneData, projectId: id });
+                showToast('Milestone updated successfully!', 'success');
+            } else {
+                await milestoneService.create({ ...milestoneData, projectId: id });
+                showToast('Milestone created successfully!', 'success');
+            }
+            await refetchMilestones();
+            setIsMilestoneModalOpen(false);
+            setEditingMilestone(null);
+        } catch (error) {
+            console.error('Failed to save milestone:', error);
+            showToast('Failed to save milestone.', 'error');
+        }
+    };
+
+    const handleMilestoneClick = (milestone: Milestone) => {
+        setSelectedMilestoneId(milestone.id);
+        setIsMilestoneDetailOpen(true);
+    };
+
+
     const handleTaskClick = (task: Task) => {
         setSelectedTaskId(task.id);
         setIsDetailModalOpen(true);
     };
 
-    const handleTaskFormSubmit = async (taskData: any) => {
+    const handleTaskSubmit = async (taskData: any) => {
         try {
-            await taskService.create({ ...taskData, projectId: id });
+            if (editingTask) {
+                await taskService.update(editingTask.id, { ...taskData, projectId: id });
+                showToast('Research activity updated successfully!', 'success');
+            } else {
+                await taskService.create({ ...taskData, projectId: id });
+                showToast('Research activity registered successfully!', 'success');
+            }
             await refetchTasks();
             setIsTaskModalOpen(false);
+            setEditingTask(null);
         } catch (error) {
-            console.error('Failed to create task:', error);
-            alert('Failed to register research activity.');
+            console.error('Failed to save task:', error);
+            showToast('Failed to save research activity.', 'error');
         }
     };
 
-    const user = {
-        id: "mock-user-id",
-        name: "Current User",
-        role: "Researcher"
-    };
 
-    // Base permissions on projectRole from getCurrentMember or projectData
     const projectRoleValue = currentMember?.projectRole || project?.projectRole;
-
-    const isAdmin = user.role === 'Admin';
+    const isAdmin = currentUser.role === 'Admin';
     const canManageProject = isAdmin ||
         (Number(projectRoleValue) === ProjectRoleEnum.Leader) ||
         (Number(projectRoleValue) === ProjectRoleEnum.LabDirector);
+    const canDeleteProject = isAdmin || (Number(projectRoleValue) === ProjectRoleEnum.LabDirector);
+    const isArchived = project?.status === ProjectStatus.Archived;
+    const isReadOnly = (isArchived && !isAdmin) || !canManageProject;
+
+    // ─── Configuration Handlers ────────────────────────────────────────────────
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const isValidTransition = (currentStatus: ProjectStatus, newStatus: ProjectStatus): boolean => {
+        switch (currentStatus) {
+            case ProjectStatus.Active: return [ProjectStatus.Inactive, ProjectStatus.Completed, ProjectStatus.Archived].includes(newStatus);
+            case ProjectStatus.Inactive: return [ProjectStatus.Active, ProjectStatus.Archived].includes(newStatus);
+            case ProjectStatus.Completed: return newStatus === ProjectStatus.Archived;
+            case ProjectStatus.Archived: return newStatus === ProjectStatus.Active;
+            default: return false;
+        }
+    };
+
+    const handleStatusChange = (newStatus: number) => {
+        if (!project) return;
+        const nextStatus = newStatus as ProjectStatus;
+        if (isReadOnly && !isAdmin) { showToast('You do not have permission to change the status.', 'error'); return; }
+        if (!isValidTransition(project.status, nextStatus)) { showToast(`Cannot transition from ${ProjectStatus[project.status]} to ${ProjectStatus[nextStatus]}.`, 'error'); return; }
+        setPendingStatus(nextStatus);
+        setIsStatusConfirmOpen(true);
+    };
+
+    const confirmStatusChange = async () => {
+        if (pendingStatus !== null && id) {
+            try {
+                await projectService.updateStatus(id, pendingStatus);
+                setFormData(prev => ({ ...prev, status: pendingStatus }));
+                setProject(prev => prev ? { ...prev, status: pendingStatus } : prev);
+                setIsStatusConfirmOpen(false);
+                showToast(`Project status updated to ${ProjectStatus[pendingStatus]}`, 'success');
+            } catch {
+                showToast('An error occurred while updating the status.', 'error');
+            }
+        }
+    };
+
+    const toggleField = (fieldId: string) => {
+        setSelectedFieldIds(prev =>
+            prev.includes(fieldId) ? prev.filter(x => x !== fieldId) : [...prev, fieldId]
+        );
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!id || isReadOnly) return;
+        setSubmitting(true);
+        try {
+            const updateData = {
+                projectId: id,
+                projectName: formData.projectName,
+                projectDescription: formData.projectDescription,
+                startDate: formData.startDate ? new Date(formData.startDate).toISOString() : null,
+                endDate: formData.endDate ? new Date(formData.endDate).toISOString() : null,
+                researchFieldIds: selectedFieldIds
+            };
+            await projectService.update(updateData);
+            showToast('Project details updated successfully!', 'success');
+            const updated = await projectService.getById(id);
+            if (updated) setProject(updated);
+        } catch {
+            showToast('Failed to update project details.', 'error');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!id) return;
+        try {
+            await projectService.delete(id);
+            showToast('Project deleted successfully.', 'info');
+            setTimeout(() => navigate('/projects'), 1000);
+        } catch {
+            showToast('Failed to delete project.', 'error');
+        } finally {
+            setIsDeleteConfirmOpen(false);
+        }
+    };
+    // ──────────────────────────────────────────────────────────────────────────
+
+    const getStatusStyle = (status: ProjectStatus) => getProjectStatusStyle(status);
 
     if (loading) {
         return (
             <MainLayout
-                role={user.role}
-                userName={user.name}
-                customSidebar={<ProjectSidebar projectId={id || ''} projectName={project?.projectName || (project as any)?.name || location.state?.projectName || 'Project Workspace'} activeTab={activeTab} onTabChange={setActiveTab} roleName={currentMember?.roleName || currentMember?.projectRoleName || project?.roleName} />}
+                role={currentUser.role}
+                userName={currentUser.name}
+                customSidebar={<ProjectSidebar projectId={id || ''} projectName={project?.projectName || location.state?.projectName || 'Project Workspace'} activeTab={activeTab} onTabChange={setActiveTab} roleName={currentMember?.roleName} />}
             >
                 <div style={{ padding: '0' }}>
-                    <div style={{
-                        background: 'white',
-                        borderBottom: '1px solid var(--border-color)',
-                        padding: '1.5rem 2rem',
-                        margin: '-1.5rem -2rem 2rem',
-                        opacity: 0.7
-                    }}>
+                    <div style={{ background: 'white', borderBottom: '1px solid var(--border-color)', padding: '1.5rem 2rem', margin: '-1.5rem -2rem 2rem', opacity: 0.7 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
                             <div style={{ width: '64px', height: '64px', borderRadius: '16px', background: '#f1f5f9' }}></div>
                             <div>
-                                <h1 style={{ margin: 0, fontSize: '1.5rem', color: '#e2e8f0' }}>
-                                    {location.state?.projectName || 'Loading Project...'}
-                                </h1>
+                                <h1 style={{ margin: 0, fontSize: '1.5rem', color: '#e2e8f0' }}>{location.state?.projectName || 'Loading Project...'}</h1>
                                 <div style={{ height: '16px', width: '150px', background: '#f8fafc', marginTop: '8px' }}></div>
                             </div>
                         </div>
@@ -178,133 +351,154 @@ const ProjectDetails: React.FC = () => {
         );
     }
 
+    const filteredTasks = tasks.filter(task => {
+        const matchesSearch = task.name.toLowerCase().includes(taskSearchQuery.toLowerCase()) ||
+            (task.description?.toLowerCase().includes(taskSearchQuery.toLowerCase()) || false);
+        const matchesStatus = taskStatusFilter === 'all' || task.status.toString() === taskStatusFilter;
+        const matchesPriority = taskPriorityFilter === 'all' || task.priority.toString() === taskPriorityFilter;
+        return matchesSearch && matchesStatus && matchesPriority;
+    });
 
-
-    const getStatusStyle = (status: ProjectStatus) => {
-        return getProjectStatusStyle(status);
-    };
+    const filteredMilestones = milestones.filter(m => {
+        const matchesSearch = m.name.toLowerCase().includes(milestoneSearchQuery.toLowerCase()) ||
+            (m.description?.toLowerCase().includes(milestoneSearchQuery.toLowerCase()) || false);
+        const matchesStatus = milestoneStatusFilter === 'all' || m.status.toString() === milestoneStatusFilter;
+        return matchesSearch && matchesStatus;
+    });
 
     return (
         <MainLayout
-            role={user.role}
-            userName={user.name}
-            customSidebar={<ProjectSidebar projectId={id || ''} projectName={project.projectName} activeTab={activeTab} onTabChange={(tab: any) => setActiveTab(tab)} roleName={currentMember?.roleName || currentMember?.projectRoleName || project?.roleName} />}
+            role={currentUser.role}
+            userName={currentUser.name}
+            customSidebar={
+                <ProjectSidebar
+                    projectId={id || ''}
+                    projectName={project.projectName}
+                    activeTab={activeTab}
+                    onTabChange={(tab: any) => setActiveTab(tab)}
+                    roleName={currentMember?.roleName || currentMember?.projectRoleName || project?.roleName}
+                />
+            }
         >
+            {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+
             <div style={{ padding: '0' }}>
-                {/* Internal Header */}
+                {/* ─── Shared Project Header ──────────────────────────────── */}
                 <div style={{
                     background: 'white',
                     borderBottom: '1px solid var(--border-color)',
                     padding: '1.5rem 2rem',
                     margin: '-1.5rem -2rem 2rem'
                 }}>
+                    {/* Back link */}
+                    <button
+                        onClick={() => navigate('/projects')}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: '8px',
+                            background: 'none', border: 'none',
+                            color: 'var(--text-secondary)', cursor: 'pointer',
+                            marginBottom: '1.25rem', padding: 0,
+                            fontSize: '0.9rem', fontWeight: 600
+                        }}
+                    >
+                        <ArrowLeft size={16} /> Back to Researcher Space
+                    </button>
+
+                    {/* Project title row */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
                             <div style={{
-                                width: '64px',
-                                height: '64px',
-                                borderRadius: '16px',
+                                width: '64px', height: '64px', borderRadius: '16px',
                                 background: 'linear-gradient(135deg, var(--primary-color) 0%, #4f46e5 100%)',
-                                color: 'white',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                fontWeight: 700,
-                                fontSize: '1.5rem'
+                                color: 'white', display: 'flex', alignItems: 'center',
+                                justifyContent: 'center', fontWeight: 700, fontSize: '1.5rem'
                             }}>
-                                {(project.projectName || (project as any).name || 'P').charAt(0)}
+                                {(project.projectName || 'P').charAt(0)}
                             </div>
                             <div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
-                                    <h1 style={{ margin: 0, fontSize: '1.5rem' }}>{project.projectName || (project as any).name || 'Untitled Project'}</h1>
+                                    <h1 style={{ margin: 0, fontSize: '1.5rem' }}>{project.projectName}</h1>
                                     <span style={{
-                                        fontSize: '0.7rem',
-                                        padding: '4px 10px',
-                                        borderRadius: '20px',
+                                        fontSize: '0.7rem', padding: '4px 10px', borderRadius: '20px',
                                         background: getStatusStyle(project.status).bg,
                                         color: getStatusStyle(project.status).color,
-                                        fontWeight: 600,
-                                        textTransform: 'uppercase'
+                                        fontWeight: 600, textTransform: 'uppercase'
                                     }}>{getStatusStyle(project.status).label}</span>
                                 </div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '15px', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
                                     <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                         <Clock size={14} />
-                                        {project.createdAt ? `Created ${new Date(project.createdAt).toLocaleString(undefined, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })}` : 'Established N/A'}
+                                        {project.createdAt ? `Created ${new Date(project.createdAt).toLocaleString(undefined, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}` : 'Established N/A'}
                                         {project.NameProjectCreator && ` by ${project.NameProjectCreator}`}
                                     </span>
-                                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Users size={14} /> {members.length} Active Members</span>
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <Users size={14} /> {members.length} Active Members
+                                    </span>
                                 </div>
                             </div>
                         </div>
 
                         <div style={{ display: 'flex', gap: '10px' }}>
-                            {canManageProject && (
+                            {canManageProject && activeTab !== 'settings' && (
                                 <button
                                     className="btn btn-primary"
-                                    onClick={() => navigate(`/projects/edit/${id}`)}
-                                    style={{
-                                        opacity: project.status === ProjectStatus.Archived && !isAdmin ? 0.7 : 1,
-                                        display: 'flex',
-                                        alignItems: 'center'
-                                    }}
+                                    onClick={() => setActiveTab('settings')}
+                                    style={{ opacity: isArchived && !isAdmin ? 0.7 : 1, display: 'flex', alignItems: 'center' }}
                                 >
                                     <Settings size={18} style={{ marginRight: '8px' }} />
-                                    {project.status === ProjectStatus.Archived && !isAdmin ? 'View Configuration' : 'Configuration Project'}
+                                    {isArchived && !isAdmin ? 'View Configuration' : 'Configuration'}
                                 </button>
                             )}
-                            <button className="btn btn-outline" style={{ display: 'flex', alignItems: 'center' }}>
-                                <Activity size={18} style={{ marginRight: '8px' }} /> Export Reports
-                            </button>
+                            {activeTab !== 'settings' && (
+                                <button className="btn btn-outline" style={{ display: 'flex', alignItems: 'center' }}>
+                                    <Activity size={18} style={{ marginRight: '8px' }} /> Export Reports
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>
 
-                {project.status === ProjectStatus.Archived && (
+                {/* ─── Archive Banner ─────────────────────────────────────── */}
+                {isArchived && (
                     <div style={{
-                        margin: '0 2rem 1.5rem',
-                        padding: '1rem 1.5rem',
-                        background: '#fff7ed',
-                        border: '1px solid',
-                        borderColor: '#ffedd5',
-                        borderRadius: '12px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '12px',
-                        color: '#c2410c'
+                        marginBottom: '1.5rem', padding: '1rem 1.5rem',
+                        background: '#fff7ed', border: '1px solid #ffedd5', borderRadius: '12px',
+                        display: 'flex', alignItems: 'center', gap: '12px', color: '#c2410c'
                     }}>
                         <ShieldAlert size={20} />
                         <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>
-                            This project is <strong>Archived</strong>.
-                            Workspace is archived for historical preservation.
+                            This project is <strong>Archived</strong>. Workspace is archived for historical preservation.
                             {isAdmin ? ' Since you are an ADMIN, you still have full access.' : ' Configuration and activities are locked.'}
                         </span>
                     </div>
                 )}
 
-                {/* Workspace Content */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 300px', gap: '2rem' }}>
+                {/* ─── Main Layout ─────────────────────────────────────────── */}
+                <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: activeTab === 'tasks' || activeTab === 'members' || activeTab === 'milestones' ? '1fr' : 'minmax(0, 1fr) 300px',
+                    gap: '2rem'
+                }}>
+
+                    {/* Left column — tab content */}
                     <div style={{ minWidth: 0 }}>
+
+                        {/* ── HOME ──────────────────────────────────────────── */}
                         {activeTab === 'home' && (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                                 <section className="card">
-                                    <div style={{ flex: 2 }}>
-                                        <h4 style={{ margin: '0 0 1rem 0', color: 'var(--text-secondary)', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Description</h4>
-                                        <p style={{ margin: 0, lineHeight: '1.7', color: '#475569' }}>
-                                            {project.projectDescription || "No description provided."}
-                                        </p>
-                                    </div>
+                                    <h4 style={{ margin: '0 0 1rem 0', color: 'var(--text-secondary)', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Description</h4>
+                                    <p style={{ margin: 0, lineHeight: '1.7', color: '#475569' }}>
+                                        {project.projectDescription || "No description provided."}
+                                    </p>
                                     <div style={{ marginTop: '1.5rem', borderTop: '1px solid var(--border-color)', paddingTop: '1.5rem' }}>
                                         <h4 style={{ marginBottom: '1rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>RESEARCH FIELDS</h4>
                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                                             {project.researchFields?.map((field, index) => (
                                                 <span key={field.id || index} style={{
-                                                    padding: '6px 12px',
-                                                    background: '#f8fafc',
-                                                    border: '1px solid #e2e8f0',
-                                                    borderRadius: '20px',
-                                                    fontSize: '0.8rem',
-                                                    fontWeight: 500
+                                                    padding: '6px 12px', background: '#f8fafc',
+                                                    border: '1px solid #e2e8f0', borderRadius: '20px',
+                                                    fontSize: '0.8rem', fontWeight: 500
                                                 }}>
                                                     {field.name}
                                                 </span>
@@ -317,11 +511,7 @@ const ProjectDetails: React.FC = () => {
                                     <section className="card">
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                                             <h4 style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Recent Tasks</h4>
-                                            <button
-                                                className="btn btn-text"
-                                                style={{ fontSize: '0.8rem' }}
-                                                onClick={() => setActiveTab('tasks')}
-                                            >View All</button>
+                                            <button className="btn btn-text" style={{ fontSize: '0.8rem' }} onClick={() => setActiveTab('tasks')}>View All</button>
                                         </div>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                             {tasks.slice(0, 3).map(task => (
@@ -354,29 +544,111 @@ const ProjectDetails: React.FC = () => {
                             </div>
                         )}
 
+                        {/* ── MILESTONES ────────────────────────────────────── */}
                         {activeTab === 'milestones' && (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <div>
                                         <h2 style={{ margin: 0 }}>Research Roadmap</h2>
-                                        <p style={{ color: 'var(--text-secondary)', margin: 0 }}>Visualizing the phases and critical path of this project.</p>
+                                        <p style={{ color: 'var(--text-secondary)', margin: 0 }}>Phases and critical path for this research project.</p>
                                     </div>
-                                    <button className="btn btn-outline" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <Plus size={18} /> Add Milestone
+                                    <button
+                                        className="btn btn-primary"
+                                        style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                                        onClick={() => setIsMilestoneModalOpen(true)}
+                                    >
+                                        <Plus size={18} /> New Phase
                                     </button>
                                 </div>
+
+                                <div style={{
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '1.25rem',
+                                    background: '#f8fafc',
+                                    padding: '1.5rem',
+                                    borderRadius: '16px',
+                                    border: '1px solid #e2e8f0'
+                                }}>
+                                    <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                                        <div style={{ position: 'relative', flex: 1, minWidth: '200px' }}>
+                                            <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                                            <input
+                                                type="text"
+                                                placeholder="Search phases by name or description..."
+                                                value={milestoneSearchQuery}
+                                                onChange={(e) => setMilestoneSearchQuery(e.target.value)}
+                                                style={{
+                                                    width: '100%',
+                                                    padding: '0.75rem 1rem 0.75rem 2.5rem',
+                                                    borderRadius: '12px',
+                                                    border: '1.5px solid #e2e8f0',
+                                                    fontSize: '0.9rem',
+                                                    outline: 'none',
+                                                    transition: 'border-color 0.2s',
+                                                    background: 'white'
+                                                }}
+                                            />
+                                        </div>
+
+                                        <select
+                                            value={milestoneStatusFilter}
+                                            onChange={(e) => setMilestoneStatusFilter(e.target.value)}
+                                            style={{
+                                                padding: '0.75rem 1rem',
+                                                borderRadius: '12px',
+                                                border: '1.5px solid #e2e8f0',
+                                                background: 'white',
+                                                fontWeight: 600,
+                                                fontSize: '0.85rem',
+                                                minWidth: '160px',
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            <option value="all">Any Status</option>
+                                            <option value={MilestoneStatus.NotStarted.toString()}>Not Started</option>
+                                            <option value={MilestoneStatus.InProgress.toString()}>In Progress</option>
+                                            <option value={MilestoneStatus.Completed.toString()}>Completed</option>
+                                            <option value={MilestoneStatus.OnHold.toString()}>On Hold</option>
+                                            <option value={MilestoneStatus.Cancelled.toString()}>Cancelled</option>
+                                        </select>
+
+                                        <button
+                                            onClick={() => {
+                                                setMilestoneSearchQuery('');
+                                                setMilestoneStatusFilter('all');
+                                            }}
+                                            style={{
+                                                padding: '0.75rem 1.25rem',
+                                                background: 'white',
+                                                border: '1.5px solid #e2e8f0',
+                                                borderRadius: '12px',
+                                                color: '#64748b',
+                                                fontWeight: 700,
+                                                fontSize: '0.85rem',
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            Reset Filters
+                                        </button>
+                                    </div>
+                                </div>
+
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                    {milestones.length > 0 ? milestones.map(milestone => (
-                                        <MilestoneItem key={milestone.id} milestone={milestone} />
+                                    {filteredMilestones.length > 0 ? filteredMilestones.map(milestone => (
+                                        <MilestoneItem key={milestone.id} milestone={milestone} onClick={handleMilestoneClick} />
                                     )) : (
                                         <div className="card" style={{ textAlign: 'center', padding: '3rem' }}>
-                                            <p style={{ color: 'var(--text-secondary)' }}>No milestones have been defined for this research project.</p>
+                                            <p style={{ color: 'var(--text-secondary)' }}>
+                                                {milestones.length === 0 ? "No milestones have been defined for this research project." : "No milestones match your search criteria."}
+                                            </p>
                                         </div>
                                     )}
                                 </div>
                             </div>
                         )}
 
+                        {/* ── MEMBERS ───────────────────────────────────────── */}
                         {activeTab === 'members' && (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -392,16 +664,9 @@ const ProjectDetails: React.FC = () => {
                                     {members.length > 0 ? members.map((member, index) => (
                                         <div key={member.id || member.memberId || index} className="card" style={{ display: 'flex', alignItems: 'center', gap: '15px', padding: '1.25rem' }}>
                                             <div style={{
-                                                width: '48px',
-                                                height: '48px',
-                                                borderRadius: '50%',
-                                                background: '#f1f5f9',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                fontSize: '1.1rem',
-                                                fontWeight: 600,
-                                                color: 'var(--primary-color)'
+                                                width: '48px', height: '48px', borderRadius: '50%',
+                                                background: '#f1f5f9', display: 'flex', alignItems: 'center',
+                                                justifyContent: 'center', fontSize: '1.1rem', fontWeight: 600, color: 'var(--primary-color)'
                                             }}>{(member.fullName || member.userName)?.charAt(0) || 'U'}</div>
                                             <div style={{ flex: 1 }}>
                                                 <h4 style={{ margin: 0, fontSize: '1rem' }}>{member.fullName || member.userName}</h4>
@@ -409,12 +674,10 @@ const ProjectDetails: React.FC = () => {
                                             </div>
                                             <div style={{
                                                 padding: '4px 8px',
-                                                background: member.status === 1 ? '#ecfdf5' : member.status === 2 ? '#fef2f2' : '#fee2e2',
-                                                color: member.status === 1 ? '#10b981' : member.status === 2 ? '#f59e0b' : '#ef4444',
-                                                borderRadius: '6px',
-                                                fontSize: '0.7rem',
-                                                fontWeight: 700
-                                            }}>{member.status === 1 ? 'ACTIVE' : member.status === 2 ? 'INACTIVE' : 'BANNED'}</div>
+                                                background: member.status === 1 ? '#ecfdf5' : '#fef2f2',
+                                                color: member.status === 1 ? '#10b981' : '#ef4444',
+                                                borderRadius: '6px', fontSize: '0.7rem', fontWeight: 700
+                                            }}>{member.status === 1 ? 'ACTIVE' : 'INACTIVE'}</div>
                                         </div>
                                     )) : (
                                         <div className="card" style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3rem' }}>
@@ -425,6 +688,7 @@ const ProjectDetails: React.FC = () => {
                             </div>
                         )}
 
+                        {/* ── TASKS ─────────────────────────────────────────── */}
                         {activeTab === 'tasks' && (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -433,71 +697,146 @@ const ProjectDetails: React.FC = () => {
                                         <p style={{ color: 'var(--text-secondary)', margin: 0 }}>Track experimentation, analysis, and documentation progress.</p>
                                     </div>
                                     <div style={{ display: 'flex', gap: '10px' }}>
-                                        <div style={{
-                                            display: 'flex',
-                                            padding: '4px',
-                                            background: '#f1f5f9',
-                                            borderRadius: '8px'
-                                        }}>
-                                            <button
-                                                onClick={() => setTaskView('board')}
-                                                style={{
-                                                    padding: '6px 12px',
-                                                    borderRadius: '6px',
-                                                    border: 'none',
-                                                    background: taskView === 'board' ? 'white' : 'transparent',
-                                                    color: taskView === 'board' ? 'var(--accent-color)' : 'var(--text-secondary)',
-                                                    cursor: 'pointer',
-                                                    fontSize: '0.8rem',
-                                                    fontWeight: 600,
-                                                    boxShadow: taskView === 'board' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none'
-                                                }}
-                                            >Board</button>
-                                            <button
-                                                onClick={() => setTaskView('list')}
-                                                style={{
-                                                    padding: '6px 12px',
-                                                    borderRadius: '6px',
-                                                    border: 'none',
-                                                    background: taskView === 'list' ? 'white' : 'transparent',
-                                                    color: taskView === 'list' ? 'var(--accent-color)' : 'var(--text-secondary)',
-                                                    cursor: 'pointer',
-                                                    fontSize: '0.8rem',
-                                                    fontWeight: 600,
-                                                    boxShadow: taskView === 'list' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none'
-                                                }}
-                                            >List</button>
+                                        <div style={{ display: 'flex', padding: '4px', background: '#f1f5f9', borderRadius: '8px' }}>
+                                            {(['board', 'list'] as const).map(view => (
+                                                <button key={view} onClick={() => setTaskView(view)} style={{
+                                                    padding: '6px 12px', borderRadius: '6px', border: 'none',
+                                                    background: taskView === view ? 'white' : 'transparent',
+                                                    color: taskView === view ? 'var(--accent-color)' : 'var(--text-secondary)',
+                                                    cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600,
+                                                    boxShadow: taskView === view ? '0 2px 4px rgba(0,0,0,0.05)' : 'none'
+                                                }}>{view.charAt(0).toUpperCase() + view.slice(1)}</button>
+                                            ))}
                                         </div>
                                         <button
                                             className="btn btn-primary"
                                             onClick={() => setIsTaskModalOpen(true)}
-                                            style={{
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '8px',
-                                                opacity: project.status === ProjectStatus.Archived && !isAdmin ? 0.5 : 1,
-                                                cursor: project.status === ProjectStatus.Archived && !isAdmin ? 'not-allowed' : 'pointer'
-                                            }}
-                                            disabled={project.status === ProjectStatus.Archived && !isAdmin}
+                                            style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: isArchived && !isAdmin ? 0.5 : 1, cursor: isArchived && !isAdmin ? 'not-allowed' : 'pointer' }}
+                                            disabled={isArchived && !isAdmin}
                                         >
                                             <Plus size={18} /> New Activity
+                                        </button>
+                                    </div>
+                                </div>
+                                <div style={{
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '1.25rem',
+                                    background: '#f8fafc',
+                                    padding: '1.5rem',
+                                    borderRadius: '16px',
+                                    border: '1px solid #e2e8f0',
+                                    marginBottom: '1rem'
+                                }}>
+                                    <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                                        <div style={{ position: 'relative', flex: 1, minWidth: '200px' }}>
+                                            <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                                            <input
+                                                type="text"
+                                                placeholder="Search activities by name or description..."
+                                                value={taskSearchQuery}
+                                                onChange={(e) => setTaskSearchQuery(e.target.value)}
+                                                style={{
+                                                    width: '100%',
+                                                    padding: '0.75rem 1rem 0.75rem 2.5rem',
+                                                    borderRadius: '12px',
+                                                    border: '1.5px solid #e2e8f0',
+                                                    fontSize: '0.9rem',
+                                                    outline: 'none',
+                                                    transition: 'border-color 0.2s',
+                                                    background: 'white'
+                                                }}
+                                            />
+                                        </div>
+
+                                        <select
+                                            value={taskStatusFilter}
+                                            onChange={(e) => setTaskStatusFilter(e.target.value)}
+                                            style={{
+                                                padding: '0.75rem 1rem',
+                                                borderRadius: '12px',
+                                                border: '1.5px solid #e2e8f0',
+                                                background: 'white',
+                                                fontWeight: 600,
+                                                fontSize: '0.85rem',
+                                                minWidth: '140px',
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            <option value="all">Any Status</option>
+                                            <option value={TaskStatus.Todo.toString()}>To Do</option>
+                                            <option value={TaskStatus.InProgress.toString()}>In Progress</option>
+                                            <option value={TaskStatus.Submitted.toString()}>Submitted</option>
+                                            <option value={TaskStatus.Approved.toString()}>Approved</option>
+                                            <option value={TaskStatus.Rejected.toString()}>Rejected</option>
+                                            <option value={TaskStatus.Completed.toString()}>Completed</option>
+                                        </select>
+
+                                        <select
+                                            value={taskPriorityFilter}
+                                            onChange={(e) => setTaskPriorityFilter(e.target.value)}
+                                            style={{
+                                                padding: '0.75rem 1rem',
+                                                borderRadius: '12px',
+                                                border: '1.5px solid #e2e8f0',
+                                                background: 'white',
+                                                fontWeight: 600,
+                                                fontSize: '0.85rem',
+                                                minWidth: '140px',
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            <option value="all">Any Priority</option>
+                                            <option value="1">Low</option>
+                                            <option value="2">Medium</option>
+                                            <option value="3">High</option>
+                                            <option value="4">Critical</option>
+                                        </select>
+
+                                        <button
+                                            onClick={() => {
+                                                setTaskSearchQuery('');
+                                                setTaskStatusFilter('all');
+                                                setTaskPriorityFilter('all');
+                                            }}
+                                            style={{
+                                                padding: '0.75rem 1.25rem',
+                                                background: 'white',
+                                                border: '1.5px solid #e2e8f0',
+                                                borderRadius: '12px',
+                                                color: '#64748b',
+                                                fontWeight: 700,
+                                                fontSize: '0.85rem',
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            Reset Filters
                                         </button>
                                     </div>
                                 </div>
 
                                 {tasks.length > 0 ? (
                                     taskView === 'board' ? (
-                                        <KanbanBoard
-                                            tasks={tasks}
-                                            projectMembers={members}
-                                            projectId={id || ''}
-                                            onTaskCreated={refetchTasks}
-                                        />
+                                        <KanbanBoard tasks={filteredTasks} projectMembers={members} projectId={id || ''} onTaskCreated={refetchTasks} onTaskUpdated={refetchTasks} milestones={milestones} />
                                     ) : (
                                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.25rem' }}>
-                                            {tasks.map(task => (
-                                                <TaskItem key={task.id} task={task} onClick={handleTaskClick} />
-                                            ))}
+                                            {filteredTasks.length > 0 ? (
+                                                filteredTasks.map(task => {
+                                                    const taskMilestone = milestones.find(m => m.id === task.milestoneId);
+                                                    return (
+                                                        <TaskItem
+                                                            key={task.id}
+                                                            task={task}
+                                                            onClick={handleTaskClick}
+                                                            milestoneName={taskMilestone?.name}
+                                                        />
+                                                    );
+                                                })
+                                            ) : (
+                                                <div className="card" style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3rem' }}>
+                                                    <p style={{ color: 'var(--text-secondary)' }}>No research activities match your current search criteria.</p>
+                                                </div>
+                                            )}
                                         </div>
                                     )
                                 ) : (
@@ -507,80 +846,301 @@ const ProjectDetails: React.FC = () => {
                                 )}
                             </div>
                         )}
+
+                        {/* ── SETTINGS / CONFIGURATION ──────────────────────── */}
+                        {activeTab === 'settings' && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                                {(isArchived || isReadOnly) && (
+                                    <div className="card" style={{
+                                        padding: '1rem 1.25rem', background: 'var(--warning-bg)',
+                                        border: '1px solid #FDE68A', display: 'flex', alignItems: 'center', gap: '14px', color: '#92400E'
+                                    }}>
+                                        <ShieldAlert size={24} />
+                                        <div>
+                                            <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 700, color: '#92400E' }}>
+                                                {isArchived ? 'Project Archived' : 'Read-only Access'}
+                                            </h4>
+                                            <p style={{ margin: '2px 0 0 0', fontSize: '0.82rem', opacity: 0.9 }}>
+                                                {isArchived && isAdmin ? 'You have Administrative override to modify this project.' : 'You do not have permission to modify this project.'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Project Identity */}
+                                <section className="card">
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                                        <div>
+                                            <h3 style={{ margin: 0 }}>Project Identity</h3>
+                                            <p style={{ margin: '4px 0 0', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Define the core vision and scope.</p>
+                                        </div>
+                                        <div style={{ padding: '6px 14px', borderRadius: 'var(--radius-sm)', background: 'var(--surface-hover)', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                            <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)' }}>STATUS:</span>
+                                            <div style={{ position: 'relative' }}>
+                                                <select
+                                                    value={formData.status}
+                                                    onChange={(e) => handleStatusChange(parseInt(e.target.value))}
+                                                    className="form-input"
+                                                    style={{ padding: '4px 28px 4px 10px', fontSize: '0.8rem', fontWeight: 700, color: getStatusStyle(formData.status).color, minWidth: '100px', appearance: 'none' }}
+                                                    disabled={isReadOnly && !isAdmin}
+                                                >
+                                                    <option value={ProjectStatus.Active}>Active</option>
+                                                    <option value={ProjectStatus.Inactive}>Inactive</option>
+                                                    {(project?.status !== ProjectStatus.Archived || isAdmin) && <option value={ProjectStatus.Completed}>Completed</option>}
+                                                    <option value={ProjectStatus.Archived}>Archived</option>
+                                                </select>
+                                                <ChevronDown size={14} style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-muted)' }} />
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                                        <div className="form-group" style={{ marginBottom: 0 }}>
+                                            <label className="form-label" htmlFor="projectName">Project Name</label>
+                                            <div style={{ position: 'relative' }}>
+                                                <Briefcase size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                                                <input className="form-input" style={{ paddingLeft: '40px' }} type="text" id="projectName" name="projectName" value={formData.projectName} onChange={handleInputChange} required disabled={isReadOnly} />
+                                            </div>
+                                        </div>
+                                        <div className="form-group" style={{ marginBottom: 0 }}>
+                                            <label className="form-label" htmlFor="projectDescription">Description</label>
+                                            <div style={{ position: 'relative' }}>
+                                                <FileText size={18} style={{ position: 'absolute', left: '12px', top: '12px', color: 'var(--text-muted)' }} />
+                                                <textarea className="form-input" style={{ paddingLeft: '40px', minHeight: '120px', resize: 'vertical' }} id="projectDescription" name="projectDescription" value={formData.projectDescription} onChange={handleInputChange} required disabled={isReadOnly} />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </section>
+
+                                {/* Timeline */}
+                                <section className="card" style={{ opacity: isArchived ? 0.7 : 1 }}>
+                                    <h3 style={{ margin: '0 0 1.25rem' }}>Operation Timeline</h3>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', marginBottom: '2rem' }}>
+                                        <div className="form-group" style={{ marginBottom: 0 }}>
+                                            <label className="form-label">Start Date</label>
+                                            <div style={{ position: 'relative' }}>
+                                                <Calendar size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                                                <input className="form-input" style={{ paddingLeft: '40px' }} type="date" name="startDate" value={formData.startDate} onChange={handleInputChange} required disabled={isReadOnly} />
+                                            </div>
+                                        </div>
+                                        <div className="form-group" style={{ marginBottom: 0 }}>
+                                            <label className="form-label">End Date</label>
+                                            <div style={{ position: 'relative' }}>
+                                                <Calendar size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                                                <input className="form-input" style={{ paddingLeft: '40px' }} type="date" name="endDate" value={formData.endDate} onChange={handleInputChange} disabled={isReadOnly} />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <h3 style={{ margin: '0 0 1rem' }}>Research Fields</h3>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', padding: '1rem', background: 'var(--surface-hover)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
+                                        {availableFields.map((field) => (
+                                            <button
+                                                key={field.id} type="button"
+                                                onClick={() => !isArchived && toggleField(field.id)}
+                                                className={`filter-chip ${selectedFieldIds.includes(field.id) ? 'active' : ''}`}
+                                                style={{ cursor: isArchived ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px', opacity: isArchived && !selectedFieldIds.includes(field.id) ? 0.5 : 1 }}
+                                                disabled={isArchived}
+                                            >
+                                                {selectedFieldIds.includes(field.id) ? <Check size={14} /> : <Plus size={14} />} {field.name}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </section>
+
+                                {/* Action bar */}
+                                <div className="card" style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                                    <button type="button" onClick={() => setActiveTab('home')} className="btn btn-secondary" style={{ minWidth: '120px' }}>Cancel</button>
+                                    <button onClick={handleSubmit} className="btn btn-primary" style={{ minWidth: '170px', opacity: isArchived ? 0.5 : 1, cursor: isArchived ? 'not-allowed' : 'pointer' }} disabled={submitting || isArchived}>
+                                        {submitting ? 'Saving...' : <><Save size={18} /> Update Project</>}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
-                    {/* Sidebar Stats */}
-                    <aside style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                        <section className="card" style={{ padding: '1.25rem' }}>
-                            <h3 style={{ marginBottom: '1.25rem', fontSize: '1rem' }}>Overall Progress</h3>
-                            {(() => {
-                                const total = tasks.length;
-                                const completed = tasks.filter(t => t.status === TaskStatus.Completed).length;
-                                const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
-                                const dashOffset = 339.29 * (1 - percentage / 100);
-
-                                return (
-                                    <>
-                                        <div style={{ position: 'relative', width: '120px', height: '120px', margin: '0 auto 1.5rem' }}>
-                                            <svg width="120" height="120" viewBox="0 0 120 120">
-                                                <circle cx="60" cy="60" r="54" fill="none" stroke="#f1f5f9" strokeWidth="10" />
-                                                <circle cx="60" cy="60" r="54" fill="none" stroke="var(--accent-color)" strokeWidth="10" strokeDasharray="339.29" strokeDashoffset={dashOffset} strokeLinecap="round" />
-                                            </svg>
-                                            <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center' }}>
-                                                <span style={{ fontSize: '1.5rem', fontWeight: 700 }}>{percentage}%</span>
+                    {/* Right column — sidebar info (only for HOME or SETTINGS) */}
+                    {(activeTab === 'home' || activeTab === 'settings') && (
+                        <aside style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                            {activeTab === 'settings' ? (
+                                <>
+                                    {/* Project Timeline card */}
+                                    <div className="card">
+                                        <h4 style={{ margin: '0 0 1.25rem', fontSize: '0.95rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <Activity size={18} color="var(--accent-color)" /> Project Timeline
+                                        </h4>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                                            <div style={{ display: 'flex', gap: '12px' }}>
+                                                <div className="avatar avatar-md" style={{ background: 'var(--border-light)', color: 'var(--text-secondary)' }}><User size={16} /></div>
+                                                <div>
+                                                    <p className="section-title" style={{ marginBottom: '2px' }}>Principal/Creator</p>
+                                                    <p style={{ margin: 0, fontSize: '0.88rem', fontWeight: 600 }}>{project?.NameProjectCreator || 'System Admin'}</p>
+                                                </div>
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '12px' }}>
+                                                <div className="avatar avatar-md" style={{ background: 'var(--info-bg)', color: 'var(--info)' }}><Calendar size={16} /></div>
+                                                <div>
+                                                    <p className="section-title" style={{ marginBottom: '2px' }}>Duration</p>
+                                                    <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600 }}>
+                                                        {project?.startDate ? new Date(project.startDate).toLocaleDateString() : 'N/A'} — {project?.endDate ? new Date(project.endDate).toLocaleDateString() : 'Ongoing'}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '12px', borderTop: '1px solid var(--border-light)', paddingTop: '1.25rem' }}>
+                                                <div className="avatar avatar-md" style={{ background: 'var(--border-light)', color: 'var(--text-secondary)' }}><Clock size={16} /></div>
+                                                <div>
+                                                    <p className="section-title" style={{ marginBottom: '2px' }}>System Log</p>
+                                                    <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Created: {project?.createdAt ? new Date(project.createdAt).toLocaleString() : 'N/A'}</p>
+                                                    <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Modified: {project?.updatedAt ? new Date(project.updatedAt).toLocaleString() : 'Never'}</p>
+                                                </div>
                                             </div>
                                         </div>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                                                <span style={{ color: 'var(--text-secondary)' }}>Tasks Done</span>
-                                                <span>{completed}/{total}</span>
-                                            </div>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
-                                                <span style={{ color: 'var(--text-secondary)' }}>Milestones</span>
-                                                <span>{milestones.length} active</span>
-                                            </div>
-                                        </div>
-                                    </>
-                                );
-                            })()}
-                        </section>
-
-                        <section className="card" style={{ padding: '1.25rem' }}>
-                            <h3 style={{ marginBottom: '1rem', fontSize: '1rem' }}>Active Member</h3>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                {members.slice(0, 5).map((m, index) => (
-                                    <div key={m.id || m.memberId || index} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                        <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem' }}>
-                                            {(m.fullName || m.userName)?.charAt(0) || 'U'}
-                                        </div>
-                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                            <span style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--text-primary)' }}>{m.fullName || m.userName}</span>
-                                            <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>{m.roleName || m.projectRoleName}</span>
-                                        </div>
-                                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10b981', marginLeft: 'auto' }} />
                                     </div>
-                                ))}
-                            </div>
-                        </section>
-                    </aside>
+
+                                    {/* Danger Zone */}
+                                    <div className="card" style={{
+                                        background: canDeleteProject && !isArchived ? 'var(--danger-bg)' : 'var(--surface-hover)',
+                                        border: '1px solid', borderColor: canDeleteProject && !isArchived ? '#FECACA' : 'var(--border-color)',
+                                        opacity: !canDeleteProject || isArchived ? 0.8 : 1
+                                    }}>
+                                        <h4 style={{ margin: '0 0 0.75rem', color: canDeleteProject && !isArchived ? 'var(--danger)' : 'var(--text-secondary)', fontWeight: 700 }}>Delete Project</h4>
+                                        {!canDeleteProject ? (
+                                            <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 0 }}>Only the project's Principal/Lab Director or system administrators can permanently delete projects.</p>
+                                        ) : isArchived ? (
+                                            <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 0 }}>Archived projects are preserved for historical audit and cannot be deleted.</p>
+                                        ) : (
+                                            <>
+                                                <p style={{ fontSize: '0.82rem', color: '#991B1B', lineHeight: 1.5, marginBottom: '1rem' }}>Once deleted, all tasks, files and data will be gone forever. This action is irreversible.</p>
+                                                <button onClick={() => setIsDeleteConfirmOpen(true)} className="btn" style={{ width: '100%', background: 'var(--danger)', color: 'white', border: 'none' }}>
+                                                    <Trash2 size={18} /> Delete Project
+                                                </button>
+                                            </>
+                                        )}
+                                    </div>
+                                </>
+                            ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                                    <div className="card" style={{ border: '1px solid var(--border-color)', background: 'white', padding: '1.5rem' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1.25rem' }}>
+                                            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'rgba(232,114,12,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#E8720C' }}>
+                                                <Activity size={18} />
+                                            </div>
+                                            <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)' }}>Workspace Health</h4>
+                                        </div>
+                                        
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                                            <div>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '0.85rem' }}>
+                                                    <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>Completion Rate</span>
+                                                    <span style={{ color: '#E8720C', fontWeight: 800 }}>{tasks.length > 0 ? Math.round((tasks.filter(t => t.status === TaskStatus.Completed).length / tasks.length) * 100) : 0}%</span>
+                                                </div>
+                                                <div style={{ height: '8px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
+                                                    <div style={{
+                                                        height: '100%',
+                                                        width: `${tasks.length > 0 ? (tasks.filter(t => t.status === TaskStatus.Completed).length / tasks.length) * 100 : 0}%`,
+                                                        background: 'linear-gradient(90deg, #E8720C, #ff8c33)',
+                                                        borderRadius: '4px',
+                                                        transition: 'width 1s cubic-bezier(0.4, 0, 0.2, 1)'
+                                                    }} />
+                                                </div>
+                                            </div>
+
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                                                <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '12px', border: '1px solid #f1f5f9' }}>
+                                                    <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)' }}>{tasks.filter(t => t.status !== TaskStatus.Completed).length}</div>
+                                                    <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pending</div>
+                                                </div>
+                                                <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '12px', border: '1px solid #f1f5f9' }}>
+                                                    <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)' }}>{milestones.length}</div>
+                                                    <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Phases</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </aside>
+                    )}
                 </div>
             </div>
 
+            {/* ─── Modals ─────────────────────────────────────────────────── */}
             <TaskFormModal
                 isOpen={isTaskModalOpen}
-                onClose={() => setIsTaskModalOpen(false)}
-                onSubmit={handleTaskFormSubmit}
+                onClose={() => {
+                    setIsTaskModalOpen(false);
+                    setEditingTask(null);
+                }}
+                onSubmit={handleTaskSubmit}
                 projectMembers={members}
-                initialStatus={TaskStatus.Todo}
+                task={editingTask}
+                milestones={milestones}
             />
 
             <TaskDetailModal
                 isOpen={isDetailModalOpen}
                 onClose={() => setIsDetailModalOpen(false)}
                 taskId={selectedTaskId}
+                projectMembers={members}
+                milestones={milestones}
+                onTaskUpdated={refetchTasks}
+            />
+            <Modal
+                isOpen={isStatusConfirmOpen}
+                onClose={() => setIsStatusConfirmOpen(false)}
+                title="Status Transition"
+                variant="info"
+                footer={(
+                    <>
+                        <button className="btn btn-secondary" onClick={() => setIsStatusConfirmOpen(false)}>Revert</button>
+                        <button className="btn btn-primary" onClick={confirmStatusChange}>Confirm Transition</button>
+                    </>
+                )}
+            >
+                <div style={{ display: 'flex', gap: '16px' }}>
+                    <AlertCircle size={32} color="var(--accent-color)" style={{ flexShrink: 0 }} />
+                    <p style={{ margin: 0 }}>Transitioning to <strong>{ProjectStatus[pendingStatus || 0]}</strong>. This update will be propagated to all researchers.</p>
+                </div>
+            </Modal>
+            <Modal
+                isOpen={isDeleteConfirmOpen}
+                onClose={() => setIsDeleteConfirmOpen(false)}
+                title="Delete Project"
+                variant="danger"
+                footer={(
+                    <>
+                        <button className="btn btn-secondary" onClick={() => setIsDeleteConfirmOpen(false)}>Cancel</button>
+                        <button className="btn" style={{ background: 'var(--danger)', color: 'white' }} onClick={handleDelete}>Delete Project</button>
+                    </>
+                )}
+            >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: 'var(--danger)' }}>
+                        <ShieldAlert size={28} /><strong style={{ fontSize: '1rem' }}>Confirm Deletion</strong>
+                    </div>
+                    <p style={{ margin: 0, lineHeight: 1.6 }}>
+                        You are about to permanently delete <strong>"{formData.projectName}"</strong>.
+                        All research data, tasks, and audit trails will be irreversibly lost.
+                    </p>
+                </div>
+            </Modal>
+            <MilestoneFormModal
+                isOpen={isMilestoneModalOpen}
+                onClose={() => {
+                    setIsMilestoneModalOpen(false);
+                    setEditingMilestone(null);
+                }}
+                onSubmit={handleMilestoneSubmit}
+                milestone={editingMilestone}
+            />
+
+            <MilestoneDetailModal
+                isOpen={isMilestoneDetailOpen}
+                onClose={() => setIsMilestoneDetailOpen(false)}
+                milestoneId={selectedMilestoneId}
+                onMilestoneUpdated={refetchMilestones}
+                canManage={canManageProject}
             />
         </MainLayout>
-
     );
 };
 

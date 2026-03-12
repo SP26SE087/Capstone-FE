@@ -1,5 +1,6 @@
 import React from 'react';
-import { User, Bell, Search } from 'lucide-react';
+import { NavLink, useLocation } from 'react-router-dom';
+import { User, Bell, Search, Library, FlaskConical } from 'lucide-react';
 
 interface HeaderProps {
     role: string;
@@ -7,36 +8,71 @@ interface HeaderProps {
 }
 
 const Header: React.FC<HeaderProps> = ({ role, userName }) => {
+    const location = useLocation();
+
+    // Determine if the current page is within the workspace
+    const workspaceRoutes = ['/dashboard', '/projects', '/tasks', '/meetings', '/members'];
+    const isInWorkspace = workspaceRoutes.some(route => location.pathname.startsWith(route));
+
+    const navItems = [
+        { label: 'Home Page', path: '/', icon: <Library size={18} /> },
+        { label: 'Work Researcher Space', path: '/dashboard', icon: <FlaskConical size={18} /> },
+    ];
+
     return (
         <header className="top-header">
-            <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
-                <div style={{ position: 'relative', width: '300px' }}>
-                    <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }} />
+            <div className="header-left">
+                {/* Logo / Brand */}
+                <div className="header-brand">
+                    <h2 className="header-logo-text">AiTA Lab</h2>
+                </div>
+
+                {/* Navigation Links */}
+                <nav className="header-nav">
+                    {navItems.map(item => (
+                        <NavLink
+                            key={item.path}
+                            to={item.path}
+                            end={item.path === '/'}
+                            className={({ isActive }) => {
+                                // For workspace link, highlight if we're on any workspace route
+                                const active = item.path === '/'
+                                    ? isActive
+                                    : isInWorkspace;
+                                return `header-nav-link ${active ? 'active' : ''}`;
+                            }}
+                        >
+                            {item.icon}
+                            <span>{item.label}</span>
+                        </NavLink>
+                    ))}
+                </nav>
+            </div>
+
+            <div className="header-center">
+                {/* Search Bar */}
+                <div className="header-search">
+                    <Search size={16} className="header-search-icon" />
                     <input
                         type="text"
-                        placeholder="Search projects, tasks..."
-                        style={{
-                            width: '100%',
-                            padding: '8px 12px 8px 40px',
-                            borderRadius: '20px',
-                            border: '1px solid var(--border-color)',
-                            background: '#f1f3f5',
-                            fontSize: '0.9rem',
-                            outline: 'none'
-                        }}
+                        placeholder="Search..."
+                        className="header-search-input"
                     />
                 </div>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                <Bell size={20} style={{ color: 'var(--text-secondary)', cursor: 'pointer' }} />
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
-                    <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>{userName}</div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{role}</div>
+            <div className="header-right">
+                {/* Right Side Actions */}
+                <button className="header-icon-btn">
+                    <Bell size={20} />
+                </button>
+                <div className="header-user">
+                    <div className="header-user-info">
+                        <span className="header-user-name">{userName}</span>
+                        <span className="header-user-role">{role}</span>
                     </div>
-                    <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'var(--accent-color)', display: 'flex', alignItems: 'center', color: 'white', justifyContent: 'center' }}>
-                        <User size={20} />
+                    <div className="header-avatar">
+                        <User size={18} />
                     </div>
                 </div>
             </div>

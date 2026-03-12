@@ -7,21 +7,22 @@ import {
     Flag,
     User,
     Calendar,
-    MoreHorizontal
+    MoreHorizontal,
+    MapPin
 } from 'lucide-react';
 
 interface TaskItemProps {
     task: Task;
     onClick?: (task: Task) => void;
+    milestoneName?: string;
 }
 
-const TaskItem: React.FC<TaskItemProps> = ({ task, onClick }) => {
+const TaskItem: React.FC<TaskItemProps> = ({ task, onClick, milestoneName }) => {
     const getStatusStyle = (status: TaskStatus) => {
         switch (status) {
             case TaskStatus.Todo: return { color: '#64748b', bg: '#f1f5f9', label: 'To Do', icon: <Clock size={14} /> };
             case TaskStatus.InProgress: return { color: '#0288d1', bg: '#e1f5fe', label: 'In Progress', icon: <div style={{ width: 8, height: 8, background: '#0288d1', borderRadius: '50%', marginRight: 4 }} /> };
             case TaskStatus.Submitted: return { color: '#7c3aed', bg: '#ede9fe', label: 'Submitted', icon: <Clock size={14} /> };
-            case TaskStatus.Approved: return { color: '#059669', bg: '#d1fae5', label: 'Approved', icon: <CheckCircle2 size={14} /> };
             case TaskStatus.Rejected: return { color: '#ef4444', bg: '#fee2e2', label: 'Rejected', icon: <AlertCircle size={14} /> };
             case TaskStatus.Completed: return { color: '#10b981', bg: '#ecfdf5', label: 'Completed', icon: <CheckCircle2 size={14} /> };
             default: return { color: '#64748b', bg: '#f1f5f9', label: 'Unknown', icon: <Clock size={14} /> };
@@ -80,22 +81,57 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onClick }) => {
                 </button>
             </div>
 
-            <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)' }}>{task.name}</h4>
-
-            {task.description && (
-                <p style={{
+            <h4
+                title={task.name}
+                style={{
                     margin: 0,
-                    fontSize: '0.8rem',
-                    color: 'var(--text-secondary)',
+                    fontSize: '0.95rem',
+                    fontWeight: 700,
+                    color: '#1e293b',
                     display: '-webkit-box',
-                    WebkitLineClamp: 2,
+                    WebkitLineClamp: 1,
                     WebkitBoxOrient: 'vertical',
                     overflow: 'hidden',
-                    lineHeight: '1.4'
+                    wordBreak: 'break-all',
+                    lineHeight: '1.3'
+                }}
+            >
+                {task.name}
+            </h4>
+
+            {milestoneName && (
+                <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    fontSize: '0.7rem',
+                    color: 'var(--primary-color)',
+                    fontWeight: 700,
+                    marginBottom: '-4px'
                 }}>
-                    {task.description}
-                </p>
+                    <MapPin size={12} />
+                    <span style={{ textTransform: 'uppercase', letterSpacing: '0.02em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {milestoneName}
+                    </span>
+                </div>
             )}
+
+            <p style={{
+                margin: 0,
+                fontSize: '0.8rem',
+                color: '#64748b',
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+                lineHeight: '1.5',
+                height: '3em', // Fixes height to exactly 2 lines (1.5 * 2)
+                wordBreak: 'break-word',
+                opacity: task.description ? 1 : 0.5,
+                fontStyle: task.description ? 'normal' : 'italic'
+            }}>
+                {task.description || 'No description provided'}
+            </p>
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.25rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

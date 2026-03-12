@@ -7,6 +7,7 @@ export interface Task {
     startDate: string | null;
     dueDate: string | null;
     projectId?: string;
+    milestoneId?: string | null;
     memberId?: string; // Appears in the new response
     members?: TaskMember[];
     tagIds?: string[];

@@ -8,9 +8,10 @@ interface MainLayoutProps {
     role?: string;
     userName?: string;
     customSidebar?: React.ReactNode;
+    hideSidebar?: boolean;
 }
 
-const MainLayout: React.FC<MainLayoutProps> = ({ children, role, userName, customSidebar }) => {
+const MainLayout: React.FC<MainLayoutProps> = ({ children, role, userName, customSidebar, hideSidebar = false }) => {
     const { user } = useAuth();
 
     // Fallback to props if user is still loading, otherwise use actual auth user
@@ -18,12 +19,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, role, userName, custo
     // Use user name from auth, then props, fallback to generic
     const displayUserName = user?.name || userName || 'Current User';
 
+    const showSidebar = !hideSidebar;
+
     return (
-        <div className="app-layout">
-            {customSidebar || <Sidebar />}
-            <div style={{ flex: 1 }}>
+        <div className={`app-layout ${showSidebar ? '' : 'no-sidebar'}`}>
+            {showSidebar && (customSidebar || <Sidebar />)}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
                 <Header role={displayRole} userName={displayUserName} />
-                <main className="main-content">
+                <main className={`main-content ${showSidebar ? '' : 'no-sidebar'}`}>
                     {children}
                 </main>
             </div>

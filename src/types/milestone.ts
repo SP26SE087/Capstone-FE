@@ -5,15 +5,19 @@ export interface Milestone {
     startDate: string;
     dueDate: string;
     status: MilestoneStatus;
+    progress?: number;
     createdBy?: string;
     createdAt?: string;
     updatedAt?: string;
+    tasks?: Task[];
 }
 
+import { Task } from './task';
+
 export enum MilestoneStatus {
-    Pending = 0,
-    Active = 1,
+    NotStarted = 0,
+    InProgress = 1,
     Completed = 2,
-    Delayed = 3,
+    OnHold = 3,
     Cancelled = 4
 }

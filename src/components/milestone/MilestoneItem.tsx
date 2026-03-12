@@ -17,17 +17,17 @@ interface MilestoneItemProps {
 const MilestoneItem: React.FC<MilestoneItemProps> = ({ milestone, onClick }) => {
     const getStatusStyle = (status: MilestoneStatus) => {
         switch (status) {
-            case MilestoneStatus.Pending: return { color: '#64748b', bg: '#f1f5f9', label: 'Pending', icon: <Clock size={16} /> };
-            case MilestoneStatus.Active: return { color: '#0288d1', bg: '#e1f5fe', label: 'In Progress', icon: <div style={{ width: 10, height: 10, background: '#0288d1', borderRadius: '50%', marginRight: 6 }} /> };
-            case MilestoneStatus.Completed: return { color: '#10b981', bg: '#ecfdf5', label: 'Achieved', icon: <CheckCircle2 size={16} /> };
-            case MilestoneStatus.Delayed: return { color: '#f59e0b', bg: '#fffbeb', label: 'Delayed', icon: <AlertCircle size={16} /> };
+            case MilestoneStatus.NotStarted: return { color: '#64748b', bg: '#f1f5f9', label: 'Not Started', icon: <Clock size={16} /> };
+            case MilestoneStatus.InProgress: return { color: '#E8720C', bg: '#fff7ed', label: 'In Progress', icon: <div style={{ width: 10, height: 10, background: '#E8720C', borderRadius: '50%', marginRight: 6 }} /> };
+            case MilestoneStatus.Completed: return { color: '#10b981', bg: '#ecfdf5', label: 'Completed', icon: <CheckCircle2 size={16} /> };
+            case MilestoneStatus.OnHold: return { color: '#f59e0b', bg: '#fffbeb', label: 'On Hold', icon: <AlertCircle size={16} /> };
             case MilestoneStatus.Cancelled: return { color: '#ef4444', bg: '#fef2f2', label: 'Cancelled', icon: <AlertCircle size={16} /> };
-            default: return { color: '#64748b', bg: '#f1f5f9', label: 'Pending', icon: <Clock size={16} /> };
+            default: return { color: '#64748b', bg: '#f1f5f9', label: 'Not Started', icon: <Clock size={16} /> };
         }
     };
 
     const statusStyle = getStatusStyle(milestone.status);
-    const progress = milestone.status === MilestoneStatus.Completed ? 100 : (milestone.status === MilestoneStatus.Active ? 50 : 0);
+    const progress = milestone.progress !== undefined ? milestone.progress : (milestone.status === MilestoneStatus.Completed ? 100 : (milestone.status === MilestoneStatus.InProgress ? 50 : 0));
 
     return (
         <div
@@ -97,13 +97,32 @@ const MilestoneItem: React.FC<MilestoneItemProps> = ({ milestone, onClick }) => 
                     {milestone.description || "No description for this research milestone."}
                 </p>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '20px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <Calendar size={14} />
-                        <span>Due: {new Date(milestone.dueDate).toLocaleDateString()}</span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        <span>Phase Progress</span>
+                        <span style={{ color: statusStyle.color }}>{progress}%</span>
                     </div>
-                    <div style={{ flex: 1, height: '4px', background: '#f1f5f9', borderRadius: '2px', overflow: 'hidden' }}>
-                        <div style={{ width: `${progress}%`, height: '100%', background: statusStyle.color, transition: 'width 0.5s ease' }} />
+                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '15px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                        <div style={{ flex: 1, height: '8px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
+                            <div style={{ 
+                                width: `${progress}%`, 
+                                height: '100%', 
+                                background: `linear-gradient(90deg, #E8720C, #ff8c33)`, 
+                                transition: 'width 0.8s cubic-bezier(0.4, 0, 0.2, 1)',
+                                boxShadow: `0 0 10px rgba(232,114,12,0.4)`
+                            }} />
+                        </div>
+                    </div>
+                    
+                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '15px', fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <Calendar size={12} />
+                            <span>{milestone.startDate && !milestone.startDate.startsWith('0001') ? new Date(milestone.startDate).toLocaleDateString('vi-VN') : 'TBD'}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <Calendar size={12} />
+                            <span>{milestone.dueDate && !milestone.dueDate.startsWith('0001') ? new Date(milestone.dueDate).toLocaleDateString('vi-VN') : 'TBD'}</span>
+                        </div>
                     </div>
                 </div>
             </div>

@@ -7,13 +7,11 @@ import {
     Users,
     Calendar,
     Terminal,
-    Library
+    FlaskConical,
 } from 'lucide-react';
 
 const Sidebar: React.FC = () => {
     const navItems = [
-        { icon: <Library size={20} />, label: 'Public Home', path: '/' },
-        { type: 'divider', label: 'WORK RESEARCHER SPACE' },
         { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/dashboard' },
         { icon: <Briefcase size={20} />, label: 'My Projects', path: '/projects' },
         { icon: <CheckSquare size={20} />, label: 'Tasks', path: '/tasks' },
@@ -23,63 +21,36 @@ const Sidebar: React.FC = () => {
 
     return (
         <aside className="sidebar">
-            <div style={{ padding: '2rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                <h2 style={{ color: 'white', margin: 0, fontSize: '1.2rem' }}>AiTA Lab@FPTU</h2>
+            <div className="sidebar-header">
+                <div className="sidebar-brand">
+                    <div className="sidebar-brand-icon">
+                        <FlaskConical size={20} />
+                    </div>
+                    <div>
+                        <h2 className="sidebar-title">Researcher Space</h2>
+                        <span className="sidebar-subtitle">AiTA Lab@FPTU</span>
+                    </div>
+                </div>
             </div>
 
-            <nav style={{ padding: '1rem 0' }}>
-                {navItems.map((item, index) => {
-                    if (item.type === 'divider') {
-                        return (
-                            <div key={`divider-${index}`} style={{
-                                padding: '1.5rem 2rem 0.5rem',
-                                fontSize: '0.65rem',
-                                fontWeight: 800,
-                                color: 'rgba(255,255,255,0.4)',
-                                textTransform: 'uppercase',
-                                letterSpacing: '1px'
-                            }}>
-                                {item.label}
-                            </div>
-                        );
-                    }
-                    return (
-                        <NavLink
-                            key={item.path}
-                            to={item.path || '/'}
-                            style={({ isActive }) => ({
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '12px',
-                                padding: '0.8rem 2rem',
-                                color: isActive ? 'white' : 'rgba(255,255,255,0.6)',
-                                background: isActive ? 'rgba(255,255,255,0.1)' : 'transparent',
-                                borderLeft: isActive ? '4px solid var(--accent-color)' : '4px solid transparent',
-                                textDecoration: 'none',
-                                fontSize: '0.9rem',
-                                transition: 'all 0.2s'
-                            })}
-                        >
-                            {item.icon}
-                            {item.label}
-                        </NavLink>
-                    );
-                })}
+            <nav className="sidebar-nav">
+                <div className="sidebar-section-label">WORKSPACE</div>
+                {navItems.map((item) => (
+                    <NavLink
+                        key={item.path}
+                        to={item.path}
+                        className={({ isActive }) =>
+                            `sidebar-link ${isActive ? 'active' : ''}`
+                        }
+                    >
+                        <span className="sidebar-link-icon">{item.icon}</span>
+                        <span className="sidebar-link-label">{item.label}</span>
+                    </NavLink>
+                ))}
             </nav>
 
-            <div style={{ position: 'absolute', bottom: '1rem', width: '100%' }}>
-                <NavLink
-                    to="/dev/login"
-                    style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '12px',
-                        padding: '0.8rem 2rem',
-                        color: 'rgba(255,255,255,0.4)',
-                        textDecoration: 'none',
-                        fontSize: '0.8rem'
-                    }}
-                >
+            <div className="sidebar-footer">
+                <NavLink to="/dev/login" className="sidebar-dev-link">
                     <Terminal size={16} />
                     Dev Token Manager
                 </NavLink>
