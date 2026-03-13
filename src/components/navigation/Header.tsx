@@ -1,16 +1,13 @@
 import React from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
-import { User, Bell, Search, Library, FlaskConical } from 'lucide-react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { User, Bell, Search, Library, FlaskConical, LogIn, LogOut } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 
-interface HeaderProps {
-    role: string;
-    userName: string;
-}
-
-const Header: React.FC<HeaderProps> = ({ role, userName }) => {
+const Header: React.FC = () => {
     const location = useLocation();
+    const navigate = useNavigate();
+    const { user, isAuthenticated, logout } = useAuth();
 
-    // Determine if the current page is within the workspace
     const workspaceRoutes = ['/dashboard', '/projects', '/tasks', '/meetings', '/members'];
     const isInWorkspace = workspaceRoutes.some(route => location.pathname.startsWith(route));
 
@@ -19,15 +16,17 @@ const Header: React.FC<HeaderProps> = ({ role, userName }) => {
         { label: 'Work Researcher Space', path: '/dashboard', icon: <FlaskConical size={18} /> },
     ];
 
+    const handleLogout = async () => {
+        await logout();
+    };
+
     return (
         <header className="top-header">
             <div className="header-left">
-                {/* Logo / Brand */}
                 <div className="header-brand">
                     <h2 className="header-logo-text">AiTA Lab</h2>
                 </div>
 
-                {/* Navigation Links */}
                 <nav className="header-nav">
                     {navItems.map(item => (
                         <NavLink
@@ -35,7 +34,6 @@ const Header: React.FC<HeaderProps> = ({ role, userName }) => {
                             to={item.path}
                             end={item.path === '/'}
                             className={({ isActive }) => {
-                                // For workspace link, highlight if we're on any workspace route
                                 const active = item.path === '/'
                                     ? isActive
                                     : isInWorkspace;
@@ -50,7 +48,6 @@ const Header: React.FC<HeaderProps> = ({ role, userName }) => {
             </div>
 
             <div className="header-center">
-                {/* Search Bar */}
                 <div className="header-search">
                     <Search size={16} className="header-search-icon" />
                     <input
@@ -62,19 +59,42 @@ const Header: React.FC<HeaderProps> = ({ role, userName }) => {
             </div>
 
             <div className="header-right">
-                {/* Right Side Actions */}
-                <button className="header-icon-btn">
-                    <Bell size={20} />
-                </button>
-                <div className="header-user">
-                    <div className="header-user-info">
-                        <span className="header-user-name">{userName}</span>
-                        <span className="header-user-role">{role}</span>
-                    </div>
-                    <div className="header-avatar">
-                        <User size={18} />
-                    </div>
-                </div>
+                {isAuthenticated ? (
+                    <>
+                        <button className="header-icon-btn">
+                            <Bell size={20} />
+                        </button>
+                        <div className="header-user">
+                            <div className="header-user-info">
+                                <span className="header-user-name">{user.name}</span>
+                                <span className="header-user-role">{user.role}</span>
+                            </div>
+                            <div className="header-avatar">
+                                <User size={18} />
+                            </div>
+                        </div>
+                        <button
+                            className="header-icon-btn"
+                            onClick={handleLogout}
+                            title="Đăng xuất"
+                            style={{ marginLeft: '4px', color: '#ef4444' }}
+                        >
+                            <LogOut size={18} />
+                        </button>
+                    </>
+                ) : (
+                    <button
+                        className="btn btn-primary"
+                        onClick={() => navigate('/login')}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: '8px',
+                            padding: '8px 20px', fontSize: '0.85rem',
+                        }}
+                    >
+                        <LogIn size={16} />
+                        Đăng nhập
+                    </button>
+                )}
             </div>
         </header>
     );

@@ -1,37 +1,44 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { authService } from '@/services/authService';
 
-const decodeToken = (token: string | null) => {
-    if (!token) return { name: "Guest User", role: "Visitor" };
-    try {
-        const base64Url = token.split('.')[1];
-        if (!base64Url) throw new Error("Invalid token format");
+interface AuthUser {
+    name: string;
+    role: string;
+    email: string;
+    userId: string;
+}
 
-        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-        const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function (c) {
-            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-        }).join(''));
+const GUEST: AuthUser = { name: 'Guest User', role: 'Visitor', email: '', userId: '' };
 
-        const decoded = JSON.parse(jsonPayload);
-        const role = decoded.role || decoded["http://schemas.microsoft.com/ws/2008/06/identity/claims/role"] || "User";
-        const name = decoded.unique_name || decoded.name || "Logged In User";
-
-        return { name, role };
-    } catch (error) {
-        console.error("Failed to decode token", error);
-        return { name: "Guest User", role: "Visitor" };
-    }
+const getStoredUser = (): AuthUser => {
+    const user = authService.getAuthUser();
+    if (!user) return GUEST;
+    return {
+        name: user.fullName || 'User',
+        role: user.role || 'User',
+        email: user.email || '',
+        userId: user.userId || '',
+    };
 };
 
 export const useAuth = () => {
-    const [user, setUser] = useState<{ name: string; role: string }>(() => {
-        return decodeToken(localStorage.getItem('token'));
-    });
+    const [user, setUser] = useState<AuthUser>(getStoredUser);
     const loading = false;
+    const isAuthenticated = authService.isAuthenticated();
 
     useEffect(() => {
-        const token = localStorage.getItem('token');
-        setUser(decodeToken(token));
+        setUser(getStoredUser());
     }, []);
 
-    return { user, loading, isAuthenticated: user.role !== "Visitor" };
+    const logout = useCallback(async () => {
+        await authService.logout();
+        setUser(GUEST);
+        window.location.href = '/login';
+    }, []);
+
+    const refreshUser = useCallback(() => {
+        setUser(getStoredUser());
+    }, []);
+
+    return { user, loading, isAuthenticated, logout, refreshUser };
 };

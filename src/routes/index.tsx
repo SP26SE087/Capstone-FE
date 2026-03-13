@@ -1,6 +1,6 @@
 import { createBrowserRouter } from 'react-router-dom';
 import Dashboard from '@/pages/dashboard/Dashboard';
-import DevLoginPage from '@/pages/auth/DevLoginPage';
+import LoginPage from '@/pages/auth/LoginPage';
 import Projects from '@/pages/project/Projects';
 import Tasks from '@/pages/task/Tasks';
 import Members from '@/pages/member/Members';
@@ -10,27 +10,32 @@ import EditProject from '@/pages/project/EditProject';
 import CreateTask from '@/pages/task/CreateTask';
 import Home from '@/pages/home/Home';
 import PublicProjectDetails from '@/pages/project/PublicProjectDetails';
+import AuthGuard from '@/components/auth/AuthGuard';
 
 export const router = createBrowserRouter([
+    {
+        path: '/login',
+        element: <LoginPage />,
+    },
     {
         path: '/',
         element: <Home />,
     },
     {
         path: '/dashboard',
-        element: <Dashboard />,
+        element: <AuthGuard><Dashboard /></AuthGuard>,
     },
     {
         path: '/projects',
-        element: <Projects />,
+        element: <AuthGuard><Projects /></AuthGuard>,
     },
     {
         path: '/projects/new',
-        element: <CreateProject />,
+        element: <AuthGuard><CreateProject /></AuthGuard>,
     },
     {
         path: '/projects/:id',
-        element: <ProjectDetails />,
+        element: <AuthGuard><ProjectDetails /></AuthGuard>,
     },
     {
         path: '/explore/projects/:id',
@@ -38,22 +43,18 @@ export const router = createBrowserRouter([
     },
     {
         path: '/projects/edit/:id',
-        element: <EditProject />,
+        element: <AuthGuard><EditProject /></AuthGuard>,
     },
     {
         path: '/tasks',
-        element: <Tasks />,
+        element: <AuthGuard><Tasks /></AuthGuard>,
     },
     {
         path: '/tasks/new',
-        element: <CreateTask />,
+        element: <AuthGuard><CreateTask /></AuthGuard>,
     },
     {
         path: '/members',
-        element: <Members />,
-    },
-    {
-        path: '/dev/login',
-        element: <DevLoginPage />,
+        element: <AuthGuard><Members /></AuthGuard>,
     },
 ]);

@@ -6,7 +6,6 @@ import {
     CheckSquare,
     Users,
     Calendar,
-    Terminal,
     FlaskConical,
 } from 'lucide-react';
 
@@ -49,12 +48,7 @@ const Sidebar: React.FC = () => {
                 ))}
             </nav>
 
-            <div className="sidebar-footer">
-                <NavLink to="/dev/login" className="sidebar-dev-link">
-                    <Terminal size={16} />
-                    Dev Token Manager
-                </NavLink>
-            </div>
+
         </aside>
     );
 };
