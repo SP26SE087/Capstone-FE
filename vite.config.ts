@@ -12,10 +12,20 @@ export default defineConfig({
     },
     server: {
         proxy: {
-            '/api': {
+            '/api/auth': {
                 target: 'https://localhost:7268',
                 changeOrigin: true,
-                secure: false, // Disables certificate verification for self-signed certs
+                secure: false,
+            },
+            '/api/users': {
+                target: 'https://localhost:7268',
+                changeOrigin: true,
+                secure: false,
+            },
+            '/api': {
+                target: 'https://localhost:7215',
+                changeOrigin: true,
+                secure: false,
             },
         },
     },

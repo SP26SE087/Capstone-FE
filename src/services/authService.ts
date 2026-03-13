@@ -20,16 +20,18 @@ const AUTH_KEYS = {
 export const authService = {
     async loginWithGoogle(idToken: string): Promise<AuthResponse> {
         const response = await api.post('/api/auth/google', { idToken });
-        const data: AuthResponse = response.data;
-        this.saveAuthData(data);
-        return data;
+        // Correctly extract from the .data property if the response is wrapped
+        const authData: AuthResponse = response.data.data || response.data;
+        this.saveAuthData(authData);
+        return authData;
     },
 
     async refreshToken(refreshToken: string): Promise<AuthResponse> {
         const response = await api.post('/api/auth/refresh', { refreshToken });
-        const data: AuthResponse = response.data;
-        this.saveAuthData(data);
-        return data;
+        // Correctly extract from the .data property if the response is wrapped
+        const authData: AuthResponse = response.data.data || response.data;
+        this.saveAuthData(authData);
+        return authData;
     },
 
     async logout(): Promise<void> {

@@ -1,0 +1,291 @@
+{
+    "openapi": "3.0.1",
+    "info": {
+        "title": "UserService API",
+        "version": "v1"
+    },
+    "paths": {
+        "/api/auth/google": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/GoogleLoginRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/GoogleLoginRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/GoogleLoginRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/api/auth/refresh": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RefreshTokenRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RefreshTokenRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RefreshTokenRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/api/auth/logout": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/api/users": {
+            "get": {
+                "tags": [
+                    "User"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "User"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AddUserRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AddUserRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AddUserRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/api/users/{userId}": {
+            "get": {
+                "tags": [
+                    "User"
+                ],
+                "parameters": [
+                    {
+                        "name": "userId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "User"
+                ],
+                "parameters": [
+                    {
+                        "name": "userId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateUserRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateUserRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateUserRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/api/users/email/{email}": {
+            "get": {
+                "tags": [
+                    "User"
+                ],
+                "parameters": [
+                    {
+                        "name": "email",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "AddUserRequest": {
+                "type": "object",
+                "properties": {
+                    "email": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "fullName": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "role": {
+                        "$ref": "#/components/schemas/SystemRoleEnum"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "GoogleLoginRequest": {
+                "type": "object",
+                "properties": {
+                    "idToken": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "RefreshTokenRequest": {
+                "type": "object",
+                "properties": {
+                    "refreshToken": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "SystemRoleEnum": {
+                "enum": [
+                    1,
+                    2,
+                    3,
+                    4,
+                    5
+                ],
+                "type": "integer",
+                "format": "int32"
+            },
+            "UpdateUserRequest": {
+                "type": "object",
+                "properties": {
+                    "fullName": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "role": {
+                        "$ref": "#/components/schemas/SystemRoleEnum"
+                    },
+                    "isActive": {
+                        "type": "boolean",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            }
+        },
+        "securitySchemes": {
+            "Bearer": {
+                "type": "http",
+                "description": "Nhập JWT token",
+                "scheme": "bearer",
+                "bearerFormat": "JWT"
+            }
+        }
+    },
+    "security": [
+        {
+            "Bearer": []
+        }
+    ]
+}
