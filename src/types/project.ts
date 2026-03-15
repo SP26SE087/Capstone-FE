@@ -33,6 +33,8 @@ export interface ProjectMember {
     projectRoleName?: string;
     projectRole?: number;
     roleName?: string;
+    avatar?: string;
+    avatarUrl?: string;
     status?: MemberStatus;
 }
 

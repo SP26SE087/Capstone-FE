@@ -1,18 +1,24 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { 
-    X, 
-    Activity, 
-    Users, 
+import {
+    X,
+    Activity,
+    Users,
     Search,
     FileText,
     Save,
     AlertCircle,
     Trash2,
-    MapPin
+    MapPin,
+    Plus,
+    File,
+    Eye
 } from 'lucide-react';
-import { Task, TaskStatus, Priority, ProjectRoleEnum, ProjectMember } from '@/types';
+import { Task, TaskStatus, Priority, ProjectRoleEnum, ProjectMember, TaskEvidence } from '@/types';
 import { taskService, projectService, milestoneService, membershipService } from '@/services';
+import { API_BASE_URL } from '@/services/api';
 import { useAuth } from '@/hooks/useAuth';
+import Toast from '@/components/common/Toast';
+import ConfirmModal from '@/components/common/ConfirmModal';
 
 interface TaskDetailModalProps {
     isOpen: boolean;
@@ -25,10 +31,10 @@ interface TaskDetailModalProps {
 
 import { Milestone, MilestoneStatus } from '@/types/milestone';
 
-const TaskDetailModal: React.FC<TaskDetailModalProps> = ({ 
-    isOpen, 
-    onClose, 
-    taskId, 
+const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
+    isOpen,
+    onClose,
+    taskId,
     projectMembers,
     milestones,
     onTaskUpdated
@@ -36,6 +42,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     const { user: currentUser } = useAuth();
     const [task, setTask] = useState<Task | null>(null);
     const [projectRole, setProjectRole] = useState<number | null>(null);
+    const [currentMember, setCurrentMember] = useState<any>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isEditMode, setIsEditMode] = useState(false);
@@ -45,8 +52,8 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     const [internalMilestones, setInternalMilestones] = useState<Milestone[]>([]);
 
     // Determine which data to use (prop vs internal)
-    const effectiveMembers = projectMembers || internalMembers;
-    const effectiveMilestones = milestones || internalMilestones;
+    const effectiveMembers = (projectMembers && projectMembers.length > 0) ? projectMembers : internalMembers;
+    const effectiveMilestones = (milestones && milestones.length > 0) ? milestones : internalMilestones;
 
     // Form State (mirrors TaskFormModal)
     const [name, setName] = useState('');
@@ -59,16 +66,58 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     const [dueDate, setDueDate] = useState('');
     const [supportMemberIds, setSupportMemberIds] = useState<string[]>([]);
     const [evidenceFiles, setEvidenceFiles] = useState<File[]>([]);
+    const [serverEvidences, setServerEvidences] = useState<TaskEvidence[]>([]);
     const [memberSearchTerm, setMemberSearchTerm] = useState('');
-    
+
     // Milestone search and filter states
     const [milestoneSearchTerm, setMilestoneSearchTerm] = useState('');
     const [milestoneStatusFilter, setMilestoneStatusFilter] = useState<string>('all');
 
+    // Custom Notifications & Confirmations
+    const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' | 'info' } | null>(null);
+    const [confirmConfig, setConfirmConfig] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        variant: 'info' | 'danger' | 'success';
+        confirmText?: string;
+        onConfirm: () => void;
+    }>({
+        isOpen: false,
+        title: '',
+        message: '',
+        variant: 'info',
+        onConfirm: () => { }
+    });
+
     const isAdmin = currentUser?.role === 'Admin';
-    const isAuthorizedToEdit = isAdmin || 
-        projectRole === ProjectRoleEnum.Leader || 
+    const isAuthorizedToEdit = isAdmin ||
+        projectRole === ProjectRoleEnum.Leader ||
         projectRole === ProjectRoleEnum.LabDirector;
+
+    // Permissions for Evidence Upload
+    const isTaskMember = useMemo(() => {
+        if (!task || !currentUser) return false;
+        
+        const currentUserId = currentUser.userId;
+        const myMemberId = currentMember?.memberId || currentMember?.id;
+        
+        // Check if primary member
+        const isPrimary = task.memberId === currentUserId || 
+                        (myMemberId && task.memberId === myMemberId) ||
+                        task.member?.userId === currentUserId ||
+                        task.members?.some(m => m.userId === currentUserId && (m.memberId === task.memberId || m.membershipId === task.memberId));
+        
+        // Check if in collaborators list
+        const isSupport = task.members?.some((m: any) => 
+            m.userId === currentUserId || 
+            (myMemberId && (m.memberId === myMemberId || m.membershipId === myMemberId))
+        );
+        
+        return isPrimary || isSupport;
+    }, [currentUser, task, currentMember]);
+
+    const canUploadEvidence = isAuthorizedToEdit || isTaskMember;
 
     useEffect(() => {
         if (!isOpen || !taskId) return;
@@ -80,7 +129,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                 const data = await taskService.getById(taskId);
                 if (data) {
                     setTask(data);
-                    
+
                     // Populate Form State
                     setName(data.name || '');
                     setDescription(data.description || '');
@@ -90,20 +139,25 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                     setMemberId(data.memberId || '');
                     setStartDate(data.startDate ? new Date(data.startDate).toISOString().split('T')[0] : '');
                     setDueDate(data.dueDate ? new Date(data.dueDate).toISOString().split('T')[0] : '');
-                    setSupportMemberIds(data.members?.map((m: any) => m.id || m.memberId) || []);
+                    setSupportMemberIds(data.members?.map((m: any) => m.memberId || m.id) || []);
                     setIsEditMode(false); // Default to read-only
                     setEvidenceFiles([]);
 
                     if (data.projectId) {
                         const [memberInfo, projMembers, projMilestones] = await Promise.all([
                             projectService.getCurrentMember(data.projectId),
-                            projectMembers ? Promise.resolve(null) : membershipService.getProjectMembers(data.projectId),
-                            milestones ? Promise.resolve(null) : milestoneService.getByProject(data.projectId)
+                            (projectMembers && projectMembers.length > 0) ? Promise.resolve(null) : membershipService.getProjectMembers(data.projectId),
+                            (milestones && milestones.length > 0) ? Promise.resolve(null) : milestoneService.getByProject(data.projectId)
                         ]);
-                        
+
                         setProjectRole(memberInfo?.projectRole || null);
+                        setCurrentMember(memberInfo);
                         if (projMembers) setInternalMembers(projMembers);
                         if (projMilestones) setInternalMilestones(projMilestones);
+
+                        // Fetch evidences
+                        const evidences = await taskService.getEvidences(taskId);
+                        setServerEvidences(evidences || []);
                     }
                 } else {
                     setError("Activity not found.");
@@ -129,15 +183,15 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 
     const filteredMilestones = useMemo(() => {
         let list = effectiveMilestones;
-        
+
         // Always include the currently selected milestone in the list even if it doesn't match filters
         const currentMilestone = effectiveMilestones.find(m => m.id === milestoneId);
-        
+
         // Filter by status
         if (milestoneStatusFilter !== 'all') {
             list = list.filter(m => m.status === Number(milestoneStatusFilter));
         }
-        
+
         // Search by name
         if (milestoneSearchTerm.trim()) {
             const term = milestoneSearchTerm.toLowerCase();
@@ -148,7 +202,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
         if (currentMilestone && !list.some(m => m.id === milestoneId)) {
             list = [currentMilestone, ...list];
         }
-        
+
         return list;
     }, [effectiveMilestones, milestoneSearchTerm, milestoneStatusFilter, milestoneId]);
 
@@ -170,7 +224,21 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
-            setEvidenceFiles(prev => [...prev, ...Array.from(e.target.files!)]);
+            const files = Array.from(e.target.files);
+            const MAX_SIZE = 10 * 1024 * 1024; // 10MB
+
+            const oversizedFiles = files.filter(f => f.size > MAX_SIZE);
+            if (oversizedFiles.length > 0) {
+                setToast({
+                    message: `Skipped ${oversizedFiles.length} file(s) larger than 10MB.`,
+                    type: 'error'
+                });
+            }
+
+            const validFiles = files.filter(f => f.size <= MAX_SIZE);
+            if (validFiles.length > 0) {
+                setEvidenceFiles(prev => [...prev, ...validFiles]);
+            }
         }
     };
 
@@ -188,68 +256,221 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
         }
     };
 
+    const extractErrorMessage = (err: any, fallback: string) => {
+        if (err.response?.data?.message) return err.response.data.message;
+        if (err.message) return err.message;
+        return fallback;
+    };
+
     const handleDelete = async () => {
         if (!taskId) return;
-        if (window.confirm("Are you sure you want to delete this activity? This action cannot be undone.")) {
-            try {
-                setLoading(true);
-                await taskService.delete(taskId);
-                onTaskUpdated?.();
-                onClose();
-            } catch (err) {
-                console.error("Failed to delete task:", err);
-                alert("Failed to delete activity. Please try again.");
-            } finally {
-                setLoading(false);
+
+        setConfirmConfig({
+            isOpen: true,
+            title: 'Delete Activity',
+            message: 'Are you sure you want to delete this activity? This action cannot be undone and all associated records will be removed.',
+            variant: 'danger',
+            confirmText: 'Delete Forever',
+            onConfirm: async () => {
+                try {
+                    setLoading(true);
+                    await taskService.delete(taskId);
+                    setToast({ message: "Activity deleted successfully", type: 'success' });
+                    setTimeout(() => {
+                        onTaskUpdated?.();
+                        onClose();
+                    }, 500);
+                } catch (err: any) {
+                    console.error("Failed to delete task:", err);
+                    setToast({ message: extractErrorMessage(err, "Failed to delete activity. Please try again."), type: 'error' });
+                } finally {
+                    setLoading(false);
+                }
             }
+        });
+    };
+
+    const getFullUrl = (url: string) => {
+        if (!url) return '#';
+        let fullUrl = url;
+
+        if (!url.startsWith('http')) {
+            // Handle Windows style paths and relative paths
+            const cleanPath = url.replace(/\\/g, '/');
+            const baseUrl = API_BASE_URL.endsWith('/') ? API_BASE_URL.slice(0, -1) : API_BASE_URL;
+            const path = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
+            fullUrl = `${baseUrl}${path}`;
         }
+
+        // For Office documents, use Microsoft Online Viewer to "open" instead of download
+        const lowerUrl = fullUrl.toLowerCase();
+        const officeExtensions = ['.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx'];
+        if (officeExtensions.some(ext => lowerUrl.endsWith(ext))) {
+            return `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(fullUrl)}`;
+        }
+
+        return fullUrl;
+    };
+
+    const handleStatusTransition = async (newStatus: TaskStatus) => {
+        if (!taskId) return;
+
+        const statusLabel = getStatusActionLabel(newStatus);
+
+        setConfirmConfig({
+            isOpen: true,
+            title: 'Update Status',
+            message: `Do you want to change the activity status to "${statusLabel}"? This may restrict certain actions based on the new status.`,
+            variant: 'info',
+            onConfirm: async () => {
+                try {
+                    setLoading(true);
+                    await taskService.updateStatus(taskId, newStatus);
+                    onTaskUpdated?.();
+
+                    // Refresh local state
+                    const updated = await taskService.getById(taskId);
+                    if (updated) {
+                        setTask(updated);
+                        setStatus(updated.status);
+                    }
+                    setToast({ message: `Status updated to ${statusLabel}`, type: 'success' });
+                } catch (err: any) {
+                    console.error("Failed to update status:", err);
+                    setToast({ message: extractErrorMessage(err, "Failed to update activity status. Please try again."), type: 'error' });
+                } finally {
+                    setLoading(false);
+                }
+            }
+        });
+    };
+
+    const nextStatuses = useMemo(() => {
+        if (!task) return [];
+        switch (task.status) {
+            case TaskStatus.Todo: return [TaskStatus.InProgress];
+            case TaskStatus.InProgress: return [TaskStatus.Submitted, TaskStatus.Missed];
+            case TaskStatus.Submitted: return [TaskStatus.Adjusting, TaskStatus.Completed];
+            case TaskStatus.Missed: return [TaskStatus.Submitted];
+            case TaskStatus.Adjusting: return [TaskStatus.Completed, TaskStatus.InProgress];
+            case TaskStatus.Completed: return [TaskStatus.Adjusting];
+            default: return [];
+        }
+    }, [task?.status]);
+
+    const getStatusActionLabel = (s: TaskStatus) => {
+        switch (s) {
+            case TaskStatus.Todo: return "Todo";
+            case TaskStatus.InProgress: return "In Progress";
+            case TaskStatus.Submitted: return "Submitted";
+            case TaskStatus.Missed: return "Missed";
+            case TaskStatus.Adjusting: return "Adjusting";
+            case TaskStatus.Completed: return "Completed";
+            default: return "Update";
+        }
+    };
+
+    const getStatusActionColor = (s: TaskStatus) => {
+        switch (s) {
+            case TaskStatus.Todo: return { text: '#64748b', bg: '#f8fafc', border: '#e2e8f0' };
+            case TaskStatus.InProgress: return { text: '#2563eb', bg: '#eff6ff', border: '#dbeafe' };
+            case TaskStatus.Submitted: return { text: '#7c3aed', bg: '#f5f3ff', border: '#ede9fe' };
+            case TaskStatus.Missed: return { text: '#ef4444', bg: '#fef2f2', border: '#fee2e2' };
+            case TaskStatus.Adjusting: return { text: '#ea580c', bg: '#fff7ed', border: '#ffedd5' };
+            case TaskStatus.Completed: return { text: '#16a34a', bg: '#f0fdf4', border: '#dcfce7' };
+            default: return { text: '#64748b', bg: '#f8fafc', border: '#e2e8f0' };
+        }
+    };
+
+    const handleDeleteEvidence = async (evidenceId: number) => {
+        if (!taskId) return;
+
+        setConfirmConfig({
+            isOpen: true,
+            title: 'Remove Evidence',
+            message: 'Are you sure you want to remove this evidence file? This cannot be undone.',
+            variant: 'danger',
+            onConfirm: async () => {
+                try {
+                    setLoading(true);
+                    await taskService.deleteEvidence(taskId, evidenceId);
+                    setServerEvidences(prev => prev.filter(e => e.id !== evidenceId));
+                    setToast({ message: "Evidence removed", type: 'success' });
+                } catch (err: any) {
+                    console.error("Failed to delete evidence:", err);
+                    setToast({ message: extractErrorMessage(err, "Failed to remove evidence. Please check if the file still exists on server."), type: 'error' });
+                } finally {
+                    setLoading(false);
+                }
+            }
+        });
     };
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!taskId) return;
 
-        try {
-            setLoading(true);
-            const taskData: any = {
-                name,
-                description,
-                priority,
-                status,
-                milestoneId: milestoneId || null,
-                memberId: memberId || null,
-                startDate: startDate ? new Date(startDate).toISOString() : null,
-                dueDate: dueDate ? new Date(dueDate).toISOString() : null,
-                supportMembers: supportMemberIds
-            };
+        // Helper to perform the actual save
+        const performSave = async () => {
+            try {
+                setLoading(true);
+                const taskData: any = {
+                    name,
+                    description,
+                    priority,
+                    status,
+                    milestoneId: milestoneId || null,
+                    memberId: memberId || null,
+                    startDate: startDate ? new Date(startDate).toISOString() : null,
+                    dueDate: dueDate ? new Date(dueDate).toISOString() : null,
+                    supportMembers: supportMemberIds,
+                    evidence: evidenceFiles
+                };
 
-            await taskService.update(taskId, { ...taskData, projectId: task?.projectId });
-            
-            // If there's evidence, we might need a separate API call depending on backend
-            // For now, let's assume update handles it or we show a toast
-            
-            onTaskUpdated?.();
-            setIsEditMode(false);
-            
-            // Refresh local state and form states to ensure consistency
-            const updated = await taskService.getById(taskId);
-            if (updated) {
-                setTask(updated);
-                // Update form state with new data
-                setName(updated.name || '');
-                setDescription(updated.description || '');
-                setPriority(updated.priority);
-                setStatus(updated.status);
-                setMilestoneId(updated.milestoneId || '');
-                setMemberId(updated.memberId || '');
-                setStartDate(updated.startDate ? new Date(updated.startDate).toISOString().split('T')[0] : '');
-                setDueDate(updated.dueDate ? new Date(updated.dueDate).toISOString().split('T')[0] : '');
+                await taskService.update(taskId, { ...taskData, projectId: task?.projectId });
+                setEvidenceFiles([]);
+
+                onTaskUpdated?.();
+                setIsEditMode(false);
+                setToast({ message: isEditMode ? "Activity updated successfully" : "Evidence uploaded successfully", type: 'success' });
+
+                // Refresh local state and form states to ensure consistency
+                const updated = await taskService.getById(taskId);
+                if (updated) {
+                    setTask(updated);
+                    // Update form state with new data
+                    setName(updated.name || '');
+                    setDescription(updated.description || '');
+                    setPriority(updated.priority);
+                    setStatus(updated.status);
+                    setMilestoneId(updated.milestoneId || '');
+                    setMemberId(updated.memberId || '');
+                    setStartDate(updated.startDate ? new Date(updated.startDate).toISOString().split('T')[0] : '');
+                    setDueDate(updated.dueDate ? new Date(updated.dueDate).toISOString().split('T')[0] : '');
+
+                    // Refresh evidences
+                    const evidences = await taskService.getEvidences(taskId);
+                    setServerEvidences(evidences || []);
+                }
+            } catch (err: any) {
+                console.error("Failed to update task:", err);
+                setToast({ message: extractErrorMessage(err, "Failed to update activity. Please try again."), type: 'error' });
+            } finally {
+                setLoading(false);
             }
-        } catch (err) {
-            console.error("Failed to update task:", err);
-            alert("Failed to update activity. Please try again.");
-        } finally {
-            setLoading(false);
+        };
+
+        // Confirmation for evidence upload if not in edit mode
+        if (!isEditMode && evidenceFiles.length > 0) {
+            setConfirmConfig({
+                isOpen: true,
+                title: 'Upload Evidence',
+                message: `Are you sure you want to upload ${evidenceFiles.length} evidence file(s)?`,
+                variant: 'info',
+                onConfirm: performSave
+            });
+        } else {
+            performSave();
         }
     };
 
@@ -295,7 +516,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                 <span style={{ fontSize: '0.75rem', fontWeight: 700, color: isEditMode ? 'var(--primary-color)' : '#64748b' }}>
                                     {isEditMode ? 'EDITING MODE' : 'VIEW MODE'}
                                 </span>
-                                <button 
+                                <button
                                     type="button"
                                     onClick={() => {
                                         if (isEditMode) {
@@ -304,11 +525,22 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                                 setDescription(task.description || '');
                                                 setPriority(task.priority);
                                                 setStatus(task.status);
-                                                setMilestoneId(task.milestoneId || '');
+                                                setMilestoneId((task as any).milestoneId || '');
                                                 setMemberId(task.memberId || '');
                                                 setStartDate(task.startDate ? new Date(task.startDate).toISOString().split('T')[0] : '');
                                                 setDueDate(task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : '');
-                                                setSupportMemberIds(task.members?.map((m: any) => m.id || m.memberId) || []);
+                                                // CRITICAL: Use memberId (membershipId) for the state, NOT the TaskMember record id
+                                                setSupportMemberIds(task.members?.map((m: any) => m.memberId || m.membershipId) || []);
+
+                                                // If we don't have members or milestones, fetch them for this task's project
+                                                if (task.projectId) {
+                                                    if (!projectMembers) {
+                                                        membershipService.getProjectMembers(task.projectId).then(setInternalMembers);
+                                                    }
+                                                    if (!milestones) {
+                                                        milestoneService.getByProject(task.projectId).then(setInternalMilestones);
+                                                    }
+                                                }
                                             }
                                         }
                                         setIsEditMode(!isEditMode);
@@ -365,7 +597,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                         value={name}
                                         onChange={(e) => setName(e.target.value)}
                                         style={{
-                                            padding: '0.85rem 1.15rem', borderRadius: '12px', border: '1.5px solid #e2e8f0', 
+                                            padding: '0.85rem 1.15rem', borderRadius: '12px', border: '1.5px solid #e2e8f0',
                                             fontSize: '1rem', outline: 'none', transition: 'all 0.2s',
                                             background: isEditMode ? 'white' : '#f8fafc',
                                             borderColor: isEditMode ? 'var(--primary-color)' : '#e2e8f0',
@@ -394,7 +626,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                         <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Priority Level</label>
-                                        <select 
+                                        <select
                                             disabled={!isEditMode}
                                             value={priority}
                                             onChange={(e) => setPriority(Number(e.target.value))}
@@ -408,7 +640,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                     </div>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                         <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Current Status</label>
-                                        <select 
+                                        <select
                                             disabled={!isEditMode}
                                             value={status}
                                             onChange={(e) => setStatus(Number(e.target.value))}
@@ -417,7 +649,8 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                             <option value={TaskStatus.Todo}>To Do</option>
                                             <option value={TaskStatus.InProgress}>In Progress</option>
                                             <option value={TaskStatus.Submitted}>Submitted</option>
-                                            <option value={TaskStatus.Rejected}>Rejected</option>
+                                            <option value={TaskStatus.Missed}>Missed</option>
+                                            <option value={TaskStatus.Adjusting}>Adjusting</option>
                                             <option value={TaskStatus.Completed}>Completed</option>
                                         </select>
                                     </div>
@@ -432,7 +665,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                             <div style={{ display: 'flex', gap: '8px' }}>
                                                 <div style={{ position: 'relative', flex: 1 }}>
                                                     <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-                                                    <input 
+                                                    <input
                                                         type="text"
                                                         placeholder="Search milestone..."
                                                         value={milestoneSearchTerm}
@@ -440,7 +673,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                                         style={{ width: '100%', padding: '0.6rem 0.75rem 0.6rem 2.25rem', borderRadius: '10px', border: '1.5px solid #e2e8f0', fontSize: '0.8rem', outline: 'none' }}
                                                     />
                                                 </div>
-                                                <select 
+                                                <select
                                                     value={milestoneStatusFilter}
                                                     onChange={(e) => setMilestoneStatusFilter(e.target.value)}
                                                     style={{ padding: '0.6rem', borderRadius: '10px', border: '1.5px solid #e2e8f0', fontSize: '0.8rem', color: '#475569', fontWeight: 600, outline: 'none' }}
@@ -478,7 +711,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                         <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Start Date</label>
-                                        <input 
+                                        <input
                                             type="date"
                                             disabled={!isEditMode}
                                             value={startDate}
@@ -488,7 +721,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                     </div>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                         <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Deadline</label>
-                                        <input 
+                                        <input
                                             type="date"
                                             disabled={!isEditMode}
                                             value={dueDate}
@@ -498,37 +731,160 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                     </div>
                                 </div>
 
-                                <div style={{ 
-                                    marginTop: 'auto', padding: '1.5rem', background: '#f8fafc', 
+                                <div style={{
+                                    marginTop: 'auto', padding: '1.5rem', background: '#f8fafc',
                                     borderRadius: '16px', border: '1.5px dashed #cbd5e1',
                                     display: 'flex', flexDirection: 'column', gap: '12px'
                                 }}>
-                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                         <label style={{ fontSize: '0.8rem', fontWeight: 800, color: '#334155', display: 'flex', alignItems: 'center', gap: '8px' }}>
                                             <FileText size={18} color="var(--primary-color)" /> SUBMIT EVIDENCE
                                         </label>
                                         <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>MAX 10MB PER FILE</span>
-                                     </div>
+                                    </div>
 
-                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-                                        {evidenceFiles.map((file, i) => (
-                                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'white', border: '1px solid #e2e8f0', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 600 }}>
-                                                <FileText size={14} color="#64748b" />
-                                                <span style={{ maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name}</span>
-                                                <button type="button" onClick={() => removeFile(i)} style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer' }}><X size={14} /></button>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                        {/* Existing Server Evidences */}
+                                        {serverEvidences.length > 0 && (
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '10px' }}>
+                                                {serverEvidences.map((ev) => (
+                                                    <a
+                                                        key={ev.id}
+                                                        href={getFullUrl(ev.fileUrl || ev.url || '')}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        style={{
+                                                            display: 'flex', alignItems: 'center', gap: '14px', padding: '12px 16px',
+                                                            background: 'white', border: '1px solid #e2e8f0', borderRadius: '14px',
+                                                            cursor: 'pointer', transition: 'all 0.2s', position: 'relative',
+                                                            boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
+                                                            textDecoration: 'none'
+                                                        }}
+                                                        onMouseEnter={(e) => {
+                                                            e.currentTarget.style.borderColor = 'var(--primary-color)';
+                                                            e.currentTarget.style.transform = 'translateY(-2px)';
+                                                            e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0,0,0,0.1)';
+                                                        }}
+                                                        onMouseLeave={(e) => {
+                                                            e.currentTarget.style.borderColor = '#e2e8f0';
+                                                            e.currentTarget.style.transform = 'translateY(0)';
+                                                            e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.02)';
+                                                        }}
+                                                    >
+                                                        <div style={{
+                                                            padding: '10px', background: '#eff6ff', borderRadius: '10px', color: 'var(--primary-color)',
+                                                            display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                                        }}>
+                                                            <File size={20} />
+                                                        </div>
+                                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                                            <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                                {ev.fileName || ev.name || 'Unnamed File'}
+                                                            </p>
+                                                            <p style={{ margin: 0, fontSize: '0.7rem', color: '#94a3b8', fontWeight: 500 }}>
+                                                                Uploaded {new Date(ev.submittedAt || ev.createdDate || Date.now()).toLocaleDateString('vi-VN')}
+                                                            </p>
+                                                        </div>
+                                                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
+                                                            <button
+                                                                type="button"
+                                                                onClick={(e) => {
+                                                                    e.preventDefault();
+                                                                    window.open(getFullUrl(ev.fileUrl || ev.url || ''), '_blank');
+                                                                }}
+                                                                style={{
+                                                                    border: 'none', background: '#f8fafc', color: '#64748b',
+                                                                    cursor: 'pointer', width: '32px', height: '32px', borderRadius: '8px',
+                                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                                    transition: 'all 0.2s'
+                                                                }}
+                                                                title="View File"
+                                                            >
+                                                                <Eye size={16} />
+                                                            </button>
+                                                            {task && ![TaskStatus.Todo, TaskStatus.Submitted, TaskStatus.Completed].includes(task.status) && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => {
+                                                                        e.preventDefault();
+                                                                        handleDeleteEvidence(ev.id);
+                                                                    }}
+                                                                    style={{
+                                                                        border: 'none', background: '#fff1f2', color: '#ef4444',
+                                                                        cursor: 'pointer', width: '32px', height: '32px', borderRadius: '8px',
+                                                                        display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                                                    }}
+                                                                    title="Delete File"
+                                                                >
+                                                                    <Trash2 size={16} />
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </a>
+                                                ))}
                                             </div>
-                                        ))}
+                                        )}
 
-                                        <label style={{
-                                            display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 16px',
-                                            background: 'var(--primary-color)', color: 'white', borderRadius: '10px',
-                                            fontSize: '0.75rem', fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s',
-                                            boxShadow: '0 4px 6px rgba(37, 99, 235, 0.15)'
-                                        }}>
-                                            <Search size={14} /> Browse Files
-                                            <input type="file" multiple onChange={handleFileChange} style={{ display: 'none' }} />
-                                        </label>
-                                     </div>
+                                        {/* New Selected Files */}
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
+                                            {evidenceFiles.map((file, i) => (
+                                                <div key={i} style={{
+                                                    display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 16px',
+                                                    background: '#f8fafc', border: '1px solid #f1f5f9', borderRadius: '12px',
+                                                    fontSize: '0.8rem', fontWeight: 600, color: '#475569'
+                                                }}>
+                                                    <FileText size={18} color="#94a3b8" />
+                                                    <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name}</span>
+                                                    <span style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 500 }}>{(file.size / (1024 * 1024)).toFixed(2)} MB</span>
+                                                    {task && ![TaskStatus.Todo, TaskStatus.Submitted, TaskStatus.Completed].includes(task.status) && (
+                                                        <button type="button" onClick={() => removeFile(i)} style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', padding: '4px' }}>
+                                                            <Trash2 size={16} />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            ))}
+
+                                            {!canUploadEvidence ? (
+                                                <div style={{
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
+                                                    padding: '12px 20px', background: '#f8fafc', color: '#94a3b8',
+                                                    borderRadius: '14px', border: '1px solid #e2e8f0',
+                                                    fontSize: '0.8rem', fontWeight: 600, marginTop: '4px'
+                                                }}>
+                                                    <AlertCircle size={16} /> Only assigned members can upload evidence
+                                                </div>
+                                            ) : task && ![TaskStatus.Todo, TaskStatus.Submitted, TaskStatus.Completed].includes(task.status) ? (
+                                                <label style={{
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
+                                                    padding: '12px 20px', background: 'white', color: 'var(--primary-color)',
+                                                    borderRadius: '14px', border: '2px dashed #e2e8f0',
+                                                    fontSize: '0.85rem', fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s',
+                                                    marginTop: '4px'
+                                                }}
+                                                    onMouseEnter={(e) => {
+                                                        e.currentTarget.style.borderColor = 'var(--primary-color)';
+                                                        e.currentTarget.style.background = '#eff6ff';
+                                                    }}
+                                                    onMouseLeave={(e) => {
+                                                        e.currentTarget.style.borderColor = '#e2e8f0';
+                                                        e.currentTarget.style.background = 'white';
+                                                    }}
+                                                >
+                                                    <Plus size={18} /> Add Research Evidence Files
+                                                    <input type="file" multiple onChange={handleFileChange} style={{ display: 'none' }} />
+                                                </label>
+                                            ) : (
+                                                <div style={{
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
+                                                    padding: '12px 20px', background: '#f8fafc', color: '#94a3b8',
+                                                    borderRadius: '14px', border: '1px solid #e2e8f0',
+                                                    fontSize: '0.8rem', fontWeight: 600, marginTop: '4px'
+                                                }}>
+                                                    <AlertCircle size={16} /> Evidence upload locked for current status
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
@@ -550,73 +906,189 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                     </div>
                                 )}
 
-                                <div style={{ 
-                                    flex: 1, overflowY: 'auto', background: 'white', borderRadius: '20px', 
+                                <div style={{
+                                    flex: 1, overflowY: 'auto', background: 'white', borderRadius: '20px',
                                     border: '1px solid #e2e8f0', padding: '8px'
                                 }}>
-                                     {filteredMembers.length === 0 ? (
-                                        <p style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8', fontSize: '0.85rem' }}>No members found.</p>
-                                    ) : (
-                                        filteredMembers.map((m) => {
-                                            const mId = m.memberId || m.id || '';
-                                            const isAssignee = memberId === mId;
-                                            const isCollaborator = supportMemberIds.includes(mId);
-                                            
-                                            if (!isEditMode && !isAssignee && !isCollaborator) return null;
+                                    {isEditMode ? (
+                                        // EDIT MODE: Show all project members to allow assignment
+                                        filteredMembers.length === 0 ? (
+                                            <p style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8', fontSize: '0.85rem' }}>No project members found.</p>
+                                        ) : (
+                                            filteredMembers.map((m) => {
+                                                // For ProjectMember, m.memberId or m.id is the membershipId
+                                                const mId = m.memberId || m.id || m.userId || '';
+                                                const isAssignee = memberId === mId;
+                                                const isCollaborator = supportMemberIds.includes(mId);
 
-                                            return (
-                                                <div key={mId} style={{
-                                                    display: 'flex', alignItems: 'center', padding: '12px', borderRadius: '14px',
-                                                    marginBottom: '6px', background: isAssignee ? '#eff6ff' : 'transparent',
-                                                    border: isAssignee ? '1px solid #dbeafe' : '1px solid transparent'
-                                                }}>
-                                                     <div style={{
-                                                        width: '38px', height: '38px', borderRadius: '50%',
-                                                        background: 'var(--primary-color)', color: 'white',
-                                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                        fontSize: '0.85rem', fontWeight: 800, marginRight: '12px'
+                                                return (
+                                                    <div key={mId} style={{
+                                                        display: 'flex', alignItems: 'center', padding: '12px', borderRadius: '14px',
+                                                        marginBottom: '6px', background: isAssignee ? '#eff6ff' : isCollaborator ? '#f0fdf4' : 'transparent',
+                                                        border: isAssignee ? '1px solid #dbeafe' : isCollaborator ? '1px solid #dcfce7' : '1px solid transparent'
                                                     }}>
-                                                        {(m.fullName || m.userName || '?')[0].toUpperCase()}
-                                                    </div>
-                                                    <div style={{ flex: 1, minWidth: 0 }}>
-                                                        <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 700, color: '#334155' }}>{m.fullName || m.userName}</p>
-                                                        <p style={{ margin: 0, fontSize: '0.7rem', color: '#94a3b8' }}>{m.roleName || 'Researcher'}</p>
-                                                    </div>
-
-                                                    {isEditMode ? (
+                                                        <div style={{ marginRight: '12px' }}>
+                                                            {(m as any).avatar || (m as any).avatarUrl ? (
+                                                                <img
+                                                                    src={(m as any).avatar || (m as any).avatarUrl}
+                                                                    alt={m.fullName || m.userName}
+                                                                    style={{ width: '38px', height: '38px', borderRadius: '50%', objectFit: 'cover' }}
+                                                                />
+                                                            ) : (
+                                                                <div style={{
+                                                                    width: '38px', height: '38px', borderRadius: '50%',
+                                                                    background: isAssignee ? 'var(--primary-color)' : isCollaborator ? '#10b981' : '#cbd5e1',
+                                                                    color: 'white',
+                                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                                    fontSize: '0.85rem', fontWeight: 800
+                                                                }}>
+                                                                    {(m.fullName || m.userName || '?')[0].toUpperCase()}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                                            <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 700, color: '#334155' }}>{m.fullName || m.userName}</p>
+                                                            <p style={{ margin: 0, fontSize: '0.7rem', color: '#94a3b8' }}>{m.projectRoleName || m.roleName || 'Researcher'}</p>
+                                                        </div>
                                                         <div style={{ display: 'flex', gap: '6px' }}>
-                                                            <button 
-                                                                type="button" 
+                                                            <button
+                                                                type="button"
                                                                 onClick={() => setMemberId(isAssignee ? '' : mId)}
-                                                                style={{ 
+                                                                style={{
                                                                     padding: '4px 10px', borderRadius: '8px', fontSize: '0.65rem', fontWeight: 800,
                                                                     border: '1.5px solid', borderColor: isAssignee ? 'var(--primary-color)' : '#e2e8f0',
                                                                     background: isAssignee ? 'var(--primary-color)' : 'white',
                                                                     color: isAssignee ? 'white' : '#64748b', cursor: 'pointer'
                                                                 }}
                                                             >Assign</button>
-                                                            <button 
+                                                            <button
                                                                 type="button"
                                                                 onClick={() => toggleSupportMember(mId)}
-                                                                style={{ 
+                                                                style={{
                                                                     padding: '4px 10px', borderRadius: '8px', fontSize: '0.65rem', fontWeight: 800,
                                                                     border: '1.5px solid', borderColor: isCollaborator ? '#10b981' : '#e2e8f0',
                                                                     background: isCollaborator ? '#10b981' : 'white',
-                                                                    color: isCollaborator ? 'white' : '#64748b', cursor: 'pointer'
+                                                                    color: isCollaborator ? 'white' : '#64748b', cursor: 'pointer',
+                                                                    opacity: isAssignee ? 0.5 : 1,
+                                                                    pointerEvents: isAssignee ? 'none' : 'auto'
                                                                 }}
                                                             >Collab</button>
                                                         </div>
-                                                    ) : (
-                                                        <div style={{ 
-                                                            padding: '4px 10px', borderRadius: '8px', fontSize: '0.65rem', fontWeight: 800,
-                                                            background: isAssignee ? 'var(--primary-color)' : '#10b981', color: 'white'
-                                                        }}>
-                                                            {isAssignee ? 'Primary' : 'Support'}
+                                                    </div>
+                                                );
+                                            })
+                                        )
+                                    ) : (
+                                        // VIEW MODE: Show members currently assigned to this activity
+                                        (!task?.memberId && (!task?.members || task.members.length === 0)) ? (
+                                            <p style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8', fontSize: '0.85rem' }}>No members assigned to this activity.</p>
+                                        ) : (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                {/* Primary Assignee Display */}
+                                                {task.memberId && (
+                                                    <div style={{
+                                                        display: 'flex', alignItems: 'center', padding: '12px', borderRadius: '14px',
+                                                        background: '#eff6ff', border: '1px solid #dbeafe'
+                                                    }}>
+                                                        <div style={{ marginRight: '12px' }}>
+                                                            {task.member?.avatarUrl || task.member?.avatar ? (
+                                                                <img
+                                                                    src={task.member?.avatarUrl || task.member?.avatar}
+                                                                    alt={task.member?.fullName || 'Primary'}
+                                                                    style={{ width: '38px', height: '38px', borderRadius: '50%', objectFit: 'cover' }}
+                                                                />
+                                                            ) : (
+                                                                <div style={{
+                                                                    width: '38px', height: '38px', borderRadius: '50%',
+                                                                    background: 'var(--primary-color)', color: 'white',
+                                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                                    fontSize: '0.85rem', fontWeight: 800
+                                                                }}>
+                                                                    {(task.member?.fullName || task.member?.userName || 'P')[0].toUpperCase()}
+                                                                </div>
+                                                            )}
                                                         </div>
-                                                    )}
-                                                </div>
-                                            );
-                                        })
+                                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                                            <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 700, color: '#1e40af' }}>
+                                                                {task.member?.fullName || task.member?.userName || 'Primary Researcher'}
+                                                            </p>
+                                                            <p style={{ margin: 0, fontSize: '0.7rem', color: '#94a3b8' }}>
+                                                                {task.member?.projectRoleName || task.member?.roleName || 'Primary Assignee'}
+                                                            </p>
+                                                        </div>
+                                                        <div style={{ 
+                                                            padding: '4px 10px', borderRadius: '8px', fontSize: '0.65rem', fontWeight: 800, 
+                                                            background: 'var(--primary-color)', color: 'white' 
+                                                        }}>
+                                                            Primary
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* Support Members Display */}
+                                                {(task.members || [])
+                                                    .filter(m => {
+                                                        const mId = m.memberId || m.userId || m.id;
+                                                        return mId !== task.memberId;
+                                                    })
+                                                    .map((m: any) => {
+                                                        const mId = m.memberId || m.userId || m.id;
+                                                        
+                                                        // CRITICAL: Enrich collaborator data with full project member info if available
+                                                        // This ensures we get the real projectRoleName (e.g. "Designer") instead of generic "Member"
+                                                        const pm = (projectMembers || []).find(p => (p.memberId || p.id || p.userId) === mId);
+                                                        const displayName = pm?.fullName || pm?.userName || m.fullName || m.userName;
+                                                        const displayRole = pm?.projectRoleName || pm?.roleName || m.projectRoleName || m.roleName || 'Collaborator';
+                                                        const displayAvatar = pm?.avatarUrl || pm?.avatar || m.avatar || m.avatarUrl;
+
+                                                        return (
+                                                            <div key={m.id || mId} style={{
+                                                                display: 'flex', alignItems: 'center', padding: '12px', borderRadius: '14px',
+                                                                background: '#f8fafc', border: '1px solid #f1f5f9'
+                                                            }}>
+                                                                <div style={{ marginRight: '12px' }}>
+                                                                    {displayAvatar ? (
+                                                                        <img
+                                                                            src={displayAvatar}
+                                                                            alt={displayName}
+                                                                            style={{ width: '38px', height: '38px', borderRadius: '50%', objectFit: 'cover' }}
+                                                                        />
+                                                                    ) : (
+                                                                        <div style={{
+                                                                            width: '38px', height: '38px', borderRadius: '50%',
+                                                                            background: '#10b981', color: 'white',
+                                                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                                            fontSize: '0.85rem', fontWeight: 800
+                                                                        }}>
+                                                                            {(displayName || 'U')[0].toUpperCase()}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                                    <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 700, color: '#334155' }}>
+                                                                        {displayName}
+                                                                    </p>
+                                                                    <p style={{ margin: 0, fontSize: '0.7rem', color: '#94a3b8' }}>
+                                                                        {displayRole}
+                                                                    </p>
+                                                                </div>
+                                                                <div style={{ 
+                                                                    padding: '4px 10px', borderRadius: '8px', fontSize: '0.65rem', fontWeight: 800, 
+                                                                    background: '#10b981', color: 'white' 
+                                                                }}>
+                                                                    Support
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                
+                                                {!task.memberId && (!task.members || task.members.length === 0) && (
+                                                    <p style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8', fontSize: '0.85rem' }}>
+                                                        No members assigned to this task.
+                                                    </p>
+                                                )}
+                                            </div>
+                                        )
                                     )}
                                 </div>
 
@@ -633,18 +1105,66 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                     alignItems: 'center'
                 }}>
                     {isAuthorizedToEdit && (
-                        <button 
-                            type="button" 
-                            onClick={handleDelete} 
-                            style={{ 
-                                padding: '0.75rem 1.5rem', borderRadius: '12px', border: '1px solid #fee2e2', 
-                                background: '#fef2f2', color: '#ef4444', fontWeight: 700, 
+                        <button
+                            type="button"
+                            onClick={handleDelete}
+                            style={{
+                                padding: '0.75rem 1.5rem', borderRadius: '12px', border: '1px solid #fee2e2',
+                                background: '#fef2f2', color: '#ef4444', fontWeight: 700,
                                 cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
                                 marginRight: 'auto'
                             }}
                         >
                             <Trash2 size={16} /> Delete Activity
                         </button>
+                    )}
+                    {isAuthorizedToEdit && !isEditMode && nextStatuses.length > 0 && (
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            background: '#f8fafc',
+                            padding: '4px',
+                            borderRadius: '14px',
+                            border: '1px solid #e2e8f0'
+                        }}>
+                            <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', padding: '0 12px', textTransform: 'uppercase' }}>Quick Action:</span>
+                            {nextStatuses.map(s => {
+                                const config = getStatusActionColor(s);
+                                return (
+                                    <button
+                                        key={s}
+                                        onClick={() => handleStatusTransition(s)}
+                                        style={{
+                                            padding: '8px 16px',
+                                            borderRadius: '10px',
+                                            fontSize: '0.75rem',
+                                            fontWeight: 800,
+                                            background: config.bg,
+                                            color: config.text,
+                                            border: `1px solid ${config.border}`,
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '6px',
+                                            transition: 'all 0.2s',
+                                            marginLeft: '4px',
+                                            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                                        }}
+                                        onMouseEnter={(e) => {
+                                            e.currentTarget.style.transform = 'translateY(-1px)';
+                                            e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0,0,0,0.1)';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            e.currentTarget.style.transform = 'translateY(0)';
+                                            e.currentTarget.style.boxShadow = '0 1px 2px rgba(0,0,0,0.05)';
+                                        }}
+                                    >
+                                        <Activity size={14} />
+                                        {getStatusActionLabel(s)}
+                                    </button>
+                                );
+                            })}
+                        </div>
                     )}
                     <button type="button" onClick={onClose} className="btn btn-secondary" style={{ padding: '0.75rem 2rem', borderRadius: '12px' }}>Close Window</button>
                     {(isEditMode || (!error && evidenceFiles.length > 0)) && (
@@ -654,6 +1174,25 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                         </button>
                     )}
                 </div>
+
+                {/* Notifications & Confirmation Modal */}
+                {toast && (
+                    <Toast
+                        message={toast.message}
+                        type={toast.type}
+                        onClose={() => setToast(null)}
+                    />
+                )}
+
+                <ConfirmModal
+                    isOpen={confirmConfig.isOpen}
+                    title={confirmConfig.title}
+                    message={confirmConfig.message}
+                    variant={confirmConfig.variant}
+                    confirmText={confirmConfig.confirmText}
+                    onConfirm={confirmConfig.onConfirm}
+                    onClose={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
+                />
             </div>
         </div>
     );

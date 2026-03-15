@@ -153,9 +153,9 @@ const MilestoneDetailModal: React.FC<MilestoneDetailModalProps> = ({
         switch (status) {
             case TaskStatus.Todo: return { label: 'To Do', color: '#64748b' };
             case TaskStatus.InProgress: return { label: 'In Progress', color: '#0ea5e9' };
-            case TaskStatus.Submitted: return { label: 'Submitted', color: '#f59e0b' };
-            case TaskStatus.Approved: return { label: 'Approved', color: '#10b981' };
-            case TaskStatus.Rejected: return { label: 'Rejected', color: '#ef4444' };
+            case TaskStatus.Submitted: return { label: 'Submitted', color: '#7c3aed' };
+            case TaskStatus.Missed: return { label: 'Missed', color: '#ef4444' };
+            case TaskStatus.Adjusting: return { label: 'Adjusting', color: '#f59e0b' };
             case TaskStatus.Completed: return { label: 'Completed', color: '#10b981' };
             default: return { label: 'In Progress', color: '#0ea5e9' };
         }

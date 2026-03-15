@@ -8,16 +8,19 @@ interface ModalProps {
     children: React.ReactNode;
     footer?: React.ReactNode;
     variant?: 'danger' | 'info' | 'success';
+    maxWidth?: string;
 }
 
-const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, footer, variant = 'info' }) => {
+const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, footer, variant = 'info', maxWidth = '480px' }) => {
     if (!isOpen) return null;
 
     const getHeaderColor = () => {
+        const BRAND_ORANGE = '#ea580c';
+        const BRAND_SLATE = '#475569';
         switch (variant) {
-            case 'danger': return '#ef4444';
-            case 'success': return '#10b981';
-            default: return 'var(--primary-color)';
+            case 'danger': 
+            case 'success': return BRAND_ORANGE;
+            default: return BRAND_SLATE;
         }
     };
 
@@ -41,7 +44,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, footer,
                     backgroundColor: 'white',
                     borderRadius: '16px',
                     width: '100%',
-                    maxWidth: '480px',
+                    maxWidth: maxWidth,
                     boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
                     overflow: 'hidden',
                     display: 'flex',

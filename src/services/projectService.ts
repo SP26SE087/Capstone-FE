@@ -98,5 +98,15 @@ export const projectService = {
             console.error('Error fetching current member project info:', error);
             return null;
         }
+    },
+
+    getRoles: async (): Promise<any[]> => {
+        try {
+            const response = await api.get('/api/ProjectRole');
+            return response.data.data || response.data;
+        } catch (error) {
+            console.error('Error fetching project roles:', error);
+            return [];
+        }
     }
 };

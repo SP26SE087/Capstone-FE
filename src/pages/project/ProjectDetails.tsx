@@ -37,6 +37,8 @@ import TaskFormModal from '@/features/tasks/TaskFormModal';
 import TaskDetailModal from '@/features/tasks/TaskDetailModal';
 import MilestoneFormModal from '@/features/milestones/MilestoneFormModal';
 import MilestoneDetailModal from '@/features/milestones/MilestoneDetailModal';
+import AddMemberModal from '@/features/projects/AddMemberModal';
+import MemberDetailModal from '@/features/projects/MemberDetailModal';
 
 type ActiveTab = 'home' | 'milestones' | 'members' | 'tasks' | 'settings';
 
@@ -63,15 +65,24 @@ const ProjectDetails: React.FC = () => {
     const [isMilestoneDetailOpen, setIsMilestoneDetailOpen] = useState(false);
     const [selectedMilestoneId, setSelectedMilestoneId] = useState<string | null>(null);
     const [editingMilestone, setEditingMilestone] = useState<Milestone | null>(null);
+    const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
+    const [isMemberDeleteConfirmOpen, setIsMemberDeleteConfirmOpen] = useState(false);
+    const [selectedMemberForDelete, setSelectedMemberForDelete] = useState<any>(null);
+    const [isMemberDetailModalOpen, setIsMemberDetailModalOpen] = useState(false);
+    const [selectedMember, setSelectedMember] = useState<any>(null);
 
     // ─── Task Search & Filter State ──────────────────────────────────────────
     const [taskSearchQuery, setTaskSearchQuery] = useState('');
     const [taskStatusFilter, setTaskStatusFilter] = useState<string>('all');
     const [taskPriorityFilter, setTaskPriorityFilter] = useState<string>('all');
+    const [showMyTasks, setShowMyTasks] = useState(true);
 
     // ─── Milestone Search & Filter State ──────────────────────────────────────
     const [milestoneSearchQuery, setMilestoneSearchQuery] = useState('');
     const [milestoneStatusFilter, setMilestoneStatusFilter] = useState<string>('all');
+
+    // ─── Member Search State ──────────────────────────────────────────────────
+    const [memberSearchQuery, setMemberSearchQuery] = useState('');
 
     // ─── Configuration (Settings) State ───────────────────────────────────────
     const [availableFields, setAvailableFields] = useState<ResearchField[]>([]);
@@ -108,6 +119,16 @@ const ProjectDetails: React.FC = () => {
                 }
 
                 setCurrentMember(memberInfo);
+                const memberId = memberInfo?.memberId || memberInfo?.id;
+                
+                // Fetch tasks first as requested
+                if (showMyTasks && memberId) {
+                    const myTasks = await taskService.getTaskByMember(memberId);
+                    setTasks(myTasks || []);
+                } else {
+                    const allTasks = await taskService.getByProject(id);
+                    setTasks(allTasks || []);
+                }
 
                 const projectData = await projectService.getById(id);
 
@@ -129,16 +150,14 @@ const ProjectDetails: React.FC = () => {
                 });
                 setSelectedFieldIds(projectData.researchFields?.map(f => f.id) || []);
 
-                const [milestonesData, membersData, tasksData, fieldsData] = await Promise.all([
+                const [milestonesData, membersData, fieldsData] = await Promise.all([
                     milestoneService.getByProject(id),
                     membershipService.getProjectMembers(id),
-                    taskService.getByProject(id),
                     researchFieldService.getAll()
                 ]);
 
                 setMilestones(milestonesData.length ? milestonesData : (projectData.milestones || []));
                 setMembers(membersData.length ? membersData : (projectData.members || []));
-                setTasks(tasksData.length ? tasksData : (projectData.tasks || []));
                 setAvailableFields(fieldsData);
             } catch (error) {
                 console.error('Failed to fetch project workspace data:', error);
@@ -150,14 +169,27 @@ const ProjectDetails: React.FC = () => {
     }, [id, navigate]);
 
     const refetchTasks = async () => {
-        if (!id) return;
+        if (!id || loading) return; // Don't run if still in initial load
         try {
-            const tasksData = await taskService.getByProject(id);
-            setTasks(tasksData);
+            let tasksData;
+            const memberId = currentMember?.memberId || currentMember?.id;
+
+            if (showMyTasks && memberId) {
+                tasksData = await taskService.getTaskByMember(memberId);
+            } else {
+                tasksData = await taskService.getByProject(id);
+            }
+            setTasks(tasksData || []);
         } catch (error) {
             console.error('Failed to refetch tasks:', error);
         }
     };
+
+    useEffect(() => {
+        if (activeTab === 'tasks') {
+            refetchTasks();
+        }
+    }, [showMyTasks]);
 
     const refetchMilestones = async () => {
         if (!id) return;
@@ -166,6 +198,31 @@ const ProjectDetails: React.FC = () => {
             setMilestones(milestonesData);
         } catch (error) {
             console.error('Failed to refetch milestones:', error);
+        }
+    };
+
+    const refetchMembers = async () => {
+        if (!id) return;
+        try {
+            const membersData = await membershipService.getProjectMembers(id);
+            setMembers(membersData);
+        } catch (error) {
+            console.error('Failed to refetch members:', error);
+        }
+    };
+
+    const handleRemoveMember = async () => {
+        if (!id || !selectedMemberForDelete) return;
+        try {
+            const memberId = selectedMemberForDelete.id || selectedMemberForDelete.memberId;
+            await membershipService.removeMember(id, memberId);
+            showToast('Member removed from project.', 'success');
+            await refetchMembers();
+            setIsMemberDeleteConfirmOpen(false);
+            setSelectedMemberForDelete(null);
+        } catch (error) {
+            console.error('Failed to remove member:', error);
+            showToast('Failed to remove member.', 'error');
         }
     };
 
@@ -223,8 +280,17 @@ const ProjectDetails: React.FC = () => {
         (Number(projectRoleValue) === ProjectRoleEnum.Leader) ||
         (Number(projectRoleValue) === ProjectRoleEnum.LabDirector);
     const canDeleteProject = isAdmin || (Number(projectRoleValue) === ProjectRoleEnum.LabDirector);
+    const canAddTask = isAdmin ||
+        [ProjectRoleEnum.Leader, ProjectRoleEnum.LabDirector, ProjectRoleEnum.SeniorResearcher].includes(Number(projectRoleValue));
     const isArchived = project?.status === ProjectStatus.Archived;
     const isReadOnly = (isArchived && !isAdmin) || !canManageProject;
+
+    const filteredMembers = members.filter(m => {
+        const query = memberSearchQuery.toLowerCase();
+        return (m.fullName || m.userName || '').toLowerCase().includes(query) ||
+            (m.email || '').toLowerCase().includes(query) ||
+            (m.roleName || m.projectRoleName || '').toLowerCase().includes(query);
+    });
 
     // ─── Configuration Handlers ────────────────────────────────────────────────
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -356,7 +422,12 @@ const ProjectDetails: React.FC = () => {
             (task.description?.toLowerCase().includes(taskSearchQuery.toLowerCase()) || false);
         const matchesStatus = taskStatusFilter === 'all' || task.status.toString() === taskStatusFilter;
         const matchesPriority = taskPriorityFilter === 'all' || task.priority.toString() === taskPriorityFilter;
-        return matchesSearch && matchesStatus && matchesPriority;
+
+        // In this workspace, we trust the API results (either project-wide or member-specific)
+        // and only apply Search/Status/Priority filters in the frontend.
+        const matchesMyTasks = true;
+            
+        return matchesSearch && matchesStatus && matchesPriority && matchesMyTasks;
     });
 
     const filteredMilestones = milestones.filter(m => {
@@ -514,13 +585,26 @@ const ProjectDetails: React.FC = () => {
                                             <button className="btn btn-text" style={{ fontSize: '0.8rem' }} onClick={() => setActiveTab('tasks')}>View All</button>
                                         </div>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                            {tasks.slice(0, 3).map(task => (
-                                                <div key={task.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.9rem', padding: '8px', border: '1px solid #f1f5f9', borderRadius: '8px' }}>
-                                                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: task.status === TaskStatus.Completed ? '#10b981' : '#0ea5e9' }} />
-                                                    <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{task.name}</span>
-                                                    <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'No date'}</span>
-                                                </div>
-                                            ))}
+                                            {tasks.slice(0, 3).map(task => {
+                                                const getStatusColor = (status: TaskStatus) => {
+                                                    switch (status) {
+                                                        case TaskStatus.Todo: return '#64748b';
+                                                        case TaskStatus.InProgress: return '#0ea5e9';
+                                                        case TaskStatus.Submitted: return '#7c3aed';
+                                                        case TaskStatus.Missed: return '#ef4444';
+                                                        case TaskStatus.Adjusting: return '#f59e0b';
+                                                        case TaskStatus.Completed: return '#10b981';
+                                                        default: return '#64748b';
+                                                    }
+                                                };
+                                                return (
+                                                    <div key={task.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.9rem', padding: '8px', border: '1px solid #f1f5f9', borderRadius: '8px' }}>
+                                                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: getStatusColor(task.status) }} />
+                                                        <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{task.name}</span>
+                                                        <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'No date'}</span>
+                                                    </div>
+                                                );
+                                            })}
                                             {tasks.length === 0 && <p style={{ fontSize: '0.85rem', color: '#94a3b8', textAlign: 'center' }}>No recent research tasks.</p>}
                                         </div>
                                     </section>
@@ -552,13 +636,15 @@ const ProjectDetails: React.FC = () => {
                                         <h2 style={{ margin: 0 }}>Research Roadmap</h2>
                                         <p style={{ color: 'var(--text-secondary)', margin: 0 }}>Phases and critical path for this research project.</p>
                                     </div>
-                                    <button
-                                        className="btn btn-primary"
-                                        style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
-                                        onClick={() => setIsMilestoneModalOpen(true)}
-                                    >
-                                        <Plus size={18} /> New Phase
-                                    </button>
+                                    {canDeleteProject && (
+                                        <button
+                                            className="btn btn-primary"
+                                            style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                                            onClick={() => setIsMilestoneModalOpen(true)}
+                                        >
+                                            <Plus size={18} /> New Phase
+                                        </button>
+                                    )}
                                 </div>
 
                                 <div style={{
@@ -656,13 +742,79 @@ const ProjectDetails: React.FC = () => {
                                         <h2 style={{ margin: 0 }}>Research Team</h2>
                                         <p style={{ color: 'var(--text-secondary)', margin: 0 }}>Manage contributors and roles within this project.</p>
                                     </div>
-                                    <button className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <button
+                                        className="btn btn-primary"
+                                        style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                                        onClick={() => setIsAddMemberModalOpen(true)}
+                                    >
                                         <UserPlus size={18} /> Add Member
                                     </button>
                                 </div>
+
+                                <div style={{
+                                    display: 'flex',
+                                    gap: '12px',
+                                    background: '#f8fafc',
+                                    padding: '1rem',
+                                    borderRadius: '12px',
+                                    border: '1px solid #e2e8f0',
+                                    marginBottom: '0.5rem'
+                                }}>
+                                    <div style={{ position: 'relative', flex: 1 }}>
+                                        <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                                        <input
+                                            type="text"
+                                            placeholder="Search members by name, email or role..."
+                                            value={memberSearchQuery}
+                                            onChange={(e) => setMemberSearchQuery(e.target.value)}
+                                            style={{
+                                                width: '100%',
+                                                padding: '0.6rem 1rem 0.6rem 2.5rem',
+                                                borderRadius: '8px',
+                                                border: '1.5px solid #e2e8f0',
+                                                fontSize: '0.9rem',
+                                                outline: 'none',
+                                                background: 'white'
+                                            }}
+                                        />
+                                    </div>
+                                    {memberSearchQuery && (
+                                        <button
+                                            onClick={() => setMemberSearchQuery('')}
+                                            style={{ background: 'none', border: 'none', color: 'var(--primary-color)', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}
+                                        >
+                                            Clear
+                                        </button>
+                                    )}
+                                </div>
+
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem' }}>
-                                    {members.length > 0 ? members.map((member, index) => (
-                                        <div key={member.id || member.memberId || index} className="card" style={{ display: 'flex', alignItems: 'center', gap: '15px', padding: '1.25rem' }}>
+                                    {filteredMembers.length > 0 ? filteredMembers.map((member, index) => (
+                                        <div
+                                            key={member.id || member.memberId || index}
+                                            className="card"
+                                            onClick={() => {
+                                                setSelectedMember(member);
+                                                setIsMemberDetailModalOpen(true);
+                                            }}
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '15px',
+                                                padding: '1.25rem',
+                                                cursor: 'pointer',
+                                                transition: 'all 0.2s',
+                                                border: '1px solid transparent'
+                                            }}
+                                            onMouseOver={(e) => {
+                                                e.currentTarget.style.borderColor = 'var(--primary-color)';
+                                                e.currentTarget.style.transform = 'translateY(-2px)';
+                                            }}
+                                            onMouseOut={(e) => {
+                                                e.currentTarget.style.borderColor = 'transparent';
+                                                e.currentTarget.style.transform = 'translateY(0)';
+                                            }}
+                                        >
                                             <div style={{
                                                 width: '48px', height: '48px', borderRadius: '50%',
                                                 background: '#f1f5f9', display: 'flex', alignItems: 'center',
@@ -681,7 +833,9 @@ const ProjectDetails: React.FC = () => {
                                         </div>
                                     )) : (
                                         <div className="card" style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3rem' }}>
-                                            <p style={{ color: 'var(--text-secondary)' }}>No members have been added to this research project yet.</p>
+                                            <p style={{ color: 'var(--text-secondary)' }}>
+                                                {memberSearchQuery ? "No members match your search criteria." : "No members have been added to this research project yet."}
+                                            </p>
                                         </div>
                                     )}
                                 </div>
@@ -708,14 +862,16 @@ const ProjectDetails: React.FC = () => {
                                                 }}>{view.charAt(0).toUpperCase() + view.slice(1)}</button>
                                             ))}
                                         </div>
-                                        <button
-                                            className="btn btn-primary"
-                                            onClick={() => setIsTaskModalOpen(true)}
-                                            style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: isArchived && !isAdmin ? 0.5 : 1, cursor: isArchived && !isAdmin ? 'not-allowed' : 'pointer' }}
-                                            disabled={isArchived && !isAdmin}
-                                        >
-                                            <Plus size={18} /> New Activity
-                                        </button>
+                                        {canAddTask && (
+                                            <button
+                                                className="btn btn-primary"
+                                                onClick={() => setIsTaskModalOpen(true)}
+                                                style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: isArchived && !isAdmin ? 0.5 : 1, cursor: isArchived && !isAdmin ? 'not-allowed' : 'pointer' }}
+                                                disabled={isArchived && !isAdmin}
+                                            >
+                                                <Plus size={18} /> New Activity
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                                 <div style={{
@@ -767,8 +923,8 @@ const ProjectDetails: React.FC = () => {
                                             <option value={TaskStatus.Todo.toString()}>To Do</option>
                                             <option value={TaskStatus.InProgress.toString()}>In Progress</option>
                                             <option value={TaskStatus.Submitted.toString()}>Submitted</option>
-                                            <option value={TaskStatus.Approved.toString()}>Approved</option>
-                                            <option value={TaskStatus.Rejected.toString()}>Rejected</option>
+                                            <option value={TaskStatus.Missed.toString()}>Missed</option>
+                                            <option value={TaskStatus.Adjusting.toString()}>Adjusting</option>
                                             <option value={TaskStatus.Completed.toString()}>Completed</option>
                                         </select>
 
@@ -798,6 +954,7 @@ const ProjectDetails: React.FC = () => {
                                                 setTaskSearchQuery('');
                                                 setTaskStatusFilter('all');
                                                 setTaskPriorityFilter('all');
+                                                setShowMyTasks(false);
                                             }}
                                             style={{
                                                 padding: '0.75rem 1.25rem',
@@ -811,6 +968,28 @@ const ProjectDetails: React.FC = () => {
                                             }}
                                         >
                                             Reset Filters
+                                        </button>
+
+                                        <button
+                                            onClick={() => setShowMyTasks(!showMyTasks)}
+                                            style={{
+                                                padding: '0.75rem 1.25rem',
+                                                background: showMyTasks ? 'var(--primary-color)' : 'white',
+                                                border: '1.5px solid',
+                                                borderColor: showMyTasks ? 'var(--primary-color)' : '#e2e8f0',
+                                                borderRadius: '12px',
+                                                color: showMyTasks ? 'white' : '#64748b',
+                                                fontWeight: 700,
+                                                fontSize: '0.85rem',
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '8px',
+                                                transition: 'all 0.2s'
+                                            }}
+                                        >
+                                            <User size={16} />
+                                            {showMyTasks ? 'My Tasks' : 'All Tasks'}
                                         </button>
                                     </div>
                                 </div>
@@ -1026,7 +1205,7 @@ const ProjectDetails: React.FC = () => {
                                             </div>
                                             <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)' }}>Workspace Health</h4>
                                         </div>
-                                        
+
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                                             <div>
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '0.85rem' }}>
@@ -1139,6 +1318,50 @@ const ProjectDetails: React.FC = () => {
                 milestoneId={selectedMilestoneId}
                 onMilestoneUpdated={refetchMilestones}
                 canManage={canManageProject}
+            />
+
+            <AddMemberModal
+                isOpen={isAddMemberModalOpen}
+                onClose={() => setIsAddMemberModalOpen(false)}
+                projectId={id || ''}
+                onSuccess={() => {
+                    refetchMembers();
+                    showToast('Member added to project successfully!', 'success');
+                }}
+            />
+
+            <Modal
+                isOpen={isMemberDeleteConfirmOpen}
+                onClose={() => setIsMemberDeleteConfirmOpen(false)}
+                title="Remove Member"
+                variant="danger"
+                footer={(
+                    <>
+                        <button className="btn btn-secondary" onClick={() => setIsMemberDeleteConfirmOpen(false)}>Cancel</button>
+                        <button className="btn" style={{ background: 'var(--danger)', color: 'white' }} onClick={handleRemoveMember}>Remove Member</button>
+                    </>
+                )}
+            >
+                <div>
+                    <p>Are you sure you want to remove <strong>{selectedMemberForDelete?.fullName || selectedMemberForDelete?.userName}</strong> from this project?</p>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '1rem' }}>They will lose access to all research activities and data in this workspace.</p>
+                </div>
+            </Modal>
+
+            <MemberDetailModal
+                isOpen={isMemberDetailModalOpen}
+                onClose={() => {
+                    setIsMemberDetailModalOpen(false);
+                    setSelectedMember(null);
+                }}
+                member={selectedMember}
+                projectId={id || ''}
+                currentUser={currentUser}
+                canManage={canManageProject}
+                onSuccess={() => {
+                    refetchMembers();
+                    showToast('Project team updated.', 'success');
+                }}
             />
         </MainLayout>
     );

@@ -7,7 +7,7 @@ const mockTasks: Task[] = [];
 export const taskService = {
     getPriorityTasks: async (): Promise<Task[]> => {
         try {
-            const response = await api.get('/api/projects/tasks?limit=5'); 
+            const response = await api.get('/api/projects/tasks?limit=5');
             return response.data.data || response.data;
         } catch (error) {
             console.error('Error fetching tasks:', error);
@@ -41,6 +41,12 @@ export const taskService = {
                 ));
             }
 
+            // If there are evidence files, upload them
+            if (newTask?.id && taskData.evidence && taskData.evidence.length > 0) {
+                console.log('Uploading evidence for task:', newTask.id);
+                await taskService.uploadEvidences(newTask.id, taskData.evidence);
+            }
+
             return newTask;
         } catch (error) {
             console.error('Error creating task:', error);
@@ -50,7 +56,7 @@ export const taskService = {
 
     addMember: async (taskId: string, memberId: string): Promise<any> => {
         try {
-            const response = await api.post('/api/projects/tasks/members', { taskId, memberId });
+            const response = await api.post(`/api/projects/tasks/${taskId}/members`, { memberId });
             return response.data;
         } catch (error) {
             console.error(`Error adding member ${memberId} to task ${taskId}:`, error);
@@ -58,13 +64,13 @@ export const taskService = {
         }
     },
 
-    removeMember: async (taskId: string, memberId: string): Promise<any> => {
+    removeMember: async (taskMemberId: string): Promise<any> => {
         try {
-            // Per devApi, DELETE /api/projects/tasks/members/{taskId}/{memberId}
-            const response = await api.delete(`/api/projects/tasks/members/${taskId}/${memberId}`);
+            // Per devApi: DELETE /api/projects/tasks/members/{taskMemberId}
+            const response = await api.delete(`/api/projects/tasks/members/${taskMemberId}`);
             return response.data;
         } catch (error) {
-            console.error(`Error removing member ${memberId} from task ${taskId}:`, error);
+            console.error(`Error removing task member association ${taskMemberId}:`, error);
             throw error;
         }
     },
@@ -86,7 +92,37 @@ export const taskService = {
 
             const response = await api.put('/api/projects/tasks', updatePayload);
             const updatedTask = response.data.data || response.data;
-            
+
+            // If there are support members, update them
+            if (taskId && taskData.supportMembers) {
+                console.log('Updating support members for task:', taskId);
+
+                // Get current details to know who to add/remove
+                const currentTask = await taskService.getById(taskId);
+                if (currentTask) {
+                    // Use memberId (which we've mapped to membershipId) for ID comparison
+                    const currentSupportIds = (currentTask.members || []).map((m: any) => m.memberId);
+                    const newSupportIds = taskData.supportMembers || [];
+
+                    // Members to add: in newSupportIds but not in currentSupportIds
+                    const toAdd = newSupportIds.filter((id: string) => id && !currentSupportIds.includes(id));
+
+                    // Members to remove: in currentSupportIds but not in newSupportIds
+                    const toRemove = (currentTask.members || []).filter((m: any) => m.memberId && !newSupportIds.includes(m.memberId));
+
+                    await Promise.all([
+                        ...toAdd.map((mId: string) => taskService.addMember(taskId, mId)),
+                        ...toRemove.map((m: any) => taskService.removeMember(m.id)) // Use association ID for deletion
+                    ]);
+                }
+            }
+
+            // If there are evidence files, upload them
+            if (taskId && taskData.evidence && taskData.evidence.length > 0) {
+                console.log('Uploading evidence for task update:', taskId);
+                await taskService.uploadEvidences(taskId, taskData.evidence);
+            }
+
             return updatedTask;
         } catch (error) {
             console.error(`Error updating task ${taskId}:`, error);
@@ -104,55 +140,77 @@ export const taskService = {
         }
     },
 
+    getTaskByMember: async (memberId: string): Promise<Task[]> => {
+        try {
+            const response = await api.get(`/api/projects/tasks/member/${memberId}`);
+            return response.data.data || response.data;
+        } catch (error) {
+            console.error(`Error fetching tasks for member ${memberId}:`, error);
+            return [];
+        }
+    },
+
+    getByUserId: async (userId: string): Promise<Task[]> => {
+        try {
+            const response = await api.get(`/api/projects/tasks/user/${userId}`);
+            return response.data.data || response.data;
+        } catch (error) {
+            console.error(`Error fetching tasks for user ${userId}:`, error);
+            return [];
+        }
+    },
+
+    getCurrentUserTasks: async (): Promise<Task[]> => {
+        try {
+            const response = await api.get('/api/projects/tasks/current-user');
+            return response.data.data || response.data;
+        } catch (error) {
+            console.error('Error fetching current user tasks:', error);
+            return [];
+        }
+    },
+
     getById: async (taskId: string): Promise<Task | null> => {
         try {
             const response = await api.get(`/api/projects/tasks/${taskId}`);
-            const taskData: Task = response.data.data || response.data;
+            const taskData: any = response.data.data || response.data;
 
-            // Hydrate member details
-            let hydratedMembers: any[] = [];
+            // 1. Process existing members (collaborators) - data is already provided in the array
+            const taskMembers = taskData.members || [];
+            const processedMembers = taskMembers.map((tm: any) => {
+                const pr = tm.projectRole;
+                const projectRoleName = tm.projectRoleName || tm.roleName ||
+                    (pr === 1 ? 'Lab Director' :
+                        pr === 2 ? 'Senior Researcher' :
+                            pr === 3 ? 'Member' :
+                                pr === 4 ? 'Leader' : 'Researcher');
 
-            const fetchMember = async (memberId: string) => {
-                try {
-                    const res = await api.get(`/api/projects/members/${memberId}`);
-                    return res.data.data || res.data;
-                } catch (e) {
-                    console.warn(`Could not fetch details for member ${memberId}`);
-                    return null;
-                }
-            };
+                return {
+                    ...tm,
+                    id: tm.id, // TaskMember association ID
+                    membershipId: tm.membershipId,
+                    memberId: tm.membershipId || tm.memberId, // Use membershipId as the primary identifier
+                    userId: tm.userId,
+                    userName: tm.fullName || tm.userName || tm.email || 'Unknown',
+                    projectRoleName: projectRoleName,
+                };
+            });
 
-            // If there's a primary member
+            // 2. Fetch primary member details if memberId exists
+            let primaryMemberDetail = null;
             if (taskData.memberId) {
-                const primaryMember = await fetchMember(taskData.memberId);
-                if (primaryMember) {
-                    hydratedMembers.push({
-                        id: primaryMember.memberId || taskData.memberId,
-                        userName: primaryMember.fullName || primaryMember.email || 'Assignee'
-                    });
-                }
-            }
-
-            // If there are supporting members
-            if (Array.isArray(taskData.members)) {
-                for (const mId of taskData.members) {
-                    // Check if it's a string ID and not already added as primary 
-                    const idStr = typeof mId === 'string' ? mId : (mId as any).memberId || (mId as any).id;
-                    if (idStr && idStr !== taskData.memberId) {
-                        const supportMember = await fetchMember(idStr);
-                        if (supportMember) {
-                            hydratedMembers.push({
-                                id: supportMember.memberId || idStr,
-                                userName: supportMember.fullName || supportMember.email || 'Support Member'
-                            });
-                        }
-                    }
+                try {
+                    const { membershipService } = await import('./membershipService');
+                    primaryMemberDetail = await membershipService.getMemberById(taskData.memberId);
+                } catch (e) {
+                    console.warn(`Could not fetch details for primary member ${taskData.memberId}:`, e);
                 }
             }
 
             return {
                 ...taskData,
-                members: hydratedMembers,
+                member: primaryMemberDetail, // Primary member full details
+                members: processedMembers, // Hydrated collaborators
                 createdAt: taskData.createdDate || taskData.createdAt,
                 updatedAt: taskData.updatedDate || taskData.updatedAt
             };
@@ -169,6 +227,55 @@ export const taskService = {
             return response.data;
         } catch (error) {
             console.error(`Error deleting task ${taskId}:`, error);
+            throw error;
+        }
+    },
+
+    getEvidences: async (taskId: string): Promise<any[]> => {
+        try {
+            const response = await api.get(`/api/projects/tasks/${taskId}/evidences`);
+            return response.data.data || response.data || [];
+        } catch (error) {
+            console.error(`Error fetching evidences for task ${taskId}:`, error);
+            return [];
+        }
+    },
+
+    uploadEvidences: async (taskId: string, files: File[]): Promise<any> => {
+        try {
+            const formData = new FormData();
+            files.forEach(file => {
+                formData.append('files', (file as any).file || file);
+            });
+            const response = await api.post(`/api/projects/tasks/${taskId}/evidences/upload`, formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data'
+                }
+            });
+            return response.data;
+        } catch (error) {
+            console.error(`Error uploading evidences for task ${taskId}:`, error);
+            throw error;
+        }
+    },
+
+    deleteEvidence: async (taskId: string, evidenceId: number): Promise<any> => {
+        try {
+            const response = await api.delete(`/api/projects/tasks/${taskId}/evidences/${evidenceId}`);
+            return response.data;
+        } catch (error) {
+            console.error(`Error deleting evidence ${evidenceId} for task ${taskId}:`, error);
+            throw error;
+        }
+    },
+
+    updateStatus: async (taskId: string, status: number): Promise<any> => {
+        try {
+            // Updated to use the new format: PATCH /api/projects/tasks/{taskId}/status
+            const response = await api.patch(`/api/projects/tasks/${taskId}/status`, { newStatus: status });
+            return response.data;
+        } catch (error) {
+            console.error(`Error updating status for task ${taskId}:`, error);
             throw error;
         }
     }

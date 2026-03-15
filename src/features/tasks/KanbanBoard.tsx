@@ -133,9 +133,10 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
 
     const columns = [
         { id: TaskStatus.Todo, title: 'To Do', color: '#64748b' },
-        { id: TaskStatus.InProgress, title: 'In Progress', color: '#0288d1' },
+        { id: TaskStatus.InProgress, title: 'In Progress', color: '#0ea5e9' },
         { id: TaskStatus.Submitted, title: 'Submitted', color: '#7c3aed' },
-        { id: TaskStatus.Rejected, title: 'Rejected', color: '#ef4444' },
+        { id: TaskStatus.Missed, title: 'Missed', color: '#ef4444' },
+        { id: TaskStatus.Adjusting, title: 'Adjusting', color: '#f59e0b' },
         { id: TaskStatus.Completed, title: 'Completed', color: '#10b981' }
     ];
 

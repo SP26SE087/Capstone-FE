@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { X, Search, Users, Check, Calendar, Flag, Activity, AlignLeft, AlertTriangle, MapPin } from 'lucide-react';
-import { Priority, TaskStatus, ProjectMember, Task } from '@/types';
+import { X, Search, Users, Calendar, Activity, AlignLeft, AlertTriangle, MapPin, AlertOctagon, Plus, Trash2, FileText, File, Eye } from 'lucide-react';
+import { Priority, TaskStatus, ProjectMember, Task, TaskEvidence } from '@/types';
 
 interface TaskFormModalProps {
     isOpen: boolean;
@@ -15,7 +15,8 @@ interface TaskFormModalProps {
 }
 
 import { Milestone, MilestoneStatus } from '@/types/milestone';
-import { milestoneService, membershipService } from '@/services';
+import { milestoneService, membershipService, taskService } from '@/services';
+import { API_BASE_URL } from '@/services/api';
 
 const TaskFormModal: React.FC<TaskFormModalProps> = ({
     isOpen,
@@ -38,13 +39,14 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
     const [dueDate, setDueDate] = useState('');
     const [supportMemberIds, setSupportMemberIds] = useState<string[]>([]);
     const [evidenceFiles, setEvidenceFiles] = useState<File[]>([]);
+    const [serverEvidences, setServerEvidences] = useState<TaskEvidence[]>([]);
 
     // UI State for custom warning
     const [showAssigneeWarning, setShowAssigneeWarning] = useState(false);
 
     // Search states for members
     const [memberSearchTerm, setMemberSearchTerm] = useState('');
-    
+
     // Milestone search and filter states
     const [milestoneSearchTerm, setMilestoneSearchTerm] = useState('');
     const [milestoneStatusFilter, setMilestoneStatusFilter] = useState<string>('all');
@@ -70,6 +72,42 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
         setMilestoneId('');
         setShowAssigneeWarning(false);
         setEvidenceFiles([]);
+        setServerEvidences([]);
+    };
+
+    const getFullUrl = (url: string) => {
+        if (!url) return '#';
+        let fullUrl = url;
+
+        if (!url.startsWith('http')) {
+            // Handle Windows style paths and relative paths
+            const cleanPath = url.replace(/\\/g, '/');
+            const baseUrl = API_BASE_URL.endsWith('/') ? API_BASE_URL.slice(0, -1) : API_BASE_URL;
+            const path = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
+            fullUrl = `${baseUrl}${path}`;
+        }
+
+        // For Office documents, use Microsoft Online Viewer to "open" instead of download
+        const lowerUrl = fullUrl.toLowerCase();
+        const officeExtensions = ['.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx'];
+        if (officeExtensions.some(ext => lowerUrl.endsWith(ext))) {
+            return `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(fullUrl)}`;
+        }
+
+        return fullUrl;
+    };
+
+    const handleDeleteEvidence = async (evidenceId: number) => {
+        if (!task?.id) return;
+        if (window.confirm("Are you sure you want to remove this evidence?")) {
+            try {
+                await taskService.deleteEvidence(task.id, evidenceId);
+                setServerEvidences(prev => prev.filter(e => e.id !== evidenceId));
+            } catch (err) {
+                console.error("Failed to delete evidence:", err);
+                alert("Failed to remove evidence. Please check if the file still exists on server.");
+            }
+        }
     };
 
     const executeSubmit = () => {
@@ -115,7 +153,8 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
             setStartDate(task.startDate ? new Date(task.startDate).toISOString().split('T')[0] : '');
             setDueDate(task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : '');
             setMilestoneId((task as any).milestoneId || '');
-            setSupportMemberIds(task.members?.map((m: any) => m.id || m.memberId) || []);
+            // Use membershipId/memberId which is the persistent ID, NOT the TaskMember association id
+            setSupportMemberIds(task.members?.map((m: any) => m.membershipId || m.memberId) || []);
 
             // If we don't have members or milestones, fetch them for this task's project
             if (task.projectId) {
@@ -125,6 +164,9 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                 if (!milestones) {
                     milestoneService.getByProject(task.projectId).then(setInternalMilestones);
                 }
+
+                // Fetch evidences
+                taskService.getEvidences(task.id).then(setServerEvidences);
             }
         } else if (!isOpen) {
             resetForm();
@@ -141,15 +183,15 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
 
     const filteredMilestones = useMemo(() => {
         let list = effectiveMilestones;
-        
+
         // Always include the currently selected milestone in the list even if it doesn't match filters
         const currentMilestone = effectiveMilestones.find(m => m.id === milestoneId);
-        
+
         // Filter by status
         if (milestoneStatusFilter !== 'all') {
             list = list.filter(m => m.status === Number(milestoneStatusFilter));
         }
-        
+
         // Search by name
         if (milestoneSearchTerm.trim()) {
             const term = milestoneSearchTerm.toLowerCase();
@@ -160,7 +202,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
         if (currentMilestone && !list.some(m => m.id === milestoneId)) {
             list = [currentMilestone, ...list];
         }
-        
+
         return list;
     }, [effectiveMilestones, milestoneSearchTerm, milestoneStatusFilter, milestoneId]);
 
@@ -391,35 +433,115 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                         {/* Evidence Upload Area - Sticky and Always visible in ReadOnly/Edit detail mode */}
                         {(isReadOnly || isEdit) && (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '1.25rem', background: '#f8fafc', borderRadius: '16px', border: '1.5px dashed #cbd5e1' }}>
-                                <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <Activity size={14} /> Evidence & Documentation
+                                <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <FileText size={18} color="var(--primary-color)" /> RESEARCH EVIDENCE & DOCUMENTATION
                                 </label>
 
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                                    {evidenceFiles.map((file, i) => (
-                                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 12px', background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '0.75rem' }}>
-                                            <span style={{ maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name}</span>
-                                            <button type="button" onClick={() => removeFile(i)} style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex' }}><X size={14} /></button>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                    {/* Server Evidences */}
+                                    {serverEvidences.length > 0 && (
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '10px' }}>
+                                            {serverEvidences.map((ev) => (
+                                                <a
+                                                    key={ev.id}
+                                                    href={getFullUrl(ev.fileUrl || ev.url || '')}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    style={{
+                                                        display: 'flex', alignItems: 'center', gap: '14px', padding: '10px 14px',
+                                                        background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px',
+                                                        cursor: 'pointer', transition: 'all 0.2s',
+                                                        boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
+                                                        textDecoration: 'none'
+                                                    }}
+                                                    onMouseEnter={(e) => {
+                                                        e.currentTarget.style.borderColor = 'var(--primary-color)';
+                                                        e.currentTarget.style.transform = 'translateY(-2px)';
+                                                    }}
+                                                    onMouseLeave={(e) => {
+                                                        e.currentTarget.style.borderColor = '#e2e8f0';
+                                                        e.currentTarget.style.transform = 'translateY(0)';
+                                                    }}
+                                                >
+                                                    <div style={{
+                                                        padding: '8px', background: '#eff6ff', borderRadius: '8px', color: 'var(--primary-color)',
+                                                        display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                                    }}>
+                                                        <File size={18} />
+                                                    </div>
+                                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                                        <p style={{ margin: 0, fontSize: '0.8rem', fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                            {ev.fileName || ev.name || 'Unnamed File'}
+                                                        </p>
+                                                        <p style={{ margin: 0, fontSize: '0.65rem', color: '#94a3b8' }}>
+                                                            Uploaded {new Date(ev.submittedAt || ev.createdDate || Date.now()).toLocaleDateString('vi-VN')}
+                                                        </p>
+                                                    </div>
+                                                    <div style={{ display: 'flex', gap: '6px' }} onClick={(e) => e.stopPropagation()}>
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.preventDefault();
+                                                                window.open(getFullUrl(ev.fileUrl || ev.url || ''), '_blank');
+                                                            }}
+                                                            style={{ border: 'none', background: '#f8fafc', color: '#64748b', cursor: 'pointer', padding: '6px', borderRadius: '6px' }}
+                                                        ><Eye size={14} /></button>
+                                                        {!isReadOnly && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={(e) => {
+                                                                    e.preventDefault();
+                                                                    handleDeleteEvidence(ev.id);
+                                                                }}
+                                                                style={{ border: 'none', background: '#fff1f2', color: '#ef4444', cursor: 'pointer', padding: '6px', borderRadius: '6px' }}
+                                                            ><Trash2 size={14} /></button>
+                                                        )}
+                                                    </div>
+                                                </a>
+                                            ))}
                                         </div>
-                                    ))}
+                                    )}
 
-                                    <label style={{
-                                        display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 14px',
-                                        background: 'white', border: '1.5px solid var(--primary-color)', borderRadius: '8px',
-                                        color: 'var(--primary-color)', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s'
-                                    }}>
-                                        <Search size={14} /> Add Files
-                                        <input type="file" multiple onChange={handleFileChange} style={{ display: 'none' }} />
-                                    </label>
+                                    {/* New Local Files */}
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
+                                        {evidenceFiles.map((file, i) => (
+                                            <div key={i} style={{
+                                                display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 14px',
+                                                background: '#f8fafc', border: '1px solid #f1f5f9', borderRadius: '10px',
+                                                fontSize: '0.75rem', fontWeight: 600, color: '#475569'
+                                            }}>
+                                                <FileText size={16} color="#94a3b8" />
+                                                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name}</span>
+                                                <button type="button" onClick={() => removeFile(i)} style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }}>
+                                                    <Trash2 size={14} />
+                                                </button>
+                                            </div>
+                                        ))}
+
+                                        {!isReadOnly && (
+                                            <label style={{
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                                                padding: '10px', background: 'white', color: 'var(--primary-color)',
+                                                borderRadius: '12px', border: '2px dashed #e2e8f0',
+                                                fontSize: '0.8rem', fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s'
+                                            }}
+                                                onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--primary-color)'}
+                                                onMouseLeave={(e) => e.currentTarget.style.borderColor = '#e2e8f0'}
+                                            >
+                                                <Plus size={16} /> Add Task Evidence
+                                                <input type="file" multiple onChange={handleFileChange} style={{ display: 'none' }} />
+                                            </label>
+                                        )}
+                                    </div>
                                 </div>
-                                <p style={{ margin: 0, fontSize: '0.7rem', color: '#94a3b8' }}>Upload PDFs, Images, or Documents as evidence for this activity.</p>
+                                <p style={{ margin: 0, fontSize: '0.7rem', color: '#94a3b8', textAlign: 'center' }}>Upload PDFs, Images, or Documents as evidence for this activity.</p>
                             </div>
                         )}
 
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                 <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <Flag size={14} /> Priority
+                                    <AlertOctagon size={14} /> Priority
                                 </label>
                                 <select
                                     value={priority}
@@ -443,7 +565,10 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                                 >
                                     <option value={TaskStatus.Todo}>To Do</option>
                                     <option value={TaskStatus.InProgress}>In Progress</option>
-                                    {isEdit && <option value={TaskStatus.Submitted}>Submitted</option>}
+                                    <option value={TaskStatus.Submitted}>Submitted</option>
+                                    <option value={TaskStatus.Missed}>Missed</option>
+                                    <option value={TaskStatus.Adjusting}>Adjusting</option>
+                                    <option value={TaskStatus.Completed}>Completed</option>
                                 </select>
                             </div>
                         </div>
@@ -456,7 +581,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                             <div style={{ display: 'flex', gap: '8px' }}>
                                 <div style={{ position: 'relative', flex: 1 }}>
                                     <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-                                    <input 
+                                    <input
                                         type="text"
                                         placeholder="Search milestone..."
                                         value={milestoneSearchTerm}
@@ -464,7 +589,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                                         style={{ width: '100%', padding: '0.6rem 0.75rem 0.6rem 2.25rem', borderRadius: '10px', border: '1.5px solid #e2e8f0', fontSize: '0.8rem', outline: 'none' }}
                                     />
                                 </div>
-                                <select 
+                                <select
                                     value={milestoneStatusFilter}
                                     onChange={(e) => setMilestoneStatusFilter(e.target.value)}
                                     style={{ padding: '0.6rem', borderRadius: '10px', border: '1.5px solid #e2e8f0', fontSize: '0.8rem', color: '#475569', fontWeight: 600, outline: 'none', display: 'flex', alignItems: 'center' }}
@@ -580,14 +705,24 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                                                 transition: 'all 0.2s'
                                             }}
                                         >
-                                            <div style={{
-                                                width: '36px', height: '36px', borderRadius: '50%',
-                                                background: 'var(--primary-color)', color: 'white',
-                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                fontSize: '0.8rem', fontWeight: 800, marginRight: '12px', flexShrink: 0,
-                                                boxShadow: '0 2px 4px rgba(37, 99, 235, 0.2)'
-                                            }}>
-                                                {(m.fullName || m.userName || '?')[0].toUpperCase()}
+                                            <div style={{ marginRight: '12px', flexShrink: 0 }}>
+                                                {(m as any).avatar || (m as any).avatarUrl ? (
+                                                    <img
+                                                        src={(m as any).avatar || (m as any).avatarUrl}
+                                                        alt={m.fullName || m.userName}
+                                                        style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover' }}
+                                                    />
+                                                ) : (
+                                                    <div style={{
+                                                        width: '36px', height: '36px', borderRadius: '50%',
+                                                        background: isAssignee ? 'var(--primary-color)' : '#94a3b8', color: 'white',
+                                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                        fontSize: '0.8rem', fontWeight: 800,
+                                                        boxShadow: isAssignee ? '0 2px 4px rgba(37, 99, 235, 0.2)' : 'none'
+                                                    }}>
+                                                        {(m.fullName || m.userName || '?')[0].toUpperCase()}
+                                                    </div>
+                                                )}
                                             </div>
                                             <div style={{ flex: 1, minWidth: 0 }}>
                                                 <p
@@ -596,7 +731,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                                                 >
                                                     {m.fullName || m.userName}
                                                 </p>
-                                                <p style={{ margin: 0, fontSize: '0.7rem', color: '#94a3b8', fontWeight: 500 }}>{m.roleName || 'Researcher'}</p>
+                                                <p style={{ margin: 0, fontSize: '0.7rem', color: '#94a3b8', fontWeight: 500 }}>{m.projectRoleName || m.roleName || 'Researcher'}</p>
                                             </div>
 
                                             {!isReadOnly && (

@@ -17,6 +17,106 @@
                 }
             }
         },
+        "/api/projects/tasks/{taskId}/evidences": {
+            "get": {
+                "tags": [
+                    "Evidences"
+                ],
+                "parameters": [
+                    {
+                        "name": "taskId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/api/projects/tasks/{taskId}/evidences/upload": {
+            "post": {
+                "tags": [
+                    "Evidences"
+                ],
+                "parameters": [
+                    {
+                        "name": "taskId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "files": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string",
+                                            "format": "binary"
+                                        }
+                                    }
+                                }
+                            },
+                            "encoding": {
+                                "files": {
+                                    "style": "form"
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/api/projects/tasks/{taskId}/evidences/{evidenceId}": {
+            "delete": {
+                "tags": [
+                    "Evidences"
+                ],
+                "parameters": [
+                    {
+                        "name": "evidenceId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32"
+                        }
+                    },
+                    {
+                        "name": "taskId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
         "/api/projects/memberships": {
             "post": {
                 "tags": [
@@ -695,6 +795,48 @@
                 }
             }
         },
+        "/api/projects/tasks/{taskId}/status": {
+            "patch": {
+                "tags": [
+                    "Task"
+                ],
+                "parameters": [
+                    {
+                        "name": "taskId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateTaskStatusRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateTaskStatusRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateTaskStatusRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
         "/api/projects/tasks/{taskId}": {
             "get": {
                 "tags": [
@@ -777,6 +919,18 @@
                             "format": "uuid"
                         }
                     }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/api/projects/tasks/current-user": {
+            "get": {
+                "tags": [
+                    "Task"
                 ],
                 "responses": {
                     "200": {
@@ -1067,15 +1221,10 @@
             },
             "AddTaskMemberRequest": {
                 "required": [
-                    "memberId",
-                    "taskId"
+                    "memberId"
                 ],
                 "type": "object",
                 "properties": {
-                    "taskId": {
-                        "type": "string",
-                        "format": "uuid"
-                    },
                     "memberId": {
                         "type": "string",
                         "format": "uuid"
@@ -1170,6 +1319,11 @@
                         "format": "uuid",
                         "nullable": true
                     },
+                    "milestoneId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "nullable": true
+                    },
                     "projectId": {
                         "type": "string",
                         "format": "uuid"
@@ -1182,11 +1336,6 @@
                     "dueDate": {
                         "type": "string",
                         "format": "date-time",
-                        "nullable": true
-                    },
-                    "milestoneId": {
-                        "type": "string",
-                        "format": "uuid",
                         "nullable": true
                     }
                 },
@@ -1452,6 +1601,11 @@
                         "format": "uuid",
                         "nullable": true
                     },
+                    "milestoneId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "nullable": true
+                    },
                     "startDate": {
                         "type": "string",
                         "format": "date-time",
@@ -1461,11 +1615,18 @@
                         "type": "string",
                         "format": "date-time",
                         "nullable": true
-                    },
-                    "milestoneId": {
-                        "type": "string",
-                        "format": "uuid",
-                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "UpdateTaskStatusRequest": {
+                "required": [
+                    "newStatus"
+                ],
+                "type": "object",
+                "properties": {
+                    "newStatus": {
+                        "$ref": "#/components/schemas/TaskStatusEnum"
                     }
                 },
                 "additionalProperties": false
@@ -1473,10 +1634,10 @@
         },
         "securitySchemes": {
             "Bearer": {
-                "type": "http",
-                "description": "Nhập JWT token",
-                "scheme": "bearer",
-                "bearerFormat": "JWT"
+                "type": "apiKey",
+                "description": "Enter 'Bearer {token}' (including the word 'Bearer' and a space) in the Authorization header.",
+                "name": "Authorization",
+                "in": "header"
             }
         }
     },
