@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { GoogleLogin, CredentialResponse } from '@react-oauth/google';
 import { authService } from '@/services/authService';
 import { FlaskConical } from 'lucide-react';
@@ -8,6 +8,10 @@ const LoginPage: React.FC = () => {
     const navigate = useNavigate();
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
+
+    if (authService.isAuthenticated()) {
+        return <Navigate to="/home" replace />;
+    }
 
     const handleGoogleSuccess = async (credentialResponse: CredentialResponse) => {
         if (!credentialResponse.credential) {
@@ -20,7 +24,7 @@ const LoginPage: React.FC = () => {
 
         try {
             await authService.loginWithGoogle(credentialResponse.credential);
-            navigate('/dashboard', { replace: true });
+            navigate('/home', { replace: true });
         } catch (err: any) {
             const status = err?.response?.status;
             const serverMessage = typeof err?.response?.data === 'string'

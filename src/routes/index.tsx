@@ -1,4 +1,4 @@
-import { createBrowserRouter } from 'react-router-dom';
+import { createBrowserRouter, Navigate } from 'react-router-dom';
 import Dashboard from '@/pages/dashboard/Dashboard';
 import LoginPage from '@/pages/auth/LoginPage';
 import Projects from '@/pages/project/Projects';
@@ -14,12 +14,16 @@ import AuthGuard from '@/components/auth/AuthGuard';
 
 export const router = createBrowserRouter([
     {
+        path: '/',
+        element: <Navigate to="/login" replace />,
+    },
+    {
         path: '/login',
         element: <LoginPage />,
     },
     {
-        path: '/',
-        element: <Home />,
+        path: '/home',
+        element: <AuthGuard><Home /></AuthGuard>,
     },
     {
         path: '/dashboard',
@@ -39,7 +43,7 @@ export const router = createBrowserRouter([
     },
     {
         path: '/explore/projects/:id',
-        element: <PublicProjectDetails />,
+        element: <AuthGuard><PublicProjectDetails /></AuthGuard>,
     },
     {
         path: '/projects/edit/:id',
@@ -56,5 +60,9 @@ export const router = createBrowserRouter([
     {
         path: '/members',
         element: <AuthGuard><Members /></AuthGuard>,
+    },
+    {
+        path: '*',
+        element: <Navigate to="/login" replace />,
     },
 ]);

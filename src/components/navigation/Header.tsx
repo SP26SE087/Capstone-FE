@@ -12,7 +12,7 @@ const Header: React.FC = () => {
     const isInWorkspace = workspaceRoutes.some(route => location.pathname.startsWith(route));
 
     const navItems = [
-        { label: 'Home Page', path: '/', icon: <Library size={18} /> },
+        { label: 'Home Page', path: '/home', icon: <Library size={18} /> },
         { label: 'Work Researcher Space', path: '/dashboard', icon: <FlaskConical size={18} /> },
     ];
 
