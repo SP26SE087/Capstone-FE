@@ -7,6 +7,7 @@ import {
     Users,
     Calendar,
     FlaskConical,
+    BarChart2,
 } from 'lucide-react';
 
 const Sidebar: React.FC = () => {
@@ -16,6 +17,7 @@ const Sidebar: React.FC = () => {
         { icon: <CheckSquare size={20} />, label: 'Tasks', path: '/tasks' },
         { icon: <Calendar size={20} />, label: 'Meetings', path: '/meetings' },
         { icon: <Users size={20} />, label: 'Members', path: '/members' },
+        { icon: <BarChart2 size={20} />, label: 'Reports', path: '/reports' },
     ];
 
     return (

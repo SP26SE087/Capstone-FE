@@ -11,6 +11,9 @@ import CreateTask from '@/pages/task/CreateTask';
 import Home from '@/pages/home/Home';
 import PublicProjectDetails from '@/pages/project/PublicProjectDetails';
 import AuthGuard from '@/components/auth/AuthGuard';
+import Reports from '@/pages/report/Reports';
+import CreateReport from '@/pages/report/CreateReport';
+import ReportDetail from '@/pages/report/ReportDetail';
 
 export const router = createBrowserRouter([
     {
@@ -56,5 +59,17 @@ export const router = createBrowserRouter([
     {
         path: '/members',
         element: <AuthGuard><Members /></AuthGuard>,
+    },
+    {
+        path: '/reports',
+        element: <AuthGuard><Reports /></AuthGuard>,
+    },
+    {
+        path: '/reports/new',
+        element: <AuthGuard><CreateReport /></AuthGuard>,
+    },
+    {
+        path: '/reports/:id',
+        element: <AuthGuard><ReportDetail /></AuthGuard>,
     },
 ]);

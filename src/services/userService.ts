@@ -1,6 +1,15 @@
 import api from './api';
 
 export const userService = {
+    getAll: async (): Promise<any[]> => {
+        try {
+            const response = await api.get('/api/users');
+            return response.data.data || response.data;
+        } catch (error) {
+            console.error('Error fetching all users:', error);
+            throw error;
+        }
+    },
     getByEmail: async (email: string): Promise<any> => {
         try {
             const response = await api.get(`/api/users/email/${email}`);

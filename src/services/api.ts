@@ -9,19 +9,31 @@ const api = axios.create({
     },
 });
 
-// Add a request interceptor to add the auth token to headers
-api.interceptors.request.use(
-    (config) => {
-        const token = localStorage.getItem('token');
-        if (token && token !== 'undefined' && token !== 'null') {
-            config.headers.Authorization = `Bearer ${token}`;
+export const setupInterceptors = (axiosInstance: any) => {
+    // Determine the base URL to use for refresh calls
+    const refreshBaseUrl = axiosInstance.defaults.baseURL || API_BASE_URL;
+    
+    // A separate instance for refreshing tokens to avoid interceptor recursion
+    const refreshInstance = axios.create({
+        baseURL: refreshBaseUrl,
+        headers: {
+            'Content-Type': 'application/json',
+        },
+    });
+
+    // Add a request interceptor to add the auth token to headers
+    axiosInstance.interceptors.request.use(
+        (config: any) => {
+            const token = localStorage.getItem('token');
+            if (token && token !== 'undefined' && token !== 'null') {
+                config.headers.Authorization = `Bearer ${token}`;
+            }
+            return config;
+        },
+        (error: any) => {
+            return Promise.reject(error);
         }
-        return config;
-    },
-    (error) => {
-        return Promise.reject(error);
-    }
-);
+    );
 
 // Flag to prevent multiple refresh calls
 let isRefreshing = false;
@@ -38,12 +50,12 @@ const processQueue = (error: any, token: string | null = null) => {
     failedQueue = [];
 };
 
-// Add a response interceptor to handle token refresh
-api.interceptors.response.use(
-    (response) => {
+    // Add a response interceptor to handle token refresh
+    axiosInstance.interceptors.response.use(
+        (response: any) => {
         return response;
     },
-    async (error) => {
+    async (error: any) => {
         const originalRequest = error.config;
 
         // If error is 401 and we haven't retried yet
@@ -56,7 +68,7 @@ api.interceptors.response.use(
                 })
                     .then((token) => {
                         originalRequest.headers.Authorization = `Bearer ${token}`;
-                        return api(originalRequest);
+                        return axiosInstance(originalRequest);
                     })
                     .catch((err) => {
                         return Promise.reject(err);
@@ -75,9 +87,9 @@ api.interceptors.response.use(
             }
 
             try {
-                // Call refresh endpoint directly using axios to avoid original interceptors
-                // but still matching the base URL logic
-                const response = await axios.post('/api/auth/refresh', { refreshToken });
+                // Call refresh endpoint using the refreshInstance
+                // Use absolute path or ensure the instance has correct baseURL
+                const response = await refreshInstance.post('/api/auth/refresh', { refreshToken });
                 
                 // Assuming the response structure is consistent
                 const authData = response.data.data || response.data;
@@ -101,7 +113,7 @@ api.interceptors.response.use(
                 processQueue(null, accessToken);
                 isRefreshing = false;
                 
-                return api(originalRequest);
+                return axiosInstance(originalRequest);
             } catch (refreshError) {
                 // Refresh failed - force logout
                 processQueue(refreshError, null);
@@ -121,7 +133,9 @@ api.interceptors.response.use(
         }
 
         return Promise.reject(error);
-    }
-);
+    });
+};
+
+setupInterceptors(api);
 
 export default api;
