@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import MainLayout from '@/layout/MainLayout';
 import { projectService, milestoneService, membershipService } from '@/services';
 import { Project, Milestone, ProjectMember } from '@/types';
-import { getProjectStatusStyle } from '@/utils/projectUtils';
+import { getProjectStatusStyle, formatProjectDate } from '@/utils/projectUtils';
 import {
     ArrowLeft,
     Calendar,
@@ -165,7 +165,7 @@ const PublicProjectDetails: React.FC = () => {
                         <div style={{ borderLeft: '1px solid #e2e8f0', paddingLeft: '2rem' }}>
                             <span style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600 }}>Timeline</span>
                             <span style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <Calendar size={14} /> {project.startDate ? new Date(project.startDate).toLocaleDateString() : 'TBD'} — {project.endDate ? new Date(project.endDate).toLocaleDateString() : 'Present'}
+                                <Calendar size={14} /> {formatProjectDate(project.startDate, 'TBD')} — {formatProjectDate(project.endDate, 'Present')}
                             </span>
                         </div>
                         <div style={{ borderLeft: '1px solid #e2e8f0', paddingLeft: '2rem' }}>
@@ -215,7 +215,7 @@ const PublicProjectDetails: React.FC = () => {
                                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', alignItems: 'center' }}>
                                                 <h4 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--text-primary)' }}>{m.name}</h4>
                                                 <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 600, background: '#f8fafc', padding: '2px 8px', borderRadius: '4px' }}>
-                                                    {m.startDate ? new Date(m.startDate).toLocaleDateString(undefined, { month: 'short', year: 'numeric' }) : 'TBD'}
+                                                    {formatProjectDate(m.startDate, 'TBD')}
                                                 </span>
                                             </div>
                                             <p style={{ margin: 0, fontSize: '0.95rem', color: '#475569', lineHeight: 1.6 }}>

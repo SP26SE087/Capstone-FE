@@ -41,3 +41,30 @@ export const getProjectStatusStyle = (status: ProjectStatus): StatusStyle => {
             };
     }
 };
+
+export const isDefaultDate = (date: string | null | undefined): boolean => {
+    if (!date) return true;
+    return date.startsWith('0001-01-01');
+};
+
+export const formatProjectDate = (date: string | null | undefined, fallback: string = 'N/A'): string => {
+    if (isDefaultDate(date)) return fallback;
+    try {
+        const d = new Date(date!);
+        if (isNaN(d.getTime())) return fallback;
+        return d.toLocaleDateString();
+    } catch {
+        return fallback;
+    }
+};
+
+export const toApiDate = (dateStr: string | null | undefined): string | null => {
+    if (!dateStr || dateStr === '') return null;
+    try {
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime()) || d.getFullYear() <= 1) return null;
+        return d.toISOString();
+    } catch {
+        return null;
+    }
+};

@@ -219,7 +219,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 
     const formatDate = (dateStr: string | null) => {
         if (!dateStr || dateStr.startsWith('0001')) return 'N/A';
-        return new Date(dateStr).toLocaleDateString('vi-VN', { month: '2-digit', day: '2-digit' });
+        return new Date(dateStr).toLocaleDateString('vi-VN', { month: '2-digit', day: '2-digit', year: 'numeric' });
     };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -320,7 +320,9 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
         setConfirmConfig({
             isOpen: true,
             title: 'Update Status',
-            message: `Do you want to change the activity status to "${statusLabel}"? This may restrict certain actions based on the new status.`,
+            message: newStatus === TaskStatus.InProgress 
+                ? 'Do you want to start this research activity? The status will be changed to "On-going".'
+                : `Do you want to change the activity status to "${getStatusActionLabel(newStatus)}"? This may restrict certain actions based on the new status.`,
             variant: 'info',
             onConfirm: async () => {
                 try {
@@ -349,11 +351,11 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
         if (!task) return [];
         switch (task.status) {
             case TaskStatus.Todo: return [TaskStatus.InProgress];
-            case TaskStatus.InProgress: return [TaskStatus.Submitted, TaskStatus.Missed];
-            case TaskStatus.Submitted: return [TaskStatus.Adjusting, TaskStatus.Completed];
+            case TaskStatus.InProgress: return [TaskStatus.Submitted];
+            case TaskStatus.Submitted: return [TaskStatus.Completed, TaskStatus.Adjusting];
             case TaskStatus.Missed: return [TaskStatus.Submitted];
             case TaskStatus.Adjusting: return [TaskStatus.Completed, TaskStatus.InProgress];
-            case TaskStatus.Completed: return [TaskStatus.Adjusting];
+            case TaskStatus.Completed: return [];
             default: return [];
         }
     }, [task?.status]);
@@ -361,7 +363,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     const getStatusActionLabel = (s: TaskStatus) => {
         switch (s) {
             case TaskStatus.Todo: return "Todo";
-            case TaskStatus.InProgress: return "In Progress";
+            case TaskStatus.InProgress: return "On-going";
             case TaskStatus.Submitted: return "Submitted";
             case TaskStatus.Missed: return "Missed";
             case TaskStatus.Adjusting: return "Adjusting";
@@ -370,15 +372,17 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
         }
     };
 
-    const getStatusActionColor = (s: TaskStatus) => {
+
+
+    const getTaskStatusStyle = (s: TaskStatus) => {
         switch (s) {
-            case TaskStatus.Todo: return { text: '#64748b', bg: '#f8fafc', border: '#e2e8f0' };
-            case TaskStatus.InProgress: return { text: '#2563eb', bg: '#eff6ff', border: '#dbeafe' };
-            case TaskStatus.Submitted: return { text: '#7c3aed', bg: '#f5f3ff', border: '#ede9fe' };
-            case TaskStatus.Missed: return { text: '#ef4444', bg: '#fef2f2', border: '#fee2e2' };
-            case TaskStatus.Adjusting: return { text: '#ea580c', bg: '#fff7ed', border: '#ffedd5' };
-            case TaskStatus.Completed: return { text: '#16a34a', bg: '#f0fdf4', border: '#dcfce7' };
-            default: return { text: '#64748b', bg: '#f8fafc', border: '#e2e8f0' };
+            case TaskStatus.Todo: return { text: '#64748b', bg: '#f1f5f9', label: 'Draft' };
+            case TaskStatus.InProgress: return { text: '#2563eb', bg: '#eff6ff', label: 'On-going' };
+            case TaskStatus.Submitted: return { text: '#7c3aed', bg: '#f5f3ff', label: 'Submitted' };
+            case TaskStatus.Missed: return { text: '#ef4444', bg: '#fef2f2', label: 'Missed' };
+            case TaskStatus.Adjusting: return { text: '#ea580c', bg: '#fff7ed', label: 'Adjusting' };
+            case TaskStatus.Completed: return { text: '#16a34a', bg: '#f0fdf4', label: 'Completed' };
+            default: return { text: '#64748b', bg: '#f1f5f9', label: 'Unknown' };
         }
     };
 
@@ -505,7 +509,23 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                             <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#1e293b' }}>
                                 {isEditMode ? 'Edit Research Activity' : 'Research Activity Detail'}
                             </h2>
-                            <p style={{ margin: 0, fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600 }}>ID: {taskId?.slice(-8).toUpperCase()}</p>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
+                                <p style={{ margin: 0, fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600 }}>ID: {taskId?.slice(-8).toUpperCase()}</p>
+                                {task && (
+                                    <span style={{ 
+                                        padding: '2px 8px', 
+                                        borderRadius: '6px', 
+                                        fontSize: '0.65rem', 
+                                        fontWeight: 800, 
+                                        background: getTaskStatusStyle(task.status).bg, 
+                                        color: getTaskStatusStyle(task.status).text,
+                                        textTransform: 'uppercase',
+                                        letterSpacing: '0.5px'
+                                    }}>
+                                        {getTaskStatusStyle(task.status).label}
+                                    </span>
+                                )}
+                            </div>
                         </div>
                     </div>
 
@@ -802,7 +822,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                                             >
                                                                 <Eye size={16} />
                                                             </button>
-                                                            {task && ![TaskStatus.Todo, TaskStatus.Submitted, TaskStatus.Completed].includes(task.status) && (
+                                                            {task && ![TaskStatus.Todo, TaskStatus.Submitted, TaskStatus.Completed, TaskStatus.Adjusting].includes(task.status) && (
                                                                 <button
                                                                     type="button"
                                                                     onClick={(e) => {
@@ -836,7 +856,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                                     <FileText size={18} color="#94a3b8" />
                                                     <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name}</span>
                                                     <span style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 500 }}>{(file.size / (1024 * 1024)).toFixed(2)} MB</span>
-                                                    {task && ![TaskStatus.Todo, TaskStatus.Submitted, TaskStatus.Completed].includes(task.status) && (
+                                                    {task && ![TaskStatus.Todo, TaskStatus.Submitted, TaskStatus.Completed, TaskStatus.Adjusting].includes(task.status) && (
                                                         <button type="button" onClick={() => removeFile(i)} style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', padding: '4px' }}>
                                                             <Trash2 size={16} />
                                                         </button>
@@ -853,7 +873,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                                 }}>
                                                     <AlertCircle size={16} /> Only assigned members can upload evidence
                                                 </div>
-                                            ) : task && ![TaskStatus.Todo, TaskStatus.Submitted, TaskStatus.Completed].includes(task.status) ? (
+                                            ) : task && ![TaskStatus.Todo, TaskStatus.Submitted, TaskStatus.Completed, TaskStatus.Adjusting].includes(task.status) ? (
                                                 <label style={{
                                                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
                                                     padding: '12px 20px', background: 'white', color: 'var(--primary-color)',
@@ -1104,7 +1124,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                     display: 'flex', justifyContent: 'flex-end', gap: '14px', background: 'white',
                     alignItems: 'center'
                 }}>
-                    {isAuthorizedToEdit && (
+                    {isAuthorizedToEdit && task?.status === TaskStatus.Todo && (
                         <button
                             type="button"
                             onClick={handleDelete}
@@ -1119,54 +1139,47 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                         </button>
                     )}
                     {isAuthorizedToEdit && !isEditMode && nextStatuses.length > 0 && (
-                        <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            background: '#f8fafc',
-                            padding: '4px',
-                            borderRadius: '14px',
-                            border: '1px solid #e2e8f0'
-                        }}>
-                            <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', padding: '0 12px', textTransform: 'uppercase' }}>Quick Action:</span>
-                            {nextStatuses.map(s => {
-                                const config = getStatusActionColor(s);
-                                return (
-                                    <button
-                                        key={s}
-                                        onClick={() => handleStatusTransition(s)}
-                                        style={{
-                                            padding: '8px 16px',
-                                            borderRadius: '10px',
-                                            fontSize: '0.75rem',
-                                            fontWeight: 800,
-                                            background: config.bg,
-                                            color: config.text,
-                                            border: `1px solid ${config.border}`,
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '6px',
-                                            transition: 'all 0.2s',
-                                            marginLeft: '4px',
-                                            boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-                                        }}
-                                        onMouseEnter={(e) => {
-                                            e.currentTarget.style.transform = 'translateY(-1px)';
-                                            e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0,0,0,0.1)';
-                                        }}
-                                        onMouseLeave={(e) => {
-                                            e.currentTarget.style.transform = 'translateY(0)';
-                                            e.currentTarget.style.boxShadow = '0 1px 2px rgba(0,0,0,0.05)';
-                                        }}
-                                    >
-                                        <Activity size={14} />
-                                        {getStatusActionLabel(s)}
-                                    </button>
-                                );
-                            })}
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                            {nextStatuses.map(s => (
+                                <button
+                                    key={s}
+                                    type="button"
+                                    onClick={() => handleStatusTransition(s)}
+                                    style={{
+                                        padding: '0.75rem 2rem',
+                                        borderRadius: '12px',
+                                        border: 'none',
+                                        background: s === TaskStatus.Completed ? '#16a34a' : '#ea580c',
+                                        color: 'white',
+                                        fontWeight: 800,
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '10px',
+                                        transition: 'all 0.2s',
+                                        boxShadow: s === TaskStatus.Completed 
+                                            ? '0 4px 12px rgba(22, 163, 74, 0.2)' 
+                                            : '0 4px 12px rgba(234, 88, 12, 0.2)'
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.transform = 'translateY(-2px)';
+                                        e.currentTarget.style.boxShadow = s === TaskStatus.Completed 
+                                            ? '0 6px 16px rgba(22, 163, 74, 0.3)' 
+                                            : '0 6px 16px rgba(234, 88, 12, 0.3)';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.transform = 'translateY(0)';
+                                        e.currentTarget.style.boxShadow = s === TaskStatus.Completed 
+                                            ? '0 4px 12px rgba(22, 163, 74, 0.2)' 
+                                            : '0 4px 12px rgba(234, 88, 12, 0.2)';
+                                    }}
+                                >
+                                    <Activity size={18} />
+                                    {getStatusActionLabel(s)}
+                                </button>
+                            ))}
                         </div>
                     )}
-                    <button type="button" onClick={onClose} className="btn btn-secondary" style={{ padding: '0.75rem 2rem', borderRadius: '12px' }}>Close Window</button>
                     {(isEditMode || (!error && evidenceFiles.length > 0)) && (
                         <button type="submit" onClick={handleSave} className="btn btn-primary" style={{ padding: '0.75rem 3rem', borderRadius: '12px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '10px' }}>
                             {isEditMode ? <Save size={18} /> : null}

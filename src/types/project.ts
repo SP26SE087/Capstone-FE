@@ -10,6 +10,7 @@ export interface Project {
     membersCount?: number;
     totalTasks?: number;
     completedTasks?: number;
+    progress?: number;
     createdBy?: string;
     nameProjectCreator?: string;
     NameProjectCreator?: string;

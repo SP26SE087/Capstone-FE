@@ -175,9 +175,11 @@ const Projects: React.FC = () => {
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '1.5rem' }}>
                         {filteredProjects.map((project) => {
                             const statusStyle = getProjectStatusStyle(project.status);
-                            const progress = project.totalTasks && project.totalTasks > 0
-                                ? Math.round((project.completedTasks || 0) / project.totalTasks * 100)
-                                : 0;
+                            const totalTasks = project.totalTasks ?? (project as any).TotalTasks ?? 0;
+                            const completedTasks = project.completedTasks ?? (project as any).CompletedTasks ?? 0;
+                            const progress = project.progress !== undefined 
+                                ? project.progress 
+                                : (totalTasks > 0 ? Math.round(completedTasks / totalTasks * 100) : 0);
 
                             return (
                                 <div

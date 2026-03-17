@@ -3,7 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import MainLayout from '@/layout/MainLayout';
 import { projectService, researchFieldService } from '@/services';
 import { ResearchField, ProjectStatus, Project, ProjectRoleEnum } from '@/types';
-import { getProjectStatusStyle } from '@/utils/projectUtils';
+import { getProjectStatusStyle, isDefaultDate, toApiDate, formatProjectDate } from '@/utils/projectUtils';
 
 import Modal from '@/components/common/Modal';
 import Toast, { ToastType } from '@/components/common/Toast';
@@ -95,8 +95,8 @@ const EditProject: React.FC = () => {
                     setFormData({
                         projectName: projectData.projectName || (projectData as any).name || '',
                         projectDescription: projectData.projectDescription || (projectData as any).description || '',
-                        startDate: projectData.startDate ? new Date(projectData.startDate).toISOString().split('T')[0] : '',
-                        endDate: projectData.endDate ? new Date(projectData.endDate).toISOString().split('T')[0] : '',
+                        startDate: !isDefaultDate(projectData.startDate) ? new Date(projectData.startDate!).toISOString().split('T')[0] : '',
+                        endDate: !isDefaultDate(projectData.endDate) ? new Date(projectData.endDate!).toISOString().split('T')[0] : '',
                         status: projectData.status
                     });
                     setSelectedFieldIds(projectData.researchFields?.map(f => f.id) || []);
@@ -189,14 +189,12 @@ const EditProject: React.FC = () => {
         }
         setSubmitting(true);
         try {
-            const toIsoDate = (dateStr: string) => dateStr ? new Date(dateStr).toISOString() : null;
-
             const updateData = {
                 projectId: id,
                 projectName: formData.projectName,
                 projectDescription: formData.projectDescription,
-                startDate: toIsoDate(formData.startDate),
-                endDate: toIsoDate(formData.endDate),
+                startDate: toApiDate(formData.startDate),
+                endDate: toApiDate(formData.endDate),
                 researchFieldIds: selectedFieldIds
             };
 
@@ -575,7 +573,7 @@ const EditProject: React.FC = () => {
                                         <div>
                                             <p className="section-title" style={{ marginBottom: '2px' }}>Principal/Creator</p>
                                             <p style={{ margin: 0, fontSize: '0.88rem', fontWeight: 600 }}>
-                                                {project?.NameProjectCreator || project?.createdBy || 'System Admin'}
+                                                {project?.NameProjectCreator || project?.nameProjectCreator || project?.createdBy || 'System Admin'}
                                             </p>
                                         </div>
                                     </div>
@@ -586,7 +584,7 @@ const EditProject: React.FC = () => {
                                         <div>
                                             <p className="section-title" style={{ marginBottom: '2px' }}>Duration</p>
                                             <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600 }}>
-                                                {project?.startDate ? new Date(project.startDate).toLocaleDateString() : 'N/A'} — {project?.endDate ? new Date(project.endDate).toLocaleDateString() : 'Ongoing'}
+                                                {formatProjectDate(project?.startDate)} — {formatProjectDate(project?.endDate, 'Ongoing')}
                                             </p>
                                         </div>
                                     </div>

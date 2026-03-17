@@ -4,7 +4,7 @@ import MainLayout from '@/layout/MainLayout';
 import { projectService, milestoneService, membershipService, taskService, researchFieldService } from '@/services';
 import ProjectSidebar from '@/components/navigation/ProjectSidebar';
 import { Project, ProjectStatus, Milestone, MilestoneStatus, Task, TaskStatus, ResearchField } from '@/types';
-import { getProjectStatusStyle } from '@/utils/projectUtils';
+import { getProjectStatusStyle, isDefaultDate, formatProjectDate, toApiDate } from '@/utils/projectUtils';
 import Modal from '@/components/common/Modal';
 import Toast, { ToastType } from '@/components/common/Toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -144,8 +144,8 @@ const ProjectDetails: React.FC = () => {
                 setFormData({
                     projectName: projectData.projectName || (projectData as any).name || '',
                     projectDescription: projectData.projectDescription || (projectData as any).description || '',
-                    startDate: projectData.startDate ? new Date(projectData.startDate).toISOString().split('T')[0] : '',
-                    endDate: projectData.endDate ? new Date(projectData.endDate).toISOString().split('T')[0] : '',
+                    startDate: !isDefaultDate(projectData.startDate) ? new Date(projectData.startDate!).toISOString().split('T')[0] : '',
+                    endDate: !isDefaultDate(projectData.endDate) ? new Date(projectData.endDate!).toISOString().split('T')[0] : '',
                     status: projectData.status
                 });
                 setSelectedFieldIds(projectData.researchFields?.map(f => f.id) || []);
@@ -346,8 +346,8 @@ const ProjectDetails: React.FC = () => {
                 projectId: id,
                 projectName: formData.projectName,
                 projectDescription: formData.projectDescription,
-                startDate: formData.startDate ? new Date(formData.startDate).toISOString() : null,
-                endDate: formData.endDate ? new Date(formData.endDate).toISOString() : null,
+                startDate: toApiDate(formData.startDate),
+                endDate: toApiDate(formData.endDate),
                 researchFieldIds: selectedFieldIds
             };
             await projectService.update(updateData);
@@ -499,8 +499,8 @@ const ProjectDetails: React.FC = () => {
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '15px', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
                                     <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                         <Clock size={14} />
-                                        {project.createdAt ? `Created ${new Date(project.createdAt).toLocaleString(undefined, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}` : 'Established N/A'}
-                                        {project.NameProjectCreator && ` by ${project.NameProjectCreator}`}
+                                        {formatProjectDate(project.createdAt, 'Established N/A') === 'Established N/A' ? 'Established N/A' : `Created ${new Date(project.createdAt!).toLocaleString(undefined, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}`}
+                                        { (project.NameProjectCreator || project.nameProjectCreator || project.createdBy) && ` by ${project.NameProjectCreator || project.nameProjectCreator || project.createdBy}`}
                                     </span>
                                     <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                         <Users size={14} /> {members.length} Active Members
@@ -601,7 +601,7 @@ const ProjectDetails: React.FC = () => {
                                                     <div key={task.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.9rem', padding: '8px', border: '1px solid #f1f5f9', borderRadius: '8px' }}>
                                                         <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: getStatusColor(task.status) }} />
                                                         <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{task.name}</span>
-                                                        <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'No date'}</span>
+                                                        <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{formatProjectDate(task.dueDate, 'No date')}</span>
                                                     </div>
                                                 );
                                             })}
@@ -1152,7 +1152,9 @@ const ProjectDetails: React.FC = () => {
                                                 <div className="avatar avatar-md" style={{ background: 'var(--border-light)', color: 'var(--text-secondary)' }}><User size={16} /></div>
                                                 <div>
                                                     <p className="section-title" style={{ marginBottom: '2px' }}>Principal/Creator</p>
-                                                    <p style={{ margin: 0, fontSize: '0.88rem', fontWeight: 600 }}>{project?.NameProjectCreator || 'System Admin'}</p>
+                                                    <p style={{ margin: 0, fontSize: '0.88rem', fontWeight: 600 }}>
+                                                        {project?.NameProjectCreator || project?.nameProjectCreator || project?.createdBy || 'System Admin'}
+                                                    </p>
                                                 </div>
                                             </div>
                                             <div style={{ display: 'flex', gap: '12px' }}>
@@ -1160,7 +1162,7 @@ const ProjectDetails: React.FC = () => {
                                                 <div>
                                                     <p className="section-title" style={{ marginBottom: '2px' }}>Duration</p>
                                                     <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600 }}>
-                                                        {project?.startDate ? new Date(project.startDate).toLocaleDateString() : 'N/A'} — {project?.endDate ? new Date(project.endDate).toLocaleDateString() : 'Ongoing'}
+                                                        {formatProjectDate(project?.startDate)} — {formatProjectDate(project?.endDate, 'Ongoing')}
                                                     </p>
                                                 </div>
                                             </div>
@@ -1209,15 +1211,15 @@ const ProjectDetails: React.FC = () => {
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                                             <div>
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '0.85rem' }}>
-                                                    <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>Completion Rate</span>
-                                                    <span style={{ color: '#E8720C', fontWeight: 800 }}>{tasks.length > 0 ? Math.round((tasks.filter(t => t.status === TaskStatus.Completed).length / tasks.length) * 100) : 0}%</span>
+                                                    <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>Project Roadmap Progress</span>
+                                                    <span style={{ color: '#E8720C', fontWeight: 800 }}>{milestones.length > 0 ? Math.round((milestones.filter(m => m.status === MilestoneStatus.Completed).length / milestones.length) * 100) : 0}%</span>
                                                 </div>
-                                                <div style={{ height: '8px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
+                                                <div style={{ height: '10px', background: '#f1f5f9', borderRadius: '5px', overflow: 'hidden' }}>
                                                     <div style={{
                                                         height: '100%',
-                                                        width: `${tasks.length > 0 ? (tasks.filter(t => t.status === TaskStatus.Completed).length / tasks.length) * 100 : 0}%`,
+                                                        width: `${milestones.length > 0 ? (milestones.filter(m => m.status === MilestoneStatus.Completed).length / milestones.length) * 100 : 0}%`,
                                                         background: 'linear-gradient(90deg, #E8720C, #ff8c33)',
-                                                        borderRadius: '4px',
+                                                        borderRadius: '5px',
                                                         transition: 'width 1s cubic-bezier(0.4, 0, 0.2, 1)'
                                                     }} />
                                                 </div>
@@ -1225,12 +1227,29 @@ const ProjectDetails: React.FC = () => {
 
                                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                                                 <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '12px', border: '1px solid #f1f5f9' }}>
-                                                    <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)' }}>{tasks.filter(t => t.status !== TaskStatus.Completed).length}</div>
-                                                    <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pending</div>
+                                                    <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)' }}>{milestones.filter(m => m.status !== MilestoneStatus.Completed).length}</div>
+                                                    <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Remaining Phases</div>
                                                 </div>
                                                 <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '12px', border: '1px solid #f1f5f9' }}>
                                                     <div style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)' }}>{milestones.length}</div>
-                                                    <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Phases</div>
+                                                    <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Phases</div>
+                                                </div>
+                                            </div>
+
+                                            <div style={{ marginTop: '0.5rem', paddingTop: '1rem', borderTop: '1px dashed #e2e8f0' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>ACTIVITY COMPLETION</span>
+                                                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                                        {tasks.filter(t => t.status === TaskStatus.Completed).length}/{tasks.length}
+                                                    </span>
+                                                </div>
+                                                <div style={{ height: '4px', background: '#f1f5f9', borderRadius: '2px', overflow: 'hidden' }}>
+                                                    <div style={{
+                                                        height: '100%',
+                                                        width: `${tasks.length > 0 ? (tasks.filter(t => t.status === TaskStatus.Completed).length / tasks.length) * 100 : 0}%`,
+                                                        background: '#94a3b8',
+                                                        borderRadius: '2px'
+                                                    }} />
                                                 </div>
                                             </div>
                                         </div>

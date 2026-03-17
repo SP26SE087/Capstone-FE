@@ -14,6 +14,8 @@ import {
     Check,
     Search
 } from 'lucide-react';
+import { toApiDate } from '@/utils/projectUtils';
+
 
 import { useAuth } from '@/hooks/useAuth';
 
@@ -57,25 +59,11 @@ const CreateProject: React.FC = () => {
         e.preventDefault();
         setSubmitting(true);
         try {
-            // Helper to convert date input (YYYY-MM-DD) to ISO format (YYYY-MM-DDTHH:mm:ss.sssZ)
-            const toIsoDate = (dateStr: string) => {
-                try {
-                    if (!dateStr) return null;
-                    if (dateStr.includes('T') && dateStr.endsWith('Z')) return dateStr;
-
-                    const d = new Date(dateStr);
-                    if (isNaN(d.getTime())) return null;
-                    return d.toISOString();
-                } catch (e) {
-                    return null;
-                }
-            };
-
             const projectData = {
                 projectName: formData.projectName,
                 projectDescription: formData.projectDescription,
-                startDate: toIsoDate(formData.startDate),
-                endDate: toIsoDate(formData.endDate),
+                startDate: toApiDate(formData.startDate),
+                endDate: toApiDate(formData.endDate),
                 researchFieldIds: selectedFieldIds || []
             };
 

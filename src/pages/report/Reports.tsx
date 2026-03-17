@@ -275,7 +275,7 @@ const Reports: React.FC = () => {
                                 <Search size={20} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                                 <input
                                     type="text"
-                                    placeholder={isSemantic ? "What information are you looking for?" : "Search by title, goals, or achievements..."}
+                                    placeholder={isSemantic ? "Describe the research topic or findings you want to find..." : "Search by report title, goals, or core content..."}
                                     className="form-input"
                                     style={{ 
                                         paddingLeft: '48px', width: '100%', height: '54px', fontSize: '1.05rem', borderRadius: '14px', 
@@ -397,7 +397,7 @@ const Reports: React.FC = () => {
                 {loading ? (
                     <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--text-secondary)' }}>
                         <div className="spinner" style={{ margin: '0 auto 1.5rem', width: '40px', height: '40px', borderWidth: '3px', borderTopColor: 'var(--primary-color)' }}></div>
-                        Searching with AI...
+                        Synchronizing research reports...
                     </div>
                 ) : displayReports.length > 0 ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -473,7 +473,7 @@ const Reports: React.FC = () => {
                                                             boxShadow: isIndexed ? '0 0 6px #0ea5e9' : 'none',
                                                             display: 'inline-block'
                                                         }}></span>
-                                                        {isIndexed ? 'AI READY' : 'NO EMBEDDING'}
+                                                        {isIndexed ? 'KNOWLEDGE BASE' : 'PENDING INDEX'}
                                                     </div>
                                                 );
                                             })()}
@@ -501,9 +501,9 @@ const Reports: React.FC = () => {
                         <div className="empty-state-icon" style={{ background: 'var(--primary-color)', color: 'white', opacity: 0.9 }}>
                             <FileText size={36} />
                         </div>
-                        <h2 style={{ fontSize: '1.4rem', marginTop: '1.5rem' }}>No reports found</h2>
+                        <h2 style={{ fontSize: '1.4rem', marginTop: '1.5rem' }}>No research data available</h2>
                         <p style={{ maxWidth: '400px', margin: '0.5rem auto 0' }}>
-                            Try adjusting your semantic search query or switch tabs to find the reports you are looking for.
+                            Adjust your filters or try describing your search in more detail to find relevant research records.
                         </p>
                     </div>
                 )}

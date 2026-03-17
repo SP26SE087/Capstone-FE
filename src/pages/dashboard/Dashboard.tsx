@@ -115,9 +115,11 @@ function Dashboard() {
                                     </div>
                                 ) : projects.length > 0 ? (
                                     projects.slice(0, 3).map((proj, index) => {
-                                        const progress = proj.totalTasks && proj.totalTasks > 0
-                                            ? Math.round((proj.completedTasks || 0) / proj.totalTasks * 100)
-                                            : 0;
+                                        const totalTasks = proj.totalTasks ?? (proj as any).TotalTasks ?? 0;
+                                        const completedTasks = proj.completedTasks ?? (proj as any).CompletedTasks ?? 0;
+                                        const progress = proj.progress !== undefined 
+                                            ? proj.progress 
+                                            : (totalTasks > 0 ? Math.round(completedTasks / totalTasks * 100) : 0);
 
                                         return (
                                             <div
