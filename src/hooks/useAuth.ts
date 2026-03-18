@@ -5,10 +5,9 @@ interface AuthUser {
     name: string;
     role: string;
     email: string;
-    userId: string;
 }
 
-const GUEST: AuthUser = { name: 'Guest User', role: 'Visitor', email: '', userId: '' };
+const GUEST: AuthUser = { name: 'Guest User', role: 'Visitor', email: '' };
 
 const getStoredUser = (): AuthUser => {
     const user = authService.getAuthUser();
@@ -17,7 +16,6 @@ const getStoredUser = (): AuthUser => {
         name: user.fullName || 'User',
         role: user.role || 'User',
         email: user.email || '',
-        userId: user.userId || '',
     };
 };
 

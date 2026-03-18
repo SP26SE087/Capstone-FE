@@ -78,7 +78,6 @@ api.interceptors.response.use(
                 localStorage.setItem('token', data.accessToken);
                 localStorage.setItem('refreshToken', data.refreshToken);
                 localStorage.setItem('auth_user', JSON.stringify({
-                    userId: data.userId,
                     email: data.email,
                     fullName: data.fullName,
                     role: data.role,
