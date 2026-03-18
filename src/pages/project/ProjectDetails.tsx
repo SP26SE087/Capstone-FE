@@ -127,7 +127,7 @@ const ProjectDetails: React.FC = () => {
                     endDate: projectData.endDate ? new Date(projectData.endDate).toISOString().split('T')[0] : '',
                     status: projectData.status
                 });
-                setSelectedFieldIds(projectData.researchFields?.map(f => f.id) || []);
+                setSelectedFieldIds(projectData.researchFields?.map(f => f.researchFieldId) || []);
 
                 const [milestonesData, membersData, tasksData, fieldsData] = await Promise.all([
                     milestoneService.getByProject(id),
@@ -172,7 +172,7 @@ const ProjectDetails: React.FC = () => {
     const handleMilestoneSubmit = async (milestoneData: any) => {
         try {
             if (editingMilestone) {
-                await milestoneService.update(editingMilestone.id, { ...milestoneData, projectId: id });
+                await milestoneService.update(editingMilestone.milestoneId, { ...milestoneData, projectId: id });
                 showToast('Milestone updated successfully!', 'success');
             } else {
                 await milestoneService.create({ ...milestoneData, projectId: id });
@@ -188,20 +188,20 @@ const ProjectDetails: React.FC = () => {
     };
 
     const handleMilestoneClick = (milestone: Milestone) => {
-        setSelectedMilestoneId(milestone.id);
+        setSelectedMilestoneId(milestone.milestoneId);
         setIsMilestoneDetailOpen(true);
     };
 
 
     const handleTaskClick = (task: Task) => {
-        setSelectedTaskId(task.id);
+        setSelectedTaskId(task.taskId);
         setIsDetailModalOpen(true);
     };
 
     const handleTaskSubmit = async (taskData: any) => {
         try {
             if (editingTask) {
-                await taskService.update(editingTask.id, { ...taskData, projectId: id });
+                await taskService.update(editingTask.taskId, { ...taskData, projectId: id });
                 showToast('Research activity updated successfully!', 'success');
             } else {
                 await taskService.create({ ...taskData, projectId: id });
@@ -495,7 +495,7 @@ const ProjectDetails: React.FC = () => {
                                         <h4 style={{ marginBottom: '1rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>RESEARCH FIELDS</h4>
                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                                             {project.researchFields?.map((field, index) => (
-                                                <span key={field.id || index} style={{
+                                                <span key={field.researchFieldId || index} style={{
                                                     padding: '6px 12px', background: '#f8fafc',
                                                     border: '1px solid #e2e8f0', borderRadius: '20px',
                                                     fontSize: '0.8rem', fontWeight: 500
@@ -515,7 +515,7 @@ const ProjectDetails: React.FC = () => {
                                         </div>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                             {tasks.slice(0, 3).map(task => (
-                                                <div key={task.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.9rem', padding: '8px', border: '1px solid #f1f5f9', borderRadius: '8px' }}>
+                                                <div key={task.taskId} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.9rem', padding: '8px', border: '1px solid #f1f5f9', borderRadius: '8px' }}>
                                                     <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: task.status === TaskStatus.Completed ? '#10b981' : '#0ea5e9' }} />
                                                     <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{task.name}</span>
                                                     <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'No date'}</span>
@@ -532,7 +532,7 @@ const ProjectDetails: React.FC = () => {
                                         </div>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                             {milestones.slice(0, 3).map(m => (
-                                                <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.9rem', padding: '8px', border: '1px solid #f1f5f9', borderRadius: '8px' }}>
+                                                <div key={m.milestoneId} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.9rem', padding: '8px', border: '1px solid #f1f5f9', borderRadius: '8px' }}>
                                                     <Activity size={14} style={{ color: 'var(--accent-color)' }} />
                                                     <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.name}</span>
                                                 </div>
@@ -636,7 +636,7 @@ const ProjectDetails: React.FC = () => {
 
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                     {filteredMilestones.length > 0 ? filteredMilestones.map(milestone => (
-                                        <MilestoneItem key={milestone.id} milestone={milestone} onClick={handleMilestoneClick} />
+                                        <MilestoneItem key={milestone.milestoneId} milestone={milestone} onClick={handleMilestoneClick} />
                                     )) : (
                                         <div className="card" style={{ textAlign: 'center', padding: '3rem' }}>
                                             <p style={{ color: 'var(--text-secondary)' }}>
@@ -822,10 +822,10 @@ const ProjectDetails: React.FC = () => {
                                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.25rem' }}>
                                             {filteredTasks.length > 0 ? (
                                                 filteredTasks.map(task => {
-                                                    const taskMilestone = milestones.find(m => m.id === task.milestoneId);
+                                                    const taskMilestone = milestones.find(m => m.milestoneId === task.milestoneId);
                                                     return (
                                                         <TaskItem
-                                                            key={task.id}
+                                                            key={task.taskId}
                                                             task={task}
                                                             onClick={handleTaskClick}
                                                             milestoneName={taskMilestone?.name}
@@ -935,13 +935,13 @@ const ProjectDetails: React.FC = () => {
                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', padding: '1rem', background: 'var(--surface-hover)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
                                         {availableFields.map((field) => (
                                             <button
-                                                key={field.id} type="button"
-                                                onClick={() => !isArchived && toggleField(field.id)}
-                                                className={`filter-chip ${selectedFieldIds.includes(field.id) ? 'active' : ''}`}
-                                                style={{ cursor: isArchived ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px', opacity: isArchived && !selectedFieldIds.includes(field.id) ? 0.5 : 1 }}
+                                                key={field.researchFieldId} type="button"
+                                                onClick={() => !isArchived && toggleField(field.researchFieldId)}
+                                                className={`filter-chip ${selectedFieldIds.includes(field.researchFieldId) ? 'active' : ''}`}
+                                                style={{ cursor: isArchived ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px', opacity: isArchived && !selectedFieldIds.includes(field.researchFieldId) ? 0.5 : 1 }}
                                                 disabled={isArchived}
                                             >
-                                                {selectedFieldIds.includes(field.id) ? <Check size={14} /> : <Plus size={14} />} {field.name}
+                                                {selectedFieldIds.includes(field.researchFieldId) ? <Check size={14} /> : <Plus size={14} />} {field.name}
                                             </button>
                                         ))}
                                     </div>

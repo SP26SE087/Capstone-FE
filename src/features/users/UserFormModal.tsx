@@ -40,16 +40,14 @@ const UserFormModal: React.FC<UserFormModalProps> = ({ isOpen, onClose, onSucces
             console.error('Add user error:', err.response?.data || err);
             
             const data = err.response?.data;
-            const status = err.response?.status;
             let errorMessage = 'Failed to add user. Please try again.';
             
-            if (status === 401) {
-                errorMessage = 'Your session has expired or you are not authorized. Please log out and log in again.';
-            } else if (data && data.message) {
+            if (data && data.message) {
                 errorMessage = data.message;
-            } else if (typeof data === 'string' && data.length > 0) {
+            } else if (typeof data === 'string') {
                 errorMessage = data;
             } else if (!err.response) {
+                // Networking error (e.g. ECONNREFUSED)
                 errorMessage = 'Connection refused. Please ensure the Backend (UserService) is running on port 7268.';
             }
             

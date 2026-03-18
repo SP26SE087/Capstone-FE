@@ -7,7 +7,7 @@ export interface AddUserRequest {
 }
 
 export interface UserResponse {
-    id: string;
+    userId: string;
     email: string;
     fullName: string;
     role: number;

@@ -34,10 +34,10 @@ export const taskService = {
             const newTask = response.data.data || response.data;
 
             // If there are support members, add them one by one (as per devApi)
-            if (newTask?.id && taskData.supportMembers && taskData.supportMembers.length > 0) {
-                console.log('Adding support members to task:', newTask.id);
+            if (newTask?.taskId && taskData.supportMembers && taskData.supportMembers.length > 0) {
+                console.log('Adding support members to task:', newTask.taskId);
                 await Promise.all(taskData.supportMembers.map((mId: string) =>
-                    taskService.addMember(newTask.id, mId)
+                    taskService.addMember(newTask.taskId, mId)
                 ));
             }
 
@@ -73,7 +73,7 @@ export const taskService = {
         try {
             // Per updated model: PUT /api/projects/tasks
             const updatePayload = {
-                id: taskId,
+                taskId: taskId,
                 name: taskData.name,
                 description: taskData.description,
                 priority: taskData.priority,
@@ -158,7 +158,7 @@ export const taskService = {
             };
         } catch (error) {
             console.error(`Error fetching task details for ${taskId}:`, error);
-            const mockTask = mockTasks.find(t => t.id === taskId);
+            const mockTask = mockTasks.find(t => t.taskId === taskId);
             return mockTask || null;
         }
     },

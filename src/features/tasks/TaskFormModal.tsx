@@ -115,7 +115,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
             setStartDate(task.startDate ? new Date(task.startDate).toISOString().split('T')[0] : '');
             setDueDate(task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : '');
             setMilestoneId((task as any).milestoneId || '');
-            setSupportMemberIds(task.members?.map((m: any) => m.id || m.memberId) || []);
+            setSupportMemberIds(task.members?.map((m: any) => m.userId || m.memberId) || []);
 
             // If we don't have members or milestones, fetch them for this task's project
             if (task.projectId) {
@@ -143,7 +143,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
         let list = effectiveMilestones;
         
         // Always include the currently selected milestone in the list even if it doesn't match filters
-        const currentMilestone = effectiveMilestones.find(m => m.id === milestoneId);
+        const currentMilestone = effectiveMilestones.find(m => m.milestoneId === milestoneId);
         
         // Filter by status
         if (milestoneStatusFilter !== 'all') {
@@ -157,7 +157,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
         }
 
         // Re-inject current milestone if it was filtered out but is active
-        if (currentMilestone && !list.some(m => m.id === milestoneId)) {
+        if (currentMilestone && !list.some(m => m.milestoneId === milestoneId)) {
             list = [currentMilestone, ...list];
         }
         
@@ -484,7 +484,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                             >
                                 <option value="">No Milestone Linked</option>
                                 {filteredMilestones.map(m => (
-                                    <option key={m.id} value={m.id}>
+                                    <option key={m.milestoneId} value={m.milestoneId}>
                                         [{getMilestoneStatusLabel(m.status)}] {m.name} ({formatDate(m.startDate)} - {formatDate(m.dueDate)})
                                     </option>
                                 ))}
@@ -562,7 +562,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                                 <p style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8', fontSize: '0.85rem' }}>No members found.</p>
                             ) : (
                                 filteredMembers.map((m) => {
-                                    const mId = m.memberId || m.id || '';
+                                    const mId = m.userId || m.memberId || '';
                                     const isAssignee = memberId === mId;
                                     const isCollaborator = supportMemberIds.includes(mId);
 

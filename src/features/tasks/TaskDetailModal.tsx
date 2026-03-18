@@ -90,7 +90,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                     setMemberId(data.memberId || '');
                     setStartDate(data.startDate ? new Date(data.startDate).toISOString().split('T')[0] : '');
                     setDueDate(data.dueDate ? new Date(data.dueDate).toISOString().split('T')[0] : '');
-                    setSupportMemberIds(data.members?.map((m: any) => m.id || m.memberId) || []);
+                    setSupportMemberIds(data.members?.map((m: any) => m.userId || m.memberId) || []);
                     setIsEditMode(false); // Default to read-only
                     setEvidenceFiles([]);
 
@@ -131,7 +131,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
         let list = effectiveMilestones;
         
         // Always include the currently selected milestone in the list even if it doesn't match filters
-        const currentMilestone = effectiveMilestones.find(m => m.id === milestoneId);
+        const currentMilestone = effectiveMilestones.find(m => m.milestoneId === milestoneId);
         
         // Filter by status
         if (milestoneStatusFilter !== 'all') {
@@ -145,7 +145,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
         }
 
         // Re-inject current milestone if it was filtered out but is active
-        if (currentMilestone && !list.some(m => m.id === milestoneId)) {
+        if (currentMilestone && !list.some(m => m.milestoneId === milestoneId)) {
             list = [currentMilestone, ...list];
         }
         
@@ -308,7 +308,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                                 setMemberId(task.memberId || '');
                                                 setStartDate(task.startDate ? new Date(task.startDate).toISOString().split('T')[0] : '');
                                                 setDueDate(task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : '');
-                                                setSupportMemberIds(task.members?.map((m: any) => m.id || m.memberId) || []);
+                                                setSupportMemberIds(task.members?.map((m: any) => m.userId || m.memberId) || []);
                                             }
                                         }
                                         setIsEditMode(!isEditMode);
@@ -459,7 +459,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                             >
                                                 <option value="">No Milestone Linked</option>
                                                 {filteredMilestones.map(m => (
-                                                    <option key={m.id} value={m.id}>
+                                                    <option key={m.milestoneId} value={m.milestoneId}>
                                                         [{getMilestoneStatusLabel(m.status)}] {m.name} ({formatDate(m.startDate)} - {formatDate(m.dueDate)})
                                                     </option>
                                                 ))}
@@ -470,7 +470,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                         </div>
                                     ) : (
                                         <div style={{ padding: '0.85rem 1.15rem', borderRadius: '12px', background: '#f8fafc', border: '1.5px solid #f1f5f9', fontWeight: 700, color: '#1e293b' }}>
-                                            {effectiveMilestones.find(m => m.id === milestoneId)?.name || 'No Associated Milestone'}
+                                            {effectiveMilestones.find(m => m.milestoneId === milestoneId)?.name || 'No Associated Milestone'}
                                         </div>
                                     )}
                                 </div>
@@ -558,9 +558,9 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                         <p style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8', fontSize: '0.85rem' }}>No members found.</p>
                                     ) : (
                                         filteredMembers.map((m) => {
-                                            const mId = m.memberId || m.id || '';
-                                            const isAssignee = memberId === mId;
-                                            const isCollaborator = supportMemberIds.includes(mId);
+                                             const mId = m.userId || m.memberId || '';
+                                             const isAssignee = memberId === mId;
+                                             const isCollaborator = supportMemberIds.includes(mId);
                                             
                                             if (!isEditMode && !isAssignee && !isCollaborator) return null;
 

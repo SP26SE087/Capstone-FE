@@ -70,7 +70,7 @@ const DraggableColumn: React.FC<{
         >
             {tasks.map(task => (
                 <div 
-                    key={task.id} 
+                    key={task.taskId} 
                     onClickCapture={(e) => {
                         if (hasMoved) {
                             e.stopPropagation();
@@ -160,7 +160,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
     };
 
     const handleTaskClick = (task: Task) => {
-        setSelectedTaskId(task.id);
+        setSelectedTaskId(task.taskId);
         setIsDetailModalOpen(true);
     };
 
