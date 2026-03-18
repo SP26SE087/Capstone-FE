@@ -1,12 +1,14 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { User, Bell, Search, Library, FlaskConical, LogIn, LogOut } from 'lucide-react';
+import { User, Bell, Search, Library, FlaskConical, LogIn, LogOut, UserPlus } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import UserFormModal from '@/features/users/UserFormModal';
 
 const Header: React.FC = () => {
     const location = useLocation();
     const navigate = useNavigate();
     const { user, isAuthenticated, logout } = useAuth();
+    const [isUserModalOpen, setIsUserModalOpen] = useState(false);
 
     const workspaceRoutes = ['/dashboard', '/projects', '/tasks', '/meetings', '/members'];
     const isInWorkspace = workspaceRoutes.some(route => location.pathname.startsWith(route));
@@ -61,6 +63,16 @@ const Header: React.FC = () => {
             <div className="header-right">
                 {isAuthenticated ? (
                     <>
+                        {(user?.role === 'Admin' || user?.role === 'LabDirector') && (
+                            <button 
+                                className="header-icon-btn" 
+                                onClick={() => setIsUserModalOpen(true)}
+                                title="Add New User"
+                                style={{ color: 'var(--primary-color)' }}
+                            >
+                                <UserPlus size={20} />
+                            </button>
+                        )}
                         <button className="header-icon-btn">
                             <Bell size={20} />
                         </button>
@@ -96,6 +108,14 @@ const Header: React.FC = () => {
                     </button>
                 )}
             </div>
+            
+            <UserFormModal 
+                isOpen={isUserModalOpen} 
+                onClose={() => setIsUserModalOpen(false)} 
+                onSuccess={() => {
+                    // Optional: show a success toast or dispatch an event that user was added
+                }}
+            />
         </header>
     );
 };
