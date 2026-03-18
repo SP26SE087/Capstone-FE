@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Face Recognition System</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: Arial, Helvetica, sans-serif;
+        }
+
+        body {
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            background-color: #111;
+            color: white;
+        }
+
+        /* ===== CAMERA AREA ===== */
+        .camera-container {
+            flex: 4;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: black;
+        }
+
+        .camera-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        /* ===== CONTROL PANEL ===== */
+        .control-panel {
+            flex: 1;
+            background-color: #1e1e1e;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            border-left: 2px solid #333;
+        }
+
+        .control-panel h2 {
+            text-align: center;
+            margin-bottom: 10px;
+            color: #00ffcc;
+        }
+
+        .btn {
+            padding: 15px;
+            font-size: 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: 0.2s;
+            color: white;
+        }
+
+        .btn:hover {
+            opacity: 0.85;
+        }
+
+        .btn-add {
+            background-color: #2ecc71;
+        }
+
+        .btn-delete {
+            background-color: #e74c3c;
+        }
+
+        .btn-ban {
+            background-color: #f39c12;
+        }
+        .btn-unban {
+            background-color: #1fa767;
+        }
+
+        .status-box {
+            margin-top: auto;
+            padding: 15px;
+            background-color: #111;
+            border-radius: 8px;
+            border: 1px solid #333;
+            font-size: 14px;
+        }
+
+        .status-title {
+            color: #00ffcc;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- CAMERA -->
+    <div class="camera-container">
+        <img src="{{ url_for('video_feed') }}" alt="Camera Stream">
+    </div>
+
+    <!-- CONTROL PANEL -->
+    <div class="control-panel">
+        <h2>CONTROL PANEL</h2>
+
+                <button class="btn btn-add" onclick="showAddControls()">
+            ➕ Đăng ký thành viên
+        </button>
+
+        <div id="add-controls" style="display: none; margin-top: 10px;">
+            <button onclick="startAdd()">▶️ Start</button>
+            <button onclick="stopAdd()">⏹ Stop</button>
+        </div>
+
+
+        <button class="btn btn-delete" onclick="deleteUser()">
+            ❌ Xóa thành viên
+        </button>
+
+        <button class="btn btn-ban" onclick="banUser()">
+            ⛓️ Tạm đình chỉ
+        </button>
+        <button class="btn btn-unban" onclick="unbanUser()">
+            🌟 Cấp quyền lại
+        </button>
+
+        <div class="status-box">
+            <div class="status-title">Trạng thái hệ thống</div>
+            <div id="status-text">Camera đang hoạt động</div>
+        </div>
+    </div>
+        <script>
+    let lastReload = Date.now();
+
+    setInterval(() => {
+        const img = document.getElementById("cam");
+
+        // reload stream mỗi 5 giây
+        if (Date.now() - lastReload > 5000) {
+            img.src = "/video_feed?t=" + Date.now();
+            lastReload = Date.now();
+        }
+    }, 1000);
+    </script>
+    <script>
+        let isAdding = false;
+
+        function showAddControls() {
+            document.getElementById("add-controls").style.display = "block";
+        }
+
+        function startAdd() {
+            if (isAdding) return;
+
+            const user_id = prompt("Enter user id");
+            if (!user_id) return;
+
+            fetch("/start_add_user", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ user_id })
+            })
+            .then(res => res.json())
+            .then(data => {
+                isAdding = true;
+                alert(data.message);   // ✅ HIỆN
+                console.log(data);
+            })
+            .catch(err => {
+                alert("Start add failed");
+                console.error(err);
+            });
+        }
+
+        
+
+        function stopAdd() {
+            if (!isAdding) return;
+
+            fetch("/stop_add_user", { method: "POST" })
+                .then(() => {
+                    isAdding = false;
+                    document.getElementById("add-controls").style.display = "none";
+                });
+        }
+
+        function deleteUser() {
+            const user_id = prompt("Enter user id to delete");
+            if (!user_id) return;
+
+            fetch("/remove_user", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ user_id })
+            }) .then(res => res.json())
+            .then(data => {
+                alert(data.message);   
+            })
+            .catch(err => {
+                alert("Delete failed");
+                console.error(err);
+            });
+                
+                    
+            }
+
+        function banUser() {
+            const user_id = prompt("Enter user id to ban");
+            if (!user_id) return;
+
+            fetch("/ban_user", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ user_id })
+            }) .then(res => res.json())
+            .then(data => {
+                alert(data.message);   
+            })
+            .catch(err => {
+                alert("Ban failed");
+                console.error(err);
+            });
+                }
+        function unbanUser() {
+            const user_id = prompt("Enter user id to grant access");
+            if (!user_id) return;
+
+            fetch("/unban_user", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ user_id })
+            }) .then(res => res.json())
+            .then(data => {
+                alert(data.message);   
+            })
+            .catch(err => {
+                alert("UnBan failed");
+                console.error(err);
+            });
+                
+                    
+            }
+    </script>
+
+</body>
+</html>

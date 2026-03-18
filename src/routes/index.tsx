@@ -14,6 +14,7 @@ import AuthGuard from '@/components/auth/AuthGuard';
 import Reports from '@/pages/report/Reports';
 import CreateReport from '@/pages/report/CreateReport';
 import ReportDetail from '@/pages/report/ReportDetail';
+import ComingSoon from '@/pages/common/ComingSoon';
 
 export const router = createBrowserRouter([
     {
@@ -71,5 +72,13 @@ export const router = createBrowserRouter([
     {
         path: '/reports/:id',
         element: <AuthGuard><ReportDetail /></AuthGuard>,
+    },
+    {
+        path: '/schedules',
+        element: <AuthGuard><ComingSoon title="Schedules" /></AuthGuard>,
+    },
+    {
+        path: '/seminars',
+        element: <AuthGuard><ComingSoon title="Seminars" /></AuthGuard>,
     },
 ]);
