@@ -30,6 +30,28 @@ export const milestoneService = {
         }
     },
 
+    createBulk: async (milestones: any[]): Promise<any> => {
+        try {
+            const response = await api.post('/api/projects/milestones/bulk', milestones);
+            return response.data;
+        } catch (error) {
+            console.error('Error creating bulk milestones:', error);
+            throw error;
+        }
+    },
+
+    updateStatus: async (milestoneId: string, status: number): Promise<any> => {
+        try {
+            const response = await api.patch(`/api/projects/milestones/${milestoneId}/status`, {
+                status: status
+            });
+            return response.data;
+        } catch (error) {
+            console.error(`Error updating status for milestone ${milestoneId}:`, error);
+            throw error;
+        }
+    },
+
     update: async (milestoneId: string, milestoneData: any): Promise<any> => {
         try {
             const response = await api.patch(`/api/projects/milestones`, {

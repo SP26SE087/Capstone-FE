@@ -226,21 +226,24 @@ const ProjectDetails: React.FC = () => {
         }
     };
 
-    const handleMilestoneSubmit = async (milestoneData: any) => {
+    const handleMilestoneSubmit = async (milestoneData: any | any[]) => {
         try {
             if (editingMilestone) {
+                // milestoneData is a single object from Edit mode
                 await milestoneService.update(editingMilestone.id, { ...milestoneData, projectId: id });
                 showToast('Milestone updated successfully!', 'success');
             } else {
-                await milestoneService.create({ ...milestoneData, projectId: id });
-                showToast('Milestone created successfully!', 'success');
+                // milestoneData is an array of objects from Bulk Create mode
+                const bulkData = milestoneData.map((m: any) => ({ ...m, projectId: id }));
+                await milestoneService.createBulk(bulkData);
+                showToast(`${milestoneData.length} phases created successfully!`, 'success');
             }
             await refetchMilestones();
             setIsMilestoneModalOpen(false);
             setEditingMilestone(null);
         } catch (error) {
             console.error('Failed to save milestone:', error);
-            showToast('Failed to save milestone.', 'error');
+            showToast('Failed to save milestones.', 'error');
         }
     };
 
@@ -280,6 +283,7 @@ const ProjectDetails: React.FC = () => {
         (Number(projectRoleValue) === ProjectRoleEnum.Leader) ||
         (Number(projectRoleValue) === ProjectRoleEnum.LabDirector);
     const canDeleteProject = isAdmin || (Number(projectRoleValue) === ProjectRoleEnum.LabDirector);
+    const canManageMilestones = isAdmin || (Number(projectRoleValue) === ProjectRoleEnum.LabDirector);
     const canAddTask = isAdmin ||
         [ProjectRoleEnum.Leader, ProjectRoleEnum.LabDirector, ProjectRoleEnum.SeniorResearcher].includes(Number(projectRoleValue));
     const isArchived = project?.status === ProjectStatus.Archived;
@@ -636,7 +640,7 @@ const ProjectDetails: React.FC = () => {
                                         <h2 style={{ margin: 0 }}>Research Roadmap</h2>
                                         <p style={{ color: 'var(--text-secondary)', margin: 0 }}>Phases and critical path for this research project.</p>
                                     </div>
-                                    {canDeleteProject && (
+                                    {canManageMilestones && (
                                         <button
                                             className="btn btn-primary"
                                             style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
@@ -1336,7 +1340,7 @@ const ProjectDetails: React.FC = () => {
                 onClose={() => setIsMilestoneDetailOpen(false)}
                 milestoneId={selectedMilestoneId}
                 onMilestoneUpdated={refetchMilestones}
-                canManage={canManageProject}
+                canManage={canManageMilestones}
             />
 
             <AddMemberModal

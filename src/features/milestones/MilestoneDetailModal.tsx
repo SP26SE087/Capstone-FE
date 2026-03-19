@@ -7,13 +7,13 @@ import {
     Clock,
     CheckCircle2,
     AlertCircle,
-    Edit3,
     Trash2,
     Activity,
     ChevronRight,
     Save,
     Search,
-    SearchX
+    SearchX,
+    PlayCircle
 } from 'lucide-react';
 import { Milestone, MilestoneStatus, Task, TaskStatus } from '@/types';
 import { milestoneService } from '@/services';
@@ -41,6 +41,21 @@ const MilestoneDetailModal: React.FC<MilestoneDetailModalProps> = ({
     const [taskSearchTerm, setTaskSearchTerm] = useState('');
     const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
     const [isTaskDetailOpen, setIsTaskDetailOpen] = useState(false);
+
+    const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+    const [confirmModalConfig, setConfirmModalConfig] = useState<{
+        type: 'confirm' | 'error';
+        title: string;
+        message: string;
+        confirmText: string;
+        onConfirm: () => void;
+    }>({
+        type: 'confirm',
+        title: '',
+        message: '',
+        confirmText: '',
+        onConfirm: () => {}
+    });
 
     // Form states for editing
     const [name, setName] = useState('');
@@ -96,10 +111,11 @@ const MilestoneDetailModal: React.FC<MilestoneDetailModalProps> = ({
         if (!milestoneId) return;
         setLoading(true);
         try {
+            const finalStartDate = startDate || new Date().toISOString().split('T')[0];
             const milestoneData = {
                 name,
                 description,
-                startDate: startDate ? new Date(startDate).toISOString() : null,
+                startDate: new Date(finalStartDate).toISOString(),
                 dueDate: dueDate ? new Date(dueDate).toISOString() : null,
                 status
             };
@@ -115,18 +131,73 @@ const MilestoneDetailModal: React.FC<MilestoneDetailModalProps> = ({
         }
     };
 
-    const handleDelete = async () => {
-        if (!milestoneId) return;
-        if (window.confirm("Are you sure you want to delete this milestone? All associated data might be affected.")) {
-            try {
-                await milestoneService.delete(milestoneId);
-                onMilestoneUpdated();
-                onClose();
-            } catch (error) {
-                console.error("Failed to delete milestone:", error);
-                alert("Failed to delete milestone. Please try again.");
+    const handleQuickStatusUpdate = async (newStatus: number) => {
+        if (!milestoneId || !milestone) return;
+
+        // Validation for starting a phase
+        if (newStatus === MilestoneStatus.InProgress) {
+            const hasStart = milestone.startDate && !milestone.startDate.startsWith('0001');
+            const hasDue = milestone.dueDate && !milestone.dueDate.startsWith('0001');
+            
+            if (!hasStart || !hasDue) {
+                setConfirmModalConfig({
+                    type: 'error',
+                    title: 'Timeline Required',
+                    message: 'Please define both Start Date and Due Date in Edit Mode before starting this phase.',
+                    confirmText: 'Update Timeline',
+                    onConfirm: () => {
+                        setIsConfirmModalOpen(false);
+                        setIsEditMode(true);
+                    }
+                });
+                setIsConfirmModalOpen(true);
+                return;
             }
         }
+
+        setConfirmModalConfig({
+            type: 'confirm',
+            title: newStatus === MilestoneStatus.InProgress ? 'Start Phase?' : 'Complete Phase?',
+            message: `Are you sure you want to ${newStatus === MilestoneStatus.InProgress ? 'kick off' : 'mark as finished'} this research phase? This action will be logged.`,
+            confirmText: 'Confirm Status Change',
+            onConfirm: async () => {
+                setIsConfirmModalOpen(false);
+                setLoading(true);
+                try {
+                    await milestoneService.updateStatus(milestoneId, newStatus);
+                    await fetchMilestoneDetails();
+                    onMilestoneUpdated();
+                } catch (error) {
+                    console.error("Failed to update status:", error);
+                } finally {
+                    setLoading(false);
+                }
+            }
+        });
+        setIsConfirmModalOpen(true);
+    };
+
+    const handleDelete = async () => {
+        if (!milestoneId) return;
+        
+        setConfirmModalConfig({
+            type: 'confirm',
+            title: 'Delete Phase?',
+            message: 'This action is irreversible. Are you sure you want to remove this roadmap phase and all associated configuration?',
+            confirmText: 'Delete Permanently',
+            onConfirm: async () => {
+                setIsConfirmModalOpen(false);
+                try {
+                    await milestoneService.delete(milestoneId);
+                    onMilestoneUpdated();
+                    onClose();
+                } catch (error) {
+                    console.error("Failed to delete milestone:", error);
+                    alert("Failed to delete milestone. Please try again.");
+                }
+            }
+        });
+        setIsConfirmModalOpen(true);
     };
 
     const filteredTasks = tasks.filter(task =>
@@ -547,13 +618,27 @@ const MilestoneDetailModal: React.FC<MilestoneDetailModalProps> = ({
                         </button>
                     ) : (
                         canManage && (
-                            <button
-                                onClick={() => setIsEditMode(true)}
-                                className="btn btn-primary"
-                                style={{ padding: '0.75rem 3rem', borderRadius: '12px' }}
-                            >
-                                <Edit3 size={18} /> Edit Mode
-                            </button>
+                            <div style={{ display: 'flex', gap: '12px' }}>
+                                {/* Quick Action Button */}
+                                {milestone && milestone.status === MilestoneStatus.NotStarted && (
+                                    <button
+                                        onClick={() => handleQuickStatusUpdate(MilestoneStatus.InProgress)}
+                                        className="btn btn-primary"
+                                        style={{ padding: '0.75rem 2.5rem', borderRadius: '12px', border: 'none', background: '#E8720C', color: 'white', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}
+                                    >
+                                        <PlayCircle size={18} /> Start Phase
+                                    </button>
+                                )}
+                                {milestone && milestone.status === MilestoneStatus.InProgress && (
+                                    <button
+                                        onClick={() => handleQuickStatusUpdate(MilestoneStatus.Completed)}
+                                        className="btn btn-primary"
+                                        style={{ padding: '0.75rem 2.5rem', borderRadius: '12px', border: 'none', background: '#10b981', color: 'white', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}
+                                    >
+                                        <CheckCircle2 size={18} /> Complete Phase
+                                    </button>
+                                )}
+                            </div>
                         )
                     )}
                 </div>
@@ -566,6 +651,64 @@ const MilestoneDetailModal: React.FC<MilestoneDetailModalProps> = ({
                 taskId={selectedTaskId}
                 onTaskUpdated={fetchMilestoneDetails}
             />
+
+            {/* Custom Confirmation Modal */}
+            {isConfirmModalOpen && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(4px)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    zIndex: 3000, padding: '20px'
+                }}>
+                    <div style={{
+                        background: 'white', borderRadius: '20px', width: '100%', maxWidth: '400px',
+                        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+                        overflow: 'hidden'
+                    }}>
+                        <div style={{ padding: '2rem', textAlign: 'center' }}>
+                            <div style={{
+                                width: '64px', height: '64px', borderRadius: '50%',
+                                background: confirmModalConfig.type === 'error' ? '#fef2f2' : '#fff7ed',
+                                color: confirmModalConfig.type === 'error' ? '#ef4444' : '#E8720C',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                margin: '0 auto 1.5rem auto'
+                            }}>
+                                {confirmModalConfig.type === 'error' ? <AlertCircle size={32} /> : <Clock size={32} />}
+                            </div>
+                            <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1.25rem', fontWeight: 800, color: '#1e293b' }}>
+                                {confirmModalConfig.title}
+                            </h3>
+                            <p style={{ margin: 0, fontSize: '0.95rem', color: '#64748b', lineHeight: 1.5 }}>
+                                {confirmModalConfig.message}
+                            </p>
+                        </div>
+                        <div style={{ padding: '1.25rem 2rem', background: '#f8fafc', display: 'flex', gap: '12px' }}>
+                            {confirmModalConfig.type === 'confirm' && (
+                                <button
+                                    onClick={() => setIsConfirmModalOpen(false)}
+                                    style={{
+                                        flex: 1, padding: '0.75rem', borderRadius: '10px', border: '1px solid #e2e8f0',
+                                        background: 'white', color: '#64748b', fontWeight: 700, cursor: 'pointer'
+                                    }}
+                                >
+                                    Cancel
+                                </button>
+                            )}
+                            <button
+                                onClick={confirmModalConfig.onConfirm}
+                                style={{
+                                    flex: 1, padding: '0.75rem', borderRadius: '10px', border: 'none',
+                                    background: confirmModalConfig.type === 'error' ? '#ef4444' : '#E8720C',
+                                    color: 'white', fontWeight: 700, cursor: 'pointer',
+                                    boxShadow: confirmModalConfig.type === 'error' ? '0 4px 6px -1px rgba(239, 68, 68, 0.2)' : '0 4px 6px -1px rgba(232, 114, 12, 0.2)'
+                                }}
+                            >
+                                {confirmModalConfig.confirmText}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

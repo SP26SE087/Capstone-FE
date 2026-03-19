@@ -1,11 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { X, Calendar, AlignLeft, Flag } from 'lucide-react';
+import { X, Calendar, AlignLeft, Flag, Plus, Trash2 } from 'lucide-react';
 import { Milestone, MilestoneStatus } from '@/types';
+
+interface MilestoneRow {
+    id: string; // for React keys
+    name: string;
+    description: string;
+    startDate: string;
+    dueDate: string;
+    status: MilestoneStatus;
+}
 
 interface MilestoneFormModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSubmit: (milestoneData: any) => void;
+    onSubmit: (milestoneData: any | any[]) => void;
     milestone?: Milestone | null;
 }
 
@@ -15,43 +24,81 @@ const MilestoneFormModal: React.FC<MilestoneFormModalProps> = ({
     onSubmit,
     milestone = null
 }) => {
-    const [name, setName] = useState('');
-    const [description, setDescription] = useState('');
-    const [startDate, setStartDate] = useState('');
-    const [dueDate, setDueDate] = useState('');
-    const [status, setStatus] = useState<MilestoneStatus>(MilestoneStatus.NotStarted);
+    const [rows, setRows] = useState<MilestoneRow[]>([]);
+
+    const createNewRow = (): MilestoneRow => ({
+        id: Math.random().toString(36).substr(2, 9),
+        name: '',
+        description: '',
+        startDate: '',
+        dueDate: '',
+        status: MilestoneStatus.NotStarted
+    });
 
     const resetForm = () => {
-        setName('');
-        setDescription('');
-        setStartDate('');
-        setDueDate('');
-        setStatus(MilestoneStatus.NotStarted);
+        setRows([createNewRow()]);
     };
 
     useEffect(() => {
         if (milestone && isOpen) {
-            setName(milestone.name || '');
-            setDescription(milestone.description || '');
-            // Fix timezone shift
-            setStartDate(milestone.startDate ? (milestone.startDate as string).split('T')[0] : '');
-            setDueDate(milestone.dueDate ? (milestone.dueDate as string).split('T')[0] : '');
-            setStatus(milestone.status);
+            setRows([{
+                id: milestone.id,
+                name: milestone.name || '',
+                description: milestone.description || '',
+                startDate: milestone.startDate ? (milestone.startDate as string).split('T')[0] : '',
+                dueDate: milestone.dueDate ? (milestone.dueDate as string).split('T')[0] : '',
+                status: milestone.status || MilestoneStatus.NotStarted
+            }]);
         } else if (!isOpen) {
+            resetForm();
+        } else if (isOpen && !milestone) {
             resetForm();
         }
     }, [milestone, isOpen]);
 
+    const addRow = () => setRows([...rows, createNewRow()]);
+
+    const removeRow = (id: string) => {
+        if (rows.length > 1) {
+            setRows(rows.filter(row => row.id !== id));
+        }
+    };
+
+    const updateRow = (id: string, field: keyof MilestoneRow, value: any) => {
+        setRows(rows.map(row => row.id === id ? { ...row, [field]: value } : row));
+    };
+
     const handleFormSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        const milestoneData = {
-            name,
-            description,
-            startDate: startDate ? new Date(startDate).toISOString() : null,
-            dueDate: dueDate ? new Date(dueDate).toISOString() : null,
-            status
-        };
-        onSubmit(milestoneData);
+        
+        const todayStr = new Date().toISOString().split('T')[0];
+
+        if (milestone) {
+            // Edit mode - return single object
+            const row = rows[0];
+            const finalStartDate = row.startDate || todayStr;
+            const milestoneData = {
+                name: row.name,
+                description: row.description,
+                startDate: new Date(finalStartDate).toISOString(),
+                dueDate: row.dueDate ? new Date(row.dueDate).toISOString() : null,
+                status: row.status
+            };
+            onSubmit(milestoneData);
+        } else {
+            // Create mode - return array
+            const milestonesData = rows.map(row => {
+                const finalStartDate = row.startDate || todayStr;
+                return {
+                    name: row.name,
+                    description: row.description,
+                    startDate: new Date(finalStartDate).toISOString(),
+                    dueDate: row.dueDate ? new Date(row.dueDate).toISOString() : null,
+                    status: row.status
+                };
+            });
+            onSubmit(milestonesData);
+        }
         onClose();
     };
 
@@ -66,7 +113,7 @@ const MilestoneFormModal: React.FC<MilestoneFormModalProps> = ({
         }}>
             <div style={{
                 background: 'white', border: '1px solid #e2e8f0', borderRadius: '24px',
-                width: '100%', maxWidth: '600px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+                width: '100%', maxWidth: '850px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
                 overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: '90vh'
             }}>
                 {/* Header */}
@@ -85,10 +132,10 @@ const MilestoneFormModal: React.FC<MilestoneFormModalProps> = ({
                         </div>
                         <div>
                             <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#1e293b' }}>
-                                {milestone ? 'Edit Milestone' : 'New Milestone'}
+                                {milestone ? 'Edit Phase' : 'Define Research Roadmap'}
                             </h2>
                             <p style={{ margin: 0, fontSize: '0.8rem', color: '#64748b' }}>
-                                {milestone ? 'Update existing project phase' : 'Define a new project phase'}
+                                {milestone ? 'Update existing project phase' : 'You can create multiple phases at once'}
                             </p>
                         </div>
                     </div>
@@ -102,125 +149,153 @@ const MilestoneFormModal: React.FC<MilestoneFormModalProps> = ({
                 </div>
 
                 {/* Body */}
-                <form onSubmit={handleFormSubmit} style={{ padding: '2rem', overflowY: 'auto' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                        {/* Milestone Name */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Milestone Name</label>
-                            <input
-                                type="text"
-                                placeholder="e.g., Initial Research, Data Collection Phase"
-                                value={name}
-                                onChange={(e) => setName(e.target.value)}
-                                required
-                                style={{
-                                    padding: '0.85rem 1rem', borderRadius: '12px', border: '1.5px solid #e2e8f0',
-                                    fontSize: '0.95rem', outline: 'none', transition: 'all 0.2s', fontWeight: 500
-                                }}
-                            />
-                        </div>
+                <form onSubmit={handleFormSubmit} style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                    <div style={{ padding: '2rem', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                        {rows.map((row, index) => (
+                            <div key={row.id} style={{
+                                padding: '1.5rem', 
+                                background: '#f8fafc', 
+                                borderRadius: '16px', 
+                                border: '1.5px solid #e2e8f0',
+                                position: 'relative',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '1rem'
+                            }}>
+                                {!milestone && (
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                                        <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#E8720C', textTransform: 'uppercase' }}>Phase {index + 1}</span>
+                                        {rows.length > 1 && (
+                                            <button 
+                                                type="button" 
+                                                onClick={() => removeRow(row.id)}
+                                                style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', fontWeight: 700 }}
+                                            >
+                                                <Trash2 size={14} /> Remove Phase
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
 
-                        {/* Description */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <AlignLeft size={14} /> Description
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                        <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Phase Name</label>
+                                        <input
+                                            type="text"
+                                            placeholder="e.g., Initial Research"
+                                            value={row.name}
+                                            onChange={(e) => updateRow(row.id, 'name', e.target.value)}
+                                            required
+                                            style={{ padding: '0.8rem 1rem', borderRadius: '10px', border: '1.5px solid #e2e8f0', fontSize: '0.9rem', outline: 'none' }}
+                                        />
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                        <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Status</label>
+                                        <select
+                                            value={row.status}
+                                            onChange={(e) => updateRow(row.id, 'status', Number(e.target.value))}
+                                            style={{ padding: '0.8rem', borderRadius: '10px', border: '1.5px solid #e2e8f0', background: 'white', fontWeight: 600, fontSize: '0.9rem' }}
+                                        >
+                                            <option value={MilestoneStatus.NotStarted}>Not Started</option>
+                                            <option value={MilestoneStatus.InProgress}>In Progress</option>
+                                            <option value={MilestoneStatus.Completed}>Completed</option>
+                                            <option value={MilestoneStatus.OnHold}>On Hold</option>
+                                            <option value={MilestoneStatus.Cancelled}>Cancelled</option>
+                                        </select>
+                                    </div>
                                 </div>
-                            </label>
-                            <textarea
-                                placeholder="Describe the objectives and deliverables for this milestone..."
-                                value={description}
-                                onChange={(e) => setDescription(e.target.value)}
+
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 200px', gap: '1.5rem' }}>
+                                    {/* Description Column */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                        <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><AlignLeft size={14} /> Description</div>
+                                        </label>
+                                        <textarea
+                                            placeholder="Describe the objectives and deliverables for this phase..."
+                                            value={row.description}
+                                            onChange={(e) => updateRow(row.id, 'description', e.target.value)}
+                                            style={{ 
+                                                padding: '0.8rem 1rem', 
+                                                borderRadius: '10px', 
+                                                border: '1.5px solid #e2e8f0', 
+                                                fontSize: '0.9rem', 
+                                                outline: 'none',
+                                                minHeight: '104px',
+                                                resize: 'none',
+                                                fontFamily: 'inherit'
+                                            }}
+                                        />
+                                    </div>
+
+                                    {/* Dates Column - Vertical Stack */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                            <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Calendar size={12} /> Start Date</div>
+                                            </label>
+                                            <input
+                                                type="date"
+                                                value={row.startDate}
+                                                onChange={(e) => updateRow(row.id, 'startDate', e.target.value)}
+                                                style={{ padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1.5px solid #e2e8f0', fontSize: '0.85rem', fontWeight: 600 }}
+                                            />
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                            <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Calendar size={12} /> Due Date</div>
+                                            </label>
+                                            <input
+                                                type="date"
+                                                value={row.dueDate}
+                                                onChange={(e) => updateRow(row.id, 'dueDate', e.target.value)}
+                                                style={{ padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1.5px solid #e2e8f0', fontSize: '0.85rem', fontWeight: 600 }}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+
+                        {!milestone && (
+                            <button
+                                type="button"
+                                onClick={addRow}
                                 style={{
-                                    padding: '0.85rem 1rem', borderRadius: '12px', border: '1.5px solid #e2e8f0',
-                                    fontSize: '0.95rem', outline: 'none', minHeight: '120px', resize: 'vertical',
-                                    fontFamily: 'inherit', fontWeight: 500
+                                    padding: '1rem', border: '2px dashed #e2e8f0', borderRadius: '16px',
+                                    background: 'white', color: '#64748b', fontWeight: 700, cursor: 'pointer',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
+                                    transition: 'all 0.2s'
                                 }}
-                            />
-                        </div>
-
-                        {/* Status & Dates */}
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</label>
-                                <select
-                                    value={status}
-                                    onChange={(e) => setStatus(Number(e.target.value))}
-                                    style={{
-                                        padding: '0.85rem', borderRadius: '12px', border: '1.5px solid #e2e8f0',
-                                        background: 'white', cursor: 'pointer', fontWeight: 600
-                                    }}
-                                >
-                                    <option value={MilestoneStatus.NotStarted}>Not Started</option>
-                                    <option value={MilestoneStatus.InProgress}>In Progress</option>
-                                    <option value={MilestoneStatus.Completed}>Completed</option>
-                                    <option value={MilestoneStatus.OnHold}>On Hold</option>
-                                    <option value={MilestoneStatus.Cancelled}>Cancelled</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                        <Calendar size={14} /> Start Date
-                                    </div>
-                                </label>
-                                <input
-                                    type="date"
-                                    value={startDate}
-                                    onChange={(e) => setStartDate(e.target.value)}
-                                    required
-                                    style={{
-                                        padding: '0.85rem 1rem', borderRadius: '12px', border: '1.5px solid #e2e8f0',
-                                        fontSize: '0.95rem', outline: 'none', fontWeight: 600
-                                    }}
-                                />
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                        <Calendar size={14} /> Due Date
-                                    </div>
-                                </label>
-                                <input
-                                    type="date"
-                                    value={dueDate}
-                                    onChange={(e) => setDueDate(e.target.value)}
-                                    required
-                                    style={{
-                                        padding: '0.85rem 1rem', borderRadius: '12px', border: '1.5px solid #e2e8f0',
-                                        fontSize: '0.95rem', outline: 'none', fontWeight: 600
-                                    }}
-                                />
-                            </div>
-                        </div>
+                                onMouseOver={(e) => { e.currentTarget.style.borderColor = '#E8720C'; e.currentTarget.style.color = '#E8720C'; }}
+                                onMouseOut={(e) => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.color = '#64748b'; }}
+                            >
+                                <Plus size={20} /> Add Another Phase
+                            </button>
+                        )}
                     </div>
 
                     {/* Footer */}
                     <div style={{
-                        marginTop: '2.5rem', display: 'flex', justifyContent: 'flex-end', gap: '12px'
+                        padding: '1.5rem 2rem', borderTop: '1px solid #f1f5f9',
+                        display: 'flex', justifyContent: 'flex-end', gap: '12px', background: 'white'
                     }}>
                         <button
                             type="button"
                             onClick={onClose}
-                            style={{
-                                padding: '0.85rem 2rem', borderRadius: '12px', border: '1px solid #e2e8f0',
-                                background: 'white', color: '#64748b', fontWeight: 700, cursor: 'pointer'
-                            }}
+                            style={{ padding: '0.85rem 2rem', borderRadius: '12px', border: '1px solid #e2e8f0', background: 'white', color: '#64748b', fontWeight: 700, cursor: 'pointer' }}
                         >
                             Cancel
                         </button>
                         <button
                             type="submit"
                             style={{
-                                padding: '0.85rem 3rem', borderRadius: '12px', border: 'none',
+                                padding: '0.85rem 3.5rem', borderRadius: '12px', border: 'none',
                                 background: '#E8720C', color: 'white', fontWeight: 800, cursor: 'pointer',
                                 boxShadow: '0 10px 15px -3px rgba(232, 114, 12, 0.3)'
                             }}
                         >
-                            {milestone ? 'Save Milestone' : 'Create Milestone'}
+                            {milestone ? 'Save Phase' : `Create ${rows.length} Phases`}
                         </button>
                     </div>
                 </form>
