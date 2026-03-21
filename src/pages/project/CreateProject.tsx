@@ -59,10 +59,13 @@ const CreateProject: React.FC = () => {
         e.preventDefault();
         setSubmitting(true);
         try {
+            const today = new Date().toISOString().split('T')[0];
+            const startDate = formData.startDate || today;
+            
             const projectData = {
                 projectName: formData.projectName,
                 projectDescription: formData.projectDescription,
-                startDate: toApiDate(formData.startDate),
+                startDate: toApiDate(startDate),
                 endDate: toApiDate(formData.endDate),
                 researchFieldIds: selectedFieldIds || []
             };

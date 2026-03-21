@@ -13,11 +13,14 @@ import {
     Save,
     Search,
     SearchX,
+    Plus,
     PlayCircle
 } from 'lucide-react';
-import { Milestone, MilestoneStatus, Task, TaskStatus } from '@/types';
-import { milestoneService } from '@/services';
+import { Milestone, MilestoneStatus, Task, TaskStatus, ProjectMember } from '@/types';
+import { milestoneService, taskService } from '@/services';
 import TaskDetailModal from '../tasks/TaskDetailModal';
+import TaskFormModal from '../tasks/TaskFormModal';
+import Toast, { ToastType } from '@/components/common/Toast';
 
 interface MilestoneDetailModalProps {
     isOpen: boolean;
@@ -25,6 +28,9 @@ interface MilestoneDetailModalProps {
     milestoneId: string | null;
     onMilestoneUpdated: () => void;
     canManage: boolean;
+    projectId: string;
+    projectMembers: ProjectMember[];
+    milestones: Milestone[];
 }
 
 const MilestoneDetailModal: React.FC<MilestoneDetailModalProps> = ({
@@ -32,7 +38,10 @@ const MilestoneDetailModal: React.FC<MilestoneDetailModalProps> = ({
     onClose,
     milestoneId,
     onMilestoneUpdated,
-    canManage
+    canManage,
+    projectId,
+    projectMembers,
+    milestones
 }) => {
     const [milestone, setMilestone] = useState<Milestone | null>(null);
     const [tasks, setTasks] = useState<Task[]>([]);
@@ -41,6 +50,11 @@ const MilestoneDetailModal: React.FC<MilestoneDetailModalProps> = ({
     const [taskSearchTerm, setTaskSearchTerm] = useState('');
     const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
     const [isTaskDetailOpen, setIsTaskDetailOpen] = useState(false);
+    const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
+    const [toast, setToast] = useState<{ message: string, type: ToastType } | null>(null);
+    const showToast = (message: string, type: ToastType) => {
+        setToast({ message, type });
+    };
 
     const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
     const [confirmModalConfig, setConfirmModalConfig] = useState<{
@@ -207,6 +221,31 @@ const MilestoneDetailModal: React.FC<MilestoneDetailModalProps> = ({
     const handleTaskClick = (taskId: string) => {
         setSelectedTaskId(taskId);
         setIsTaskDetailOpen(true);
+    };
+
+    const handleTaskSubmit = async (taskData: any) => {
+        try {
+            let result;
+            // TaskData might be an array (Bulk Mode) or object (Standard)
+            if (Array.isArray(taskData)) {
+                await taskService.createBulk(taskData.map(t => ({ ...t, projectId })));
+                // We don't have partial error handling for bulk yet, but let's assume it's successful
+            } else {
+                result = await taskService.create({ ...taskData, projectId });
+            }
+
+            if (result?._partialError) {
+                showToast(result._partialError, 'warning');
+            } else {
+                showToast(Array.isArray(taskData) ? `${taskData.length} tasks created!` : 'Task created successfully!', 'success');
+            }
+
+            await fetchMilestoneDetails();
+            setIsTaskModalOpen(false);
+        } catch (error) {
+            console.error("Failed to create task from milestone:", error);
+            showToast('Unable to complete task submission.', 'error');
+        }
     };
 
     const getStatusStyle = (status: MilestoneStatus) => {
@@ -384,28 +423,51 @@ const MilestoneDetailModal: React.FC<MilestoneDetailModalProps> = ({
                                                     <Activity size={16} /> Associated Research Tasks ({tasks.length})
                                                 </h4>
 
-                                                {tasks.length > 0 && (
-                                                    <div style={{ position: 'relative', width: '200px' }}>
-                                                        <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-                                                        <input
-                                                            type="text"
-                                                            placeholder="Search by name..."
-                                                            value={taskSearchTerm}
-                                                            onChange={(e) => setTaskSearchTerm(e.target.value)}
-                                                            style={{
-                                                                width: '100%',
-                                                                padding: '6px 10px 6px 30px',
-                                                                borderRadius: '20px',
-                                                                border: '1.5px solid #e2e8f0',
-                                                                fontSize: '0.75rem',
-                                                                outline: 'none',
-                                                                transition: 'border-color 0.2s'
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                    {tasks.length > 0 && (
+                                                        <div style={{ position: 'relative', width: '160px' }}>
+                                                            <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                                                            <input
+                                                                type="text"
+                                                                placeholder="Search..."
+                                                                value={taskSearchTerm}
+                                                                onChange={(e) => setTaskSearchTerm(e.target.value)}
+                                                                style={{
+                                                                    width: '100%',
+                                                                    padding: '6px 10px 6px 30px',
+                                                                    borderRadius: '20px',
+                                                                    border: '1.5px solid #e2e8f0',
+                                                                    fontSize: '0.75rem',
+                                                                    outline: 'none'
+                                                                }}
+                                                            />
+                                                        </div>
+                                                    )}
+                                                    
+                                                    {canManage && (
+                                                        <button 
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setIsTaskModalOpen(true);
                                                             }}
-                                                            onFocus={(e) => e.target.style.borderColor = '#E8720C'}
-                                                            onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
-                                                        />
-                                                    </div>
-                                                )}
+                                                            style={{
+                                                                padding: '6px 12px',
+                                                                borderRadius: '20px',
+                                                                background: '#E8720C',
+                                                                color: 'white',
+                                                                border: 'none',
+                                                                fontSize: '0.75rem',
+                                                                fontWeight: 700,
+                                                                cursor: 'pointer',
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                gap: '6px'
+                                                            }}
+                                                        >
+                                                            <Plus size={14} /> New Activity
+                                                        </button>
+                                                    )}
+                                                </div>
                                             </div>
 
                                             <div style={{
@@ -650,6 +712,19 @@ const MilestoneDetailModal: React.FC<MilestoneDetailModalProps> = ({
                 onClose={() => setIsTaskDetailOpen(false)}
                 taskId={selectedTaskId}
                 onTaskUpdated={fetchMilestoneDetails}
+                projectMembers={projectMembers}
+                milestones={milestones}
+            />
+
+            <TaskFormModal
+                isOpen={isTaskModalOpen}
+                onClose={() => setIsTaskModalOpen(false)}
+                onSubmit={handleTaskSubmit}
+                projectMembers={projectMembers}
+                initialStatus={TaskStatus.Todo}
+                task={null}
+                milestones={milestones}
+                initialMilestoneId={milestoneId || undefined}
             />
 
             {/* Custom Confirmation Modal */}
@@ -709,6 +784,7 @@ const MilestoneDetailModal: React.FC<MilestoneDetailModalProps> = ({
                     </div>
                 </div>
             )}
+            {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
         </div>
     );
 };

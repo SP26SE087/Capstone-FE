@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import MainLayout from '@/layout/MainLayout';
 import { projectService, milestoneService, membershipService, taskService, researchFieldService } from '@/services';
@@ -25,6 +25,8 @@ import {
     Check,
     Trash2,
     ChevronDown,
+    CheckCircle2,
+    Flag,
     Calendar,
     User,
     Search
@@ -39,8 +41,9 @@ import MilestoneFormModal from '@/features/milestones/MilestoneFormModal';
 import MilestoneDetailModal from '@/features/milestones/MilestoneDetailModal';
 import AddMemberModal from '@/features/projects/AddMemberModal';
 import MemberDetailModal from '@/features/projects/MemberDetailModal';
+import ProjectTimeline from '@/features/projects/ProjectTimeline';
 
-type ActiveTab = 'home' | 'milestones' | 'members' | 'tasks' | 'settings';
+type ActiveTab = 'home' | 'timeline' | 'milestones' | 'members' | 'tasks' | 'settings';
 
 const ProjectDetails: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -52,6 +55,7 @@ const ProjectDetails: React.FC = () => {
     const [milestones, setMilestones] = useState<Milestone[]>([]);
     const [members, setMembers] = useState<any[]>([]);
     const [tasks, setTasks] = useState<Task[]>([]);
+    const [timelineData, setTimelineData] = useState<any>(null);
 
     const location = useLocation();
     const [loading, setLoading] = useState(true);
@@ -99,6 +103,7 @@ const ProjectDetails: React.FC = () => {
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
     const [pendingStatus, setPendingStatus] = useState<ProjectStatus | null>(null);
     const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+    const milestoneContainerRef = useRef<HTMLDivElement>(null);
 
     const showToast = (message: string, type: ToastType = 'info') => {
         setToast({ message, type });
@@ -150,15 +155,17 @@ const ProjectDetails: React.FC = () => {
                 });
                 setSelectedFieldIds(projectData.researchFields?.map(f => f.id) || []);
 
-                const [milestonesData, membersData, fieldsData] = await Promise.all([
+                const [milestonesData, membersData, fieldsData, timelineResponse] = await Promise.all([
                     milestoneService.getByProject(id),
                     membershipService.getProjectMembers(id),
-                    researchFieldService.getAll()
+                    researchFieldService.getAll(),
+                    projectService.getMilestoneTasks(id)
                 ]);
 
                 setMilestones(milestonesData.length ? milestonesData : (projectData.milestones || []));
                 setMembers(membersData.length ? membersData : (projectData.members || []));
                 setAvailableFields(fieldsData);
+                setTimelineData(timelineResponse);
             } catch (error) {
                 console.error('Failed to fetch project workspace data:', error);
             } finally {
@@ -189,7 +196,10 @@ const ProjectDetails: React.FC = () => {
         if (activeTab === 'tasks') {
             refetchTasks();
         }
-    }, [showMyTasks]);
+        if (activeTab === 'timeline' && id) {
+            projectService.getMilestoneTasks(id).then(setTimelineData);
+        }
+    }, [showMyTasks, activeTab]);
 
     const refetchMilestones = async () => {
         if (!id) return;
@@ -258,14 +268,29 @@ const ProjectDetails: React.FC = () => {
         setIsDetailModalOpen(true);
     };
 
-    const handleTaskSubmit = async (taskData: any) => {
+    const handleTaskSubmit = async (taskData: any | any[]) => {
         try {
             if (editingTask) {
-                await taskService.update(editingTask.id, { ...taskData, projectId: id });
-                showToast('Research activity updated successfully!', 'success');
+                // taskData is a single object from Edit mode
+                const result = await taskService.update(editingTask.id, { ...taskData, projectId: id });
+                if (result?._partialError) {
+                    showToast(result._partialError, 'warning');
+                } else {
+                    showToast('Research activity updated successfully!', 'success');
+                }
+            } else if (Array.isArray(taskData)) {
+                // taskData is an array of objects from Bulk Create mode
+                const bulkData = taskData.map((t: any) => ({ ...t, projectId: id }));
+                await taskService.createBulk(bulkData);
+                showToast(`${taskData.length} research activities registered successfully!`, 'success');
             } else {
-                await taskService.create({ ...taskData, projectId: id });
-                showToast('Research activity registered successfully!', 'success');
+                // taskData is a single object
+                const result = await taskService.create({ ...taskData, projectId: id });
+                if (result?._partialError) {
+                    showToast(result._partialError, 'warning');
+                } else {
+                    showToast('Research activity registered successfully!', 'success');
+                }
             }
             await refetchTasks();
             setIsTaskModalOpen(false);
@@ -275,6 +300,7 @@ const ProjectDetails: React.FC = () => {
             showToast('Failed to save research activity.', 'error');
         }
     };
+
 
 
     const projectRoleValue = currentMember?.projectRole || project?.projectRole;
@@ -346,11 +372,12 @@ const ProjectDetails: React.FC = () => {
         if (!id || isReadOnly) return;
         setSubmitting(true);
         try {
+            const todayStr = new Date().toISOString().split('T')[0];
             const updateData = {
                 projectId: id,
                 projectName: formData.projectName,
                 projectDescription: formData.projectDescription,
-                startDate: toApiDate(formData.startDate),
+                startDate: toApiDate(formData.startDate || todayStr),
                 endDate: toApiDate(formData.endDate),
                 researchFieldIds: selectedFieldIds
             };
@@ -380,6 +407,65 @@ const ProjectDetails: React.FC = () => {
     // ──────────────────────────────────────────────────────────────────────────
 
     const getStatusStyle = (status: ProjectStatus) => getProjectStatusStyle(status);
+
+    const filteredTasks = tasks.filter(task => {
+        const matchesSearch = task.name.toLowerCase().includes(taskSearchQuery.toLowerCase()) ||
+            (task.description?.toLowerCase().includes(taskSearchQuery.toLowerCase()) || false);
+        const matchesStatus = taskStatusFilter === 'all' || task.status.toString() === taskStatusFilter;
+        const matchesPriority = taskPriorityFilter === 'all' || task.priority.toString() === taskPriorityFilter;
+        const matchesMyTasks = true;
+        return matchesSearch && matchesStatus && matchesPriority && matchesMyTasks;
+    });
+
+    const filteredMilestones = milestones
+        .filter(m => {
+            const matchesSearch = (m.name || '').toLowerCase().includes(milestoneSearchQuery.toLowerCase()) ||
+                (m.description || '').toLowerCase().includes(milestoneSearchQuery.toLowerCase());
+            
+            if (milestoneStatusFilter === 'all') {
+                // Default view: Todo, In Progress, Completed
+                return matchesSearch && [MilestoneStatus.NotStarted, MilestoneStatus.InProgress, MilestoneStatus.Completed].includes(m.status);
+            }
+            return matchesSearch && m.status.toString() === milestoneStatusFilter;
+        })
+        .sort((a, b) => {
+            const dateA = a.dueDate ? new Date(a.dueDate).getTime() : Infinity;
+            const dateB = b.dueDate ? new Date(b.dueDate).getTime() : Infinity;
+            return dateA - dateB;
+        });
+
+    // Auto-scroll to current milestone
+    useEffect(() => {
+        if (activeTab === 'milestones' && filteredMilestones.length > 0) {
+            // Priority 1: First InProgress milestone
+            const inProgress = filteredMilestones.filter(m => m.status === MilestoneStatus.InProgress);
+            let targetId: string | null = null;
+            
+            if (inProgress.length > 0) {
+                targetId = inProgress[0].id; // Already sorted by dueDate in filtreredMilestones
+            } else {
+                // Priority 2: Last Completed milestone
+                const completed = filteredMilestones.filter(m => m.status === MilestoneStatus.Completed);
+                if (completed.length > 0) {
+                    targetId = completed[completed.length - 1].id;
+                }
+            }
+
+            if (targetId) {
+                setTimeout(() => {
+                    const element = document.getElementById(`milestone-item-${targetId}`);
+                    const container = milestoneContainerRef.current;
+                    if (element && container) {
+                        const targetScrollPos = element.offsetTop - (container.offsetHeight / 2) + (element.offsetHeight / 2);
+                        container.scrollTo({
+                            top: Math.max(0, targetScrollPos),
+                            behavior: 'smooth'
+                        });
+                    }
+                }, 100);
+            }
+        }
+    }, [activeTab, filteredMilestones.length]);
 
     if (loading) {
         return (
@@ -421,25 +507,6 @@ const ProjectDetails: React.FC = () => {
         );
     }
 
-    const filteredTasks = tasks.filter(task => {
-        const matchesSearch = task.name.toLowerCase().includes(taskSearchQuery.toLowerCase()) ||
-            (task.description?.toLowerCase().includes(taskSearchQuery.toLowerCase()) || false);
-        const matchesStatus = taskStatusFilter === 'all' || task.status.toString() === taskStatusFilter;
-        const matchesPriority = taskPriorityFilter === 'all' || task.priority.toString() === taskPriorityFilter;
-
-        // In this workspace, we trust the API results (either project-wide or member-specific)
-        // and only apply Search/Status/Priority filters in the frontend.
-        const matchesMyTasks = true;
-            
-        return matchesSearch && matchesStatus && matchesPriority && matchesMyTasks;
-    });
-
-    const filteredMilestones = milestones.filter(m => {
-        const matchesSearch = m.name.toLowerCase().includes(milestoneSearchQuery.toLowerCase()) ||
-            (m.description?.toLowerCase().includes(milestoneSearchQuery.toLowerCase()) || false);
-        const matchesStatus = milestoneStatusFilter === 'all' || m.status.toString() === milestoneStatusFilter;
-        return matchesSearch && matchesStatus;
-    });
 
     return (
         <MainLayout
@@ -551,7 +618,7 @@ const ProjectDetails: React.FC = () => {
                 {/* ─── Main Layout ─────────────────────────────────────────── */}
                 <div style={{
                     display: 'grid',
-                    gridTemplateColumns: activeTab === 'tasks' || activeTab === 'members' || activeTab === 'milestones' ? '1fr' : 'minmax(0, 1fr) 300px',
+                    gridTemplateColumns: activeTab === 'tasks' || activeTab === 'members' || activeTab === 'milestones' || activeTab === 'timeline' ? '1fr' : 'minmax(0, 1fr) 300px',
                     gap: '2rem'
                 }}>
 
@@ -632,7 +699,16 @@ const ProjectDetails: React.FC = () => {
                             </div>
                         )}
 
-                        {/* ── MILESTONES ────────────────────────────────────── */}
+                        {/* ── TIMELINE ──────────────────────────────────────── */}
+                        {activeTab === 'timeline' && project && (
+                            <ProjectTimeline 
+                                project={project}
+                                timelineData={timelineData}
+                                onTaskClick={handleTaskClick}
+                                onMilestoneClick={handleMilestoneClick}
+                            />
+                        )}
+
                         {activeTab === 'milestones' && (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -649,6 +725,32 @@ const ProjectDetails: React.FC = () => {
                                             <Plus size={18} /> New Phase
                                         </button>
                                     )}
+                                </div>
+
+                                {/* Summary Stats */}
+                                <div style={{ display: 'flex', gap: '1rem', width: '100%', flexWrap: 'wrap' }}>
+                                    {[
+                                        { label: 'Total Phases', count: milestones.length, color: '#64748b', bg: '#f1f5f9', icon: <Activity size={18} /> },
+                                        { label: 'In Progress', count: milestones.filter(m => m.status === MilestoneStatus.InProgress).length, color: '#E8720C', bg: '#fff7ed', icon: <Clock size={18} /> },
+                                        { label: 'Completed', count: milestones.filter(m => m.status === MilestoneStatus.Completed).length, color: '#10b981', bg: '#ecfdf5', icon: <CheckCircle2 size={18} /> },
+                                        { label: 'Upcoming', count: milestones.filter(m => m.status === MilestoneStatus.NotStarted).length, color: '#3b82f6', bg: '#eff6ff', icon: <Flag size={18} /> }
+                                    ].map((stat, i) => (
+                                        <div key={i} style={{
+                                            flex: '1 1 200px', padding: '1.25rem', borderRadius: '16px', background: 'white',
+                                            border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '1rem'
+                                        }}>
+                                            <div style={{
+                                                width: '44px', height: '44px', borderRadius: '12px', background: stat.bg,
+                                                color: stat.color, display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                            }}>
+                                                {stat.icon}
+                                            </div>
+                                            <div>
+                                                <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1e293b' }}>{stat.count}</div>
+                                                <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>{stat.label}</div>
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
 
                                 <div style={{
@@ -724,11 +826,85 @@ const ProjectDetails: React.FC = () => {
                                     </div>
                                 </div>
 
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                    {filteredMilestones.length > 0 ? filteredMilestones.map(milestone => (
-                                        <MilestoneItem key={milestone.id} milestone={milestone} onClick={handleMilestoneClick} />
+                                <div 
+                                    ref={milestoneContainerRef}
+                                    style={{ 
+                                        maxHeight: '600px', 
+                                        overflowY: filteredMilestones.length > 3 ? 'auto' : 'visible',
+                                        paddingLeft: '6rem', // More space for date labels
+                                        paddingRight: '1rem',
+                                        paddingTop: '1rem',
+                                        paddingBottom: '1rem',
+                                        position: 'relative'
+                                    }} className="custom-scrollbar">
+                                    {filteredMilestones.length > 0 ? filteredMilestones.map((milestone, idx) => (
+                                        <div 
+                                            key={milestone.id} 
+                                            id={`milestone-item-${milestone.id}`}
+                                            style={{ 
+                                                position: 'relative', 
+                                                marginBottom: idx === filteredMilestones.length - 1 ? 0 : '2rem' 
+                                            }}
+                                        >
+                                            {/* Vertical Line Segment */}
+                                            {idx < filteredMilestones.length - 1 && (
+                                                <div style={{
+                                                    position: 'absolute',
+                                                    left: '-3.18rem', // Center with node (-4rem + 13px = -3.18rem approx)
+                                                    top: '36px',
+                                                    bottom: '-2rem', // Connect to next
+                                                    width: '2px',
+                                                    background: idx >= 2 ? 'none' : '#e2e8f0',
+                                                    borderLeft: idx >= 2 ? '2px dashed #e2e8f0' : 'none',
+                                                    zIndex: 1
+                                                }} />
+                                            )}
+
+                                            {/* Timeline Node */}
+                                            <div style={{
+                                                position: 'absolute',
+                                                left: '-4rem',
+                                                top: '10px',
+                                                width: '26px',
+                                                height: '26px',
+                                                borderRadius: '50%',
+                                                background: 'white',
+                                                border: `3px solid ${
+                                                    milestone.status === MilestoneStatus.Completed ? '#10b981' : 
+                                                    milestone.status === MilestoneStatus.InProgress ? '#E8720C' : '#e2e8f0'
+                                                }`,
+                                                zIndex: 2,
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center'
+                                            }}>
+                                                <div style={{ 
+                                                    width: '8px', 
+                                                    height: '8px', 
+                                                    borderRadius: '50%', 
+                                                    background: milestone.status === MilestoneStatus.InProgress ? '#E8720C' : 
+                                                               milestone.status === MilestoneStatus.Completed ? '#10b981' : '#e2e8f0'
+                                                }} />
+
+                                                {/* Node Due Date Label */}
+                                                <div style={{
+                                                    position: 'absolute',
+                                                    top: '28px',
+                                                    left: '50%',
+                                                    transform: 'translateX(-50%)',
+                                                    fontSize: '0.65rem',
+                                                    fontWeight: 700,
+                                                    color: '#94a3b8',
+                                                    whiteSpace: 'nowrap',
+                                                    textAlign: 'center'
+                                                }}>
+                                                    {milestone.dueDate ? formatProjectDate(milestone.dueDate) : ''}
+                                                </div>
+                                            </div>
+                                            <MilestoneItem milestone={milestone} onClick={handleMilestoneClick} />
+                                        </div>
                                     )) : (
-                                        <div className="card" style={{ textAlign: 'center', padding: '3rem' }}>
+                                        <div className="card" style={{ textAlign: 'center', padding: '3rem', marginLeft: '-2.5rem' }}>
                                             <p style={{ color: 'var(--text-secondary)' }}>
                                                 {milestones.length === 0 ? "No milestones have been defined for this research project." : "No milestones match your search criteria."}
                                             </p>
@@ -1341,6 +1517,9 @@ const ProjectDetails: React.FC = () => {
                 milestoneId={selectedMilestoneId}
                 onMilestoneUpdated={refetchMilestones}
                 canManage={canManageMilestones}
+                projectId={id || ''}
+                projectMembers={members}
+                milestones={milestones}
             />
 
             <AddMemberModal

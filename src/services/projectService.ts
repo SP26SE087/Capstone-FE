@@ -108,5 +108,15 @@ export const projectService = {
             console.error('Error fetching project roles:', error);
             return [];
         }
+    },
+
+    getMilestoneTasks: async (projectId: string): Promise<any> => {
+        try {
+            const response = await api.get(`/api/projects/${projectId}/milestones/tasks`);
+            return response.data.data;
+        } catch (error) {
+            console.error('Error fetching milestone tasks:', error);
+            return null;
+        }
     }
 };

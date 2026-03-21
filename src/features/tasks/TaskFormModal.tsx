@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { X, Search, Users, Calendar, Activity, AlignLeft, AlertTriangle, MapPin, AlertOctagon, Plus, Trash2, FileText, File, Eye } from 'lucide-react';
-import { Priority, TaskStatus, ProjectMember, Task, TaskEvidence } from '@/types';
+import { Priority, TaskStatus, ProjectMember, Task, TaskEvidence, ProjectRoleEnum } from '@/types';
 
 interface TaskFormModalProps {
     isOpen: boolean;
@@ -12,11 +12,175 @@ interface TaskFormModalProps {
     isReadOnly?: boolean;
     onEvidenceUpload?: (files: File[]) => void;
     milestones?: Milestone[];
+    initialMilestoneId?: string;
 }
+
+
+const SearchableSelect: React.FC<{
+    options: { id: string; name: string; info?: string }[];
+    value: string | string[];
+    onChange: (id: string | string[]) => void;
+    placeholder: string;
+    icon?: React.ReactNode;
+    multiple?: boolean;
+}> = ({ options, value, onChange, placeholder, icon, multiple }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
+
+    const valueArray = Array.isArray(value) ? value : [value];
+    const selectedOptions = options.filter(o => valueArray.includes(o.id));
+
+    const filteredOptions = useMemo(() => {
+        if (!searchTerm) return options;
+        const term = searchTerm.toLowerCase();
+        return options.filter(o => o.name.toLowerCase().includes(term) || (o.info && o.info.toLowerCase().includes(term)));
+    }, [options, searchTerm]);
+
+    // Handle clicks outside to close
+    useEffect(() => {
+        if (!isOpen) return;
+        const handleClick = () => setIsOpen(false);
+        document.addEventListener('click', handleClick);
+        return () => document.removeEventListener('click', handleClick);
+    }, [isOpen]);
+
+    return (
+        <div style={{ position: 'relative' }} onClick={e => e.stopPropagation()}>
+            <div
+                onClick={() => setIsOpen(!isOpen)}
+                style={{
+                    padding: '0.75rem',
+                    borderRadius: '10px',
+                    border: '1.5px solid #e2e8f0',
+                    background: 'white',
+                    fontSize: '0.85rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '8px',
+                    minHeight: '42px'
+                }}
+            >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+                    {icon && <span style={{ color: '#94a3b8', display: 'flex' }}>{icon}</span>}
+                    <span style={{
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        color: selectedOptions.length > 0 ? '#1e293b' : '#94a3b8',
+                        fontWeight: selectedOptions.length > 0 ? 600 : 400
+                    }}>
+                        {selectedOptions.length > 0
+                            ? (multiple ? `${selectedOptions.length} Collaborators` : selectedOptions[0].name)
+                            : placeholder}
+                    </span>
+                </div>
+                {multiple ? <Plus size={14} style={{ color: '#94a3b8', flexShrink: 0 }} /> : <Search size={14} style={{ color: '#94a3b8', flexShrink: 0 }} />}
+            </div>
+
+            {isOpen && (
+                <div style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    marginTop: '4px',
+                    background: 'white',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '12px',
+                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                    zIndex: 1000,
+                    maxHeight: '200px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    overflow: 'hidden'
+                }}>
+                    <div style={{ padding: '8px', borderBottom: '1px solid #f1f5f9' }}>
+                        <input
+                            autoFocus
+                            type="text"
+                            placeholder="Type to search..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            style={{
+                                width: '100%',
+                                padding: '8px 12px',
+                                borderRadius: '8px',
+                                border: '1.5px solid #f1f5f9',
+                                fontSize: '0.8rem',
+                                outline: 'none'
+                            }}
+                        />
+                    </div>
+                    <div style={{ overflowY: 'auto', flex: 1 }}>
+                        {filteredOptions.length === 0 ? (
+                            <div style={{ padding: '12px', textAlign: 'center', color: '#94a3b8', fontSize: '0.8rem' }}>No results match.</div>
+                        ) : (
+                            filteredOptions.map(opt => {
+                                const isSelected = valueArray.includes(opt.id);
+                                return (
+                                    <div
+                                        key={opt.id}
+                                        onClick={() => {
+                                            if (multiple) {
+                                                const newValue = isSelected
+                                                    ? valueArray.filter(v => v !== opt.id)
+                                                    : [...valueArray, opt.id].filter(v => v !== '');
+                                                onChange(newValue);
+                                            } else {
+                                                onChange(opt.id);
+                                                setIsOpen(false);
+                                                setSearchTerm('');
+                                            }
+                                        }}
+                                        style={{
+                                            padding: '10px 12px',
+                                            cursor: 'pointer',
+                                            fontSize: '0.85rem',
+                                            background: isSelected ? '#f0f7ff' : 'transparent',
+                                            borderLeft: isSelected ? '3px solid var(--primary-color)' : '3px solid transparent',
+                                            transition: 'all 0.15s',
+                                            display: 'flex',
+                                            justifyContent: 'space-between',
+                                            alignItems: 'center'
+                                        }}
+                                        onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+                                        onMouseLeave={e => e.currentTarget.style.background = isSelected ? '#f0f7ff' : 'transparent'}
+                                    >
+                                        <div style={{ flex: 1 }}>
+                                            <div style={{ fontWeight: 600, color: '#1e293b' }}>{opt.name}</div>
+                                            {opt.info && <div style={{ fontSize: '0.7rem', color: '#64748b' }}>{opt.info}</div>}
+                                        </div>
+                                        {multiple && isSelected && <span style={{ color: 'var(--primary-color)', fontSize: '0.75rem', fontWeight: 800 }}>Selected</span>}
+                                    </div>
+                                );
+                            })
+                        )}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
 
 import { Milestone, MilestoneStatus } from '@/types/milestone';
 import { milestoneService, membershipService, taskService } from '@/services';
 import { API_BASE_URL } from '@/services/api';
+
+interface TaskRow {
+    id: string; // Internal temporary ID for React keys
+    name: string;
+    description: string;
+    priority: Priority;
+    status: TaskStatus;
+    milestoneId: string;
+    memberId: string;
+    supportMemberIds: string[];
+    startDate: string;
+    dueDate: string;
+}
 
 const TaskFormModal: React.FC<TaskFormModalProps> = ({
     isOpen,
@@ -27,8 +191,10 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
     task = null,
     isReadOnly = false,
     onEvidenceUpload,
-    milestones
+    milestones,
+    initialMilestoneId
 }) => {
+    // Standard single-task states (used for editing existing task)
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
     const [priority, setPriority] = useState<Priority>(Priority.Medium);
@@ -40,6 +206,33 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
     const [supportMemberIds, setSupportMemberIds] = useState<string[]>([]);
     const [evidenceFiles, setEvidenceFiles] = useState<File[]>([]);
     const [serverEvidences, setServerEvidences] = useState<TaskEvidence[]>([]);
+
+    // Bulk creation states
+    const [rows, setRows] = useState<TaskRow[]>([]);
+    const [isBulkMode, setIsBulkMode] = useState(false);
+
+    const createNewRow = (): TaskRow => ({
+        id: Math.random().toString(36).substring(2, 9),
+        name: '',
+        description: '',
+        priority: Priority.Medium,
+        status: initialStatus,
+        milestoneId: initialMilestoneId || '',
+        memberId: '',
+        supportMemberIds: [],
+        startDate: '',
+        dueDate: ''
+    });
+
+    const addRow = () => setRows([...rows, createNewRow()]);
+    const removeRow = (id: string) => {
+        if (rows.length > 1) {
+            setRows(rows.filter(r => r.id !== id));
+        }
+    };
+    const updateRow = (id: string, field: keyof TaskRow, value: any) => {
+        setRows(rows.map(r => r.id === id ? { ...r, [field]: value } : r));
+    };
 
     // UI State for custom warning
     const [showAssigneeWarning, setShowAssigneeWarning] = useState(false);
@@ -54,10 +247,25 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
     // Internal data states for when props aren't provided
     const [internalMembers, setInternalMembers] = useState<ProjectMember[]>([]);
     const [internalMilestones, setInternalMilestones] = useState<Milestone[]>([]);
+    const [fetchedMilestone, setFetchedMilestone] = useState<Milestone | null>(null);
 
     // Determine which data to use (prop vs internal)
     const effectiveMembers = projectMembers || internalMembers;
-    const effectiveMilestones = milestones || internalMilestones;
+    const baseMilestones = milestones || internalMilestones;
+    const effectiveMilestones = useMemo(() => {
+        if (fetchedMilestone && !baseMilestones.some(m => String(m.id).toLowerCase() === String(fetchedMilestone.id).toLowerCase())) {
+            return [fetchedMilestone, ...baseMilestones];
+        }
+        return baseMilestones;
+    }, [baseMilestones, fetchedMilestone]);
+
+    const selectableMembers = useMemo(() => {
+        return effectiveMembers.filter(m => 
+            m.projectRole !== ProjectRoleEnum.LabDirector && 
+            m.projectRoleName !== 'Lab Director' && 
+            m.roleName !== 'Lab Director'
+        );
+    }, [effectiveMembers]);
 
     const resetForm = () => {
         setName('');
@@ -69,10 +277,13 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
         setDueDate('');
         setStatus(initialStatus);
         setPriority(Priority.Medium);
-        setMilestoneId('');
+        setMilestoneId(initialMilestoneId || '');
         setShowAssigneeWarning(false);
         setEvidenceFiles([]);
         setServerEvidences([]);
+        // Reset rows for creation mode
+        setRows([createNewRow()]);
+        setIsBulkMode(false);
     };
 
     const getFullUrl = (url: string) => {
@@ -111,6 +322,36 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
     };
 
     const executeSubmit = () => {
+        if (isBulkMode && !task) {
+            // Bulk Create Mode
+            const today = new Date().toISOString().split('T')[0];
+            const tasksData = rows.map(row => ({
+                name: row.name,
+                description: row.description,
+                priority: row.priority,
+                status: row.status,
+                milestoneId: row.milestoneId || null,
+                memberId: row.memberId || null,
+                startDate: new Date(row.startDate || today).toISOString(),
+                dueDate: row.dueDate ? new Date(row.dueDate).toISOString() : null,
+                supportMembers: row.supportMemberIds || [],
+                evidence: []
+            }));
+
+            // Validate there's at least one valid row
+            if (tasksData.length === 0 || !tasksData[0].name) {
+                alert("Please add at least one activity with a name.");
+                return;
+            }
+
+            onSubmit(tasksData);
+            resetForm();
+            onClose();
+            return;
+        }
+
+        // Single Edit/Create Mode
+        const todayAtZero = new Date().toISOString().split('T')[0];
         const taskData = {
             name,
             description,
@@ -118,7 +359,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
             status,
             milestoneId: milestoneId || null,
             memberId: memberId || null,
-            startDate: startDate ? new Date(startDate).toISOString() : null,
+            startDate: new Date(startDate || todayAtZero).toISOString(),
             dueDate: dueDate ? new Date(dueDate).toISOString() : null,
             supportMembers: supportMemberIds,
             evidence: evidenceFiles
@@ -131,11 +372,14 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
         }
 
         onSubmit(taskData);
-        if (!task) resetForm(); // Only reset if creating new
         onClose();
     };
 
+
     const toggleSupportMember = (id: string) => {
+        // Rule 2: A member cannot be both assignee and collaborator
+        if (id === memberId) return;
+
         if (supportMemberIds.includes(id)) {
             setSupportMemberIds(supportMemberIds.filter(mId => mId !== id));
         } else {
@@ -145,6 +389,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
 
     useEffect(() => {
         if (task && isOpen) {
+            setIsBulkMode(false);
             setName(task.name || '');
             setDescription(task.description || '');
             setPriority(task.priority);
@@ -152,7 +397,16 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
             setMemberId(task.memberId || '');
             setStartDate(task.startDate ? new Date(task.startDate).toISOString().split('T')[0] : '');
             setDueDate(task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : '');
-            setMilestoneId((task as any).milestoneId || '');
+            const mid = (task as any).milestoneId || (task as any).milestoneID || (task as any).milestone_id || (task as any).milestone?.id || '';
+            setMilestoneId(mid);
+
+
+            // Proactively fetch details for the specific milestone
+            if (mid) {
+                milestoneService.getById(mid).then(setFetchedMilestone).catch(() => {});
+            } else {
+                setFetchedMilestone(null);
+            }
             // Use membershipId/memberId which is the persistent ID, NOT the TaskMember association id
             setSupportMemberIds(task.members?.map((m: any) => m.membershipId || m.memberId) || []);
 
@@ -174,18 +428,32 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
     }, [task, isOpen, initialStatus, projectMembers, milestones]);
 
     const filteredMembers = useMemo(() => {
-        if (!memberSearchTerm.trim()) return effectiveMembers;
+        // Rule 1: Filter out Lab Directors unless they are already assigned to this task
+        const list = effectiveMembers.filter(m => {
+            const mId = m.memberId || m.id || '';
+            const isActive = mId === memberId || supportMemberIds.includes(mId);
+            const isLD = m.projectRole === ProjectRoleEnum.LabDirector || 
+                         m.projectRoleName === 'Lab Director' || 
+                         m.roleName === 'Lab Director';
+            return !isLD || isActive;
+        });
+
+        if (!memberSearchTerm.trim()) return list;
         const term = memberSearchTerm.toLowerCase();
-        return effectiveMembers.filter(m =>
+        return list.filter(m =>
             (m.fullName || m.userName || '').toLowerCase().includes(term)
         );
-    }, [effectiveMembers, memberSearchTerm]);
+    }, [effectiveMembers, memberSearchTerm, memberId, supportMemberIds]);
 
     const filteredMilestones = useMemo(() => {
         let list = effectiveMilestones;
 
         // Always include the currently selected milestone in the list even if it doesn't match filters
-        const currentMilestone = effectiveMilestones.find(m => m.id === milestoneId);
+        const currentMilestone = effectiveMilestones.find(m => {
+            const mId = String(m.id || (m as any).ID || '').toLowerCase();
+            const targetId = String(milestoneId).toLowerCase();
+            return mId === targetId && targetId !== '';
+        });
 
         // Filter by status
         if (milestoneStatusFilter !== 'all') {
@@ -348,20 +616,74 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                     alignItems: 'center',
                     background: '#fff',
                 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <div style={{
-                            padding: '10px',
-                            background: 'var(--primary-color)',
-                            borderRadius: '12px',
-                            color: 'white',
-                            boxShadow: '0 4px 12px rgba(37, 99, 235, 0.2)'
-                        }}>
-                            <Activity size={20} />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <div style={{
+                                padding: '10px',
+                                background: 'var(--primary-color)',
+                                borderRadius: '12px',
+                                color: 'white',
+                                boxShadow: '0 4px 12px rgba(37, 99, 235, 0.2)'
+                            }}>
+                                <Activity size={20} />
+                            </div>
+                            <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#1e293b', letterSpacing: '-0.02em' }}>
+                                {isReadOnly ? 'Research Activity Details' : (isEdit ? 'Update Task Activity' : 'New Task Activity')}
+                            </h2>
                         </div>
-                        <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#1e293b', letterSpacing: '-0.02em' }}>
-                            {isReadOnly ? 'Research Activity Details' : (isEdit ? 'Update Task Activity' : 'New Task Activity')}
-                        </h2>
+
+                        {/* Bulk Mode Toggle - Only for New tasks */}
+                        {!isEdit && !isReadOnly && (
+                            <div style={{
+                                display: 'flex',
+                                background: '#f1f5f9',
+                                padding: '4px',
+                                borderRadius: '10px',
+                                gap: '4px'
+                            }}>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsBulkMode(false)}
+                                    style={{
+                                        padding: '6px 16px',
+                                        borderRadius: '8px',
+                                        border: 'none',
+                                        fontSize: '0.75rem',
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                        background: !isBulkMode ? 'white' : 'transparent',
+                                        color: !isBulkMode ? 'var(--primary-color)' : '#64748b',
+                                        boxShadow: !isBulkMode ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
+                                        transition: 'all 0.2s'
+                                    }}
+                                >
+                                    Standard
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setIsBulkMode(true);
+                                        if (rows.length === 0) setRows([createNewRow()]);
+                                    }}
+                                    style={{
+                                        padding: '6px 16px',
+                                        borderRadius: '8px',
+                                        border: 'none',
+                                        fontSize: '0.75rem',
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                        background: isBulkMode ? 'white' : 'transparent',
+                                        color: isBulkMode ? 'var(--primary-color)' : '#64748b',
+                                        boxShadow: isBulkMode ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
+                                        transition: 'all 0.2s'
+                                    }}
+                                >
+                                    Bulk Mode
+                                </button>
+                            </div>
+                        )}
                     </div>
+
                     <button
                         onClick={onClose}
                         style={{ border: 'none', background: '#f8fafc', cursor: 'pointer', color: '#64748b', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
@@ -370,11 +692,223 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                     </button>
                 </div>
 
-                {/* Body - 2 Column Layout */}
+                {/* Body - Conditional Layout */}
                 <form id="create-task-form" onSubmit={handleSubmit} style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-                    {/* Left Column: Basic Info */}
-                    <div style={{
-                        flex: 1,
+                    {isBulkMode && !task ? (
+                        /* Bulk Activities View */
+                        <div style={{
+                            flex: 1,
+                            padding: '2rem',
+                            overflowY: 'auto',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '1.5rem',
+                            background: '#f8fafc'
+                        }}>
+                            {rows.map((row, index) => (
+                                <div key={row.id} style={{
+                                    padding: '1.5rem',
+                                    background: 'white',
+                                    borderRadius: '16px',
+                                    border: '1.5px solid #e2e8f0',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '1.25rem',
+                                    position: 'relative',
+                                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)'
+                                }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'var(--primary-color)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', fontWeight: 800 }}>
+                                                {index + 1}
+                                            </div>
+                                            <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Activity #{index + 1}</span>
+                                        </div>
+                                        {rows.length > 1 && (
+                                            <button
+                                                type="button"
+                                                onClick={() => removeRow(row.id)}
+                                                style={{ border: 'none', background: '#fef2f2', color: '#ef4444', cursor: 'pointer', padding: '6px 12px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}
+                                            >
+                                                <Trash2 size={14} /> Remove
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '1.25rem' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                            <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Activity Name *</label>
+                                            <input
+                                                required
+                                                type="text"
+                                                placeholder="What needs to be done?"
+                                                value={row.name}
+                                                onChange={(e) => updateRow(row.id, 'name', e.target.value)}
+                                                style={{ padding: '0.75rem', borderRadius: '10px', border: '1.5px solid #e2e8f0', fontSize: '0.9rem', outline: 'none' }}
+                                            />
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                            <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Priority</label>
+                                            <select
+                                                value={row.priority}
+                                                onChange={(e) => updateRow(row.id, 'priority', Number(e.target.value))}
+                                                style={{ padding: '0.75rem', borderRadius: '10px', border: '1.5px solid #e2e8f0', background: 'white', fontWeight: 600, fontSize: '0.85rem' }}
+                                            >
+                                                <option value={Priority.Low}>Low</option>
+                                                <option value={Priority.Medium}>Medium</option>
+                                                <option value={Priority.High}>High</option>
+                                                <option value={Priority.Critical}>Critical</option>
+                                            </select>
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                            <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Status</label>
+                                            <select
+                                                value={row.status}
+                                                onChange={(e) => updateRow(row.id, 'status', Number(e.target.value))}
+                                                style={{ padding: '0.75rem', borderRadius: '10px', border: '1.5px solid #e2e8f0', background: 'white', fontWeight: 600, fontSize: '0.85rem' }}
+                                            >
+                                                <option value={TaskStatus.Todo}>To Do</option>
+                                                <option value={TaskStatus.InProgress}>In Progress</option>
+                                                <option value={TaskStatus.Submitted}>Submitted</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    {/* Row 2: Team Selection */}
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', minWidth: 0 }}>
+                                            <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Primary Assignee</label>
+                                            <SearchableSelect
+                                                placeholder="Assign to..."
+                                                options={[
+                                                    { id: '', name: 'Unassigned', info: 'Clear assignee' },
+                                                    ...selectableMembers.map(m => ({
+                                                        id: (m.memberId || m.id || '').toString(),
+                                                        name: m.fullName || m.userName || 'Unknown Member',
+                                                        info: m.projectRoleName || m.roleName || ''
+                                                    }))
+                                                ]}
+                                                value={row.memberId}
+                                                onChange={(val) => {
+                                                    const newMemberId = val as string;
+                                                    updateRow(row.id, 'memberId', newMemberId);
+                                                    // Rule 2: Remove from collaborators if chosen as assignee
+                                                    if (newMemberId && row.supportMemberIds.includes(newMemberId)) {
+                                                        updateRow(row.id, 'supportMemberIds', row.supportMemberIds.filter(id => id !== newMemberId));
+                                                    }
+                                                }}
+                                                icon={<Users size={16} />}
+                                            />
+                                        </div>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', minWidth: 0 }}>
+                                            <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Collaborators</label>
+                                            <SearchableSelect
+                                                multiple
+                                                placeholder="Add collaborators..."
+                                                options={selectableMembers.map(m => ({
+                                                    id: (m.memberId || m.id || '').toString(),
+                                                    name: m.fullName || m.userName || 'Unknown Member',
+                                                    info: m.projectRoleName || m.roleName || ''
+                                                }))}
+                                                value={row.supportMemberIds}
+                                                onChange={(val) => {
+                                                    const newSupportIds = val as string[];
+                                                    // Rule 2: A member cannot be both assignee and collaborator
+                                                    const filteredSupportIds = row.memberId 
+                                                        ? newSupportIds.filter(id => id !== row.memberId)
+                                                        : newSupportIds;
+                                                    updateRow(row.id, 'supportMemberIds', filteredSupportIds);
+                                                }}
+                                                icon={<Users size={16} />}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Row 3: Milestone & Dates */}
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', minWidth: 0 }}>
+                                            <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Milestone</label>
+                                            <SearchableSelect
+                                                placeholder="Link milestone..."
+                                                options={[
+                                                    { id: '', name: 'No Milestone', info: 'Clear milestone' },
+                                                    ...effectiveMilestones.map(m => ({
+                                                        id: (m.id || '').toString(),
+                                                        name: m.name || 'Unnamed Milestone',
+                                                        info: m.startDate ? `${formatDate(m.startDate)} - ${formatDate(m.dueDate)}` : 'No dates'
+                                                    }))
+                                                ]}
+                                                value={row.milestoneId}
+                                                onChange={(val) => updateRow(row.id, 'milestoneId', val as string)}
+                                                icon={<MapPin size={16} />}
+                                            />
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '12px', minWidth: 0 }}>
+                                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px', minWidth: 0 }}>
+                                                <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Start</label>
+                                                <input
+                                                    type="date"
+                                                    value={row.startDate}
+                                                    onChange={(e) => updateRow(row.id, 'startDate', e.target.value)}
+                                                    style={{ padding: '0.65rem', borderRadius: '10px', border: '1.5px solid #e2e8f0', fontSize: '0.8rem', width: '100%' }}
+                                                />
+                                            </div>
+                                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px', minWidth: 0 }}>
+                                                <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Due</label>
+                                                <input
+                                                    type="date"
+                                                    value={row.dueDate}
+                                                    onChange={(e) => updateRow(row.id, 'dueDate', e.target.value)}
+                                                    style={{ padding: '0.65rem', borderRadius: '10px', border: '1.5px solid #e2e8f0', fontSize: '0.8rem', width: '100%' }}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
+
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                        <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Description</label>
+                                        <textarea
+                                            placeholder="Activity details..."
+                                            value={row.description}
+                                            onChange={(e) => updateRow(row.id, 'description', e.target.value)}
+                                            style={{ padding: '0.75rem', borderRadius: '10px', border: '1.5px solid #e2e8f0', fontSize: '0.85rem', outline: 'none', minHeight: '60px', resize: 'none' }}
+                                        />
+                                    </div>
+                                </div>
+                            ))}
+
+                            <button
+                                type="button"
+                                onClick={addRow}
+                                style={{
+                                    padding: '1rem',
+                                    borderRadius: '16px',
+                                    border: '2px dashed #cbd5e1',
+                                    background: 'white',
+                                    color: 'var(--primary-color)',
+                                    fontWeight: 800,
+                                    fontSize: '0.9rem',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '10px',
+                                    transition: 'all 0.2s'
+                                }}
+                                onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--primary-color)'; e.currentTarget.style.background = '#f0f7ff'; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#cbd5e1'; e.currentTarget.style.background = 'white'; }}
+                            >
+                                <Plus size={20} /> Add Another Research Activity
+                            </button>
+                        </div>
+                    ) : (
+                        /* Standard Activity View (Existing logic) */
+                        <>
+                            {/* Left Column: Basic Info */}
+                            <div style={{
+                                flex: 1,
+
                         padding: '2rem',
                         overflowY: 'auto',
                         borderRight: '1px solid #f1f5f9',
@@ -738,14 +1272,33 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                                                 <div style={{ display: 'flex', gap: '6px' }}>
                                                     <button
                                                         type="button"
-                                                        onClick={() => setMemberId(isAssignee ? '' : mId)}
+                                                        onClick={() => {
+                                                            const newId = isAssignee ? '' : mId;
+                                                            setMemberId(newId);
+                                                            // Rule 2: If selected as primary, remove from collaborators
+                                                            if (newId && supportMemberIds.includes(newId)) {
+                                                                setSupportMemberIds(prev => prev.filter(id => id !== newId));
+                                                            }
+                                                        }}
+                                                        // Rule 1: No Lab Directors allowed as assignee
+                                                        disabled={
+                                                            (m.projectRole === ProjectRoleEnum.LabDirector || 
+                                                            m.projectRoleName === 'Lab Director' || 
+                                                            m.roleName === 'Lab Director') && !isAssignee
+                                                        }
                                                         style={{
                                                             padding: '5px 12px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: 800,
                                                             border: '1.5px solid',
                                                             borderColor: isAssignee ? 'var(--primary-color)' : '#e2e8f0',
                                                             background: isAssignee ? 'var(--primary-color)' : 'white',
                                                             color: isAssignee ? 'white' : '#64748b',
-                                                            cursor: 'pointer', transition: 'all 0.2s'
+                                                            cursor: (m.projectRole === ProjectRoleEnum.LabDirector || 
+                                                                    m.projectRoleName === 'Lab Director' || 
+                                                                    m.roleName === 'Lab Director') && !isAssignee ? 'not-allowed' : 'pointer', 
+                                                            transition: 'all 0.2s',
+                                                            opacity: (m.projectRole === ProjectRoleEnum.LabDirector || 
+                                                                    m.projectRoleName === 'Lab Director' || 
+                                                                    m.roleName === 'Lab Director') && !isAssignee ? 0.5 : 1
                                                         }}
                                                     >
                                                         Assign
@@ -753,13 +1306,27 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                                                     <button
                                                         type="button"
                                                         onClick={() => toggleSupportMember(mId)}
+                                                        // Rule 1: No Lab Directors allowed as collaborator
+                                                        // Rule 2: Cannot be collaborator if already primary assignee
+                                                        disabled={
+                                                            ((m.projectRole === ProjectRoleEnum.LabDirector || 
+                                                            m.projectRoleName === 'Lab Director' || 
+                                                            m.roleName === 'Lab Director') && !isCollaborator) ||
+                                                            (isAssignee)
+                                                        }
                                                         style={{
                                                             padding: '5px 12px', borderRadius: '8px', fontSize: '0.7rem', fontWeight: 800,
                                                             border: '1.5px solid',
                                                             borderColor: isCollaborator ? '#10b981' : '#e2e8f0',
                                                             background: isCollaborator ? '#10b981' : 'white',
                                                             color: isCollaborator ? 'white' : '#64748b',
-                                                            cursor: 'pointer', transition: 'all 0.2s'
+                                                            cursor: (((m.projectRole === ProjectRoleEnum.LabDirector || 
+                                                                    m.projectRoleName === 'Lab Director' || 
+                                                                    m.roleName === 'Lab Director') && !isCollaborator) || isAssignee) ? 'not-allowed' : 'pointer',
+                                                            transition: 'all 0.2s',
+                                                            opacity: (((m.projectRole === ProjectRoleEnum.LabDirector || 
+                                                                    m.projectRoleName === 'Lab Director' || 
+                                                                    m.roleName === 'Lab Director') && !isCollaborator) || isAssignee) ? 0.5 : 1
                                                         }}
                                                     >
                                                         Collaborate
@@ -780,10 +1347,13 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                                 })
                             )}
                         </div>
-
-
                     </div>
-                </form>
+                </>
+            )}
+        </form>
+
+
+
 
                 {/* Footer */}
                 <div style={{

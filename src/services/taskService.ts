@@ -35,10 +35,15 @@ export const taskService = {
 
             // If there are support members, add them one by one (as per devApi)
             if (newTask?.id && taskData.supportMembers && taskData.supportMembers.length > 0) {
-                console.log('Adding support members to task:', newTask.id);
-                await Promise.all(taskData.supportMembers.map((mId: string) =>
-                    taskService.addMember(newTask.id, mId)
-                ));
+                try {
+                    console.log('Adding support members to task:', newTask.id);
+                    await Promise.all(taskData.supportMembers.map((mId: string) =>
+                        taskService.addMember(newTask.id, mId)
+                    ));
+                } catch (memberError) {
+                    console.error('Failed to add some support members:', memberError);
+                    newTask._partialError = "Task created successfully, but collaborator assignment failed.";
+                }
             }
 
             // If there are evidence files, upload them
@@ -110,10 +115,15 @@ export const taskService = {
                     // Members to remove: in currentSupportIds but not in newSupportIds
                     const toRemove = (currentTask.members || []).filter((m: any) => m.memberId && !newSupportIds.includes(m.memberId));
 
-                    await Promise.all([
-                        ...toAdd.map((mId: string) => taskService.addMember(taskId, mId)),
-                        ...toRemove.map((m: any) => taskService.removeMember(m.id)) // Use association ID for deletion
-                    ]);
+                    try {
+                        await Promise.all([
+                            ...toAdd.map((mId: string) => taskService.addMember(taskId, mId)),
+                            ...toRemove.map((m: any) => taskService.removeMember(m.id)) // Use association ID for deletion
+                        ]);
+                    } catch (memberError) {
+                        console.error('Failed to update some project collaborators:', memberError);
+                        updatedTask._partialError = "Task updated successfully, but collaborator changes failed.";
+                    }
                 }
             }
 
@@ -271,11 +281,22 @@ export const taskService = {
 
     updateStatus: async (taskId: string, status: number): Promise<any> => {
         try {
-            // Updated to use the new format: PATCH /api/projects/tasks/{taskId}/status
+            // Updated to use the new format: PATCH /api/projects/tasks/${taskId}/status
             const response = await api.patch(`/api/projects/tasks/${taskId}/status`, { newStatus: status });
             return response.data;
         } catch (error) {
             console.error(`Error updating status for task ${taskId}:`, error);
+            throw error;
+        }
+    },
+
+    createBulk: async (tasks: any[]): Promise<any> => {
+        try {
+            // Per devApi: POST /api/projects/tasks/bulk
+            const response = await api.post('/api/projects/tasks/bulk', tasks);
+            return response.data;
+        } catch (error) {
+            console.error('Error creating bulk tasks:', error);
             throw error;
         }
     }

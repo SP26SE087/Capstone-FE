@@ -5,6 +5,7 @@ import {
     Target,
     Users,
     CheckCircle2,
+    Calendar,
     Settings
 } from 'lucide-react';
 
@@ -22,6 +23,7 @@ const ProjectSidebar: React.FC<ProjectSidebarProps> = ({ projectName, activeTab,
     const navItems = [
         { id: 'home', icon: <Layout size={20} />, label: 'Workspace Home' },
         { id: 'tasks', icon: <CheckCircle2 size={20} />, label: 'Task Board' },
+        { id: 'timeline', icon: <Calendar size={20} />, label: 'Project Timeline' },
         { id: 'milestones', icon: <Target size={20} />, label: 'Milestones' },
         { id: 'members', icon: <Users size={20} />, label: 'Research Team' },
     ];

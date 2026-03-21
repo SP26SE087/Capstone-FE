@@ -189,11 +189,12 @@ const EditProject: React.FC = () => {
         }
         setSubmitting(true);
         try {
+            const todayStr = new Date().toISOString().split('T')[0];
             const updateData = {
                 projectId: id,
                 projectName: formData.projectName,
                 projectDescription: formData.projectDescription,
-                startDate: toApiDate(formData.startDate),
+                startDate: toApiDate(formData.startDate || todayStr),
                 endDate: toApiDate(formData.endDate),
                 researchFieldIds: selectedFieldIds
             };

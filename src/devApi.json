@@ -366,6 +366,111 @@
                 }
             }
         },
+        "/api/projects/milestones/bulk": {
+            "post": {
+                "tags": [
+                    "Milestone"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/components/schemas/AddMilestoneRequest"
+                                }
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/components/schemas/AddMilestoneRequest"
+                                }
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/components/schemas/AddMilestoneRequest"
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/api/projects/milestones/{milestoneId}/status": {
+            "patch": {
+                "tags": [
+                    "Milestone"
+                ],
+                "parameters": [
+                    {
+                        "name": "milestoneId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateMilestoneStatusRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateMilestoneStatusRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateMilestoneStatusRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/api/projects/{projectId}/milestones/tasks": {
+            "get": {
+                "tags": [
+                    "Milestone"
+                ],
+                "parameters": [
+                    {
+                        "name": "projectId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
         "/api/projects/milestones/{milestoneId}": {
             "get": {
                 "tags": [
@@ -541,20 +646,12 @@
                 ],
                 "parameters": [
                     {
-                        "name": "id",
+                        "name": "projectId",
                         "in": "path",
                         "required": true,
                         "schema": {
                             "type": "string",
                             "format": "uuid"
-                        }
-                    },
-                    {
-                        "name": "projectId",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string"
                         }
                     }
                 ],
@@ -795,6 +892,46 @@
                 }
             }
         },
+        "/api/projects/tasks/bulk": {
+            "post": {
+                "tags": [
+                    "Task"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/components/schemas/CreateTaskRequest"
+                                }
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/components/schemas/CreateTaskRequest"
+                                }
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/components/schemas/CreateTaskRequest"
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
         "/api/projects/tasks/{taskId}/status": {
             "patch": {
                 "tags": [
@@ -927,10 +1064,21 @@
                 }
             }
         },
-        "/api/projects/tasks/current-user": {
+        "/api/projects/tasks/user/{userId}": {
             "get": {
                 "tags": [
                     "Task"
+                ],
+                "parameters": [
+                    {
+                        "name": "userId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
                 ],
                 "responses": {
                     "200": {
@@ -1187,10 +1335,8 @@
             },
             "AddMilestoneRequest": {
                 "required": [
-                    "dueDate",
                     "name",
-                    "projectId",
-                    "startDate"
+                    "projectId"
                 ],
                 "type": "object",
                 "properties": {
@@ -1210,11 +1356,13 @@
                     },
                     "startDate": {
                         "type": "string",
-                        "format": "date-time"
+                        "format": "date-time",
+                        "nullable": true
                     },
                     "dueDate": {
                         "type": "string",
-                        "format": "date-time"
+                        "format": "date-time",
+                        "nullable": true
                     }
                 },
                 "additionalProperties": false
@@ -1484,6 +1632,18 @@
                         "format": "date-time",
                         "nullable": true
                     },
+                    "status": {
+                        "$ref": "#/components/schemas/MilestoneStatus"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "UpdateMilestoneStatusRequest": {
+                "required": [
+                    "status"
+                ],
+                "type": "object",
+                "properties": {
                     "status": {
                         "$ref": "#/components/schemas/MilestoneStatus"
                     }

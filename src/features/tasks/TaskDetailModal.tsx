@@ -50,10 +50,17 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     // Internal data states for when props aren't provided
     const [internalMembers, setInternalMembers] = useState<ProjectMember[]>([]);
     const [internalMilestones, setInternalMilestones] = useState<Milestone[]>([]);
+    const [fetchedMilestone, setFetchedMilestone] = useState<Milestone | null>(null);
 
     // Determine which data to use (prop vs internal)
     const effectiveMembers = (projectMembers && projectMembers.length > 0) ? projectMembers : internalMembers;
-    const effectiveMilestones = (milestones && milestones.length > 0) ? milestones : internalMilestones;
+    const baseMilestones = (milestones && milestones.length > 0) ? milestones : internalMilestones;
+    const effectiveMilestones = useMemo(() => {
+        if (fetchedMilestone && !baseMilestones.some(m => String(m.id).toLowerCase() === String(fetchedMilestone.id).toLowerCase())) {
+            return [fetchedMilestone, ...baseMilestones];
+        }
+        return baseMilestones;
+    }, [baseMilestones, fetchedMilestone]);
 
     // Form State (mirrors TaskFormModal)
     const [name, setName] = useState('');
@@ -135,7 +142,18 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                     setDescription(data.description || '');
                     setPriority(data.priority);
                     setStatus(data.status);
-                    setMilestoneId(data.milestoneId || '');
+                    
+                    // Robust Milestone ID extraction
+                    const mid = (data as any).milestoneId || (data as any).milestoneID || (data as any).milestone_id || ((data as any).milestone && ((data as any).milestone.id || (data as any).milestone.ID)) || '';
+                    setMilestoneId(mid);
+
+                    // Proactively fetch the specific milestone if we have an ID
+                    if (mid) {
+                        milestoneService.getById(mid).then(setFetchedMilestone).catch(() => {});
+                    } else {
+                        setFetchedMilestone(null);
+                    }
+                    
                     setMemberId(data.memberId || '');
                     setStartDate(data.startDate ? new Date(data.startDate).toISOString().split('T')[0] : '');
                     setDueDate(data.dueDate ? new Date(data.dueDate).toISOString().split('T')[0] : '');
@@ -174,18 +192,32 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     }, [isOpen, taskId]);
 
     const filteredMembers = useMemo(() => {
-        if (!memberSearchTerm.trim()) return effectiveMembers;
+        // Rule 1: Filter out Lab Directors unless they are already assigned to this task
+        const list = effectiveMembers.filter(m => {
+            const mId = m.memberId || m.id || m.userId || '';
+            const isActive = mId === memberId || supportMemberIds.includes(mId);
+            const isLD = m.projectRole === ProjectRoleEnum.LabDirector || 
+                         m.projectRoleName === 'Lab Director' || 
+                         m.roleName === 'Lab Director';
+            return !isLD || isActive;
+        });
+
+        if (!memberSearchTerm.trim()) return list;
         const term = memberSearchTerm.toLowerCase();
-        return effectiveMembers.filter(m =>
+        return list.filter(m =>
             (m.fullName || m.userName || '').toLowerCase().includes(term)
         );
-    }, [effectiveMembers, memberSearchTerm]);
+    }, [effectiveMembers, memberSearchTerm, memberId, supportMemberIds]);
 
     const filteredMilestones = useMemo(() => {
         let list = effectiveMilestones;
 
         // Always include the currently selected milestone in the list even if it doesn't match filters
-        const currentMilestone = effectiveMilestones.find(m => m.id === milestoneId);
+        const currentMilestone = effectiveMilestones.find(m => {
+            const mId = String(m.id || (m as any).ID || '').toLowerCase();
+            const targetId = String(milestoneId).toLowerCase();
+            return mId === targetId && targetId !== '';
+        });
 
         // Filter by status
         if (milestoneStatusFilter !== 'all') {
@@ -248,6 +280,9 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 
     const toggleSupportMember = (id: string) => {
         if (isEditMode) {
+            // Rule 2: A member cannot be both assignee and collaborator
+            if (id === memberId) return;
+
             if (supportMemberIds.includes(id)) {
                 setSupportMemberIds(supportMemberIds.filter(mId => mId !== id));
             } else {
@@ -545,7 +580,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                                 setDescription(task.description || '');
                                                 setPriority(task.priority);
                                                 setStatus(task.status);
-                                                setMilestoneId((task as any).milestoneId || '');
+                                                setMilestoneId((task as any).milestoneId || (task as any).milestoneID || (task as any).milestone_id || (task as any).milestone?.id || '');
                                                 setMemberId(task.memberId || '');
                                                 setStartDate(task.startDate ? new Date(task.startDate).toISOString().split('T')[0] : '');
                                                 setDueDate(task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : '');
@@ -723,7 +758,12 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                         </div>
                                     ) : (
                                         <div style={{ padding: '0.85rem 1.15rem', borderRadius: '12px', background: '#f8fafc', border: '1.5px solid #f1f5f9', fontWeight: 700, color: '#1e293b' }}>
-                                            {effectiveMilestones.find(m => m.id === milestoneId)?.name || 'No Associated Milestone'}
+                                            {effectiveMilestones.find(m => {
+                                                const mId = String(m.id || (m as any).ID || '').toLowerCase();
+                                                const targetId = String(milestoneId).toLowerCase();
+                                                return mId === targetId && targetId !== '';
+                                             })?.name || (task as any)?.milestone?.name || 'No Associated Milestone'}
+
                                         </div>
                                     )}
                                 </div>
@@ -973,24 +1013,54 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                                         <div style={{ display: 'flex', gap: '6px' }}>
                                                             <button
                                                                 type="button"
-                                                                onClick={() => setMemberId(isAssignee ? '' : mId)}
+                                                                onClick={() => {
+                                                                    const newId = isAssignee ? '' : mId;
+                                                                    setMemberId(newId);
+                                                                    // Rule 2: If selected as primary, remove from collaborators
+                                                                    if (newId && supportMemberIds.includes(newId)) {
+                                                                        setSupportMemberIds(prev => prev.filter(id => id !== newId));
+                                                                    }
+                                                                }}
+                                                                // Rule 1: No Lab Directors allowed as assignee
+                                                                disabled={
+                                                                    (m.projectRole === ProjectRoleEnum.LabDirector || 
+                                                                    m.projectRoleName === 'Lab Director' || 
+                                                                    m.roleName === 'Lab Director') && !isAssignee
+                                                                }
                                                                 style={{
                                                                     padding: '4px 10px', borderRadius: '8px', fontSize: '0.65rem', fontWeight: 800,
                                                                     border: '1.5px solid', borderColor: isAssignee ? 'var(--primary-color)' : '#e2e8f0',
                                                                     background: isAssignee ? 'var(--primary-color)' : 'white',
-                                                                    color: isAssignee ? 'white' : '#64748b', cursor: 'pointer'
+                                                                    color: isAssignee ? 'white' : '#64748b', cursor: (m.projectRole === ProjectRoleEnum.LabDirector || 
+                                                                        m.projectRoleName === 'Lab Director' || 
+                                                                        m.roleName === 'Lab Director') && !isAssignee ? 'not-allowed' : 'pointer',
+                                                                    opacity: (m.projectRole === ProjectRoleEnum.LabDirector || 
+                                                                        m.projectRoleName === 'Lab Director' || 
+                                                                        m.roleName === 'Lab Director') && !isAssignee ? 0.5 : 1
                                                                 }}
                                                             >Assign</button>
                                                             <button
                                                                 type="button"
                                                                 onClick={() => toggleSupportMember(mId)}
+                                                                // Rule 1: No Lab Directors allowed as collaborator
+                                                                // Rule 2: Cannot be collaborator if already primary assignee
+                                                                disabled={
+                                                                    ((m.projectRole === ProjectRoleEnum.LabDirector || 
+                                                                    m.projectRoleName === 'Lab Director' || 
+                                                                    m.roleName === 'Lab Director') && !isCollaborator) ||
+                                                                    (isAssignee)
+                                                                }
                                                                 style={{
                                                                     padding: '4px 10px', borderRadius: '8px', fontSize: '0.65rem', fontWeight: 800,
                                                                     border: '1.5px solid', borderColor: isCollaborator ? '#10b981' : '#e2e8f0',
                                                                     background: isCollaborator ? '#10b981' : 'white',
-                                                                    color: isCollaborator ? 'white' : '#64748b', cursor: 'pointer',
-                                                                    opacity: isAssignee ? 0.5 : 1,
-                                                                    pointerEvents: isAssignee ? 'none' : 'auto'
+                                                                    color: isCollaborator ? 'white' : '#64748b', 
+                                                                    cursor: (((m.projectRole === ProjectRoleEnum.LabDirector || 
+                                                                        m.projectRoleName === 'Lab Director' || 
+                                                                        m.roleName === 'Lab Director') && !isCollaborator) || isAssignee) ? 'not-allowed' : 'pointer',
+                                                                    opacity: (((m.projectRole === ProjectRoleEnum.LabDirector || 
+                                                                        m.projectRoleName === 'Lab Director' || 
+                                                                        m.roleName === 'Lab Director') && !isCollaborator) || isAssignee) ? 0.5 : 1
                                                                 }}
                                                             >Collab</button>
                                                         </div>
