@@ -12,15 +12,18 @@ interface ToastProps {
 
 const Toast: React.FC<ToastProps> = ({ message, type = 'info', duration = 3000, onClose }) => {
     const [isVisible, setIsVisible] = useState(true);
+    const [isPaused, setIsPaused] = useState(false);
 
     useEffect(() => {
-        const timer = setTimeout(() => {
-            setIsVisible(false);
-            setTimeout(onClose, 300); // Wait for fade out animation
-        }, duration);
+        if (!isPaused) {
+            const timer = setTimeout(() => {
+                setIsVisible(false);
+                setTimeout(onClose, 300); // Wait for fade out animation
+            }, duration);
 
-        return () => clearTimeout(timer);
-    }, [duration, onClose]);
+            return () => clearTimeout(timer);
+        }
+    }, [duration, onClose, isPaused]);
 
     const getIcon = () => {
         switch (type) {
@@ -41,32 +44,47 @@ const Toast: React.FC<ToastProps> = ({ message, type = 'info', duration = 3000, 
     };
 
     return (
-        <div style={{
-        position: 'fixed',
-        top: '24px',
-        right: '24px',
-        zIndex: 10000,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '16px',
-            padding: '16px 24px',
-            backgroundColor: 'rgba(255, 255, 255, 0.9)',
-            backdropFilter: 'blur(20px)',
-            borderRadius: '20px',
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.15)',
-            border: '1.5px solid rgba(255, 255, 255, 0.8)',
-            borderLeft: `6px solid ${getBorderColor()}`,
-            transform: isVisible ? 'translateY(0) scale(1)' : 'translateY(100px) scale(0.9)',
-            opacity: isVisible ? 1 : 0,
-            transition: 'all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-            minWidth: '350px',
-            maxWidth: '500px'
-        }}>
-            <div style={{ flexShrink: 0 }}>
+        <div 
+            onMouseEnter={() => setIsPaused(true)}
+            onMouseLeave={() => setIsPaused(false)}
+            style={{
+                position: 'fixed',
+                top: '24px',
+                right: '24px',
+                zIndex: 10000,
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '16px',
+                padding: '16px 24px',
+                backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                backdropFilter: 'blur(20px)',
+                borderRadius: '20px',
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.15)',
+                border: '1.5px solid rgba(255, 255, 255, 0.8)',
+                borderLeft: `6px solid ${getBorderColor()}`,
+                transform: isVisible ? 'translateY(0) scale(1)' : 'translateY(100px) scale(0.9)',
+                opacity: isVisible ? 1 : 0,
+                transition: 'all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+                minWidth: '350px',
+                maxWidth: '600px'
+            }}
+        >
+            <div style={{ flexShrink: 0, marginTop: '2px' }}>
                 {getIcon()}
             </div>
-            <div style={{ flex: 1, fontSize: '0.95rem', fontWeight: 700, color: '#1e293b', letterSpacing: '-0.01em' }}>
-                {message}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#1e293b', letterSpacing: '-0.01em', lineHeight: 1.4 }}>
+                    {message.split('.').length > 1 ? (
+                        <>
+                            <div style={{ marginBottom: '4px' }}>{message.split('.')[0]}.</div>
+                            <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#64748b', whiteSpace: 'pre-line' }}>
+                                {message.split('.').slice(1).join('.').trim()}
+                            </div>
+                        </>
+                    ) : (
+                        message
+                    )}
+                </div>
             </div>
             <button
                 onClick={() => {
@@ -83,7 +101,8 @@ const Toast: React.FC<ToastProps> = ({ message, type = 'info', duration = 3000, 
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    transition: 'all 0.2s'
+                    transition: 'all 0.2s',
+                    flexShrink: 0
                 }}
                 onMouseOver={(e) => (e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.08)')}
                 onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.04)')}

@@ -51,9 +51,9 @@ const MilestoneDetailModal: React.FC<MilestoneDetailModalProps> = ({
     const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
     const [isTaskDetailOpen, setIsTaskDetailOpen] = useState(false);
     const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
-    const [toast, setToast] = useState<{ message: string, type: ToastType } | null>(null);
-    const showToast = (message: string, type: ToastType) => {
-        setToast({ message, type });
+    const [toast, setToast] = useState<{ message: string, type: ToastType, duration?: number } | null>(null);
+    const showToast = (message: string, type: ToastType, duration: number = 3000) => {
+        setToast({ message, type, duration });
     };
 
     const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
@@ -228,16 +228,40 @@ const MilestoneDetailModal: React.FC<MilestoneDetailModalProps> = ({
             let result;
             // TaskData might be an array (Bulk Mode) or object (Standard)
             if (Array.isArray(taskData)) {
-                await taskService.createBulk(taskData.map(t => ({ ...t, projectId })));
-                // We don't have partial error handling for bulk yet, but let's assume it's successful
+                const response = await taskService.createBulk(taskData.map(t => ({ ...t, projectId })));
+
+                // Handle partial success in bulk creation
+                if (response && response.data && Array.isArray(response.data)) {
+                    const totalCount = response.data.length;
+                    const successCount = response.data.filter((item: any) => item.success).length;
+                    const failCount = totalCount - successCount;
+
+                    if (failCount > 0) {
+                        const failedNames = response.data
+                            .filter((item: any) => !item.success)
+                            .map((item: any) => item.request?.name || `Item ${item.index + 1}`)
+                            .join(', ');
+                        
+                        const firstError = response.data.find((item: any) => !item.success)?.errorMessage;
+                        
+                        if (successCount > 0) {
+                            showToast(`${successCount}/${totalCount} activities created. Failed: [${failedNames}]. Error: ${firstError || 'Format error'}`, 'warning', 8000);
+                        } else {
+                            showToast(`Failed to create activities: [${failedNames}]. Error: ${firstError || 'Server error'}`, 'error', 8000);
+                        }
+                    } else {
+                        showToast(`${successCount} research activities created!`, 'success');
+                    }
+                } else {
+                    showToast(`${taskData.length} tasks created!`, 'success');
+                }
             } else {
                 result = await taskService.create({ ...taskData, projectId });
-            }
-
-            if (result?._partialError) {
-                showToast(result._partialError, 'warning');
-            } else {
-                showToast(Array.isArray(taskData) ? `${taskData.length} tasks created!` : 'Task created successfully!', 'success');
+                if (result?._partialError) {
+                    showToast(result._partialError, 'warning');
+                } else {
+                    showToast('Task created successfully!', 'success');
+                }
             }
 
             await fetchMilestoneDetails();
@@ -784,7 +808,7 @@ const MilestoneDetailModal: React.FC<MilestoneDetailModalProps> = ({
                     </div>
                 </div>
             )}
-            {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+            {toast && <Toast message={toast.message} type={toast.type} duration={(toast as any).duration} onClose={() => setToast(null)} />}
         </div>
     );
 };

@@ -102,11 +102,11 @@ const ProjectDetails: React.FC = () => {
     const [isStatusConfirmOpen, setIsStatusConfirmOpen] = useState(false);
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
     const [pendingStatus, setPendingStatus] = useState<ProjectStatus | null>(null);
-    const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+    const [toast, setToast] = useState<{ message: string; type: ToastType; duration?: number } | null>(null);
     const milestoneContainerRef = useRef<HTMLDivElement>(null);
 
-    const showToast = (message: string, type: ToastType = 'info') => {
-        setToast({ message, type });
+    const showToast = (message: string, type: ToastType = 'info', duration: number = 3000) => {
+        setToast({ message, type, duration });
     };
     // ──────────────────────────────────────────────────────────────────────────
 
@@ -245,8 +245,34 @@ const ProjectDetails: React.FC = () => {
             } else {
                 // milestoneData is an array of objects from Bulk Create mode
                 const bulkData = milestoneData.map((m: any) => ({ ...m, projectId: id }));
-                await milestoneService.createBulk(bulkData);
-                showToast(`${milestoneData.length} phases created successfully!`, 'success');
+                const response = await milestoneService.createBulk(bulkData);
+
+                // Handle partial success in bulk creation
+                if (response && response.data && Array.isArray(response.data)) {
+                    const totalCount = response.data.length;
+                    const successItems = response.data.filter((item: any) => item.success);
+                    const successCount = successItems.length;
+                    const failCount = totalCount - successCount;
+
+                    if (failCount > 0) {
+                        const failedNames = response.data
+                            .filter((item: any) => !item.success)
+                            .map((item: any) => item.request?.name || `Item ${item.index + 1}`)
+                            .join(', ');
+                        
+                        const firstError = response.data.find((item: any) => !item.success)?.errorMessage;
+                        
+                        if (successCount > 0) {
+                            showToast(`${successCount}/${totalCount} phases created. Failed: [${failedNames}]. Error: ${firstError || 'Format error'}`, 'warning', 8000);
+                        } else {
+                            showToast(`Failed to create phases: [${failedNames}]. Error: ${firstError || 'Server error'}`, 'error', 8000);
+                        }
+                    } else {
+                        showToast(`${successCount} phases created successfully!`, 'success');
+                    }
+                } else {
+                    showToast(`${milestoneData.length} phases created successfully!`, 'success');
+                }
             }
             await refetchMilestones();
             setIsMilestoneModalOpen(false);
@@ -281,8 +307,33 @@ const ProjectDetails: React.FC = () => {
             } else if (Array.isArray(taskData)) {
                 // taskData is an array of objects from Bulk Create mode
                 const bulkData = taskData.map((t: any) => ({ ...t, projectId: id }));
-                await taskService.createBulk(bulkData);
-                showToast(`${taskData.length} research activities registered successfully!`, 'success');
+                const response = await taskService.createBulk(bulkData);
+
+                // Handle partial success in bulk creation
+                if (response && response.data && Array.isArray(response.data)) {
+                    const totalCount = response.data.length;
+                    const successCount = response.data.filter((item: any) => item.success).length;
+                    const failCount = totalCount - successCount;
+
+                    if (failCount > 0) {
+                        const failedNames = response.data
+                            .filter((item: any) => !item.success)
+                            .map((item: any) => item.request?.name || `Item ${item.index + 1}`)
+                            .join(', ');
+                        
+                        const firstError = response.data.find((item: any) => !item.success)?.errorMessage;
+                        
+                        if (successCount > 0) {
+                            showToast(`${successCount}/${totalCount} tasks created. Failed: [${failedNames}]. Error: ${firstError || 'Format error'}`, 'warning', 8000);
+                        } else {
+                            showToast(`Failed to create research activities: [${failedNames}]. Error: ${firstError || 'Server error'}`, 'error', 8000);
+                        }
+                    } else {
+                        showToast(`${successCount} research activities registered successfully!`, 'success');
+                    }
+                } else {
+                    showToast(`${taskData.length} research activities registered successfully!`, 'success');
+                }
             } else {
                 // taskData is a single object
                 const result = await taskService.create({ ...taskData, projectId: id });
@@ -522,7 +573,7 @@ const ProjectDetails: React.FC = () => {
                 />
             }
         >
-            {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+            {toast && <Toast message={toast.message} type={toast.type} duration={toast.duration} onClose={() => setToast(null)} />}
 
             <div style={{ padding: '0' }}>
                 {/* ─── Shared Project Header ──────────────────────────────── */}
