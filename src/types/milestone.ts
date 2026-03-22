@@ -1,5 +1,5 @@
 export interface Milestone {
-    id: string;
+    milestoneId: string;
     name: string;
     description: string | null;
     startDate: string;

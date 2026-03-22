@@ -541,7 +541,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
         }
 
         // Re-inject current milestone if it was filtered out but is active
-        if (currentMilestone && !list.some(m => m.id === milestoneId)) {
+        if (currentMilestone && !list.some(m => m.milestoneId === milestoneId)) {
             list = [currentMilestone, ...list];
         }
 
@@ -1245,7 +1245,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                             >
                                 <option value="">No Milestone Linked</option>
                                 {filteredMilestones.map(m => (
-                                    <option key={m.id} value={m.id}>
+                                    <option key={m.milestoneId} value={m.milestoneId}>
                                         [{getMilestoneStatusLabel(m.status)}] {m.name} ({formatDate(m.startDate)} - {formatDate(m.dueDate)})
                                     </option>
                                 ))}
@@ -1363,7 +1363,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                                 <p style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8', fontSize: '0.85rem' }}>No members found.</p>
                             ) : (
                                 filteredMembers.map((m) => {
-                                    const mId = m.memberId || m.id || '';
+                                    const mId = m.userId || m.memberId || '';
                                     const isAssignee = memberId === mId;
                                     const isCollaborator = supportMemberIds.includes(mId);
 
