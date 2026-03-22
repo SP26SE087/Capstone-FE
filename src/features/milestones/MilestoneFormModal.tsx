@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Calendar, AlignLeft, Flag, Plus, Trash2 } from 'lucide-react';
 import { Milestone, MilestoneStatus } from '@/types';
+import MilestoneRoadmapPreview from './MilestoneRoadmapPreview';
 
 interface MilestoneRow {
     id: string; // for React keys
@@ -16,27 +17,45 @@ interface MilestoneFormModalProps {
     onClose: () => void;
     onSubmit: (milestoneData: any | any[]) => void;
     milestone?: Milestone | null;
+    existingMilestones?: Milestone[];
+    projectStartDate?: string;
+    projectEndDate?: string;
 }
 
 const MilestoneFormModal: React.FC<MilestoneFormModalProps> = ({
     isOpen,
     onClose,
     onSubmit,
-    milestone = null
+    milestone = null,
+    existingMilestones = [],
+    projectStartDate,
+    projectEndDate
 }) => {
     const [rows, setRows] = useState<MilestoneRow[]>([]);
 
-    const createNewRow = (): MilestoneRow => ({
+    const createNewRow = (defaultStartDate: string = ''): MilestoneRow => ({
         id: Math.random().toString(36).substr(2, 9),
         name: '',
         description: '',
-        startDate: '',
+        startDate: defaultStartDate || '',
         dueDate: '',
         status: MilestoneStatus.NotStarted
     });
 
+    const getLatestExistingDate = () => {
+        if (!existingMilestones || existingMilestones.length === 0) return '';
+        const sorted = [...existingMilestones].sort((a, b) => {
+            const dateA = a.dueDate ? new Date(a.dueDate).getTime() : 0;
+            const dateB = b.dueDate ? new Date(b.dueDate).getTime() : 0;
+            return dateB - dateA;
+        });
+        const latest = sorted[0];
+        if (!latest.dueDate) return '';
+        return (latest.dueDate as string).split('T')[0];
+    };
+
     const resetForm = () => {
-        setRows([createNewRow()]);
+        setRows([createNewRow(getLatestExistingDate())]);
     };
 
     useEffect(() => {
@@ -47,25 +66,27 @@ const MilestoneFormModal: React.FC<MilestoneFormModalProps> = ({
                 description: milestone.description || '',
                 startDate: milestone.startDate ? (milestone.startDate as string).split('T')[0] : '',
                 dueDate: milestone.dueDate ? (milestone.dueDate as string).split('T')[0] : '',
-                status: milestone.status || MilestoneStatus.NotStarted
+                status: milestone.status ?? MilestoneStatus.NotStarted
             }]);
-        } else if (!isOpen) {
-            resetForm();
         } else if (isOpen && !milestone) {
             resetForm();
         }
     }, [milestone, isOpen]);
 
-    const addRow = () => setRows([...rows, createNewRow()]);
+    const addRow = () => {
+        const lastRow = rows[rows.length - 1];
+        const nextStartDate = lastRow?.dueDate || getLatestExistingDate();
+        setRows([...rows, createNewRow(nextStartDate)]);
+    };
 
     const removeRow = (id: string) => {
         if (rows.length > 1) {
-            setRows(rows.filter(row => row.id !== id));
+            setRows(rows.filter((row: MilestoneRow) => row.id !== id));
         }
     };
 
     const updateRow = (id: string, field: keyof MilestoneRow, value: any) => {
-        setRows(rows.map(row => row.id === id ? { ...row, [field]: value } : row));
+        setRows(rows.map((row: MilestoneRow) => row.id === id ? { ...row, [field]: value } : row));
     };
 
     const handleFormSubmit = (e: React.FormEvent) => {
@@ -87,7 +108,7 @@ const MilestoneFormModal: React.FC<MilestoneFormModalProps> = ({
             onSubmit(milestoneData);
         } else {
             // Create mode - return array
-            const milestonesData = rows.map(row => {
+            const milestonesData = rows.map((row: MilestoneRow) => {
                 const finalStartDate = row.startDate || todayStr;
                 return {
                     name: row.name,
@@ -150,8 +171,23 @@ const MilestoneFormModal: React.FC<MilestoneFormModalProps> = ({
 
                 {/* Body */}
                 <form onSubmit={handleFormSubmit} style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                    
+                    {/* Timeline Preview Component */}
+                    <MilestoneRoadmapPreview 
+                        existingMilestones={existingMilestones.filter(m => !milestone || m.id !== milestone.id)}
+                        currentMilestones={rows.filter((r: MilestoneRow) => r.startDate && r.dueDate).map((r: MilestoneRow) => ({
+                            id: r.id,
+                            name: r.name || `Phase ${rows.indexOf(r) + 1}`,
+                            startDate: r.startDate,
+                            dueDate: r.dueDate
+                        }))}
+                        projectStartDate={projectStartDate}
+                        projectEndDate={projectEndDate}
+                        highlightId={milestone?.id}
+                    />
+
                     <div style={{ padding: '2rem', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                        {rows.map((row, index) => (
+                        {rows.map((row: MilestoneRow, index: number) => (
                             <div key={row.id} style={{
                                 padding: '1.5rem', 
                                 background: '#f8fafc', 
@@ -177,7 +213,7 @@ const MilestoneFormModal: React.FC<MilestoneFormModalProps> = ({
                                     </div>
                                 )}
 
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: milestone ? '1fr 1fr' : '1fr', gap: '1.5rem' }}>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                         <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Phase Name</label>
                                         <input
@@ -189,20 +225,22 @@ const MilestoneFormModal: React.FC<MilestoneFormModalProps> = ({
                                             style={{ padding: '0.8rem 1rem', borderRadius: '10px', border: '1.5px solid #e2e8f0', fontSize: '0.9rem', outline: 'none' }}
                                         />
                                     </div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                        <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Status</label>
-                                        <select
-                                            value={row.status}
-                                            onChange={(e) => updateRow(row.id, 'status', Number(e.target.value))}
-                                            style={{ padding: '0.8rem', borderRadius: '10px', border: '1.5px solid #e2e8f0', background: 'white', fontWeight: 600, fontSize: '0.9rem' }}
-                                        >
-                                            <option value={MilestoneStatus.NotStarted}>Not Started</option>
-                                            <option value={MilestoneStatus.InProgress}>In Progress</option>
-                                            <option value={MilestoneStatus.Completed}>Completed</option>
-                                            <option value={MilestoneStatus.OnHold}>On Hold</option>
-                                            <option value={MilestoneStatus.Cancelled}>Cancelled</option>
-                                        </select>
-                                    </div>
+                                    {milestone && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                            <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Status</label>
+                                            <select
+                                                value={row.status}
+                                                onChange={(e) => updateRow(row.id, 'status', Number(e.target.value))}
+                                                style={{ padding: '0.8rem', borderRadius: '10px', border: '1.5px solid #e2e8f0', background: 'white', fontWeight: 600, fontSize: '0.9rem' }}
+                                            >
+                                                <option value={MilestoneStatus.NotStarted}>Not Started</option>
+                                                <option value={MilestoneStatus.InProgress}>In Progress</option>
+                                                <option value={MilestoneStatus.Completed}>Completed</option>
+                                                <option value={MilestoneStatus.OnHold}>On Hold</option>
+                                                <option value={MilestoneStatus.Cancelled}>Cancelled</option>
+                                            </select>
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 200px', gap: '1.5rem' }}>

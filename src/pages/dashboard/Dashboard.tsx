@@ -194,33 +194,67 @@ function Dashboard() {
                             </div>
 
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                <style>{`
+                                    @keyframes warningBlink {
+                                        0%, 100% { opacity: 1; transform: scale(1); }
+                                        50% { opacity: 0.5; transform: scale(1.3); }
+                                    }
+                                `}</style>
                                 {loading ? (
                                     <p style={{ color: 'var(--text-secondary)' }}>Loading tasks...</p>
                                 ) : tasks.length > 0 ? (
-                                    tasks.slice(0, 4).map((task) => (
-                                        <div key={task.id} style={{
-                                            padding: '0.9rem 1rem',
-                                            background: 'var(--surface-hover)',
-                                            borderRadius: 'var(--radius-sm)',
-                                            border: '1px solid var(--border-color)',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'space-between'
-                                        }}>
-                                            <div>
-                                                <span style={{ fontSize: '0.7rem', color: 'var(--accent-color)', fontWeight: 600 }}>
-                                                    {task.id.substring(0, 8).toUpperCase()}
-                                                </span>
-                                                <p style={{ margin: '3px 0', fontSize: '0.9rem', fontWeight: 500 }}>{task.name}</p>
-                                                <div style={{ display: 'flex', gap: '12px', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                                                    <span>Due: {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'No date'}</span>
-                                                    <span>•</span>
-                                                    <span>Priority: {task.priority}</span>
+                                    tasks.slice(0, 4).map((task) => {
+                                        const isNearDeadline = task.dueDate && (task.status !== TaskStatus.Completed && task.status !== TaskStatus.Submitted) && ((new Date(task.dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) <= 3;
+                                        
+                                        return (
+                                            <div 
+                                                key={task.id} 
+                                                onClick={() => navigate(`/tasks?selectedId=${task.id}`)}
+                                                style={{
+                                                    padding: '0.9rem 1rem',
+                                                    background: 'var(--surface-hover)',
+                                                    borderRadius: 'var(--radius-sm)',
+                                                    border: '1px solid var(--border-color)',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'space-between',
+                                                    position: 'relative',
+                                                    cursor: 'pointer',
+                                                    transition: 'all 0.2s ease'
+                                                }}
+                                                onMouseOver={(e) => e.currentTarget.style.borderColor = 'var(--primary-color)'}
+                                                onMouseOut={(e) => e.currentTarget.style.borderColor = 'var(--border-color)'}
+                                            >
+                                                {isNearDeadline && (
+                                                    <div style={{
+                                                        position: 'absolute',
+                                                        top: '-4px',
+                                                        right: '-4px',
+                                                        width: '10px',
+                                                        height: '10px',
+                                                        borderRadius: '50%',
+                                                        background: '#ef4444',
+                                                        border: '2px solid white',
+                                                        boxShadow: '0 0 6px #ef4444',
+                                                        animation: 'warningBlink 1s ease-in-out infinite',
+                                                        zIndex: 2
+                                                    }} title="Deadline is within 3 days or overdue!" />
+                                                )}
+                                                <div>
+                                                    <span style={{ fontSize: '0.7rem', color: 'var(--accent-color)', fontWeight: 600 }}>
+                                                        {task.id.substring(0, 8).toUpperCase()}
+                                                    </span>
+                                                    <p style={{ margin: '3px 0', fontSize: '0.9rem', fontWeight: 500 }}>{task.name}</p>
+                                                    <div style={{ display: 'flex', gap: '12px', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                                                        <span>Due: {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'No date'}</span>
+                                                        <span>•</span>
+                                                        <span>Priority: {task.priority}</span>
+                                                    </div>
                                                 </div>
+                                                <span className="badge badge-muted">{TaskStatus[task.status]}</span>
                                             </div>
-                                            <span className="badge badge-muted">{TaskStatus[task.status]}</span>
-                                        </div>
-                                    ))
+                                        );
+                                    })
                                 ) : (
                                     <p style={{ color: 'var(--text-secondary)' }}>No priority tasks found.</p>
                                 )}

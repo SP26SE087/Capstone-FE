@@ -61,11 +61,46 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onClick, milestoneName }) => 
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '0.75rem',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+                boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
+                position: 'relative'
             }}
             onMouseOver={(e) => e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.06)'}
             onMouseOut={(e) => e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.02)'}
         >
+            <style>{`
+                @keyframes warningBlink {
+                    0%, 100% { opacity: 1; transform: scale(1); }
+                    50% { opacity: 0.5; transform: scale(1.3); }
+                }
+            `}</style>
+            
+            {(() => {
+                const isNearDeadline = () => {
+                    if (!task.dueDate) return false;
+                    if (task.status === TaskStatus.Completed || task.status === TaskStatus.Submitted) return false;
+                    const diffDays = (new Date(task.dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
+                    return diffDays <= 3;
+                };
+
+                if (isNearDeadline()) {
+                    return (
+                        <div style={{
+                            position: 'absolute',
+                            top: '-4px',
+                            right: '-4px',
+                            width: '12px',
+                            height: '12px',
+                            borderRadius: '50%',
+                            background: '#ef4444',
+                            border: '2px solid white',
+                            boxShadow: '0 0 6px #ef4444',
+                            animation: 'warningBlink 1s ease-in-out infinite',
+                            zIndex: 10
+                        }} title="Deadline is within 3 days or overdue!" />
+                    );
+                }
+                return null;
+            })()}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div style={{
                     fontSize: '0.7rem',

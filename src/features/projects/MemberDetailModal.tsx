@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import Modal from '@/components/common/Modal';
 import { membershipService, projectService, userService } from '@/services';
-import { Mail, Shield, Trash2, Loader2, Check, User, Calendar, ShieldCheck, UserCheck, Settings, Info } from 'lucide-react';
+import { Mail, Trash2, Loader2, Check, User, Calendar, ShieldCheck, UserCheck, Settings, Info } from 'lucide-react';
+import { ProjectRoleEnum } from '@/types/project';
 
 interface MemberDetailModalProps {
     isOpen: boolean;
@@ -9,6 +10,7 @@ interface MemberDetailModalProps {
     member: any;
     projectId: string;
     currentUser: any;
+    currentUserProjectRole?: number;
     canManage: boolean;
     onSuccess: () => void;
 }
@@ -34,6 +36,7 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
     member, 
     projectId, 
     currentUser,
+    currentUserProjectRole,
     canManage,
     onSuccess 
 }) => {
@@ -130,7 +133,30 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
     if (!member) return null;
 
     const isSelf = member.userId === currentUser.userId;
-    const canEdit = canManage && !isSelf;
+    const isTargetLabDirector = 
+        Number(member.projectRole) === ProjectRoleEnum.LabDirector || 
+        member.projectRoleName === 'Lab Director' || 
+        member.roleName === 'Lab Director' || 
+        Number(projectDetails?.projectRole) === ProjectRoleEnum.LabDirector ||
+        projectDetails?.projectRoleName === 'Lab Director' ||
+        systemDetails?.role === 2;
+    
+    const isTargetLeader = 
+        Number(member.projectRole) === ProjectRoleEnum.Leader || 
+        member.projectRoleName === 'Leader' || 
+        member.roleName === 'Leader' ||
+        Number(projectDetails?.projectRole) === ProjectRoleEnum.Leader ||
+        projectDetails?.projectRoleName === 'Leader';
+
+    const isAdmin = currentUser.role === 'Admin';
+    const isCurrentUserLD = Number(currentUserProjectRole) === ProjectRoleEnum.LabDirector;
+    const isCurrentUserLeader = Number(currentUserProjectRole) === ProjectRoleEnum.Leader;
+
+    const canEdit = canManage && !isSelf && (
+        isAdmin || 
+        (isCurrentUserLD && !isTargetLabDirector) ||
+        (isCurrentUserLeader && !isTargetLabDirector && !isTargetLeader)
+    );
 
     return (
         <Modal 
@@ -196,7 +222,7 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#64748b' }}>
                             <Calendar size={16} />
-                            <span style={{ fontSize: '0.85rem' }}>Joined {member.joinedDate ? new Date(member.joinedDate).toLocaleDateString() : 'N/A'}</span>
+                            <span style={{ fontSize: '0.85rem' }}>Joined { (member.joinDate || member.joinedDate) ? new Date(member.joinDate || member.joinedDate).toLocaleDateString() : 'N/A'}</span>
                         </div>
                     </div>
                     
@@ -282,10 +308,29 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
                                         }}
                                         disabled={loadingRoles || updating}
                                     >
-                                        <option value="">Select new role...</option>
-                                        {roles.map(role => (
-                                            <option key={role.id} value={role.id}>{role.name}</option>
-                                        ))}
+                                        {roles
+                                            .filter(role => {
+                                                const roleId = Number(role.id);
+                                                const name = role.name;
+
+                                                if (isAdmin) return true;
+
+                                                // Non-admins cannot assign Lab Director
+                                                if (name === 'Lab Director' || roleId === ProjectRoleEnum.LabDirector) return false;
+
+                                                // Leaders can only assign Member and Senior Researcher
+                                                if (isCurrentUserLeader) {
+                                                    return roleId === ProjectRoleEnum.Member || roleId === ProjectRoleEnum.SeniorResearcher || 
+                                                           name === 'Member' || name === 'Senior Researcher';
+                                                }
+
+                                                // Lab Directors can see all except Lab Director (already filtered)
+                                                return true;
+                                            })
+                                            .map(role => (
+                                                <option key={role.id} value={role.id}>{role.name}</option>
+                                            ))
+                                        }
                                     </select>
                                     <button 
                                         className="btn btn-primary"

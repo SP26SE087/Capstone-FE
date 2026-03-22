@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import MilestoneRoadmapPreview from '../milestones/MilestoneRoadmapPreview';
 import {
     X,
     Activity,
@@ -20,6 +21,8 @@ import { useAuth } from '@/hooks/useAuth';
 import Toast from '@/components/common/Toast';
 import ConfirmModal from '@/components/common/ConfirmModal';
 
+import { Milestone, MilestoneStatus } from '@/types/milestone';
+
 interface TaskDetailModalProps {
     isOpen: boolean;
     onClose: () => void;
@@ -27,9 +30,9 @@ interface TaskDetailModalProps {
     projectMembers?: ProjectMember[];
     milestones?: Milestone[];
     onTaskUpdated?: () => void;
+    projectStartDate?: string;
+    projectEndDate?: string;
 }
-
-import { Milestone, MilestoneStatus } from '@/types/milestone';
 
 const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     isOpen,
@@ -37,7 +40,9 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     taskId,
     projectMembers,
     milestones,
-    onTaskUpdated
+    onTaskUpdated,
+    projectStartDate,
+    projectEndDate,
 }) => {
     const { user: currentUser } = useAuth();
     const [task, setTask] = useState<Task | null>(null);
@@ -51,16 +56,24 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     const [internalMembers, setInternalMembers] = useState<ProjectMember[]>([]);
     const [internalMilestones, setInternalMilestones] = useState<Milestone[]>([]);
     const [fetchedMilestone, setFetchedMilestone] = useState<Milestone | null>(null);
+    const [milestoneTasks, setMilestoneTasks] = useState<Task[]>([]);
+
 
     // Determine which data to use (prop vs internal)
     const effectiveMembers = (projectMembers && projectMembers.length > 0) ? projectMembers : internalMembers;
     const baseMilestones = (milestones && milestones.length > 0) ? milestones : internalMilestones;
     const effectiveMilestones = useMemo(() => {
-        if (fetchedMilestone && !baseMilestones.some(m => String(m.id).toLowerCase() === String(fetchedMilestone.id).toLowerCase())) {
-            return [fetchedMilestone, ...baseMilestones];
+        let list = baseMilestones.filter(m => 
+            m.status === MilestoneStatus.NotStarted || 
+            m.status === MilestoneStatus.InProgress ||
+            (task && String(m.id) === String((task as any).milestoneId || (task as any).milestone?.id))
+        );
+
+        if (fetchedMilestone && !list.some(m => String(m.id).toLowerCase() === String(fetchedMilestone.id).toLowerCase())) {
+            return [fetchedMilestone, ...list];
         }
-        return baseMilestones;
-    }, [baseMilestones, fetchedMilestone]);
+        return list;
+    }, [baseMilestones, fetchedMilestone, task]);
 
     // Form State (mirrors TaskFormModal)
     const [name, setName] = useState('');
@@ -105,22 +118,22 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     // Permissions for Evidence Upload
     const isTaskMember = useMemo(() => {
         if (!task || !currentUser) return false;
-        
+
         const currentUserId = currentUser.userId;
         const myMemberId = currentMember?.memberId || currentMember?.id;
-        
+
         // Check if primary member
-        const isPrimary = task.memberId === currentUserId || 
-                        (myMemberId && task.memberId === myMemberId) ||
-                        task.member?.userId === currentUserId ||
-                        task.members?.some(m => m.userId === currentUserId && (m.memberId === task.memberId || m.membershipId === task.memberId));
-        
+        const isPrimary = task.memberId === currentUserId ||
+            (myMemberId && task.memberId === myMemberId) ||
+            task.member?.userId === currentUserId ||
+            task.members?.some(m => m.userId === currentUserId && (m.memberId === task.memberId || m.membershipId === task.memberId));
+
         // Check if in collaborators list
-        const isSupport = task.members?.some((m: any) => 
-            m.userId === currentUserId || 
+        const isSupport = task.members?.some((m: any) =>
+            m.userId === currentUserId ||
             (myMemberId && (m.memberId === myMemberId || m.membershipId === myMemberId))
         );
-        
+
         return isPrimary || isSupport;
     }, [currentUser, task, currentMember]);
 
@@ -142,18 +155,23 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                     setDescription(data.description || '');
                     setPriority(data.priority);
                     setStatus(data.status);
-                    
+
                     // Robust Milestone ID extraction
                     const mid = (data as any).milestoneId || (data as any).milestoneID || (data as any).milestone_id || ((data as any).milestone && ((data as any).milestone.id || (data as any).milestone.ID)) || '';
                     setMilestoneId(mid);
 
-                    // Proactively fetch the specific milestone if we have an ID
+                    // Proactively fetch the specific milestone and its tasks
                     if (mid) {
-                        milestoneService.getById(mid).then(setFetchedMilestone).catch(() => {});
+                        milestoneService.getById(mid).then(setFetchedMilestone).catch(() => { });
+                        milestoneService.getTasksByMilestone(mid).then(tasks => {
+                            console.log('[Roadmap] Fetched milestone tasks:', tasks?.length, tasks);
+                            setMilestoneTasks(tasks || []);
+                        }).catch(() => setMilestoneTasks([]));
                     } else {
                         setFetchedMilestone(null);
+                        setMilestoneTasks([]);
                     }
-                    
+
                     setMemberId(data.memberId || '');
                     setStartDate(data.startDate ? new Date(data.startDate).toISOString().split('T')[0] : '');
                     setDueDate(data.dueDate ? new Date(data.dueDate).toISOString().split('T')[0] : '');
@@ -172,6 +190,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                         setCurrentMember(memberInfo);
                         if (projMembers) setInternalMembers(projMembers);
                         if (projMilestones) setInternalMilestones(projMilestones);
+
 
                         // Fetch evidences
                         const evidences = await taskService.getEvidences(taskId);
@@ -196,9 +215,9 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
         const list = effectiveMembers.filter(m => {
             const mId = m.memberId || m.id || m.userId || '';
             const isActive = mId === memberId || supportMemberIds.includes(mId);
-            const isLD = m.projectRole === ProjectRoleEnum.LabDirector || 
-                         m.projectRoleName === 'Lab Director' || 
-                         m.roleName === 'Lab Director';
+            const isLD = m.projectRole === ProjectRoleEnum.LabDirector ||
+                m.projectRoleName === 'Lab Director' ||
+                m.roleName === 'Lab Director';
             return !isLD || isActive;
         });
 
@@ -347,15 +366,36 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
         return fullUrl;
     };
 
+    // Helper to truncate long filenames 
+    const truncateFilename = (name: string, maxLength: number = 30) => {
+        if (!name || name.length <= maxLength) return name;
+        const extension = name.split('.').pop();
+        const nameWithoutExt = name.substring(0, name.lastIndexOf('.'));
+        const truncated = nameWithoutExt.substring(0, maxLength - 5 - (extension?.length || 0)) + '...';
+        return extension ? `${truncated}.${extension}` : truncated;
+    };
+
     const handleStatusTransition = async (newStatus: TaskStatus) => {
         if (!taskId) return;
+
+        // Validate evidence specifically for Submitted status
+        if (newStatus === TaskStatus.Submitted && serverEvidences.length === 0 && evidenceFiles.length === 0) {
+            setToast({ message: 'Activities must have at least one evidence file before being submitted.', type: 'error' });
+            return;
+        }
+
+        // Validate assignee specifically for InProgress status
+        if (newStatus === TaskStatus.InProgress && !memberId) {
+            setToast({ message: 'Research activity must have an assignee before starting.', type: 'error' });
+            return;
+        }
 
         const statusLabel = getStatusActionLabel(newStatus);
 
         setConfirmConfig({
             isOpen: true,
             title: 'Update Status',
-            message: newStatus === TaskStatus.InProgress 
+            message: newStatus === TaskStatus.InProgress
                 ? 'Do you want to start this research activity? The status will be changed to "On-going".'
                 : `Do you want to change the activity status to "${getStatusActionLabel(newStatus)}"? This may restrict certain actions based on the new status.`,
             variant: 'info',
@@ -449,6 +489,40 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
         e.preventDefault();
         if (!taskId) return;
 
+        // Validate evidence specifically for Submitted status
+        if (status === TaskStatus.Submitted && serverEvidences.length === 0 && evidenceFiles.length === 0) {
+            setToast({ message: 'Activities must have at least one evidence file before being submitted.', type: 'error' });
+            return;
+        }
+
+        // Validate assignee specifically for InProgress status
+        if (status === TaskStatus.InProgress && !memberId) {
+            setToast({ message: 'Research activity must have an assignee before starting (On-going status).', type: 'error' });
+            return;
+        }
+
+        // Validate dates are within milestone range
+        if (milestoneId) {
+            const milestone = effectiveMilestones.find(m => String(m.id) === String(milestoneId));
+            if (milestone && milestone.startDate && milestone.dueDate) {
+                const mStart = new Date(milestone.startDate).getTime();
+                const mEnd = new Date(milestone.dueDate).getTime();
+                
+                // If only startDate is provided, use it as baseline
+                const tStart = startDate ? new Date(startDate).getTime() : null;
+                const tEnd = dueDate ? new Date(dueDate).getTime() : (tStart || null);
+
+                if ((tStart && tStart < mStart) || (tEnd && tEnd > mEnd)) {
+                    const formatDateStr = (d: string) => new Date(d).toLocaleDateString('vi-VN', { month: '2-digit', day: '2-digit' });
+                    setToast({ 
+                        message: `Activity dates must be within milestone period: ${formatDateStr(milestone.startDate)} - ${formatDateStr(milestone.dueDate)}`, 
+                        type: 'error' 
+                    });
+                    return;
+                }
+            }
+        }
+
         // Helper to perform the actual save
         const performSave = async () => {
             try {
@@ -524,7 +598,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
         }}>
             <div style={{
                 background: 'white', borderRadius: '24px', width: '100%',
-                maxWidth: '1100px', maxHeight: '92vh',
+                maxWidth: '1200px', maxHeight: '95vh',
                 boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
                 position: 'relative', display: 'flex', flexDirection: 'column', overflow: 'hidden'
             }}>
@@ -547,12 +621,12 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
                                 <p style={{ margin: 0, fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600 }}>ID: {taskId?.slice(-8).toUpperCase()}</p>
                                 {task && (
-                                    <span style={{ 
-                                        padding: '2px 8px', 
-                                        borderRadius: '6px', 
-                                        fontSize: '0.65rem', 
-                                        fontWeight: 800, 
-                                        background: getTaskStatusStyle(task.status).bg, 
+                                    <span style={{
+                                        padding: '2px 8px',
+                                        borderRadius: '6px',
+                                        fontSize: '0.65rem',
+                                        fontWeight: 800,
+                                        background: getTaskStatusStyle(task.status).bg,
                                         color: getTaskStatusStyle(task.status).text,
                                         textTransform: 'uppercase',
                                         letterSpacing: '0.5px'
@@ -625,7 +699,63 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                     </div>
                 </div>
 
-                {/* Body */}
+                {/* Roadmap Preview - Context focused on sibling activities within the same milestone */}
+                {(() => {
+                    // 1. Get current Milestone Context
+                    const currentMid = (task as any)?.milestoneId || (task as any)?.milestone?.id || milestoneId;
+                    const milestoneContext = effectiveMilestones.find(m => String(m.id || (m as any).ID || '').toLowerCase() === String(currentMid).toLowerCase()) || fetchedMilestone;
+
+                    // If we don't have a milestone ID, we don't show the roadmap
+                    if (!currentMid) return null;
+
+                    // 2. Determine Timeline Bounds (Milestone dates, with Project dates as fallback)
+                    const roadmapStart = milestoneContext?.startDate || projectStartDate;
+                    const roadmapEnd = milestoneContext?.dueDate || projectEndDate;
+
+                    // 3. Source Sibling Activities — ONLY from getTasksByMilestone API
+                    const siblingTasks = milestoneTasks.filter(t => {
+                        const tId = String(t.id || (t as any).ID || '').toLowerCase();
+                        const currentTaskId = String(taskId || '').toLowerCase();
+                        return tId !== currentTaskId; // Exclude the current task
+                    });
+
+                    return (
+                        <div style={{
+                            background: '#f8fafc',
+                            borderBottom: '2px solid #e2e8f0',
+                            flexShrink: 0,
+                            position: 'relative',
+                            zIndex: 10
+                        }}>
+                            <MilestoneRoadmapPreview
+                                existingMilestones={siblingTasks.map(t => ({
+                                    id: t.id,
+                                    name: t.name,
+                                    startDate: t.startDate || "",
+                                    dueDate: t.dueDate || "",
+                                    description: t.description || "",
+                                    status: Number(t.status)
+                                }))}
+                                currentMilestones={name && startDate && dueDate ? [{
+                                    id: taskId || 'new',
+                                    name: name,
+                                    startDate: startDate,
+                                    dueDate: dueDate
+                                }] : (task?.startDate && task?.dueDate ? [{
+                                    id: task.id,
+                                    name: task.name,
+                                    startDate: task.startDate,
+                                    dueDate: task.dueDate
+                                }] : [])}
+                                projectStartDate={roadmapStart}
+                                projectEndDate={roadmapEnd}
+                                highlightId={taskId || undefined}
+                            />
+                        </div>
+                    );
+                })()}
+
+                {/* Body - Main Content Layout */}
                 <form onSubmit={handleSave} style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
                     {loading && (
                         <div style={{ position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.7)', zIndex: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -762,34 +892,66 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                                 const mId = String(m.id || (m as any).ID || '').toLowerCase();
                                                 const targetId = String(milestoneId).toLowerCase();
                                                 return mId === targetId && targetId !== '';
-                                             })?.name || (task as any)?.milestone?.name || 'No Associated Milestone'}
+                                            })?.name || (task as any)?.milestone?.name || 'No Associated Milestone'}
 
                                         </div>
                                     )}
                                 </div>
 
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                        <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Start Date</label>
-                                        <input
-                                            type="date"
-                                            disabled={!isEditMode}
-                                            value={startDate}
-                                            onChange={(e) => setStartDate(e.target.value)}
-                                            style={{ padding: '0.85rem 1.15rem', borderRadius: '12px', border: '1.5px solid #e2e8f0', background: isEditMode ? 'white' : '#f8fafc' }}
-                                        />
-                                    </div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                        <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Deadline</label>
-                                        <input
-                                            type="date"
-                                            disabled={!isEditMode}
-                                            value={dueDate}
-                                            onChange={(e) => setDueDate(e.target.value)}
-                                            style={{ padding: '0.85rem 1.15rem', borderRadius: '12px', border: '1.5px solid #e2e8f0', background: isEditMode ? 'white' : '#f8fafc' }}
-                                        />
-                                    </div>
-                                </div>
+                                {(() => {
+                                    const milestone = effectiveMilestones.find(m => String(m.id || (m as any).ID || '').toLowerCase() === String(milestoneId).toLowerCase());
+                                    const minVal = milestone?.startDate ? new Date(milestone.startDate).toISOString().split('T')[0] : undefined;
+                                    const maxVal = milestone?.dueDate ? new Date(milestone.dueDate).toISOString().split('T')[0] : undefined;
+
+                                    const msStart = minVal ? new Date(minVal).getTime() : null;
+                                    const msEnd = maxVal ? new Date(maxVal).getTime() : null;
+                                    const tStart = startDate ? new Date(startDate).getTime() : null;
+                                    const tEnd = dueDate ? new Date(dueDate).getTime() : null;
+
+                                    const isStartInvalid = msStart && tStart && tStart < msStart || msEnd && tStart && tStart > msEnd;
+                                    const isDueInvalid = msStart && tEnd && tEnd < msStart || msEnd && tEnd && tEnd > msEnd;
+
+                                    return (
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: isStartInvalid ? '#ef4444' : '#64748b', textTransform: 'uppercase' }}>
+                                                    Start Date {isStartInvalid && ' (Out of Range)'}
+                                                </label>
+                                                <input
+                                                    type="date"
+                                                    disabled={!isEditMode}
+                                                    value={startDate}
+                                                    min={minVal}
+                                                    max={maxVal}
+                                                    onChange={(e) => setStartDate(e.target.value)}
+                                                    style={{ 
+                                                        padding: '0.85rem 1.15rem', borderRadius: '12px', 
+                                                        border: isStartInvalid ? '2px solid #ef4444' : '1.5px solid #e2e8f0', 
+                                                        background: isEditMode ? (isStartInvalid ? '#fff1f2' : 'white') : '#f8fafc' 
+                                                    }}
+                                                />
+                                            </div>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: isDueInvalid ? '#ef4444' : '#64748b', textTransform: 'uppercase' }}>
+                                                    Deadline {isDueInvalid && ' (Out of Range)'}
+                                                </label>
+                                                <input
+                                                    type="date"
+                                                    disabled={!isEditMode}
+                                                    value={dueDate}
+                                                    min={startDate || minVal}
+                                                    max={maxVal}
+                                                    onChange={(e) => setDueDate(e.target.value)}
+                                                    style={{ 
+                                                        padding: '0.85rem 1.15rem', borderRadius: '12px', 
+                                                        border: isDueInvalid ? '2px solid #ef4444' : '1.5px solid #e2e8f0', 
+                                                        background: isEditMode ? (isDueInvalid ? '#fff1f2' : 'white') : '#f8fafc' 
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
 
                                 <div style={{
                                     marginTop: 'auto', padding: '1.5rem', background: '#f8fafc',
@@ -838,8 +1000,11 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                                             <File size={20} />
                                                         </div>
                                                         <div style={{ flex: 1, minWidth: 0 }}>
-                                                            <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                                {ev.fileName || ev.name || 'Unnamed File'}
+                                                            <p 
+                                                                style={{ margin: 0, fontSize: '0.85rem', fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                                                                title={ev.fileName || ev.name || 'Unnamed File'}
+                                                            >
+                                                                {truncateFilename(ev.fileName || ev.name || 'Unnamed File', 35)}
                                                             </p>
                                                             <p style={{ margin: 0, fontSize: '0.7rem', color: '#94a3b8', fontWeight: 500 }}>
                                                                 Uploaded {new Date(ev.submittedAt || ev.createdDate || Date.now()).toLocaleDateString('vi-VN')}
@@ -894,7 +1059,12 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                                     fontSize: '0.8rem', fontWeight: 600, color: '#475569'
                                                 }}>
                                                     <FileText size={18} color="#94a3b8" />
-                                                    <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name}</span>
+                                                    <span 
+                                                        style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                                                        title={file.name}
+                                                    >
+                                                        {truncateFilename(file.name, 30)}
+                                                    </span>
                                                     <span style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 500 }}>{(file.size / (1024 * 1024)).toFixed(2)} MB</span>
                                                     {task && ![TaskStatus.Todo, TaskStatus.Submitted, TaskStatus.Completed, TaskStatus.Adjusting].includes(task.status) && (
                                                         <button type="button" onClick={() => removeFile(i)} style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', padding: '4px' }}>
@@ -1023,19 +1193,19 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                                                 }}
                                                                 // Rule 1: No Lab Directors allowed as assignee
                                                                 disabled={
-                                                                    (m.projectRole === ProjectRoleEnum.LabDirector || 
-                                                                    m.projectRoleName === 'Lab Director' || 
-                                                                    m.roleName === 'Lab Director') && !isAssignee
+                                                                    (m.projectRole === ProjectRoleEnum.LabDirector ||
+                                                                        m.projectRoleName === 'Lab Director' ||
+                                                                        m.roleName === 'Lab Director') && !isAssignee
                                                                 }
                                                                 style={{
                                                                     padding: '4px 10px', borderRadius: '8px', fontSize: '0.65rem', fontWeight: 800,
                                                                     border: '1.5px solid', borderColor: isAssignee ? 'var(--primary-color)' : '#e2e8f0',
                                                                     background: isAssignee ? 'var(--primary-color)' : 'white',
-                                                                    color: isAssignee ? 'white' : '#64748b', cursor: (m.projectRole === ProjectRoleEnum.LabDirector || 
-                                                                        m.projectRoleName === 'Lab Director' || 
+                                                                    color: isAssignee ? 'white' : '#64748b', cursor: (m.projectRole === ProjectRoleEnum.LabDirector ||
+                                                                        m.projectRoleName === 'Lab Director' ||
                                                                         m.roleName === 'Lab Director') && !isAssignee ? 'not-allowed' : 'pointer',
-                                                                    opacity: (m.projectRole === ProjectRoleEnum.LabDirector || 
-                                                                        m.projectRoleName === 'Lab Director' || 
+                                                                    opacity: (m.projectRole === ProjectRoleEnum.LabDirector ||
+                                                                        m.projectRoleName === 'Lab Director' ||
                                                                         m.roleName === 'Lab Director') && !isAssignee ? 0.5 : 1
                                                                 }}
                                                             >Assign</button>
@@ -1045,21 +1215,21 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                                                 // Rule 1: No Lab Directors allowed as collaborator
                                                                 // Rule 2: Cannot be collaborator if already primary assignee
                                                                 disabled={
-                                                                    ((m.projectRole === ProjectRoleEnum.LabDirector || 
-                                                                    m.projectRoleName === 'Lab Director' || 
-                                                                    m.roleName === 'Lab Director') && !isCollaborator) ||
+                                                                    ((m.projectRole === ProjectRoleEnum.LabDirector ||
+                                                                        m.projectRoleName === 'Lab Director' ||
+                                                                        m.roleName === 'Lab Director') && !isCollaborator) ||
                                                                     (isAssignee)
                                                                 }
                                                                 style={{
                                                                     padding: '4px 10px', borderRadius: '8px', fontSize: '0.65rem', fontWeight: 800,
                                                                     border: '1.5px solid', borderColor: isCollaborator ? '#10b981' : '#e2e8f0',
                                                                     background: isCollaborator ? '#10b981' : 'white',
-                                                                    color: isCollaborator ? 'white' : '#64748b', 
-                                                                    cursor: (((m.projectRole === ProjectRoleEnum.LabDirector || 
-                                                                        m.projectRoleName === 'Lab Director' || 
+                                                                    color: isCollaborator ? 'white' : '#64748b',
+                                                                    cursor: (((m.projectRole === ProjectRoleEnum.LabDirector ||
+                                                                        m.projectRoleName === 'Lab Director' ||
                                                                         m.roleName === 'Lab Director') && !isCollaborator) || isAssignee) ? 'not-allowed' : 'pointer',
-                                                                    opacity: (((m.projectRole === ProjectRoleEnum.LabDirector || 
-                                                                        m.projectRoleName === 'Lab Director' || 
+                                                                    opacity: (((m.projectRole === ProjectRoleEnum.LabDirector ||
+                                                                        m.projectRoleName === 'Lab Director' ||
                                                                         m.roleName === 'Lab Director') && !isCollaborator) || isAssignee) ? 0.5 : 1
                                                                 }}
                                                             >Collab</button>
@@ -1106,9 +1276,9 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                                                 {task.member?.projectRoleName || task.member?.roleName || 'Primary Assignee'}
                                                             </p>
                                                         </div>
-                                                        <div style={{ 
-                                                            padding: '4px 10px', borderRadius: '8px', fontSize: '0.65rem', fontWeight: 800, 
-                                                            background: 'var(--primary-color)', color: 'white' 
+                                                        <div style={{
+                                                            padding: '4px 10px', borderRadius: '8px', fontSize: '0.65rem', fontWeight: 800,
+                                                            background: 'var(--primary-color)', color: 'white'
                                                         }}>
                                                             Primary
                                                         </div>
@@ -1123,7 +1293,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                                     })
                                                     .map((m: any) => {
                                                         const mId = m.memberId || m.userId || m.id;
-                                                        
+
                                                         // CRITICAL: Enrich collaborator data with full project member info if available
                                                         // This ensures we get the real projectRoleName (e.g. "Designer") instead of generic "Member"
                                                         const pm = (projectMembers || []).find(p => (p.memberId || p.id || p.userId) === mId);
@@ -1162,16 +1332,16 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                                                         {displayRole}
                                                                     </p>
                                                                 </div>
-                                                                <div style={{ 
-                                                                    padding: '4px 10px', borderRadius: '8px', fontSize: '0.65rem', fontWeight: 800, 
-                                                                    background: '#10b981', color: 'white' 
+                                                                <div style={{
+                                                                    padding: '4px 10px', borderRadius: '8px', fontSize: '0.65rem', fontWeight: 800,
+                                                                    background: '#10b981', color: 'white'
                                                                 }}>
                                                                     Support
                                                                 </div>
                                                             </div>
                                                         );
                                                     })}
-                                                
+
                                                 {!task.memberId && (!task.members || task.members.length === 0) && (
                                                     <p style={{ textAlign: 'center', padding: '2rem', color: '#94a3b8', fontSize: '0.85rem' }}>
                                                         No members assigned to this task.
@@ -1227,20 +1397,20 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                         alignItems: 'center',
                                         gap: '10px',
                                         transition: 'all 0.2s',
-                                        boxShadow: s === TaskStatus.Completed 
-                                            ? '0 4px 12px rgba(22, 163, 74, 0.2)' 
+                                        boxShadow: s === TaskStatus.Completed
+                                            ? '0 4px 12px rgba(22, 163, 74, 0.2)'
                                             : '0 4px 12px rgba(234, 88, 12, 0.2)'
                                     }}
                                     onMouseEnter={(e) => {
                                         e.currentTarget.style.transform = 'translateY(-2px)';
-                                        e.currentTarget.style.boxShadow = s === TaskStatus.Completed 
-                                            ? '0 6px 16px rgba(22, 163, 74, 0.3)' 
+                                        e.currentTarget.style.boxShadow = s === TaskStatus.Completed
+                                            ? '0 6px 16px rgba(22, 163, 74, 0.3)'
                                             : '0 6px 16px rgba(234, 88, 12, 0.3)';
                                     }}
                                     onMouseLeave={(e) => {
                                         e.currentTarget.style.transform = 'translateY(0)';
-                                        e.currentTarget.style.boxShadow = s === TaskStatus.Completed 
-                                            ? '0 4px 12px rgba(22, 163, 74, 0.2)' 
+                                        e.currentTarget.style.boxShadow = s === TaskStatus.Completed
+                                            ? '0 4px 12px rgba(22, 163, 74, 0.2)'
                                             : '0 4px 12px rgba(234, 88, 12, 0.2)';
                                     }}
                                 >

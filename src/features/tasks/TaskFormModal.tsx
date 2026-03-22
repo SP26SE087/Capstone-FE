@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { X, Search, Users, Calendar, Activity, AlignLeft, AlertTriangle, MapPin, AlertOctagon, Plus, Trash2, FileText, File, Eye } from 'lucide-react';
 import { Priority, TaskStatus, ProjectMember, Task, TaskEvidence, ProjectRoleEnum } from '@/types';
+import MilestoneRoadmapPreview from '../milestones/MilestoneRoadmapPreview';
 
 interface TaskFormModalProps {
     isOpen: boolean;
@@ -13,6 +14,10 @@ interface TaskFormModalProps {
     onEvidenceUpload?: (files: File[]) => void;
     milestones?: Milestone[];
     initialMilestoneId?: string;
+    projectStartDate?: string;
+    projectEndDate?: string;
+    existingTasks?: Task[];
+    projectId?: string;
 }
 
 
@@ -192,7 +197,11 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
     isReadOnly = false,
     onEvidenceUpload,
     milestones,
-    initialMilestoneId
+    initialMilestoneId,
+    projectStartDate,
+    projectEndDate,
+    existingTasks = [],
+    projectId
 }) => {
     // Standard single-task states (used for editing existing task)
     const [name, setName] = useState('');
@@ -209,7 +218,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
 
     // Bulk creation states
     const [rows, setRows] = useState<TaskRow[]>([]);
-    const [isBulkMode, setIsBulkMode] = useState(false);
+    const [isBulkMode, setIsBulkMode] = useState(true);
 
     const createNewRow = (): TaskRow => ({
         id: Math.random().toString(36).substring(2, 9),
@@ -244,6 +253,20 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
     const [milestoneSearchTerm, setMilestoneSearchTerm] = useState('');
     const [milestoneStatusFilter, setMilestoneStatusFilter] = useState<string>('all');
 
+    const [internalTasks, setInternalTasks] = useState<Task[]>([]);
+
+    useEffect(() => {
+        // Fetch project tasks if not provided
+        if (isOpen && (!existingTasks || existingTasks.length === 0)) {
+            const effectiveProjId = projectId || (milestones?.[0] as any)?.projectId || (milestones?.[0] as any)?.project_id;
+            if (effectiveProjId) {
+                taskService.getByProject(effectiveProjId).then(setInternalTasks).catch(() => {});
+            }
+        }
+    }, [isOpen, existingTasks, projectId, milestones]);
+
+    const effectiveExistingTasks = (existingTasks && existingTasks.length > 0) ? existingTasks : internalTasks;
+
     // Internal data states for when props aren't provided
     const [internalMembers, setInternalMembers] = useState<ProjectMember[]>([]);
     const [internalMilestones, setInternalMilestones] = useState<Milestone[]>([]);
@@ -253,11 +276,26 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
     const effectiveMembers = projectMembers || internalMembers;
     const baseMilestones = milestones || internalMilestones;
     const effectiveMilestones = useMemo(() => {
-        if (fetchedMilestone && !baseMilestones.some(m => String(m.id).toLowerCase() === String(fetchedMilestone.id).toLowerCase())) {
-            return [fetchedMilestone, ...baseMilestones];
+        let list = baseMilestones;
+        
+        // If not editing an existing task, filter for active milestones only
+        // If editing, allow the current milestone even if completed
+        if (!task) {
+            list = list.filter(m => m.status === MilestoneStatus.NotStarted || m.status === MilestoneStatus.InProgress);
+        } else {
+            const currentMid = (task as any).milestoneId || (task as any).milestoneID || (task as any).milestone?.id || '';
+            list = list.filter(m => 
+                m.status === MilestoneStatus.NotStarted || 
+                m.status === MilestoneStatus.InProgress ||
+                String(m.id) === String(currentMid)
+            );
         }
-        return baseMilestones;
-    }, [baseMilestones, fetchedMilestone]);
+
+        if (fetchedMilestone && !list.some(m => String(m.id).toLowerCase() === String(fetchedMilestone.id).toLowerCase())) {
+            return [fetchedMilestone, ...list];
+        }
+        return list;
+    }, [baseMilestones, fetchedMilestone, task]);
 
     const selectableMembers = useMemo(() => {
         return effectiveMembers.filter(m => 
@@ -283,7 +321,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
         setServerEvidences([]);
         // Reset rows for creation mode
         setRows([createNewRow()]);
-        setIsBulkMode(false);
+        setIsBulkMode(true);
     };
 
     const getFullUrl = (url: string) => {
@@ -325,6 +363,31 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
         if (isBulkMode && !task) {
             // Bulk Create Mode
             const today = new Date().toISOString().split('T')[0];
+            
+            // Validate all rows first
+            for (let i = 0; i < rows.length; i++) {
+                const row = rows[i];
+                if (!row.name) {
+                    alert(`Activity #${i + 1} must have a name.`);
+                    return;
+                }
+
+                if (row.milestoneId) {
+                    const milestone = effectiveMilestones.find(m => String(m.id) === String(row.milestoneId));
+                    if (milestone && milestone.startDate && milestone.dueDate) {
+                        const mStart = new Date(milestone.startDate).getTime();
+                        const mEnd = new Date(milestone.dueDate).getTime();
+                        const tStart = new Date(row.startDate || today).getTime();
+                        const tEnd = row.dueDate ? new Date(row.dueDate).getTime() : tStart;
+
+                        if (tStart < mStart || tEnd > mEnd) {
+                            alert(`Activity #${i + 1} ("${row.name}") dates must be within milestone period: ${formatDate(milestone.startDate)} - ${formatDate(milestone.dueDate)}`);
+                            return;
+                        }
+                    }
+                }
+            }
+
             const tasksData = rows.map(row => ({
                 name: row.name,
                 description: row.description,
@@ -338,12 +401,6 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                 evidence: []
             }));
 
-            // Validate there's at least one valid row
-            if (tasksData.length === 0 || !tasksData[0].name) {
-                alert("Please add at least one activity with a name.");
-                return;
-            }
-
             onSubmit(tasksData);
             resetForm();
             onClose();
@@ -352,6 +409,23 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
 
         // Single Edit/Create Mode
         const todayAtZero = new Date().toISOString().split('T')[0];
+
+        // Validation for single mode
+        if (milestoneId) {
+            const milestone = effectiveMilestones.find(m => String(m.id) === String(milestoneId));
+            if (milestone && milestone.startDate && milestone.dueDate) {
+                const mStart = new Date(milestone.startDate).getTime();
+                const mEnd = new Date(milestone.dueDate).getTime();
+                const tStart = new Date(startDate || todayAtZero).getTime();
+                const tEnd = dueDate ? new Date(dueDate).getTime() : tStart;
+
+                if (tStart < mStart || tEnd > mEnd) {
+                    alert(`Activity dates must be within milestone period: ${formatDate(milestone.startDate)} - ${formatDate(milestone.dueDate)}`);
+                    return;
+                }
+            }
+        }
+
         const taskData = {
             name,
             description,
@@ -628,60 +702,14 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                                 <Activity size={20} />
                             </div>
                             <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#1e293b', letterSpacing: '-0.02em' }}>
-                                {isReadOnly ? 'Research Activity Details' : (isEdit ? 'Update Task Activity' : 'New Task Activity')}
+                                {isReadOnly ? 'Research Activity Details' : (isEdit ? 'Update Task Activity' : 'Register Research Activities')}
                             </h2>
+                            {!isEdit && !isReadOnly && (
+                                <p style={{ margin: 0, fontSize: '0.8rem', color: '#64748b' }}>
+                                    You can register multiple research activities at once
+                                </p>
+                            )}
                         </div>
-
-                        {/* Bulk Mode Toggle - Only for New tasks */}
-                        {!isEdit && !isReadOnly && (
-                            <div style={{
-                                display: 'flex',
-                                background: '#f1f5f9',
-                                padding: '4px',
-                                borderRadius: '10px',
-                                gap: '4px'
-                            }}>
-                                <button
-                                    type="button"
-                                    onClick={() => setIsBulkMode(false)}
-                                    style={{
-                                        padding: '6px 16px',
-                                        borderRadius: '8px',
-                                        border: 'none',
-                                        fontSize: '0.75rem',
-                                        fontWeight: 700,
-                                        cursor: 'pointer',
-                                        background: !isBulkMode ? 'white' : 'transparent',
-                                        color: !isBulkMode ? 'var(--primary-color)' : '#64748b',
-                                        boxShadow: !isBulkMode ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
-                                        transition: 'all 0.2s'
-                                    }}
-                                >
-                                    Standard
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setIsBulkMode(true);
-                                        if (rows.length === 0) setRows([createNewRow()]);
-                                    }}
-                                    style={{
-                                        padding: '6px 16px',
-                                        borderRadius: '8px',
-                                        border: 'none',
-                                        fontSize: '0.75rem',
-                                        fontWeight: 700,
-                                        cursor: 'pointer',
-                                        background: isBulkMode ? 'white' : 'transparent',
-                                        color: isBulkMode ? 'var(--primary-color)' : '#64748b',
-                                        boxShadow: isBulkMode ? '0 2px 4px rgba(0,0,0,0.05)' : 'none',
-                                        transition: 'all 0.2s'
-                                    }}
-                                >
-                                    Bulk Mode
-                                </button>
-                            </div>
-                        )}
                     </div>
 
                     <button
@@ -692,7 +720,46 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                     </button>
                 </div>
 
-                {/* Body - Conditional Layout */}
+                {/* Body - Roadmap Preview First */}
+                {!isReadOnly && (() => {
+                    const activeMid = milestoneId || (rows.length > 0 ? rows[0].milestoneId : initialMilestoneId) || "";
+                    const currentMilestoneContext = effectiveMilestones.find(m => String(m.id || (m as any).ID || '').toLowerCase() === String(activeMid).toLowerCase());
+                    const roadmapStart = currentMilestoneContext?.startDate || projectStartDate;
+                    const roadmapEnd = currentMilestoneContext?.dueDate || projectEndDate;
+
+                    return (
+                        <MilestoneRoadmapPreview 
+                            existingMilestones={effectiveExistingTasks.filter(t => {
+                                if (!activeMid) return false;
+                                const tMid = (t as any).milestoneId || (t as any).milestoneID || (t as any).milestone_id || (t as any).milestone?.id || '';
+                                return String(tMid).toLowerCase() === String(activeMid).toLowerCase() && (!task || t.id !== task.id);
+                            }).map(t => ({
+                                id: t.id,
+                                name: t.name,
+                                startDate: t.startDate || "",
+                                dueDate: t.dueDate || "",
+                                description: t.description || "",
+                                status: Number(t.status)
+                            }))}
+                            currentMilestones={isBulkMode && !task ? rows.filter(r => r.name && r.startDate && r.dueDate).map(r => ({
+                                id: r.id,
+                                name: r.name,
+                                startDate: r.startDate || "",
+                                dueDate: r.dueDate || ""
+                            })) : (name && startDate && dueDate ? [{
+                                id: task?.id || 'new',
+                                name: name,
+                                startDate: startDate,
+                                dueDate: dueDate
+                            }] : [])}
+                            projectStartDate={roadmapStart}
+                            projectEndDate={roadmapEnd}
+                            highlightId={task?.id}
+                        />
+                    );
+                })()}
+
+                {/* Body - Form Layout */}
                 <form id="create-task-form" onSubmit={handleSubmit} style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
                     {isBulkMode && !task ? (
                         /* Bulk Activities View */
@@ -843,26 +910,61 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                                                 icon={<MapPin size={16} />}
                                             />
                                         </div>
-                                        <div style={{ display: 'flex', gap: '12px', minWidth: 0 }}>
-                                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px', minWidth: 0 }}>
-                                                <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Start</label>
-                                                <input
-                                                    type="date"
-                                                    value={row.startDate}
-                                                    onChange={(e) => updateRow(row.id, 'startDate', e.target.value)}
-                                                    style={{ padding: '0.65rem', borderRadius: '10px', border: '1.5px solid #e2e8f0', fontSize: '0.8rem', width: '100%' }}
-                                                />
-                                            </div>
-                                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px', minWidth: 0 }}>
-                                                <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Due</label>
-                                                <input
-                                                    type="date"
-                                                    value={row.dueDate}
-                                                    onChange={(e) => updateRow(row.id, 'dueDate', e.target.value)}
-                                                    style={{ padding: '0.65rem', borderRadius: '10px', border: '1.5px solid #e2e8f0', fontSize: '0.8rem', width: '100%' }}
-                                                />
-                                            </div>
-                                        </div>
+                                            {(() => {
+                                                const milestone = effectiveMilestones.find(m => String(m.id) === String(row.milestoneId));
+                                                const mStart = milestone?.startDate ? new Date(milestone.startDate).getTime() : null;
+                                                const mEnd = milestone?.dueDate ? new Date(milestone.dueDate).getTime() : null; 
+                                                
+                                                const getTime = (d: string) => d ? new Date(d).getTime() : null;
+                                                const tStart = getTime(row.startDate);
+                                                const tEnd = getTime(row.dueDate);
+                                                const msStart = mStart;
+                                                const msEnd = mEnd; // Use mEnd here since we just calculated it at msEnd level
+
+                                                const isStartInvalid = msStart && tStart && tStart < msStart || msEnd && tStart && tStart > msEnd;
+                                                const isDueInvalid = msStart && tEnd && tEnd < msStart || msEnd && tEnd && tEnd > msEnd;
+
+                                                return (
+                                                    <div style={{ flex: 1, display: 'flex', gap: '12px', minWidth: 0 }}>
+                                                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px', minWidth: 0 }}>
+                                                            <label style={{ fontSize: '0.7rem', fontWeight: 700, color: isStartInvalid ? '#ef4444' : '#94a3b8', textTransform: 'uppercase' }}>
+                                                                Start {isStartInvalid && '(!) '}
+                                                            </label>
+                                                            <input
+                                                                type="date"
+                                                                value={row.startDate}
+                                                                min={milestone?.startDate ? new Date(milestone.startDate).toISOString().split('T')[0] : undefined}
+                                                                max={milestone?.dueDate ? new Date(milestone.dueDate).toISOString().split('T')[0] : undefined}
+                                                                onChange={(e) => updateRow(row.id, 'startDate', e.target.value)}
+                                                                style={{ 
+                                                                    padding: '0.65rem', borderRadius: '10px', 
+                                                                    border: isStartInvalid ? '1.5px solid #ef4444' : '1.5px solid #e2e8f0', 
+                                                                    fontSize: '0.8rem', width: '100%',
+                                                                    background: isStartInvalid ? '#fff1f2' : 'white'
+                                                                }}
+                                                            />
+                                                        </div>
+                                                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px', minWidth: 0 }}>
+                                                            <label style={{ fontSize: '0.7rem', fontWeight: 700, color: isDueInvalid ? '#ef4444' : '#94a3b8', textTransform: 'uppercase' }}>
+                                                                Due {isDueInvalid && '(!) '}
+                                                            </label>
+                                                            <input
+                                                                type="date"
+                                                                value={row.dueDate}
+                                                                min={row.startDate || (milestone?.startDate ? new Date(milestone.startDate).toISOString().split('T')[0] : undefined)}
+                                                                max={milestone?.dueDate ? new Date(milestone.dueDate).toISOString().split('T')[0] : undefined}
+                                                                onChange={(e) => updateRow(row.id, 'dueDate', e.target.value)}
+                                                                style={{ 
+                                                                    padding: '0.65rem', borderRadius: '10px', 
+                                                                    border: isDueInvalid ? '1.5px solid #ef4444' : '1.5px solid #e2e8f0', 
+                                                                    fontSize: '0.8rem', width: '100%',
+                                                                    background: isDueInvalid ? '#fff1f2' : 'white'
+                                                                }}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })()}
                                     </div>
 
 
@@ -1153,32 +1255,72 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                             )}
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <Calendar size={14} /> Start Date
-                                </label>
-                                <input
-                                    type="date"
-                                    value={startDate}
-                                    onChange={(e) => setStartDate(e.target.value)}
-                                    disabled={isReadOnly}
-                                    style={{ padding: '0.85rem 1.15rem', borderRadius: '12px', border: '1.5px solid #e2e8f0', fontSize: '0.95rem', outline: 'none', background: isReadOnly ? '#f8fafc' : 'white' }}
-                                />
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <Calendar size={14} /> Deadline
-                                </label>
-                                <input
-                                    type="date"
-                                    value={dueDate}
-                                    onChange={(e) => setDueDate(e.target.value)}
-                                    disabled={isReadOnly}
-                                    style={{ padding: '0.85rem 1.15rem', borderRadius: '12px', border: '1.5px solid #e2e8f0', fontSize: '0.95rem', outline: 'none', background: isReadOnly ? '#f8fafc' : 'white' }}
-                                />
-                            </div>
-                        </div>
+                        {(() => {
+                            const milestone = effectiveMilestones.find(m => String(m.id) === String(milestoneId));
+                            const minDate = milestone?.startDate ? new Date(milestone.startDate).toISOString().split('T')[0] : undefined;
+                            const maxDate = milestone?.dueDate ? new Date(milestone.dueDate).toISOString().split('T')[0] : undefined;
+                            
+                            const msStart = minDate ? new Date(minDate).getTime() : null;
+                            const msEnd = maxDate ? new Date(maxDate).getTime() : null;
+                            const tStart = startDate ? new Date(startDate).getTime() : null;
+                            const tEnd = dueDate ? new Date(dueDate).getTime() : null;
+
+                            const isStartInvalid = msStart && tStart && tStart < msStart || msEnd && tStart && tStart > msEnd;
+                            const isDueInvalid = msStart && tEnd && tEnd < msStart || msEnd && tEnd && tEnd > msEnd;
+
+                            return (
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                        <label style={{ 
+                                            fontSize: '0.8rem', fontWeight: 700, 
+                                            color: isStartInvalid ? '#ef4444' : '#64748b', 
+                                            textTransform: 'uppercase', letterSpacing: '0.05em', 
+                                            display: 'flex', alignItems: 'center', gap: '6px' 
+                                        }}>
+                                            <Calendar size={14} /> Start Date {isStartInvalid && ' (Out of Range)'}
+                                        </label>
+                                        <input
+                                            type="date"
+                                            value={startDate}
+                                            min={minDate}
+                                            max={maxDate}
+                                            onChange={(e) => setStartDate(e.target.value)}
+                                            disabled={isReadOnly}
+                                            style={{ 
+                                                padding: '0.85rem 1.15rem', borderRadius: '12px', 
+                                                border: isStartInvalid ? '2px solid #ef4444' : '1.5px solid #e2e8f0', 
+                                                fontSize: '0.95rem', outline: 'none', 
+                                                background: isReadOnly ? '#f8fafc' : (isStartInvalid ? '#fff1f2' : 'white')
+                                            }}
+                                        />
+                                    </div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                        <label style={{ 
+                                            fontSize: '0.8rem', fontWeight: 700, 
+                                            color: isDueInvalid ? '#ef4444' : '#64748b', 
+                                            textTransform: 'uppercase', letterSpacing: '0.05em', 
+                                            display: 'flex', alignItems: 'center', gap: '6px' 
+                                        }}>
+                                            <Calendar size={14} /> Deadline {isDueInvalid && ' (Out of Range)'}
+                                        </label>
+                                        <input
+                                            type="date"
+                                            value={dueDate}
+                                            min={startDate || minDate}
+                                            max={maxDate}
+                                            onChange={(e) => setDueDate(e.target.value)}
+                                            disabled={isReadOnly}
+                                            style={{ 
+                                                padding: '0.85rem 1.15rem', borderRadius: '12px', 
+                                                border: isDueInvalid ? '2px solid #ef4444' : '1.5px solid #e2e8f0', 
+                                                fontSize: '0.95rem', outline: 'none', 
+                                                background: isReadOnly ? '#f8fafc' : (isDueInvalid ? '#fff1f2' : 'white')
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+                            );
+                        })()}
                     </div>
 
                     {/* Right Column: Member Selection (TASK TEAM) */}

@@ -40,15 +40,11 @@ const EditProject: React.FC = () => {
     const isAdmin = currentUser.role === 'Admin';
     const projectRoleValue = currentMember?.projectRole || project?.projectRole;
 
-    const isProjectLeader = isAdmin ||
-        (Number(projectRoleValue) === ProjectRoleEnum.Leader) ||
-        (Number(projectRoleValue) === ProjectRoleEnum.LabDirector);
-
     // ONLY Project LabDirector (1) or Global Admin can delete
     const canDeleteProject = isAdmin || (Number(projectRoleValue) === ProjectRoleEnum.LabDirector);
 
     const isArchived = project?.status === ProjectStatus.Archived;
-    const isReadOnly = (isArchived && !isAdmin) || !isProjectLeader;
+    const isReadOnly = (isArchived && !isAdmin) || !canDeleteProject;
 
     const [submitting, setSubmitting] = useState(false);
     const [availableFields, setAvailableFields] = useState<ResearchField[]>([]);
@@ -66,6 +62,7 @@ const EditProject: React.FC = () => {
     // Modal & Notification States
     const [isStatusConfirmOpen, setIsStatusConfirmOpen] = useState(false);
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+    const [deleteInput, setDeleteInput] = useState('');
     const [pendingStatus, setPendingStatus] = useState<ProjectStatus | null>(null);
 
     const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
@@ -184,7 +181,7 @@ const EditProject: React.FC = () => {
         e.preventDefault();
         if (!id) return;
         if (isReadOnly) {
-            showToast(`This project is archived and cannot be modified.`, 'warning');
+            showToast(`You do not have permission to modify this project's settings.`, 'warning');
             return;
         }
         setSubmitting(true);
@@ -221,6 +218,7 @@ const EditProject: React.FC = () => {
             showToast('Failed to delete project.', 'error');
         } finally {
             setIsDeleteConfirmOpen(false);
+            setDeleteInput('');
         }
     };
 
@@ -484,7 +482,7 @@ const EditProject: React.FC = () => {
                                     style={{ paddingLeft: '36px', height: '36px', fontSize: '0.85rem' }}
                                     value={fieldSearchTerm}
                                     onChange={(e) => setFieldSearchTerm(e.target.value)}
-                                    disabled={isArchived}
+                                    disabled={isReadOnly}
                                 />
                             </div>
 
@@ -508,16 +506,16 @@ const EditProject: React.FC = () => {
                                                 <button
                                                     key={field.id}
                                                     type="button"
-                                                    onClick={() => !isArchived && toggleField(field.id)}
+                                                    onClick={() => !isReadOnly && toggleField(field.id)}
                                                     className={`filter-chip ${selectedFieldIds.includes(field.id) ? 'active' : ''}`}
                                                     style={{
-                                                        cursor: isArchived ? 'not-allowed' : 'pointer',
+                                                        cursor: isReadOnly ? 'not-allowed' : 'pointer',
                                                         display: 'flex',
                                                         alignItems: 'center',
                                                         gap: '6px',
-                                                        opacity: isArchived && !selectedFieldIds.includes(field.id) ? 0.5 : 1
+                                                        opacity: isReadOnly && !selectedFieldIds.includes(field.id) ? 0.5 : 1
                                                     }}
-                                                    disabled={isArchived}
+                                                    disabled={isReadOnly}
                                                 >
                                                     {selectedFieldIds.includes(field.id) ? <Check size={14} /> : <Plus size={14} />}
                                                     {field.name}
@@ -532,30 +530,28 @@ const EditProject: React.FC = () => {
                         </section>
 
                         {/* Action Bar */}
-                        <div className="card" style={{
-                            display: 'flex',
-                            justifyContent: 'flex-end',
-                            gap: '12px'
-                        }}>
-                            <button
-                                type="button"
-                                onClick={() => navigate(`/projects/${id}`)}
-                                className="btn btn-secondary"
-                                style={{ minWidth: '120px' }}
-                            >Cancel</button>
-                            <button
-                                onClick={handleSubmit}
-                                className="btn btn-primary"
-                                style={{
-                                    minWidth: '170px',
-                                    opacity: isArchived ? 0.5 : 1,
-                                    cursor: isArchived ? 'not-allowed' : 'pointer'
-                                }}
-                                disabled={submitting || isArchived}
-                            >
-                                {submitting ? 'Saving...' : <><Save size={18} /> Update Project</>}
-                            </button>
-                        </div>
+                        {!isReadOnly && (
+                            <div className="card" style={{
+                                display: 'flex',
+                                justifyContent: 'flex-end',
+                                gap: '12px'
+                            }}>
+                                <button
+                                    type="button"
+                                    onClick={() => navigate(`/projects/${id}`)}
+                                    className="btn btn-secondary"
+                                    style={{ minWidth: '120px' }}
+                                >Cancel</button>
+                                <button
+                                    onClick={handleSubmit}
+                                    className="btn btn-primary"
+                                    style={{ minWidth: '170px' }}
+                                    disabled={submitting}
+                                >
+                                    {submitting ? 'Saving...' : <><Save size={18} /> Update Project</>}
+                                </button>
+                            </div>
+                        )}
                     </div>
 
                     {/* Right Column — Sidebar Info */}
@@ -676,13 +672,24 @@ const EditProject: React.FC = () => {
             {/* Delete Confirmation Modal */}
             <Modal
                 isOpen={isDeleteConfirmOpen}
-                onClose={() => setIsDeleteConfirmOpen(false)}
+                onClose={() => { setIsDeleteConfirmOpen(false); setDeleteInput(''); }}
                 title="Delete Project"
                 variant="danger"
                 footer={(
                     <>
-                        <button className="btn btn-secondary" onClick={() => setIsDeleteConfirmOpen(false)}>Cancel</button>
-                        <button className="btn" style={{ background: 'var(--danger)', color: 'white' }} onClick={handleDelete}>Delete Project</button>
+                        <button className="btn btn-secondary" onClick={() => { setIsDeleteConfirmOpen(false); setDeleteInput(''); }}>Cancel</button>
+                        <button 
+                            className="btn" 
+                            style={{ 
+                                background: deleteInput === formData.projectName ? 'var(--danger)' : '#fca5a5', 
+                                color: 'white',
+                                cursor: deleteInput === formData.projectName ? 'pointer' : 'not-allowed'
+                            }} 
+                            onClick={handleDelete}
+                            disabled={deleteInput !== formData.projectName}
+                        >
+                            Delete Project
+                        </button>
                     </>
                 )}
             >
@@ -695,6 +702,19 @@ const EditProject: React.FC = () => {
                         You are about to permanently delete <strong>"{formData.projectName}"</strong>.
                         All research data, tasks, and audit trails will be irreversibly lost.
                     </p>
+                    <div style={{ marginTop: '0.5rem' }}>
+                        <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                            Please type <strong>{formData.projectName}</strong> to confirm.
+                        </label>
+                        <input 
+                            type="text" 
+                            className="form-input" 
+                            value={deleteInput} 
+                            onChange={(e) => setDeleteInput(e.target.value)} 
+                            placeholder={formData.projectName}
+                            style={{ width: '100%', borderColor: deleteInput === formData.projectName ? 'var(--success)' : 'var(--border-color)' }}
+                        />
+                    </div>
                 </div>
             </Modal>
         </MainLayout>

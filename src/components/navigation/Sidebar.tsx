@@ -16,10 +16,10 @@ const Sidebar: React.FC = () => {
         { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/dashboard' },
         { icon: <Briefcase size={20} />, label: 'My Projects', path: '/projects' },
         { icon: <CheckSquare size={20} />, label: 'Tasks', path: '/tasks' },
-        { icon: <Calendar size={20} />, label: 'Schedules', path: '/schedules' },
-        { icon: <Presentation size={20} />, label: 'Seminars', path: '/seminars' },
         { icon: <Users size={20} />, label: 'Members', path: '/members' },
         { icon: <BarChart2 size={20} />, label: 'Reports', path: '/reports' },
+        { icon: <Calendar size={20} />, label: 'Schedules', path: '/schedules' },
+        { icon: <Presentation size={20} />, label: 'Seminars', path: '/seminars' },
     ];
 
     return (

@@ -29,7 +29,8 @@ import {
     Flag,
     Calendar,
     User,
-    Search
+    Search,
+    X
 } from 'lucide-react';
 import { ProjectRoleEnum } from '@/types/project';
 import MilestoneItem from '@/components/milestone/MilestoneItem';
@@ -79,6 +80,9 @@ const ProjectDetails: React.FC = () => {
     const [taskSearchQuery, setTaskSearchQuery] = useState('');
     const [taskStatusFilter, setTaskStatusFilter] = useState<string>('all');
     const [taskPriorityFilter, setTaskPriorityFilter] = useState<string>('all');
+    const [taskMilestoneFilter, setTaskMilestoneFilter] = useState<string>('all');
+    const [taskStartDateFilter, setTaskStartDateFilter] = useState<string>('');
+    const [taskEndDateFilter, setTaskEndDateFilter] = useState<string>('');
     const [showMyTasks, setShowMyTasks] = useState(true);
 
     // ─── Milestone Search & Filter State ──────────────────────────────────────
@@ -103,6 +107,7 @@ const ProjectDetails: React.FC = () => {
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
     const [pendingStatus, setPendingStatus] = useState<ProjectStatus | null>(null);
     const [toast, setToast] = useState<{ message: string; type: ToastType; duration?: number } | null>(null);
+    const [quickAddMilestones, setQuickAddMilestones] = useState<any[]>([]);
     const milestoneContainerRef = useRef<HTMLDivElement>(null);
 
     const showToast = (message: string, type: ToastType = 'info', duration: number = 3000) => {
@@ -351,6 +356,113 @@ const ProjectDetails: React.FC = () => {
             showToast('Failed to save research activity.', 'error');
         }
     };
+    
+    // Quick Add Milestone Handlers
+    const handleAddQuickMilestone = () => {
+        // Find the latest end date among existing and quick milestones
+        let latestDate = '';
+        
+        // Check existing milestones
+        if (milestones.length > 0) {
+            const sorted = [...milestones].sort((a, b) => {
+                const dateA = a.dueDate ? new Date(a.dueDate).getTime() : 0;
+                const dateB = b.dueDate ? new Date(b.dueDate).getTime() : 0;
+                return dateB - dateA;
+            });
+            if (sorted[0].dueDate) {
+                latestDate = sorted[0].dueDate.split('T')[0];
+            }
+        }
+        
+        // If there are already quick milestones, use the latest one's end date
+        if (quickAddMilestones.length > 0) {
+            const lastQuick = quickAddMilestones[quickAddMilestones.length - 1];
+            if (lastQuick.dueDate) {
+                latestDate = lastQuick.dueDate;
+            }
+        }
+        
+        setQuickAddMilestones(prev => [
+            ...prev,
+            {
+                name: '',
+                description: '',
+                startDate: latestDate,
+                dueDate: '',
+                status: MilestoneStatus.NotStarted,
+                projectId: id,
+                tempId: Date.now() + Math.random()
+            }
+        ]);
+        
+        // Scroll to the bottom of the container
+        setTimeout(() => {
+            if (milestoneContainerRef.current) {
+                milestoneContainerRef.current.scrollTo({
+                    top: milestoneContainerRef.current.scrollHeight,
+                    behavior: 'smooth'
+                });
+            }
+        }, 100);
+    };
+
+    const handleQuickMilestoneChange = (tempId: number, field: string, value: any) => {
+        setQuickAddMilestones(prev => prev.map(m => 
+            m.tempId === tempId ? { ...m, [field]: value } : m
+        ));
+    };
+
+    const handleRemoveQuickForm = (tempId: number) => {
+        setQuickAddMilestones(prev => prev.filter(m => m.tempId !== tempId));
+    };
+
+    const handleQuickMilestoneSave = async (tempId: number) => {
+        const milestoneToSave = quickAddMilestones.find(m => m.tempId === tempId);
+        if (!milestoneToSave) return;
+        
+        if (!milestoneToSave.name) {
+            showToast('Please name the research phase.', 'error');
+            return;
+        }
+
+        try {
+            // Prepare data with correct ISO date format as required by the backend
+            const dataToSave = {
+                ...milestoneToSave,
+                startDate: new Date(milestoneToSave.startDate).toISOString(),
+                dueDate: milestoneToSave.dueDate ? new Date(milestoneToSave.dueDate).toISOString() : null
+            };
+
+            await milestoneService.create(dataToSave);
+            showToast('Research phase created successfully.', 'success');
+            setQuickAddMilestones(prev => prev.filter(m => m.tempId !== tempId));
+            await refetchMilestones();
+        } catch (error) {
+            console.error('Failed to create milestone:', error);
+            showToast('Failed to create research phase.', 'error');
+        }
+    };
+
+    const checkOverlap = (startDate: string, dueDate: string) => {
+        if (!startDate || !dueDate) return false;
+        
+        // Normalize dates to YYYY-MM-DD for consistent comparison
+        const s = startDate.split('T')[0];
+        const e = dueDate.split('T')[0];
+        
+        const isOverlap = (s1: string, e1: string, s2: string, e2: string) => {
+            // Returns true if there is any intersection between [s1, e1] and [s2, e2]
+            return s1 <= e2 && e1 >= s2;
+        };
+        
+        // ONLY check against existing (saved) milestones as per user request
+        return milestones.some(m => {
+            if (!m.startDate || !m.dueDate || m.startDate.startsWith('0001')) return false;
+            const ms = m.startDate.split('T')[0];
+            const me = m.dueDate.split('T')[0];
+            return isOverlap(s, e, ms, me);
+        });
+    };
 
 
 
@@ -365,6 +477,11 @@ const ProjectDetails: React.FC = () => {
         [ProjectRoleEnum.Leader, ProjectRoleEnum.LabDirector, ProjectRoleEnum.SeniorResearcher].includes(Number(projectRoleValue));
     const isArchived = project?.status === ProjectStatus.Archived;
     const isReadOnly = (isArchived && !isAdmin) || !canManageProject;
+    const hasLeader = members.some(m => 
+        Number(m.projectRole) === ProjectRoleEnum.Leader || 
+        m.roleName === 'Leader' || 
+        m.projectRoleName === 'Leader'
+    );
 
     const filteredMembers = members.filter(m => {
         const query = memberSearchQuery.toLowerCase();
@@ -464,8 +581,20 @@ const ProjectDetails: React.FC = () => {
             (task.description?.toLowerCase().includes(taskSearchQuery.toLowerCase()) || false);
         const matchesStatus = taskStatusFilter === 'all' || task.status.toString() === taskStatusFilter;
         const matchesPriority = taskPriorityFilter === 'all' || task.priority.toString() === taskPriorityFilter;
-        const matchesMyTasks = true;
-        return matchesSearch && matchesStatus && matchesPriority && matchesMyTasks;
+        const matchesMilestone = taskMilestoneFilter === 'all' || 
+                                (taskMilestoneFilter === 'none' ? !task.milestoneId : task.milestoneId === taskMilestoneFilter);
+        
+        // Date filtering (by due date)
+        let matchesDate = true;
+        if (task.dueDate) {
+            const taskDate = new Date(task.dueDate).getTime();
+            if (taskStartDateFilter && taskDate < new Date(taskStartDateFilter).getTime()) matchesDate = false;
+            if (taskEndDateFilter && taskDate > new Date(taskEndDateFilter).getTime()) matchesDate = false;
+        } else if (taskStartDateFilter || taskEndDateFilter) {
+            matchesDate = false; // Tasks without due date don't match date range
+        }
+
+        return matchesSearch && matchesStatus && matchesPriority && matchesMilestone && matchesDate;
     });
 
     const filteredMilestones = milestones
@@ -707,7 +836,31 @@ const ProjectDetails: React.FC = () => {
                                             <button className="btn btn-text" style={{ fontSize: '0.8rem' }} onClick={() => setActiveTab('tasks')}>View All</button>
                                         </div>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                            {tasks.slice(0, 3).map(task => {
+                                            <style>{`
+                                                @keyframes warningBlink {
+                                                    0%, 100% { opacity: 1; transform: scale(1); }
+                                                    50% { opacity: 0.5; transform: scale(1.3); }
+                                                }
+                                            `}</style>
+                                            {[...tasks]
+                                                .sort((a, b) => {
+                                                    const isNearDeadlineA = a.dueDate && (a.status !== TaskStatus.Completed && a.status !== TaskStatus.Submitted) && ((new Date(a.dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) <= 3;
+                                                    const isNearDeadlineB = b.dueDate && (b.status !== TaskStatus.Completed && b.status !== TaskStatus.Submitted) && ((new Date(b.dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) <= 3;
+
+                                                    if (isNearDeadlineA && !isNearDeadlineB) return -1;
+                                                    if (!isNearDeadlineA && isNearDeadlineB) return 1;
+
+                                                    const aDone = a.status === TaskStatus.Completed || a.status === TaskStatus.Submitted;
+                                                    const bDone = b.status === TaskStatus.Completed || b.status === TaskStatus.Submitted;
+                                                    if (!aDone && bDone) return -1;
+                                                    if (aDone && !bDone) return 1;
+
+                                                    const dateA = a.dueDate ? new Date(a.dueDate).getTime() : Infinity;
+                                                    const dateB = b.dueDate ? new Date(b.dueDate).getTime() : Infinity;
+                                                    return dateA - dateB;
+                                                })
+                                                .slice(0, 3)
+                                                .map(task => {
                                                 const getStatusColor = (status: TaskStatus) => {
                                                     switch (status) {
                                                         case TaskStatus.Todo: return '#64748b';
@@ -719,11 +872,23 @@ const ProjectDetails: React.FC = () => {
                                                         default: return '#64748b';
                                                     }
                                                 };
+                                                
+                                                const isNearDeadline = task.dueDate && (task.status !== TaskStatus.Completed && task.status !== TaskStatus.Submitted) && ((new Date(task.dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) <= 3;
+                                                
                                                 return (
-                                                    <div key={task.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.9rem', padding: '8px', border: '1px solid #f1f5f9', borderRadius: '8px' }}>
+                                                    <div key={task.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.9rem', padding: '8px', border: '1px solid #f1f5f9', borderRadius: '8px', position: 'relative' }}>
                                                         <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: getStatusColor(task.status) }} />
                                                         <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{task.name}</span>
                                                         <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{formatProjectDate(task.dueDate, 'No date')}</span>
+                                                        {isNearDeadline && (
+                                                            <div style={{
+                                                                position: 'absolute', right: '-4px', top: '-4px',
+                                                                width: '8px', height: '8px', borderRadius: '50%',
+                                                                background: '#ef4444', border: '1.5px solid white',
+                                                                boxShadow: '0 0 6px #ef4444',
+                                                                animation: 'warningBlink 1s ease-in-out infinite'
+                                                            }} title="Deadline is within 3 days or overdue!" />
+                                                        )}
                                                     </div>
                                                 );
                                             })}
@@ -961,6 +1126,156 @@ const ProjectDetails: React.FC = () => {
                                             </p>
                                         </div>
                                     )}
+
+                                    {/* Quick Add Forms */}
+                                    {quickAddMilestones.map((form, index) => {
+                                        const isOverlapping = checkOverlap(form.startDate, form.dueDate);
+                                        return (
+                                            <div 
+                                                key={form.tempId}
+                                                style={{ 
+                                                    position: 'relative', 
+                                                    marginBottom: '2rem',
+                                                    marginTop: index === 0 ? '4rem' : '0',
+                                                    background: 'white',
+                                                    border: '1px solid var(--border-color)',
+                                                    borderRadius: '16px',
+                                                    padding: '1.25rem',
+                                                    boxShadow: 'var(--shadow-sm)',
+                                                    transition: 'all 0.3s'
+                                                }}
+                                            >
+                                                {/* Timeline decoration for quick add form */}
+                                                <div style={{
+                                                    position: 'absolute',
+                                                    left: '-4rem',
+                                                    top: '10px',
+                                                    width: '26px',
+                                                    height: '26px',
+                                                    borderRadius: '50%',
+                                                    background: 'white',
+                                                    border: '3px solid #cbd5e1',
+                                                    zIndex: 2,
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center'
+                                                }}>
+                                                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#cbd5e1' }} />
+                                                </div>
+
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b' }}>
+                                                        <Plus size={16} />
+                                                        <span style={{ fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase' }}>New Quick Phase</span>
+                                                    </div>
+                                                    <button 
+                                                        onClick={() => handleRemoveQuickForm(form.tempId)}
+                                                        style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
+                                                    >
+                                                        <X size={18} />
+                                                    </button>
+                                                </div>
+
+                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                                                    <div className="form-group" style={{ marginBottom: 0 }}>
+                                                        <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '4px', display: 'block' }}>PHASE NAME</label>
+                                                        <input 
+                                                            type="text" 
+                                                            className="form-input" 
+                                                            placeholder="Enter phase name..."
+                                                            value={form.name}
+                                                            onChange={(e) => handleQuickMilestoneChange(form.tempId, 'name', e.target.value)}
+                                                            autoFocus
+                                                        />
+                                                    </div>
+                                                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                                        <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                                                            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '4px', display: 'block' }}>START DATE</label>
+                                                            <input 
+                                                                type="date" 
+                                                                className="form-input" 
+                                                                style={{ 
+                                                                    borderColor: isOverlapping ? '#E8720C' : undefined,
+                                                                    boxShadow: isOverlapping ? '0 0 0 1px #E8720C' : undefined
+                                                                }}
+                                                                value={form.startDate}
+                                                                onChange={(e) => handleQuickMilestoneChange(form.tempId, 'startDate', e.target.value)}
+                                                            />
+                                                        </div>
+                                                        <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                                                            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '4px', display: 'block' }}>DUE DATE</label>
+                                                            <input 
+                                                                type="date" 
+                                                                className="form-input" 
+                                                                style={{ 
+                                                                    borderColor: isOverlapping ? '#E8720C' : undefined,
+                                                                    boxShadow: isOverlapping ? '0 0 0 1px #E8720C' : undefined
+                                                                }}
+                                                                value={form.dueDate}
+                                                                onChange={(e) => handleQuickMilestoneChange(form.tempId, 'dueDate', e.target.value)}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                                                    <div style={{ flex: 1, marginRight: '1rem' }}>
+                                                        <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '4px', display: 'block' }}>DESCRIPTION (OPTIONAL)</label>
+                                                        <input 
+                                                            type="text" 
+                                                            className="form-input" 
+                                                            placeholder="Add a brief description..."
+                                                            value={form.description}
+                                                            onChange={(e) => handleQuickMilestoneChange(form.tempId, 'description', e.target.value)}
+                                                        />
+                                                    </div>
+                                                    <button 
+                                                        className="btn btn-primary"
+                                                        style={{ height: '42px', padding: '0 1.5rem', display: 'flex', alignItems: 'center', gap: '8px' }}
+                                                        onClick={() => handleQuickMilestoneSave(form.tempId)}
+                                                    >
+                                                        <Save size={18} /> Save
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+
+                                    {/* Quick Add Button at the bottom */}
+                                    {canManageMilestones && !isArchived && (
+                                        <button
+                                            onClick={handleAddQuickMilestone}
+                                            style={{
+                                                width: '100%',
+                                                padding: '1rem',
+                                                background: 'transparent',
+                                                border: '2px dashed #cbd5e1',
+                                                borderRadius: '16px',
+                                                color: '#64748b',
+                                                fontSize: '0.9rem',
+                                                fontWeight: 600,
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                gap: '10px',
+                                                cursor: 'pointer',
+                                                transition: 'all 0.2s',
+                                                marginTop: filteredMilestones.length > 0 ? '1rem' : 0
+                                            }}
+                                            onMouseOver={(e) => {
+                                                e.currentTarget.style.background = '#f1f5f9';
+                                                e.currentTarget.style.borderColor = '#94a3b8';
+                                                e.currentTarget.style.color = 'var(--primary-color)';
+                                            }}
+                                            onMouseOut={(e) => {
+                                                e.currentTarget.style.background = 'transparent';
+                                                e.currentTarget.style.borderColor = '#cbd5e1';
+                                                e.currentTarget.style.color = '#64748b';
+                                            }}
+                                        >
+                                            <Plus size={20} /> Add Quick Research Phase
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         )}
@@ -973,13 +1288,15 @@ const ProjectDetails: React.FC = () => {
                                         <h2 style={{ margin: 0 }}>Research Team</h2>
                                         <p style={{ color: 'var(--text-secondary)', margin: 0 }}>Manage contributors and roles within this project.</p>
                                     </div>
-                                    <button
-                                        className="btn btn-primary"
-                                        style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
-                                        onClick={() => setIsAddMemberModalOpen(true)}
-                                    >
-                                        <UserPlus size={18} /> Add Member
-                                    </button>
+                                    {canManageProject && (
+                                        <button
+                                            className="btn btn-primary"
+                                            style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                                            onClick={() => setIsAddMemberModalOpen(true)}
+                                        >
+                                            <UserPlus size={18} /> Add Member
+                                        </button>
+                                    )}
                                 </div>
 
                                 <div style={{
@@ -1054,6 +1371,11 @@ const ProjectDetails: React.FC = () => {
                                             <div style={{ flex: 1 }}>
                                                 <h4 style={{ margin: 0, fontSize: '1rem' }}>{member.fullName || member.userName}</h4>
                                                 <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{member.roleName || member.projectRoleName}</p>
+                                                {(member.joinDate || member.joinedDate) && (
+                                                    <p style={{ margin: '2px 0 0 0', fontSize: '0.7rem', color: '#94a3b8' }}>
+                                                        In team since {new Date(member.joinDate || member.joinedDate).toLocaleDateString()}
+                                                    </p>
+                                                )}
                                             </div>
                                             <div style={{
                                                 padding: '4px 8px',
@@ -1115,12 +1437,12 @@ const ProjectDetails: React.FC = () => {
                                     border: '1px solid #e2e8f0',
                                     marginBottom: '1rem'
                                 }}>
-                                    <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                                        <div style={{ position: 'relative', flex: 1, minWidth: '200px' }}>
+                                    <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+                                        <div style={{ position: 'relative', flex: 1, minWidth: '250px' }}>
                                             <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
                                             <input
                                                 type="text"
-                                                placeholder="Search activities by name or description..."
+                                                placeholder="Search by name or description..."
                                                 value={taskSearchQuery}
                                                 onChange={(e) => setTaskSearchQuery(e.target.value)}
                                                 style={{
@@ -1130,7 +1452,6 @@ const ProjectDetails: React.FC = () => {
                                                     border: '1.5px solid #e2e8f0',
                                                     fontSize: '0.9rem',
                                                     outline: 'none',
-                                                    transition: 'border-color 0.2s',
                                                     background: 'white'
                                                 }}
                                             />
@@ -1180,48 +1501,93 @@ const ProjectDetails: React.FC = () => {
                                             <option value="4">Critical</option>
                                         </select>
 
-                                        <button
-                                            onClick={() => {
-                                                setTaskSearchQuery('');
-                                                setTaskStatusFilter('all');
-                                                setTaskPriorityFilter('all');
-                                                setShowMyTasks(false);
-                                            }}
+                                        <select
+                                            value={taskMilestoneFilter}
+                                            onChange={(e) => setTaskMilestoneFilter(e.target.value)}
                                             style={{
-                                                padding: '0.75rem 1.25rem',
-                                                background: 'white',
-                                                border: '1.5px solid #e2e8f0',
+                                                padding: '0.75rem 1rem',
                                                 borderRadius: '12px',
-                                                color: '#64748b',
-                                                fontWeight: 700,
+                                                border: '1.5px solid #e2e8f0',
+                                                background: 'white',
+                                                fontWeight: 600,
                                                 fontSize: '0.85rem',
+                                                minWidth: '160px',
                                                 cursor: 'pointer'
                                             }}
                                         >
-                                            Reset Filters
-                                        </button>
+                                            <option value="all">All Phases</option>
+                                            {milestones.map(m => (
+                                                <option key={m.id} value={m.id}>{m.name}</option>
+                                            ))}
+                                            <option value="none">Independent Tasks</option>
+                                        </select>
+                                    </div>
 
-                                        <button
-                                            onClick={() => setShowMyTasks(!showMyTasks)}
-                                            style={{
-                                                padding: '0.75rem 1.25rem',
-                                                background: showMyTasks ? 'var(--primary-color)' : 'white',
-                                                border: '1.5px solid',
-                                                borderColor: showMyTasks ? 'var(--primary-color)' : '#e2e8f0',
-                                                borderRadius: '12px',
-                                                color: showMyTasks ? 'white' : '#64748b',
-                                                fontWeight: 700,
-                                                fontSize: '0.85rem',
-                                                cursor: 'pointer',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '8px',
-                                                transition: 'all 0.2s'
-                                            }}
-                                        >
-                                            <User size={16} />
-                                            {showMyTasks ? 'My Tasks' : 'All Tasks'}
-                                        </button>
+                                    <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'white', padding: '0 12px', borderRadius: '12px', border: '1.5px solid #e2e8f0' }}>
+                                            <Calendar size={16} color="#94a3b8" />
+                                            <input
+                                                type="date"
+                                                value={taskStartDateFilter}
+                                                onChange={(e) => setTaskStartDateFilter(e.target.value)}
+                                                style={{ border: 'none', background: 'none', padding: '0.75rem 0', fontSize: '0.85rem', fontWeight: 600, outline: 'none', width: '120px' }}
+                                                title="Start date filter"
+                                            />
+                                            <span style={{ color: '#cbd5e1' }}>-</span>
+                                            <input
+                                                type="date"
+                                                value={taskEndDateFilter}
+                                                onChange={(e) => setTaskEndDateFilter(e.target.value)}
+                                                style={{ border: 'none', background: 'none', padding: '0.75rem 0', fontSize: '0.85rem', fontWeight: 600, outline: 'none', width: '120px' }}
+                                                title="End date filter"
+                                            />
+                                        </div>
+
+                                        <div style={{ display: 'flex', gap: '10px', marginLeft: 'auto' }}>
+                                            <button
+                                                onClick={() => {
+                                                    setTaskSearchQuery('');
+                                                    setTaskStatusFilter('all');
+                                                    setTaskPriorityFilter('all');
+                                                    setTaskMilestoneFilter('all');
+                                                    setTaskStartDateFilter('');
+                                                    setTaskEndDateFilter('');
+                                                }}
+                                                style={{
+                                                    padding: '0.75rem 1.5rem',
+                                                    background: 'white',
+                                                    border: '1.5px solid #e2e8f0',
+                                                    borderRadius: '12px',
+                                                    color: '#64748b',
+                                                    fontWeight: 700,
+                                                    fontSize: '0.85rem',
+                                                    cursor: 'pointer'
+                                                }}
+                                            >
+                                                Reset
+                                            </button>
+
+                                            <button
+                                                onClick={() => setShowMyTasks(!showMyTasks)}
+                                                style={{
+                                                    padding: '0.75rem 1.25rem',
+                                                    background: showMyTasks ? 'var(--primary-color)' : 'white',
+                                                    border: '1.5px solid',
+                                                    borderColor: showMyTasks ? 'var(--primary-color)' : '#e2e8f0',
+                                                    borderRadius: '12px',
+                                                    color: showMyTasks ? 'white' : '#64748b',
+                                                    fontWeight: 700,
+                                                    fontSize: '0.85rem',
+                                                    cursor: 'pointer',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '8px'
+                                                }}
+                                            >
+                                                <User size={16} />
+                                                {showMyTasks ? 'My Tasks' : 'All Tasks'}
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -1503,6 +1869,10 @@ const ProjectDetails: React.FC = () => {
                 projectMembers={members}
                 task={editingTask}
                 milestones={milestones}
+                projectStartDate={project?.startDate as string | undefined}
+                projectEndDate={project?.endDate as string | undefined}
+                existingTasks={tasks}
+                projectId={id || ''}
             />
 
             <TaskDetailModal
@@ -1512,6 +1882,8 @@ const ProjectDetails: React.FC = () => {
                 projectMembers={members}
                 milestones={milestones}
                 onTaskUpdated={refetchTasks}
+                projectStartDate={project?.startDate as string | undefined}
+                projectEndDate={project?.endDate as string | undefined}
             />
             <Modal
                 isOpen={isStatusConfirmOpen}
@@ -1560,6 +1932,9 @@ const ProjectDetails: React.FC = () => {
                 }}
                 onSubmit={handleMilestoneSubmit}
                 milestone={editingMilestone}
+                existingMilestones={milestones}
+                projectStartDate={project.startDate || undefined}
+                projectEndDate={project.endDate || undefined}
             />
 
             <MilestoneDetailModal
@@ -1571,12 +1946,17 @@ const ProjectDetails: React.FC = () => {
                 projectId={id || ''}
                 projectMembers={members}
                 milestones={milestones}
+                projectStartDate={project?.startDate as string | undefined}
+                projectEndDate={project?.endDate as string | undefined}
             />
 
             <AddMemberModal
                 isOpen={isAddMemberModalOpen}
                 onClose={() => setIsAddMemberModalOpen(false)}
                 projectId={id || ''}
+                hasLeader={hasLeader}
+                currentProjectRole={Number(projectRoleValue)}
+                existingMemberIds={members.map(m => m.userId || m.id)}
                 onSuccess={() => {
                     refetchMembers();
                     showToast('Member added to project successfully!', 'success');
@@ -1610,6 +1990,7 @@ const ProjectDetails: React.FC = () => {
                 member={selectedMember}
                 projectId={id || ''}
                 currentUser={currentUser}
+                currentUserProjectRole={Number(projectRoleValue)}
                 canManage={canManageProject}
                 onSuccess={() => {
                     refetchMembers();

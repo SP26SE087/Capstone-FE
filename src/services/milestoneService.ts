@@ -14,13 +14,14 @@ export const milestoneService = {
 
     create: async (milestoneData: any): Promise<any> => {
         try {
-            // Filter fields for AddMilestoneRequest (status not allowed on create)
+            // Filter fields for AddMilestoneRequest
             const payload = {
                 projectId: milestoneData.projectId,
                 name: milestoneData.name,
                 description: milestoneData.description,
                 startDate: milestoneData.startDate,
-                dueDate: milestoneData.dueDate
+                dueDate: milestoneData.dueDate,
+                status: milestoneData.status !== undefined ? milestoneData.status : 0
             };
             const response = await api.post('/api/projects/milestones', payload);
             return response.data;

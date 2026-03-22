@@ -51,6 +51,20 @@ const CreateReport: React.FC = () => {
         assigneeIds: [] as string[] // Assignees allowed to be empty initially
     });
 
+    // Flexible role check
+    const isLabDirector = React.useMemo(() => {
+        const role = user?.role;
+        if (!role) return false;
+        const roleNum = Number(role);
+        return roleNum === 1 || roleNum === 2 || String(role).toLowerCase().includes('director') || String(role).toLowerCase().includes('admin');
+    }, [user?.role]);
+
+    useEffect(() => {
+        if (isLabDirector) {
+            navigate('/reports');
+        }
+    }, [isLabDirector, navigate]);
+
     useEffect(() => {
         const fetchMeta = async () => {
             try {
@@ -90,34 +104,14 @@ const CreateReport: React.FC = () => {
 
     const handleSave = async () => {
         if (!formData.title.trim()) {
-            return showToast("Please enter a report title.", "error");
+            return showToast("Please enter a report title to save draft.", "error");
         }
         
-        if (!formData.goals.trim()) {
-            return showToast("Please enter strategic goals.", "error");
-        }
-        
-        if (!formData.achievements.trim()) {
-            return showToast("Please enter key achievements.", "error");
-        }
-        
-        if (!formData.blockers.trim()) {
-            return showToast("Please enter current blockers.", "error");
-        }
-        
-        if (!formData.nextWeek.trim()) {
-            return showToast("Please enter future plans.", "error");
-        }
-        
-        if (formData.assigneeIds.length === 0) {
-            return showToast("Please select at least one assignee.", "error");
-        }
-
         setSubmitting(true);
         try {
             const payload = {
                 ...formData,
-                userId: user.userId,
+                userId: user.userId || '',
                 projectId: formData.projectId || null,
                 milestoneId: formData.milestoneId || null,
             };
@@ -138,6 +132,41 @@ const CreateReport: React.FC = () => {
         } catch (error: any) {
             console.error('Failed to create report:', error);
             const msg = error.response?.data?.message || error.message || "Failed to create report.";
+            showToast(msg, "error");
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const handleSubmit = async () => {
+        if (!formData.title.trim()) return showToast("Please enter a report title.", "error");
+        if (!formData.projectId) return showToast("Please select a project before submitting.", "error");
+        if (!formData.milestoneId) return showToast("Please select a milestone before submitting.", "error");
+        if (!formData.goals.trim()) return showToast("Please enter strategic goals.", "error");
+        if (!formData.achievements.trim()) return showToast("Please enter key achievements.", "error");
+        if (!formData.blockers.trim()) return showToast("Please enter current blockers.", "error");
+        if (!formData.nextWeek.trim()) return showToast("Please enter future plans.", "error");
+        if (formData.assigneeIds.length === 0) return showToast("Please select at least one assignee.", "error");
+
+        setSubmitting(true);
+        try {
+            // 1. Create the report
+            const payload = {
+                ...formData,
+                userId: user.userId || '',
+            };
+            const response = await reportService.createReport(payload);
+            const newReport = response?.data || response;
+            
+            if (newReport?.id) {
+                // 2. Submit the report (Update status to 1)
+                await reportService.updateReportStatus(newReport.id, 1);
+                showToast("Report submitted successfully!", "success");
+                setTimeout(() => navigate(`/reports/${newReport.id}`), 1000);
+            }
+        } catch (error: any) {
+            console.error('Failed to submit report:', error);
+            const msg = error.response?.data?.message || error.message || "Failed to submit report.";
             showToast(msg, "error");
         } finally {
             setSubmitting(false);
@@ -224,7 +253,7 @@ const CreateReport: React.FC = () => {
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                                 <div>
                                     <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '8px' }}>
-                                        Project
+                                        Project <span style={{ color: '#0ea5e9', fontSize: '0.65rem' }}>(Required for submit)</span>
                                     </label>
                                     <button onClick={() => setIsProjectModalOpen(true)} style={{ width: '100%', textAlign: 'left', border: '1px solid #e2e8f0', background: 'white', padding: '10px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
                                         <Briefcase size={16} />
@@ -236,7 +265,7 @@ const CreateReport: React.FC = () => {
                                 </div>
 
                                 <div>
-                                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '8px' }}>Milestone</label>
+                                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '8px' }}>Milestone <span style={{ color: '#0ea5e9', fontSize: '0.65rem' }}>(Required for submit)</span></label>
                                     <button onClick={() => { if (!formData.projectId) return; setIsMilestoneModalOpen(true); }} style={{ width: '100%', textAlign: 'left', border: '1px solid #e2e8f0', background: 'white', padding: '10px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', opacity: formData.projectId ? 1 : 0.5 }}>
                                         <Zap size={16} />
                                         <span style={{ flex: 1, fontSize: '0.85rem' }}>{milestones.find(m => m.id === formData.milestoneId)?.name || 'Select Milestone'}</span>
@@ -282,9 +311,9 @@ const CreateReport: React.FC = () => {
 
                             <button 
                                 className="btn btn-primary" 
-                                disabled={true}
-                                title="Draft creation required before submission"
-                                style={{ width: '100%', padding: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', borderRadius: '8px', fontWeight: 600, opacity: 0.5, cursor: 'not-allowed', marginTop: '1rem' }}
+                                onClick={handleSubmit}
+                                disabled={submitting}
+                                style={{ width: '100%', padding: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', borderRadius: '8px', fontWeight: 600, marginTop: '1rem' }}
                             >
                                 <Send size={18} /> Submit Report
                             </button>

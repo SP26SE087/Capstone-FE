@@ -20,6 +20,7 @@ import { Milestone, MilestoneStatus, Task, TaskStatus, ProjectMember } from '@/t
 import { milestoneService, taskService } from '@/services';
 import TaskDetailModal from '../tasks/TaskDetailModal';
 import TaskFormModal from '../tasks/TaskFormModal';
+import MilestoneRoadmapPreview from './MilestoneRoadmapPreview';
 import Toast, { ToastType } from '@/components/common/Toast';
 
 interface MilestoneDetailModalProps {
@@ -31,6 +32,8 @@ interface MilestoneDetailModalProps {
     projectId: string;
     projectMembers: ProjectMember[];
     milestones: Milestone[];
+    projectStartDate?: string;
+    projectEndDate?: string;
 }
 
 const MilestoneDetailModal: React.FC<MilestoneDetailModalProps> = ({
@@ -41,7 +44,9 @@ const MilestoneDetailModal: React.FC<MilestoneDetailModalProps> = ({
     canManage,
     projectId,
     projectMembers,
-    milestones
+    milestones,
+    projectStartDate,
+    projectEndDate
 }) => {
     const [milestone, setMilestone] = useState<Milestone | null>(null);
     const [tasks, setTasks] = useState<Task[]>([]);
@@ -389,7 +394,29 @@ const MilestoneDetailModal: React.FC<MilestoneDetailModalProps> = ({
                             <div className="loader"></div>
                         </div>
                     ) : milestone ? (
-                        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '2.5rem' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                            {/* Visual Roadmap Preview */}
+                            <div style={{ margin: '-2rem -2rem 0 -2rem' }}>
+                                <MilestoneRoadmapPreview 
+                                    existingMilestones={milestones.filter(m => m.id !== milestone.id)}
+                                    currentMilestones={isEditMode && name && startDate && dueDate ? [{
+                                        id: milestone.id,
+                                        name: name,
+                                        startDate: startDate,
+                                        dueDate: dueDate
+                                    }] : (milestone.startDate && milestone.dueDate ? [{
+                                        id: milestone.id,
+                                        name: milestone.name,
+                                        startDate: milestone.startDate,
+                                        dueDate: milestone.dueDate
+                                    }] : [])}
+                                    projectStartDate={projectStartDate}
+                                    projectEndDate={projectEndDate}
+                                    highlightId={milestone.id}
+                                />
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '2.5rem' }}>
                             {/* Left Side: Info & Tasks or Form */}
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
                                 {isEditMode ? (
@@ -658,6 +685,7 @@ const MilestoneDetailModal: React.FC<MilestoneDetailModalProps> = ({
                                 )}
                             </div>
                         </div>
+                    </div>
                     ) : (
                         <div style={{ textAlign: 'center', padding: '3rem' }}>
                             <AlertCircle size={48} color="#ef4444" style={{ margin: '0 auto 1rem' }} />

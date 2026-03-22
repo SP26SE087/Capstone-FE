@@ -31,7 +31,7 @@ const Reports: React.FC = () => {
     const [filterProjectId, setFilterProjectId] = useState<string>('');
     const [filterMilestoneId, setFilterMilestoneId] = useState<string>('');
     const [filterStatus, setFilterStatus] = useState<string>('');
-    const [topK, setTopK] = useState<number>(5);
+    const topK = 5;
     const [milestones, setMilestones] = useState<any[]>([]);
     const [isSemantic, setIsSemantic] = useState<boolean>(false);
 
@@ -49,6 +49,14 @@ const Reports: React.FC = () => {
         const roleStr = String(role).toLowerCase();
         return roleStr === 'admin' || roleStr === 'lab director' || roleStr === 'labdirector';
     }, [user?.role]);
+
+    useEffect(() => {
+        if (isLabDirector) {
+            setActiveTab('my_assignee');
+        } else {
+            setActiveTab('my_reports');
+        }
+    }, [isLabDirector]);
 
     useEffect(() => {
         fetchReports();
@@ -195,22 +203,24 @@ const Reports: React.FC = () => {
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: '1px solid var(--border-color)', marginBottom: '1.5rem' }}>
                     <div className="tabs" style={{ display: 'flex', gap: '0.2rem' }}>
-                        <button 
-                            onClick={() => setActiveTab('my_reports')}
-                            style={{ 
-                                border: 'none', 
-                                borderBottom: activeTab === 'my_reports' ? '3px solid var(--primary-color)' : '3px solid transparent', 
-                                padding: '0.75rem 1.25rem', 
-                                background: 'transparent', 
-                                cursor: 'pointer', 
-                                fontWeight: activeTab === 'my_reports' ? 600 : 500,
-                                color: activeTab === 'my_reports' ? 'var(--primary-color)' : 'var(--text-secondary)',
-                                transition: 'all 0.2s',
-                                fontSize: '0.95rem'
-                            }}
-                        >
-                            My Reports
-                        </button>
+                        {!isLabDirector && (
+                            <button 
+                                onClick={() => setActiveTab('my_reports')}
+                                style={{ 
+                                    border: 'none', 
+                                    borderBottom: activeTab === 'my_reports' ? '3px solid var(--primary-color)' : '3px solid transparent', 
+                                    padding: '0.75rem 1.25rem', 
+                                    background: 'transparent', 
+                                    cursor: 'pointer', 
+                                    fontWeight: activeTab === 'my_reports' ? 600 : 500,
+                                    color: activeTab === 'my_reports' ? 'var(--primary-color)' : 'var(--text-secondary)',
+                                    transition: 'all 0.2s',
+                                    fontSize: '0.95rem'
+                                }}
+                            >
+                                My Reports
+                            </button>
+                        )}
                         <button 
                             onClick={() => setActiveTab('my_assignee')}
                             style={{ 
@@ -250,20 +260,22 @@ const Reports: React.FC = () => {
                         )}
                     </div>
 
-                    <button 
-                        className="btn btn-primary" 
-                        onClick={() => navigate('/reports/new')} 
-                        style={{ 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            gap: '8px', 
-                            fontWeight: 600,
-                            marginBottom: '8px' // Slightly up to center with tab text if needed
-                        }}
-                    >
-                        <Plus size={18} />
-                        Create Report
-                    </button>
+                    {!isLabDirector && (
+                        <button 
+                            className="btn btn-primary" 
+                            onClick={() => navigate('/reports/new')} 
+                            style={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                gap: '8px', 
+                                fontWeight: 600,
+                                marginBottom: '8px' // Slightly up to center with tab text if needed
+                            }}
+                        >
+                            <Plus size={18} />
+                            Create Report
+                        </button>
+                    )}
                 </div>
 
                 {/* Search & Filter Bar - Redesigned for better UX */}
@@ -373,22 +385,7 @@ const Reports: React.FC = () => {
                                 </select>
                             </div>
 
-                            {isSemantic && (
-                                <div style={{ flex: '2 1 250px', background: '#f8fafc', padding: '8px 16px', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', fontWeight: 700, color: '#64748b', marginBottom: '6px' }}>
-                                        <span>AI Precision (max results)</span>
-                                        <span style={{ color: '#0ea5e9' }}>{topK} results</span>
-                                    </div>
-                                    <input 
-                                        type="range" 
-                                        min="1" 
-                                        max="10" 
-                                        value={topK} 
-                                        onChange={(e) => setTopK(Number(e.target.value))}
-                                        style={{ width: '100%', accentColor: '#0ea5e9', cursor: 'pointer' }}
-                                    />
-                                </div>
-                            )}
+
                         </div>
                     </form>
                 </div>

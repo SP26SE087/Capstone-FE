@@ -1,8 +1,9 @@
 import React, { useState, useRef } from 'react';
-import { Task, TaskStatus, ProjectMember } from '@/types';
+import { Task, TaskStatus, ProjectMember, ProjectRoleEnum } from '@/types';
 import TaskItem from '@/components/task/TaskItem';
 import { Plus, MoreHorizontal } from 'lucide-react';
 import TaskFormModal from './TaskFormModal';
+import { useAuth } from '@/hooks/useAuth';
 import TaskDetailModal from './TaskDetailModal';
 
 import { taskService } from '@/services';
@@ -18,10 +19,10 @@ interface KanbanBoardProps {
 
 import { Milestone } from '@/types/milestone';
 
-const DraggableColumn: React.FC<{ 
-    tasks: Task[], 
+const DraggableColumn: React.FC<{
+    tasks: Task[],
     milestones: Milestone[],
-    onTaskClick: (task: Task) => void 
+    onTaskClick: (task: Task) => void
 }> = ({ tasks, milestones, onTaskClick }) => {
     const columnRef = useRef<HTMLDivElement>(null);
     const [isDragging, setIsDragging] = useState(false);
@@ -70,16 +71,16 @@ const DraggableColumn: React.FC<{
             }}
         >
             {tasks.map(task => (
-                <div 
-                    key={task.id} 
+                <div
+                    key={task.id}
                     onClickCapture={(e) => {
                         if (hasMoved) {
                             e.stopPropagation();
                         }
                     }}
                 >
-                    <TaskItem 
-                        task={task} 
+                    <TaskItem
+                        task={task}
                         milestoneName={milestones.find(m => {
                             const mId = String(m.id || (m as any).ID || '').toLowerCase();
                             const tMid = String(task.milestoneId || (task as any).milestoneID || (task as any).milestone_id || '').toLowerCase();
@@ -87,7 +88,7 @@ const DraggableColumn: React.FC<{
                         })?.name}
                         onClick={(t) => {
                             if (!hasMoved) onTaskClick(t);
-                        }} 
+                        }}
                     />
                 </div>
             ))}
@@ -103,11 +104,15 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
     onTaskUpdated,
     milestones
 }) => {
+    const { user: currentUser } = useAuth();
+    const currentMember = projectMembers.find(m => m.userId === currentUser?.userId || m.memberId === currentUser?.userId || String(m.id) === String(currentUser?.userId));
+    const isAuthorizedToAdd = currentUser?.role === 'Admin' || (currentMember && [ProjectRoleEnum.LabDirector, ProjectRoleEnum.Leader].includes(currentMember.projectRole as ProjectRoleEnum));
+
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedStatus, setSelectedStatus] = useState<TaskStatus>(TaskStatus.Todo);
     const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
-    
+
     // Drag to scroll logic
     const scrollRef = useRef<HTMLDivElement>(null);
     const [isDragging, setIsDragging] = useState(false);
@@ -173,10 +178,10 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
 
     return (
         <>
-            <div style={{ 
-                display: 'flex', 
-                gap: '1rem', 
-                marginBottom: '2rem', 
+            <div style={{
+                display: 'flex',
+                gap: '1rem',
+                marginBottom: '2rem',
                 flexWrap: 'wrap',
                 background: 'white',
                 padding: '1.25rem',
@@ -213,7 +218,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
                 ))}
             </div>
 
-            <div 
+            <div
                 ref={scrollRef}
                 onMouseDown={handleMouseDown}
                 onMouseLeave={handleMouseLeave}
@@ -274,43 +279,45 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
                                 </button>
                             </div>
 
-                            <DraggableColumn 
-                                tasks={columnTasks} 
+                            <DraggableColumn
+                                tasks={columnTasks}
                                 milestones={milestones}
-                                onTaskClick={handleTaskClick} 
+                                onTaskClick={handleTaskClick}
                             />
 
-                            <button
-                                onClick={() => handleAddTask(column.id)}
-                                style={{
-                                    marginTop: '0.5rem',
-                                    width: '100%',
-                                    padding: '0.75rem',
-                                    background: 'transparent',
-                                    border: '1px dashed #cbd5e1',
-                                    borderRadius: '12px',
-                                    color: '#64748b',
-                                    fontSize: '0.85rem',
-                                    fontWeight: 500,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: '8px',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s ease'
-                                }}
-                                onMouseOver={(e) => {
-                                    e.currentTarget.style.background = '#f1f5f9';
-                                    e.currentTarget.style.borderColor = '#94a3b8';
-                                }}
-                                onMouseOut={(e) => {
-                                    e.currentTarget.style.background = 'transparent';
-                                    e.currentTarget.style.borderColor = '#cbd5e1';
-                                }}
-                            >
-                                <Plus size={16} />
-                                Add Activity
-                            </button>
+                            {isAuthorizedToAdd && (
+                                <button
+                                    onClick={() => handleAddTask(column.id)}
+                                    style={{
+                                        marginTop: '0.5rem',
+                                        width: '100%',
+                                        padding: '0.75rem',
+                                        background: 'transparent',
+                                        border: '1px dashed #cbd5e1',
+                                        borderRadius: '12px',
+                                        color: '#64748b',
+                                        fontSize: '0.85rem',
+                                        fontWeight: 500,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '8px',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s ease'
+                                    }}
+                                    onMouseOver={(e) => {
+                                        e.currentTarget.style.background = '#f1f5f9';
+                                        e.currentTarget.style.borderColor = '#94a3b8';
+                                    }}
+                                    onMouseOut={(e) => {
+                                        e.currentTarget.style.background = 'transparent';
+                                        e.currentTarget.style.borderColor = '#cbd5e1';
+                                    }}
+                                >
+                                    <Plus size={16} />
+                                    Add Activity
+                                </button>
+                            )}
                         </div>
                     );
                 })}

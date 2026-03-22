@@ -153,6 +153,9 @@ const ReportDetail: React.FC = () => {
 
     const handleUpdate = async () => {
         if (!id) return;
+        if (!editData.title.trim()) {
+            return showToast("Please enter a report title.", "error");
+        }
         setSubmitting(true);
         try {
             const payload = {
@@ -180,6 +183,23 @@ const ReportDetail: React.FC = () => {
 
     const confirmFinalSubmit = async () => {
         if (!id || !report) return;
+
+        // Validation: Project and Milestone are mandatory for final submission
+        if (!report.projectId) {
+            setIsSubmitModalOpen(false);
+            return showToast("Please select a project before submitting this report.", "error");
+        }
+        if (!report.milestoneId) {
+            setIsSubmitModalOpen(false);
+            return showToast("Please select a milestone before submitting this report.", "error");
+        }
+        
+        // Content validation
+        if (!report.goals?.trim() || !report.achievements?.trim() || !report.blockers?.trim() || !report.nextWeek?.trim()) {
+            setIsSubmitModalOpen(false);
+            return showToast("Please fill in all required content sections before submitting.", "error");
+        }
+
         setIsSubmitModalOpen(false);
         setSubmitting(true);
         try {
@@ -406,7 +426,7 @@ const ReportDetail: React.FC = () => {
                             
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                                 <div>
-                                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '8px' }}>Project</label>
+                                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '8px' }}>Project <span style={{ color: '#0ea5e9', fontSize: '0.65rem' }}>(Required for submit)</span></label>
                                     {isEditMode ? (
                                         <button onClick={() => setIsProjectModalOpen(true)} style={{ width: '100%', textAlign: 'left', border: '1px solid #e2e8f0', background: 'white', padding: '10px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
                                             <Briefcase size={16} />
@@ -423,7 +443,7 @@ const ReportDetail: React.FC = () => {
                                 </div>
 
                                 <div>
-                                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '8px' }}>Milestone</label>
+                                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '8px' }}>Milestone <span style={{ color: '#0ea5e9', fontSize: '0.65rem' }}>(Required for submit)</span></label>
                                     {isEditMode ? (
                                         <button onClick={() => { if (!editData.projectId) return; setIsMilestoneModalOpen(true); }} style={{ width: '100%', textAlign: 'left', border: '1px solid #e2e8f0', background: 'white', padding: '10px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', opacity: editData.projectId ? 1 : 0.5 }}>
                                             <Zap size={16} />

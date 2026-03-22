@@ -7,8 +7,27 @@ const mockTasks: Task[] = [];
 export const taskService = {
     getPriorityTasks: async (): Promise<Task[]> => {
         try {
-            const response = await api.get('/api/projects/tasks?limit=5');
-            return response.data.data || response.data;
+            const response = await api.get('/api/projects/tasks/me');
+            let tasks = response.data.data || response.data;
+            if (Array.isArray(tasks)) {
+                tasks = tasks.sort((a: any, b: any) => {
+                    const isNearDeadlineA = a.dueDate && (a.status !== 6 && a.status !== 3) && ((new Date(a.dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) <= 3;
+                    const isNearDeadlineB = b.dueDate && (b.status !== 6 && b.status !== 3) && ((new Date(b.dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) <= 3;
+
+                    if (isNearDeadlineA && !isNearDeadlineB) return -1;
+                    if (!isNearDeadlineA && isNearDeadlineB) return 1;
+
+                    const aDone = a.status === 6 || a.status === 3;
+                    const bDone = b.status === 6 || b.status === 3;
+                    if (!aDone && bDone) return -1;
+                    if (aDone && !bDone) return 1;
+
+                    const dateA = a.dueDate ? new Date(a.dueDate).getTime() : Infinity;
+                    const dateB = b.dueDate ? new Date(b.dueDate).getTime() : Infinity;
+                    return dateA - dateB;
+                });
+            }
+            return tasks;
         } catch (error) {
             console.error('Error fetching tasks:', error);
             return [];
