@@ -13,22 +13,22 @@ export default defineConfig({
     server: {
         proxy: {
             '/api/auth': {
-                target: 'https://127.0.0.1:7268',
+                target: 'https://localhost:7268',
                 changeOrigin: true,
                 secure: false,
             },
             '/api/users': {
-                target: 'https://127.0.0.1:7268',
+                target: 'https://localhost:7268',
                 changeOrigin: true,
                 secure: false,
             },
             '/api/papersubmissions': {
-                target: 'https://127.0.0.1:7252',
+                target: 'https://localhost:7252',
                 changeOrigin: true,
                 secure: false,
             },
             '/api': {
-                target: 'https://127.0.0.1:7215',
+                target: 'https://localhost:7215',
                 changeOrigin: true,
                 secure: false,
             },
