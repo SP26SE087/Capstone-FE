@@ -30,6 +30,7 @@ import {
     Calendar,
     User,
     Search,
+    Filter,
     X
 } from 'lucide-react';
 import { ProjectRoleEnum } from '@/types/project';
@@ -43,6 +44,8 @@ import MilestoneDetailModal from '@/features/milestones/MilestoneDetailModal';
 import AddMemberModal from '@/features/projects/AddMemberModal';
 import MemberDetailModal from '@/features/projects/MemberDetailModal';
 import ProjectTimeline from '@/features/projects/ProjectTimeline';
+import TaskRoadmapPreview from '@/features/tasks/TaskRoadmapPreview';
+import SearchableSelect from '@/components/common/SearchableSelect';
 
 type ActiveTab = 'home' | 'timeline' | 'milestones' | 'members' | 'tasks' | 'settings';
 
@@ -61,7 +64,7 @@ const ProjectDetails: React.FC = () => {
     const location = useLocation();
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<ActiveTab>(location.state?.activeTab || 'home');
-    const [taskView, setTaskView] = useState<'list' | 'board'>('board');
+    const [taskView, setTaskView] = useState<'list' | 'board'>('list');
     const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
     const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
     const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -78,12 +81,13 @@ const ProjectDetails: React.FC = () => {
 
     // ─── Task Search & Filter State ──────────────────────────────────────────
     const [taskSearchQuery, setTaskSearchQuery] = useState('');
-    const [taskStatusFilter, setTaskStatusFilter] = useState<string>('all');
+    const [taskStatusFilters, setTaskStatusFilters] = useState<string[]>([]);
     const [taskPriorityFilter, setTaskPriorityFilter] = useState<string>('all');
-    const [taskMilestoneFilter, setTaskMilestoneFilter] = useState<string>('all');
+    const [taskMilestoneFilters, setTaskMilestoneFilters] = useState<string[]>([]);
     const [taskStartDateFilter, setTaskStartDateFilter] = useState<string>('');
     const [taskEndDateFilter, setTaskEndDateFilter] = useState<string>('');
     const [showMyTasks, setShowMyTasks] = useState(true);
+    const [showTaskFilters, setShowTaskFilters] = useState(false);
 
     // ─── Milestone Search & Filter State ──────────────────────────────────────
     const [milestoneSearchQuery, setMilestoneSearchQuery] = useState('');
@@ -108,6 +112,10 @@ const ProjectDetails: React.FC = () => {
     const [pendingStatus, setPendingStatus] = useState<ProjectStatus | null>(null);
     const [toast, setToast] = useState<{ message: string; type: ToastType; duration?: number } | null>(null);
     const [quickAddMilestones, setQuickAddMilestones] = useState<any[]>([]);
+    const [newTasks, setNewTasks] = useState<any[]>([]);
+    const [activeTaskDraftId, setActiveTaskDraftId] = useState<string | null>(null);
+    const [isDraftQueueOpen, setIsDraftQueueOpen] = useState(false);
+    const [showDraftDropdown, setShowDraftDropdown] = useState(false);
     const milestoneContainerRef = useRef<HTMLDivElement>(null);
 
     const showToast = (message: string, type: ToastType = 'info', duration: number = 3000) => {
@@ -130,7 +138,7 @@ const ProjectDetails: React.FC = () => {
 
                 setCurrentMember(memberInfo);
                 const memberId = memberInfo?.memberId || memberInfo?.id;
-                
+
                 // Fetch tasks first as requested
                 if (showMyTasks && memberId) {
                     const myTasks = await taskService.getTaskByMember(memberId);
@@ -264,9 +272,9 @@ const ProjectDetails: React.FC = () => {
                             .filter((item: any) => !item.success)
                             .map((item: any) => item.request?.name || `Item ${item.index + 1}`)
                             .join(', ');
-                        
+
                         const firstError = response.data.find((item: any) => !item.success)?.errorMessage;
-                        
+
                         if (successCount > 0) {
                             showToast(`${successCount}/${totalCount} phases created. Failed: [${failedNames}]. Error: ${firstError || 'Format error'}`, 'warning', 8000);
                         } else {
@@ -325,9 +333,9 @@ const ProjectDetails: React.FC = () => {
                             .filter((item: any) => !item.success)
                             .map((item: any) => item.request?.name || `Item ${item.index + 1}`)
                             .join(', ');
-                        
+
                         const firstError = response.data.find((item: any) => !item.success)?.errorMessage;
-                        
+
                         if (successCount > 0) {
                             showToast(`${successCount}/${totalCount} tasks created. Failed: [${failedNames}]. Error: ${firstError || 'Format error'}`, 'warning', 8000);
                         } else {
@@ -356,12 +364,12 @@ const ProjectDetails: React.FC = () => {
             showToast('Failed to save research activity.', 'error');
         }
     };
-    
+
     // Quick Add Milestone Handlers
     const handleAddQuickMilestone = () => {
         // Find the latest end date among existing and quick milestones
         let latestDate = '';
-        
+
         // Check existing milestones
         if (milestones.length > 0) {
             const sorted = [...milestones].sort((a, b) => {
@@ -373,7 +381,7 @@ const ProjectDetails: React.FC = () => {
                 latestDate = sorted[0].dueDate.split('T')[0];
             }
         }
-        
+
         // If there are already quick milestones, use the latest one's end date
         if (quickAddMilestones.length > 0) {
             const lastQuick = quickAddMilestones[quickAddMilestones.length - 1];
@@ -381,7 +389,7 @@ const ProjectDetails: React.FC = () => {
                 latestDate = lastQuick.dueDate;
             }
         }
-        
+
         setQuickAddMilestones(prev => [
             ...prev,
             {
@@ -394,7 +402,7 @@ const ProjectDetails: React.FC = () => {
                 tempId: Date.now() + Math.random()
             }
         ]);
-        
+
         // Scroll to the bottom of the container
         setTimeout(() => {
             if (milestoneContainerRef.current) {
@@ -407,7 +415,7 @@ const ProjectDetails: React.FC = () => {
     };
 
     const handleQuickMilestoneChange = (tempId: number, field: string, value: any) => {
-        setQuickAddMilestones(prev => prev.map(m => 
+        setQuickAddMilestones(prev => prev.map(m =>
             m.tempId === tempId ? { ...m, [field]: value } : m
         ));
     };
@@ -419,7 +427,7 @@ const ProjectDetails: React.FC = () => {
     const handleQuickMilestoneSave = async (tempId: number) => {
         const milestoneToSave = quickAddMilestones.find(m => m.tempId === tempId);
         if (!milestoneToSave) return;
-        
+
         if (!milestoneToSave.name) {
             showToast('Please name the research phase.', 'error');
             return;
@@ -443,18 +451,140 @@ const ProjectDetails: React.FC = () => {
         }
     };
 
+    // ─── Inline Task Handlers ──────────────────────────────────────────────
+    const addInlineTask = () => {
+        const newId = `new-${Date.now()}-${Math.random()}`;
+        setNewTasks(prev => [
+            ...prev,
+            {
+                id: newId,
+                name: '',
+                description: '',
+                startDate: new Date().toISOString().split('T')[0],
+                dueDate: '',
+                priority: 2, // Medium
+                milestoneId: '',
+                memberIds: [],
+                collaboratorIds: [],
+                status: TaskStatus.Todo
+            }
+        ]);
+        setActiveTaskDraftId(newId);
+        setIsDraftQueueOpen(true);
+    };
+
+    const updateInlineTask = (draftId: string, field: string, value: any) => {
+        setNewTasks(prev => prev.map(t => t.id === draftId ? { ...t, [field]: value } : t));
+    };
+
+    const removeInlineTask = (draftId: string) => {
+        setNewTasks(prev => {
+            const filtered = prev.filter(t => t.id !== draftId);
+            if (activeTaskDraftId === draftId) {
+                setActiveTaskDraftId(filtered.length > 0 ? filtered[filtered.length - 1].id : null);
+            }
+            return filtered;
+        });
+    };
+
+    const saveInlineTask = async (draftId: string) => {
+        const row = newTasks.find(t => t.id === draftId);
+        if (!row) return;
+
+        if (!row.name || !row.startDate || !row.dueDate) {
+            showToast('Please fill in activity name and dates.', 'error');
+            return;
+        }
+
+        try {
+            const dataToSave = {
+                name: row.name,
+                description: row.description,
+                startDate: new Date(row.startDate).toISOString(),
+                dueDate: new Date(row.dueDate).toISOString(),
+                priority: Number(row.priority),
+                status: Number(row.status),
+                milestoneId: row.milestoneId || null,
+                memberId: row.memberIds[0] || null, // Primary assignee
+                supportMembers: [...row.memberIds.slice(1), ...(row.collaboratorIds || [])], // Rest + collaborators
+                projectId: id // From useParams
+            };
+
+            await taskService.create(dataToSave);
+            showToast('Research activity registered successfully!', 'success');
+
+            setNewTasks(prev => {
+                const filtered = prev.filter(t => t.id !== draftId);
+                if (activeTaskDraftId === draftId) {
+                    setActiveTaskDraftId(filtered.length > 0 ? filtered[filtered.length - 1].id : null);
+                }
+                return filtered;
+            });
+            await refetchTasks();
+        } catch (error) {
+            console.error('Failed to register research activity:', error);
+            showToast('Failed to register research activity.', 'error');
+        }
+    };
+
+    const saveAllInlineTasks = async () => {
+        const validTasks = newTasks.filter(t => t.name && t.startDate && t.dueDate);
+        if (validTasks.length === 0) {
+            showToast('No valid complete tasks to save. Ensure all fields are filled.', 'warning');
+            return;
+        }
+
+        setSubmitting(true);
+        let successCount = 0;
+        let failCount = 0;
+
+        for (const row of validTasks) {
+            try {
+                const dataToSave = {
+                    name: row.name,
+                    description: row.description,
+                    startDate: new Date(row.startDate).toISOString(),
+                    dueDate: new Date(row.dueDate).toISOString(),
+                    priority: Number(row.priority),
+                    status: Number(row.status),
+                    milestoneId: row.milestoneId || null,
+                    memberId: row.memberIds[0] || null,
+                    supportMembers: [...row.memberIds.slice(1), ...(row.collaboratorIds || [])],
+                    projectId: id
+                };
+                await taskService.create(dataToSave);
+                successCount++;
+            } catch {
+                failCount++;
+            }
+        }
+
+        setSubmitting(false);
+        if (successCount > 0) {
+            showToast(`Successfully registered ${successCount} activities!`, 'success');
+            setNewTasks(prev => prev.filter(t => !validTasks.some(vt => vt.id === t.id)));
+            if (validTasks.some(vt => vt.id === activeTaskDraftId)) {
+                setActiveTaskDraftId(null);
+            }
+            await refetchTasks();
+        }
+        if (failCount > 0) {
+            showToast(`Failed to register ${failCount} activities.`, 'error');
+        }
+    };
+
     const checkOverlap = (startDate: string, dueDate: string) => {
         if (!startDate || !dueDate) return false;
-        
+
         // Normalize dates to YYYY-MM-DD for consistent comparison
         const s = startDate.split('T')[0];
         const e = dueDate.split('T')[0];
-        
+
         const isOverlap = (s1: string, e1: string, s2: string, e2: string) => {
             // Returns true if there is any intersection between [s1, e1] and [s2, e2]
             return s1 <= e2 && e1 >= s2;
         };
-        
+
         // ONLY check against existing (saved) milestones as per user request
         return milestones.some(m => {
             if (!m.startDate || !m.dueDate || m.startDate.startsWith('0001')) return false;
@@ -477,9 +607,9 @@ const ProjectDetails: React.FC = () => {
         [ProjectRoleEnum.Leader, ProjectRoleEnum.LabDirector, ProjectRoleEnum.SeniorResearcher].includes(Number(projectRoleValue));
     const isArchived = project?.status === ProjectStatus.Archived;
     const isReadOnly = (isArchived && !isAdmin) || !canManageProject;
-    const hasLeader = members.some(m => 
-        Number(m.projectRole) === ProjectRoleEnum.Leader || 
-        m.roleName === 'Leader' || 
+    const hasLeader = members.some(m =>
+        Number(m.projectRole) === ProjectRoleEnum.Leader ||
+        m.roleName === 'Leader' ||
         m.projectRoleName === 'Leader'
     );
 
@@ -579,11 +709,11 @@ const ProjectDetails: React.FC = () => {
     const filteredTasks = tasks.filter(task => {
         const matchesSearch = task.name.toLowerCase().includes(taskSearchQuery.toLowerCase()) ||
             (task.description?.toLowerCase().includes(taskSearchQuery.toLowerCase()) || false);
-        const matchesStatus = taskStatusFilter === 'all' || task.status.toString() === taskStatusFilter;
+        const matchesStatus = taskStatusFilters.length === 0 || taskStatusFilters.includes(task.status.toString());
         const matchesPriority = taskPriorityFilter === 'all' || task.priority.toString() === taskPriorityFilter;
-        const matchesMilestone = taskMilestoneFilter === 'all' || 
-                                (taskMilestoneFilter === 'none' ? !task.milestoneId : task.milestoneId === taskMilestoneFilter);
-        
+        const matchesMilestone = taskMilestoneFilters.length === 0 ||
+            taskMilestoneFilters.includes(task.milestoneId || '');
+
         // Date filtering (by due date)
         let matchesDate = true;
         if (task.dueDate) {
@@ -601,7 +731,7 @@ const ProjectDetails: React.FC = () => {
         .filter(m => {
             const matchesSearch = (m.name || '').toLowerCase().includes(milestoneSearchQuery.toLowerCase()) ||
                 (m.description || '').toLowerCase().includes(milestoneSearchQuery.toLowerCase());
-            
+
             if (milestoneStatusFilter === 'all') {
                 // Default view: Todo, In Progress, Completed
                 return matchesSearch && [MilestoneStatus.NotStarted, MilestoneStatus.InProgress, MilestoneStatus.Completed].includes(m.status);
@@ -620,7 +750,7 @@ const ProjectDetails: React.FC = () => {
             // Priority 1: First InProgress milestone
             const inProgress = filteredMilestones.filter(m => m.status === MilestoneStatus.InProgress);
             let targetId: string | null = null;
-            
+
             if (inProgress.length > 0) {
                 targetId = inProgress[0].id; // Already sorted by dueDate in filtreredMilestones
             } else {
@@ -751,7 +881,7 @@ const ProjectDetails: React.FC = () => {
                                     <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                         <Clock size={14} />
                                         {formatProjectDate(project.createdAt, 'Established N/A') === 'Established N/A' ? 'Established N/A' : `Created ${new Date(project.createdAt!).toLocaleString(undefined, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}`}
-                                        { (project.NameProjectCreator || project.nameProjectCreator || project.createdBy) && ` by ${project.NameProjectCreator || project.nameProjectCreator || project.createdBy}`}
+                                        {(project.NameProjectCreator || project.nameProjectCreator || project.createdBy) && ` by ${project.NameProjectCreator || project.nameProjectCreator || project.createdBy}`}
                                     </span>
                                     <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                         <Users size={14} /> {members.length} Active Members
@@ -861,37 +991,37 @@ const ProjectDetails: React.FC = () => {
                                                 })
                                                 .slice(0, 3)
                                                 .map(task => {
-                                                const getStatusColor = (status: TaskStatus) => {
-                                                    switch (status) {
-                                                        case TaskStatus.Todo: return '#64748b';
-                                                        case TaskStatus.InProgress: return '#0ea5e9';
-                                                        case TaskStatus.Submitted: return '#7c3aed';
-                                                        case TaskStatus.Missed: return '#ef4444';
-                                                        case TaskStatus.Adjusting: return '#f59e0b';
-                                                        case TaskStatus.Completed: return '#10b981';
-                                                        default: return '#64748b';
-                                                    }
-                                                };
-                                                
-                                                const isNearDeadline = task.dueDate && (task.status !== TaskStatus.Completed && task.status !== TaskStatus.Submitted) && ((new Date(task.dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) <= 3;
-                                                
-                                                return (
-                                                    <div key={task.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.9rem', padding: '8px', border: '1px solid #f1f5f9', borderRadius: '8px', position: 'relative' }}>
-                                                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: getStatusColor(task.status) }} />
-                                                        <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{task.name}</span>
-                                                        <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{formatProjectDate(task.dueDate, 'No date')}</span>
-                                                        {isNearDeadline && (
-                                                            <div style={{
-                                                                position: 'absolute', right: '-4px', top: '-4px',
-                                                                width: '8px', height: '8px', borderRadius: '50%',
-                                                                background: '#ef4444', border: '1.5px solid white',
-                                                                boxShadow: '0 0 6px #ef4444',
-                                                                animation: 'warningBlink 1s ease-in-out infinite'
-                                                            }} title="Deadline is within 3 days or overdue!" />
-                                                        )}
-                                                    </div>
-                                                );
-                                            })}
+                                                    const getStatusColor = (status: TaskStatus) => {
+                                                        switch (status) {
+                                                            case TaskStatus.Todo: return '#64748b';
+                                                            case TaskStatus.InProgress: return '#0ea5e9';
+                                                            case TaskStatus.Submitted: return '#7c3aed';
+                                                            case TaskStatus.Missed: return '#ef4444';
+                                                            case TaskStatus.Adjusting: return '#f59e0b';
+                                                            case TaskStatus.Completed: return '#10b981';
+                                                            default: return '#64748b';
+                                                        }
+                                                    };
+
+                                                    const isNearDeadline = task.dueDate && (task.status !== TaskStatus.Completed && task.status !== TaskStatus.Submitted) && ((new Date(task.dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) <= 3;
+
+                                                    return (
+                                                        <div key={task.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.9rem', padding: '8px', border: '1px solid #f1f5f9', borderRadius: '8px', position: 'relative' }}>
+                                                            <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: getStatusColor(task.status) }} />
+                                                            <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{task.name}</span>
+                                                            <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{formatProjectDate(task.dueDate, 'No date')}</span>
+                                                            {isNearDeadline && (
+                                                                <div style={{
+                                                                    position: 'absolute', right: '-4px', top: '-4px',
+                                                                    width: '8px', height: '8px', borderRadius: '50%',
+                                                                    background: '#ef4444', border: '1.5px solid white',
+                                                                    boxShadow: '0 0 6px #ef4444',
+                                                                    animation: 'warningBlink 1s ease-in-out infinite'
+                                                                }} title="Deadline is within 3 days or overdue!" />
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
                                             {tasks.length === 0 && <p style={{ fontSize: '0.85rem', color: '#94a3b8', textAlign: 'center' }}>No recent research tasks.</p>}
                                         </div>
                                     </section>
@@ -917,7 +1047,7 @@ const ProjectDetails: React.FC = () => {
 
                         {/* ── TIMELINE ──────────────────────────────────────── */}
                         {activeTab === 'timeline' && project && (
-                            <ProjectTimeline 
+                            <ProjectTimeline
                                 project={project}
                                 timelineData={timelineData}
                                 onTaskClick={handleTaskClick}
@@ -1042,10 +1172,10 @@ const ProjectDetails: React.FC = () => {
                                     </div>
                                 </div>
 
-                                <div 
+                                <div
                                     ref={milestoneContainerRef}
-                                    style={{ 
-                                        maxHeight: '600px', 
+                                    style={{
+                                        maxHeight: '600px',
                                         overflowY: filteredMilestones.length > 3 ? 'auto' : 'visible',
                                         paddingLeft: '6rem', // More space for date labels
                                         paddingRight: '1rem',
@@ -1054,12 +1184,12 @@ const ProjectDetails: React.FC = () => {
                                         position: 'relative'
                                     }} className="custom-scrollbar">
                                     {filteredMilestones.length > 0 ? filteredMilestones.map((milestone, idx) => (
-                                        <div 
-                                            key={milestone.id} 
+                                        <div
+                                            key={milestone.id}
                                             id={`milestone-item-${milestone.id}`}
-                                            style={{ 
-                                                position: 'relative', 
-                                                marginBottom: idx === filteredMilestones.length - 1 ? 0 : '2rem' 
+                                            style={{
+                                                position: 'relative',
+                                                marginBottom: idx === filteredMilestones.length - 1 ? 0 : '2rem'
                                             }}
                                         >
                                             {/* Vertical Line Segment */}
@@ -1085,21 +1215,20 @@ const ProjectDetails: React.FC = () => {
                                                 height: '26px',
                                                 borderRadius: '50%',
                                                 background: 'white',
-                                                border: `3px solid ${
-                                                    milestone.status === MilestoneStatus.Completed ? '#10b981' : 
+                                                border: `3px solid ${milestone.status === MilestoneStatus.Completed ? '#10b981' :
                                                     milestone.status === MilestoneStatus.InProgress ? '#E8720C' : '#e2e8f0'
-                                                }`,
+                                                    }`,
                                                 zIndex: 2,
                                                 display: 'flex',
                                                 alignItems: 'center',
                                                 justifyContent: 'center'
                                             }}>
-                                                <div style={{ 
-                                                    width: '8px', 
-                                                    height: '8px', 
-                                                    borderRadius: '50%', 
-                                                    background: milestone.status === MilestoneStatus.InProgress ? '#E8720C' : 
-                                                               milestone.status === MilestoneStatus.Completed ? '#10b981' : '#e2e8f0'
+                                                <div style={{
+                                                    width: '8px',
+                                                    height: '8px',
+                                                    borderRadius: '50%',
+                                                    background: milestone.status === MilestoneStatus.InProgress ? '#E8720C' :
+                                                        milestone.status === MilestoneStatus.Completed ? '#10b981' : '#e2e8f0'
                                                 }} />
 
                                                 {/* Node Due Date Label */}
@@ -1131,10 +1260,10 @@ const ProjectDetails: React.FC = () => {
                                     {quickAddMilestones.map((form, index) => {
                                         const isOverlapping = checkOverlap(form.startDate, form.dueDate);
                                         return (
-                                            <div 
+                                            <div
                                                 key={form.tempId}
-                                                style={{ 
-                                                    position: 'relative', 
+                                                style={{
+                                                    position: 'relative',
                                                     marginBottom: '2rem',
                                                     marginTop: index === 0 ? '4rem' : '0',
                                                     background: 'white',
@@ -1168,7 +1297,7 @@ const ProjectDetails: React.FC = () => {
                                                         <Plus size={16} />
                                                         <span style={{ fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase' }}>New Quick Phase</span>
                                                     </div>
-                                                    <button 
+                                                    <button
                                                         onClick={() => handleRemoveQuickForm(form.tempId)}
                                                         style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
                                                     >
@@ -1179,22 +1308,22 @@ const ProjectDetails: React.FC = () => {
                                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                                                     <div className="form-group" style={{ marginBottom: 0 }}>
                                                         <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '4px', display: 'block' }}>PHASE NAME</label>
-                                                        <input 
-                                                            type="text" 
-                                                            className="form-input" 
+                                                        <input
+                                                            type="text"
+                                                            className="form-input"
                                                             placeholder="Enter phase name..."
                                                             value={form.name}
                                                             onChange={(e) => handleQuickMilestoneChange(form.tempId, 'name', e.target.value)}
                                                             autoFocus
                                                         />
                                                     </div>
-                                                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
                                                         <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
                                                             <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '4px', display: 'block' }}>START DATE</label>
-                                                            <input 
-                                                                type="date" 
-                                                                className="form-input" 
-                                                                style={{ 
+                                                            <input
+                                                                type="date"
+                                                                className="form-input"
+                                                                style={{
                                                                     borderColor: isOverlapping ? '#E8720C' : undefined,
                                                                     boxShadow: isOverlapping ? '0 0 0 1px #E8720C' : undefined
                                                                 }}
@@ -1204,10 +1333,10 @@ const ProjectDetails: React.FC = () => {
                                                         </div>
                                                         <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
                                                             <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '4px', display: 'block' }}>DUE DATE</label>
-                                                            <input 
-                                                                type="date" 
-                                                                className="form-input" 
-                                                                style={{ 
+                                                            <input
+                                                                type="date"
+                                                                className="form-input"
+                                                                style={{
                                                                     borderColor: isOverlapping ? '#E8720C' : undefined,
                                                                     boxShadow: isOverlapping ? '0 0 0 1px #E8720C' : undefined
                                                                 }}
@@ -1221,15 +1350,15 @@ const ProjectDetails: React.FC = () => {
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
                                                     <div style={{ flex: 1, marginRight: '1rem' }}>
                                                         <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '4px', display: 'block' }}>DESCRIPTION (OPTIONAL)</label>
-                                                        <input 
-                                                            type="text" 
-                                                            className="form-input" 
+                                                        <input
+                                                            type="text"
+                                                            className="form-input"
                                                             placeholder="Add a brief description..."
                                                             value={form.description}
                                                             onChange={(e) => handleQuickMilestoneChange(form.tempId, 'description', e.target.value)}
                                                         />
                                                     </div>
-                                                    <button 
+                                                    <button
                                                         className="btn btn-primary"
                                                         style={{ height: '42px', padding: '0 1.5rem', display: 'flex', alignItems: 'center', gap: '8px' }}
                                                         onClick={() => handleQuickMilestoneSave(form.tempId)}
@@ -1418,7 +1547,7 @@ const ProjectDetails: React.FC = () => {
                                         {canAddTask && (
                                             <button
                                                 className="btn btn-primary"
-                                                onClick={() => setIsTaskModalOpen(true)}
+                                                onClick={addInlineTask}
                                                 style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: isArchived && !isAdmin ? 0.5 : 1, cursor: isArchived && !isAdmin ? 'not-allowed' : 'pointer' }}
                                                 disabled={isArchived && !isAdmin}
                                             >
@@ -1427,175 +1556,645 @@ const ProjectDetails: React.FC = () => {
                                         )}
                                     </div>
                                 </div>
+
+
                                 <div style={{
                                     display: 'flex',
-                                    flexDirection: 'column',
-                                    gap: '1.25rem',
+                                    gap: '12px',
+                                    alignItems: 'center',
                                     background: '#f8fafc',
-                                    padding: '1.5rem',
+                                    padding: '0.75rem 1rem',
                                     borderRadius: '16px',
                                     border: '1px solid #e2e8f0',
-                                    marginBottom: '1rem'
+                                    marginBottom: '0.25rem',
+                                    position: 'relative'
                                 }}>
-                                    <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
-                                        <div style={{ position: 'relative', flex: 1, minWidth: '250px' }}>
-                                            <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-                                            <input
-                                                type="text"
-                                                placeholder="Search by name or description..."
-                                                value={taskSearchQuery}
-                                                onChange={(e) => setTaskSearchQuery(e.target.value)}
-                                                style={{
-                                                    width: '100%',
-                                                    padding: '0.75rem 1rem 0.75rem 2.5rem',
-                                                    borderRadius: '12px',
-                                                    border: '1.5px solid #e2e8f0',
-                                                    fontSize: '0.9rem',
-                                                    outline: 'none',
-                                                    background: 'white'
-                                                }}
-                                            />
-                                        </div>
-
-                                        <select
-                                            value={taskStatusFilter}
-                                            onChange={(e) => setTaskStatusFilter(e.target.value)}
+                                    <div style={{ position: 'relative', flex: 1, minWidth: '200px' }}>
+                                        <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                                        <input
+                                            type="text"
+                                            placeholder="Search activities..."
+                                            value={taskSearchQuery}
+                                            onChange={(e) => setTaskSearchQuery(e.target.value)}
                                             style={{
-                                                padding: '0.75rem 1rem',
-                                                borderRadius: '12px',
+                                                width: '100%',
+                                                padding: '0.6rem 1rem 0.6rem 2.5rem',
+                                                borderRadius: '10px',
                                                 border: '1.5px solid #e2e8f0',
-                                                background: 'white',
-                                                fontWeight: 600,
                                                 fontSize: '0.85rem',
-                                                minWidth: '140px',
-                                                cursor: 'pointer'
-                                            }}
-                                        >
-                                            <option value="all">Any Status</option>
-                                            <option value={TaskStatus.Todo.toString()}>To Do</option>
-                                            <option value={TaskStatus.InProgress.toString()}>In Progress</option>
-                                            <option value={TaskStatus.Submitted.toString()}>Submitted</option>
-                                            <option value={TaskStatus.Missed.toString()}>Missed</option>
-                                            <option value={TaskStatus.Adjusting.toString()}>Adjusting</option>
-                                            <option value={TaskStatus.Completed.toString()}>Completed</option>
-                                        </select>
-
-                                        <select
-                                            value={taskPriorityFilter}
-                                            onChange={(e) => setTaskPriorityFilter(e.target.value)}
-                                            style={{
-                                                padding: '0.75rem 1rem',
-                                                borderRadius: '12px',
-                                                border: '1.5px solid #e2e8f0',
+                                                fontWeight: 500,
+                                                outline: 'none',
                                                 background: 'white',
-                                                fontWeight: 600,
-                                                fontSize: '0.85rem',
-                                                minWidth: '140px',
-                                                cursor: 'pointer'
+                                                transition: 'border-color 0.2s'
                                             }}
-                                        >
-                                            <option value="all">Any Priority</option>
-                                            <option value="1">Low</option>
-                                            <option value="2">Medium</option>
-                                            <option value="3">High</option>
-                                            <option value="4">Critical</option>
-                                        </select>
-
-                                        <select
-                                            value={taskMilestoneFilter}
-                                            onChange={(e) => setTaskMilestoneFilter(e.target.value)}
-                                            style={{
-                                                padding: '0.75rem 1rem',
-                                                borderRadius: '12px',
-                                                border: '1.5px solid #e2e8f0',
-                                                background: 'white',
-                                                fontWeight: 600,
-                                                fontSize: '0.85rem',
-                                                minWidth: '160px',
-                                                cursor: 'pointer'
-                                            }}
-                                        >
-                                            <option value="all">All Phases</option>
-                                            {milestones.map(m => (
-                                                <option key={m.id} value={m.id}>{m.name}</option>
-                                            ))}
-                                            <option value="none">Independent Tasks</option>
-                                        </select>
+                                            onFocus={(e) => e.target.style.borderColor = 'var(--primary-color)'}
+                                            onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
+                                        />
                                     </div>
 
-                                    <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'white', padding: '0 12px', borderRadius: '12px', border: '1.5px solid #e2e8f0' }}>
-                                            <Calendar size={16} color="#94a3b8" />
-                                            <input
-                                                type="date"
-                                                value={taskStartDateFilter}
-                                                onChange={(e) => setTaskStartDateFilter(e.target.value)}
-                                                style={{ border: 'none', background: 'none', padding: '0.75rem 0', fontSize: '0.85rem', fontWeight: 600, outline: 'none', width: '120px' }}
-                                                title="Start date filter"
-                                            />
-                                            <span style={{ color: '#cbd5e1' }}>-</span>
-                                            <input
-                                                type="date"
-                                                value={taskEndDateFilter}
-                                                onChange={(e) => setTaskEndDateFilter(e.target.value)}
-                                                style={{ border: 'none', background: 'none', padding: '0.75rem 0', fontSize: '0.85rem', fontWeight: 600, outline: 'none', width: '120px' }}
-                                                title="End date filter"
-                                            />
-                                        </div>
+                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                        <button
+                                            onClick={() => setShowTaskFilters(!showTaskFilters)}
+                                            style={{
+                                                padding: '0.65rem 1.25rem',
+                                                background: showTaskFilters ? '#f1f5f9' : 'white',
+                                                border: '1.5px solid #e2e8f0',
+                                                borderRadius: '10px',
+                                                color: '#475569',
+                                                fontWeight: 700,
+                                                fontSize: '0.85rem',
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '8px',
+                                                transition: 'all 0.2s'
+                                            }}
+                                        >
+                                            <Filter size={16} />
+                                            Filter
+                                        </button>
 
-                                        <div style={{ display: 'flex', gap: '10px', marginLeft: 'auto' }}>
-                                            <button
-                                                onClick={() => {
-                                                    setTaskSearchQuery('');
-                                                    setTaskStatusFilter('all');
-                                                    setTaskPriorityFilter('all');
-                                                    setTaskMilestoneFilter('all');
-                                                    setTaskStartDateFilter('');
-                                                    setTaskEndDateFilter('');
-                                                }}
-                                                style={{
-                                                    padding: '0.75rem 1.5rem',
-                                                    background: 'white',
-                                                    border: '1.5px solid #e2e8f0',
-                                                    borderRadius: '12px',
-                                                    color: '#64748b',
-                                                    fontWeight: 700,
-                                                    fontSize: '0.85rem',
-                                                    cursor: 'pointer'
-                                                }}
-                                            >
-                                                Reset
-                                            </button>
+                                        {showTaskFilters && (
+                                            <div style={{
+                                                position: 'absolute',
+                                                top: 'calc(100% + 8px)',
+                                                right: '1rem',
+                                                width: '320px',
+                                                background: 'white',
+                                                border: '1px solid #e2e8f0',
+                                                borderRadius: '16px',
+                                                boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
+                                                padding: '1.25rem',
+                                                zIndex: 1000,
+                                                animation: 'fadeInY 0.2s ease-out'
+                                            }}>
+                                                <div style={{ marginBottom: '1.25rem' }}>
+                                                    <h4 style={{ margin: '0 0 10px', fontSize: '0.75rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</h4>
+                                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                                        {[
+                                                            { id: TaskStatus.Todo, label: 'To Do' },
+                                                            { id: TaskStatus.InProgress, label: 'In Progress' },
+                                                            { id: TaskStatus.Submitted, label: 'Submitted' },
+                                                            { id: TaskStatus.Completed, label: 'Completed' },
+                                                            { id: TaskStatus.Missed, label: 'Missed' },
+                                                            { id: TaskStatus.Adjusting, label: 'Adjusting' }
+                                                        ].map(s => {
+                                                            const isChecked = taskStatusFilters.includes(s.id.toString());
+                                                            return (
+                                                                <div key={s.id} onClick={() => {
+                                                                    setTaskStatusFilters(prev => isChecked ? prev.filter(p => p !== s.id.toString()) : [...prev, s.id.toString()]);
+                                                                }}
+                                                                    style={{
+                                                                        display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '6px 8px', borderRadius: '8px', background: isChecked ? '#f0f9ff' : 'transparent', border: `1px solid ${isChecked ? '#bae6fd' : 'transparent'}`
+                                                                    }}>
+                                                                    <div style={{ width: '16px', height: '16px', borderRadius: '4px', border: '1.5px solid #cbd5e1', background: isChecked ? 'var(--primary-color)' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                                        {isChecked && <Check size={12} color="white" strokeWidth={3} />}
+                                                                    </div>
+                                                                    <span style={{ fontSize: '0.8rem', fontWeight: 600, color: isChecked ? '#0369a1' : '#64748b' }}>{s.label}</span>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
 
-                                            <button
-                                                onClick={() => setShowMyTasks(!showMyTasks)}
-                                                style={{
-                                                    padding: '0.75rem 1.25rem',
-                                                    background: showMyTasks ? 'var(--primary-color)' : 'white',
-                                                    border: '1.5px solid',
-                                                    borderColor: showMyTasks ? 'var(--primary-color)' : '#e2e8f0',
-                                                    borderRadius: '12px',
-                                                    color: showMyTasks ? 'white' : '#64748b',
-                                                    fontWeight: 700,
-                                                    fontSize: '0.85rem',
-                                                    cursor: 'pointer',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    gap: '8px'
-                                                }}
-                                            >
-                                                <User size={16} />
-                                                {showMyTasks ? 'My Tasks' : 'All Tasks'}
-                                            </button>
-                                        </div>
+                                                <div style={{ marginBottom: '1.25rem' }}>
+                                                    <h4 style={{ margin: '0 0 10px', fontSize: '0.75rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Phases (Milestones)</h4>
+                                                    <div style={{ maxHeight: '180px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }} className="custom-scrollbar-thin">
+                                                        {milestones.map(m => {
+                                                            const isChecked = taskMilestoneFilters.includes(m.id);
+                                                            return (
+                                                                <div key={m.id} onClick={() => {
+                                                                    setTaskMilestoneFilters(prev => isChecked ? prev.filter(p => p !== m.id) : [...prev, m.id]);
+                                                                }}
+                                                                    style={{
+                                                                        display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '6px 8px', borderRadius: '8px', background: isChecked ? '#f0f9ff' : 'transparent', border: `1px solid ${isChecked ? '#bae6fd' : 'transparent'}`
+                                                                    }}>
+                                                                    <div style={{ width: '16px', height: '16px', borderRadius: '4px', border: '1.5px solid #cbd5e1', background: isChecked ? 'var(--primary-color)' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                                        {isChecked && <Check size={12} color="white" strokeWidth={3} />}
+                                                                    </div>
+                                                                    <span style={{ fontSize: '0.8rem', fontWeight: 600, color: isChecked ? '#0369a1' : '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.name}</span>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '1rem', borderTop: '1px solid #f1f5f9', paddingTop: '1rem' }}>
+                                                    <button onClick={() => { setTaskStatusFilters([]); setTaskMilestoneFilters([]); }} style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}>Clear Filters</button>
+                                                    <button onClick={() => setShowTaskFilters(false)} style={{ background: 'var(--primary-color)', border: 'none', color: 'white', padding: '6px 16px', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}>Done</button>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        <button
+                                            onClick={() => setShowMyTasks(!showMyTasks)}
+                                            style={{
+                                                padding: '0.65rem 1.25rem',
+                                                background: showMyTasks ? 'var(--primary-color)' : 'white',
+                                                border: '1.5px solid',
+                                                borderColor: showMyTasks ? 'var(--primary-color)' : '#e2e8f0',
+                                                borderRadius: '10px',
+                                                color: showMyTasks ? 'white' : '#64748b',
+                                                fontWeight: 700,
+                                                fontSize: '0.85rem',
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '8px',
+                                                transition: 'all 0.2s'
+                                            }}
+                                        >
+                                            <User size={16} />
+                                            {showMyTasks ? 'My Items' : 'All Items'}
+                                        </button>
+
+                                        <button
+                                            onClick={() => {
+                                                setTaskSearchQuery('');
+                                                setTaskStatusFilters([]);
+                                                setTaskPriorityFilter('all');
+                                                setTaskMilestoneFilters([]);
+                                                setTaskStartDateFilter('');
+                                                setTaskEndDateFilter('');
+                                                setShowTaskFilters(false);
+                                            }}
+                                            style={{
+                                                padding: '0.65rem 1.25rem',
+                                                background: 'white',
+                                                border: '1.5px solid #e2e8f0',
+                                                borderRadius: '10px',
+                                                color: '#b91c1c', // Clear color
+                                                fontWeight: 700,
+                                                fontSize: '0.85rem',
+                                                cursor: 'pointer',
+                                                transition: 'all 0.2s'
+                                            }}
+                                            title="Reset all search/filters"
+                                        >
+                                            Reset
+                                        </button>
                                     </div>
                                 </div>
+
+                                {/* Action Header for Roadmap */}
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <div style={{ width: '4px', height: '18px', background: 'var(--primary-color)', borderRadius: '2px' }} />
+                                        <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 900, color: '#1e293b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Activities Roadmap</h3>
+                                    </div>
+                                </div>
+
+                                {/* Roadmap Context */}
+                                <div style={{ marginBottom: '1rem', border: '1px solid #e2e8f0', borderRadius: '16px', overflow: 'hidden', background: 'white', minHeight: '350px' }}>
+                                    <TaskRoadmapPreview
+                                        existingTasks={filteredTasks.map(t => ({
+                                            id: t.id,
+                                            name: t.name,
+                                            startDate: t.startDate || t.createdAt || "",
+                                            dueDate: t.dueDate || "",
+                                            description: t.description || "",
+                                            status: Number(t.status)
+                                        }))}
+                                        newTasks={newTasks.filter(r => r.name && r.startDate && r.dueDate).map(r => ({
+                                            id: r.id,
+                                            name: r.name,
+                                            startDate: r.startDate,
+                                            dueDate: r.dueDate
+                                        }))}
+                                        projectStartDate={project?.startDate || undefined}
+                                        projectEndDate={project?.endDate || undefined}
+                                    />
+                                </div>
+
+                                {/* Quick Actions moved below Roadmap */}
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginBottom: '1rem', paddingRight: '4px' }}>
+                                    <button
+                                        onClick={() => setIsDraftQueueOpen(!isDraftQueueOpen)}
+                                        style={{
+                                            padding: '0.6rem 1.25rem',
+                                            fontSize: '0.8rem',
+                                            fontWeight: 800,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '8px',
+                                            background: isDraftQueueOpen ? '#f1f5f9' : 'white',
+                                            border: '1.5px solid #e2e8f0',
+                                            borderRadius: '10px',
+                                            color: isDraftQueueOpen ? 'var(--primary-color)' : '#64748b',
+                                            cursor: 'pointer',
+                                            transition: 'all 0.2s'
+                                        }}
+                                    >
+                                        {isDraftQueueOpen ? 'Hide Draft' : 'Show Drafts'}
+                                        {newTasks.length > 0 && (
+                                            <span style={{
+                                                background: 'var(--primary-color)',
+                                                color: 'white',
+                                                borderRadius: '20px',
+                                                padding: '1px 8px',
+                                                fontSize: '0.7rem'
+                                            }}>{newTasks.length}</span>
+                                        )}
+                                    </button>
+                                    {canAddTask && (
+                                        <button
+                                            className="btn btn-primary"
+                                            onClick={addInlineTask}
+                                            style={{
+                                                padding: '0.6rem 1.5rem',
+                                                fontSize: '0.8rem',
+                                                fontWeight: 900,
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '8px',
+                                                borderRadius: '10px',
+                                                boxShadow: '0 4px 12px rgba(var(--primary-rgb), 0.2)'
+                                            }}
+                                        >
+                                            <Plus size={18} strokeWidth={3} /> New Task
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* Collapsible Queue */}
+                                {isDraftQueueOpen && newTasks.length > 0 && (
+                                    <div style={{ marginBottom: '1.5rem', animation: 'fadeInDown 0.3s ease-out' }}>
+                                        <style>{`
+                                                @keyframes fadeInDown {
+                                                    from { opacity: 0; transform: translateY(-10px); }
+                                                    to { opacity: 1; transform: translateY(0); }
+                                                }
+                                            `}</style>
+                                        <div style={{ display: 'flex', alignItems: 'flex-end', gap: '2px', paddingLeft: '4px', position: 'relative' }}>
+                                            {(() => {
+                                                const MAX_VISIBLE = 4;
+                                                const visible = newTasks.slice(0, MAX_VISIBLE);
+                                                const hidden = newTasks.slice(MAX_VISIBLE);
+
+                                                return (
+                                                    <>
+                                                        {visible.map((t, idx) => (
+                                                            <div
+                                                                key={t.id}
+                                                                onClick={() => setActiveTaskDraftId(t.id)}
+                                                                style={{
+                                                                    padding: '10px 20px',
+                                                                    background: activeTaskDraftId === t.id ? 'white' : '#f1f5f9',
+                                                                    border: '1.5px solid #e2e8f0',
+                                                                    borderBottom: activeTaskDraftId === t.id ? 'none' : '1.5px solid #e2e8f0',
+                                                                    borderRadius: '12px 12px 0 0',
+                                                                    fontSize: '0.75rem',
+                                                                    fontWeight: activeTaskDraftId === t.id ? 800 : 600,
+                                                                    color: activeTaskDraftId === t.id ? 'var(--primary-color)' : '#64748b',
+                                                                    cursor: 'pointer',
+                                                                    display: 'flex',
+                                                                    alignItems: 'center',
+                                                                    gap: '10px',
+                                                                    position: 'relative',
+                                                                    top: activeTaskDraftId === t.id ? '2px' : '0',
+                                                                    zIndex: activeTaskDraftId === t.id ? 10 : 1,
+                                                                    maxWidth: '180px',
+                                                                    boxShadow: activeTaskDraftId === t.id ? '0 -4px 10px rgba(0,0,0,0.03)' : 'none',
+                                                                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
+                                                                }}
+                                                            >
+                                                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                                    {t.name || `Draft ${idx + 1}`}
+                                                                </span>
+                                                                <X
+                                                                    size={14}
+                                                                    onClick={(e) => { e.stopPropagation(); removeInlineTask(t.id); }}
+                                                                    style={{
+                                                                        marginLeft: '4px',
+                                                                        padding: '2px',
+                                                                        borderRadius: '4px',
+                                                                        background: activeTaskDraftId === t.id ? '#fef2f2' : 'transparent',
+                                                                        color: activeTaskDraftId === t.id ? '#ef4444' : '#94a3b8'
+                                                                    }}
+                                                                />
+                                                            </div>
+                                                        ))}
+
+                                                        {hidden.length > 0 && (
+                                                            <div style={{ position: 'relative' }}>
+                                                                <button
+                                                                    onClick={() => setShowDraftDropdown(!showDraftDropdown)}
+                                                                    style={{
+                                                                        background: hidden.some(h => h.id === activeTaskDraftId) ? 'white' : '#f1f5f9',
+                                                                        border: '1.5px solid #e2e8f0',
+                                                                        borderBottom: hidden.some(h => h.id === activeTaskDraftId) ? 'none' : '1.5px solid #e2e8f0',
+                                                                        borderRadius: '12px 12px 0 0',
+                                                                        padding: '10px 15px',
+                                                                        color: hidden.some(h => h.id === activeTaskDraftId) ? 'var(--primary-color)' : '#64748b',
+                                                                        cursor: 'pointer',
+                                                                        fontSize: '0.75rem',
+                                                                        fontWeight: 800,
+                                                                        display: 'flex',
+                                                                        alignItems: 'center',
+                                                                        gap: '6px',
+                                                                        height: 'auto',
+                                                                        top: hidden.some(h => h.id === activeTaskDraftId) ? '2px' : '0',
+                                                                        position: 'relative',
+                                                                        zIndex: 10
+                                                                    }}
+                                                                >
+                                                                    {hidden.some(h => h.id === activeTaskDraftId)
+                                                                        ? (newTasks.find(t => t.id === activeTaskDraftId)?.name || 'Active Draft')
+                                                                        : `More (${hidden.length})`}
+                                                                    <ChevronDown size={14} style={{ transform: showDraftDropdown ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                                                                </button>
+
+                                                                {showDraftDropdown && (
+                                                                    <div style={{
+                                                                        position: 'absolute',
+                                                                        top: 'calc(100% + 5px)',
+                                                                        left: 0,
+                                                                        width: '260px',
+                                                                        maxHeight: '220px',
+                                                                        overflowY: 'auto',
+                                                                        background: 'white',
+                                                                        border: '1.5px solid #e2e8f0',
+                                                                        borderRadius: '12px',
+                                                                        boxShadow: '0 12px 30px rgba(0,0,0,0.12)',
+                                                                        zIndex: 100,
+                                                                        padding: '8px',
+                                                                        display: 'flex',
+                                                                        flexDirection: 'column',
+                                                                        gap: '4px',
+                                                                        scrollbarWidth: 'thin',
+                                                                        scrollbarColor: '#e2e8f0 transparent'
+                                                                    }}>
+                                                                        <style>{`
+                                                                                div::-webkit-scrollbar { width: 4px; }
+                                                                                div::-webkit-scrollbar-track { background: transparent; }
+                                                                                div::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+                                                                            `}</style>
+                                                                        {hidden.map((t, idx) => (
+                                                                            <div
+                                                                                key={t.id}
+                                                                                onClick={() => { setActiveTaskDraftId(t.id); setShowDraftDropdown(false); }}
+                                                                                style={{
+                                                                                    padding: '8px 12px',
+                                                                                    borderRadius: '8px',
+                                                                                    fontSize: '0.75rem',
+                                                                                    cursor: 'pointer',
+                                                                                    background: activeTaskDraftId === t.id ? '#f1f5f9' : 'transparent',
+                                                                                    color: activeTaskDraftId === t.id ? 'var(--primary-color)' : '#475569',
+                                                                                    fontWeight: activeTaskDraftId === t.id ? 700 : 500,
+                                                                                    display: 'flex',
+                                                                                    justifyContent: 'space-between',
+                                                                                    alignItems: 'center'
+                                                                                }}
+                                                                                onMouseOver={(e) => { if (activeTaskDraftId !== t.id) e.currentTarget.style.background = '#f8fafc'; }}
+                                                                                onMouseOut={(e) => { if (activeTaskDraftId !== t.id) e.currentTarget.style.background = 'transparent'; }}
+                                                                            >
+                                                                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                                                                                    {t.name || `Draft ${idx + 5}`}
+                                                                                </span>
+                                                                                <X
+                                                                                    size={12}
+                                                                                    onClick={(e) => { e.stopPropagation(); removeInlineTask(t.id); }}
+                                                                                    style={{ marginLeft: '8px', color: '#94a3b8' }}
+                                                                                />
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </>
+                                                );
+                                            })()}
+
+                                            <button
+                                                onClick={addInlineTask}
+                                                title="Add another draft"
+                                                style={{
+                                                    background: '#f8fafc',
+                                                    border: '1.5px solid #e2e8f0',
+                                                    borderBottom: 'none',
+                                                    borderRadius: '8px 8px 0 0',
+                                                    padding: '8px 12px',
+                                                    color: '#94a3b8',
+                                                    cursor: 'pointer',
+                                                    marginBottom: '0',
+                                                    height: '35px',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    marginLeft: '4px',
+                                                    transition: 'all 0.2s',
+                                                    position: 'relative',
+                                                    top: '1px'
+                                                }}
+                                                onMouseOver={(e) => { e.currentTarget.style.color = 'var(--primary-color)'; e.currentTarget.style.background = 'white'; }}
+                                                onMouseOut={(e) => { e.currentTarget.style.color = '#94a3b8'; e.currentTarget.style.background = '#f8fafc'; }}
+                                            >
+                                                <Plus size={18} strokeWidth={3} />
+                                            </button>
+                                        </div>
+
+                                        <div style={{
+                                            background: 'white',
+                                            border: '1.5px solid #e2e8f0',
+                                            borderTopLeftRadius: activeTaskDraftId === newTasks[0]?.id ? 0 : '16px',
+                                            borderRadius: '0 16px 16px 16px',
+                                            padding: '2rem',
+                                            boxShadow: '0 10px 25px rgba(0,0,0,0.04)',
+                                            position: 'relative',
+                                            zIndex: 5
+                                        }}>
+                                            {newTasks.find(row => row.id === activeTaskDraftId) && (() => {
+                                                const row = newTasks.find(t => t.id === activeTaskDraftId)!;
+                                                const todayStr = new Date().toISOString().split('T')[0];
+                                                const selectedMilestone = milestones.find(m => m.id === row.milestoneId);
+                                                const mStart = selectedMilestone ? selectedMilestone.startDate.split('T')[0] : '';
+                                                const mEnd = selectedMilestone ? selectedMilestone.dueDate.split('T')[0] : '';
+                                                
+                                                const isStartInvalid = !!(row.startDate < todayStr || (selectedMilestone && (row.startDate < mStart || (mEnd && row.startDate > mEnd))));
+                                                const isDueInvalid = !!(row.dueDate < todayStr || (selectedMilestone && (row.dueDate < mStart || (mEnd && row.dueDate > mEnd))));
+                                                const isDueBeforeStart = !!(row.startDate && row.dueDate && row.dueDate < row.startDate);
+                                                const isAnyInvalid = !!(isStartInvalid || isDueInvalid || isDueBeforeStart);
+
+                                                return (
+                                                    <>
+                                                        <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1.2fr 1fr', gap: '1rem' }}>
+                                                            <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', marginBottom: '6px', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Task Title</label>
+                                                                <input
+                                                                    type="text"
+                                                                    className="form-input"
+                                                                    placeholder="Task name"
+                                                                    value={row.name}
+                                                                    onChange={(e) => updateInlineTask(row.id, 'name', e.target.value)}
+                                                                    style={{ padding: '0.65rem 1rem', borderRadius: '10px', fontSize: '0.85rem' }}
+                                                                />
+                                                            </div>
+                                                            <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', marginBottom: '6px', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Linked Phase</label>
+                                                                <select
+                                                                    className="form-input"
+                                                                    value={row.milestoneId}
+                                                                    onChange={(e) => updateInlineTask(row.id, 'milestoneId', e.target.value)}
+                                                                    style={{ padding: '0.65rem 1rem', borderRadius: '10px', fontSize: '0.85rem' }}
+                                                                >
+                                                                    <option value="">No phase linked</option>
+                                                                    {milestones.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                                                                </select>
+                                                            </div>
+                                                            <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', marginBottom: '6px', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Priority</label>
+                                                                <select
+                                                                    className="form-input"
+                                                                    value={row.priority}
+                                                                    onChange={(e) => updateInlineTask(row.id, 'priority', e.target.value)}
+                                                                    style={{ padding: '0.65rem 1rem', borderRadius: '10px', fontSize: '0.85rem' }}
+                                                                >
+                                                                    <option value="1">Low</option>
+                                                                    <option value="2">Medium</option>
+                                                                    <option value="3">High</option>
+                                                                    <option value="4">Critical</option>
+                                                                </select>
+                                                            </div>
+                                                        </div>
+
+                                                        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(140px, 1fr) minmax(140px, 1fr) 1.5fr 1.5fr', gap: '1rem', marginTop: '1rem' }}>
+                                                            <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                <label style={{ fontSize: '0.7rem', fontWeight: 800, color: isStartInvalid ? '#ef4444' : '#64748b', marginBottom: '6px', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                                    Start Date {isStartInvalid && <span style={{ textTransform: 'none', marginLeft: '4px', fontWeight: 500 }}>({row.startDate < todayStr ? 'Past date' : 'Out of range'})</span>}
+                                                                </label>
+                                                                <input
+                                                                    type="date"
+                                                                    className="form-input"
+                                                                    value={row.startDate}
+                                                                    min={mStart > todayStr ? mStart : todayStr}
+                                                                    max={mEnd || undefined}
+                                                                    onChange={(e) => updateInlineTask(row.id, 'startDate', e.target.value)}
+                                                                    style={{ 
+                                                                        padding: '0.65rem 1rem', 
+                                                                        borderRadius: '10px', 
+                                                                        fontSize: '0.85rem',
+                                                                        border: isStartInvalid ? '1.5px solid #ef4444' : '1.5px solid #e2e8f0',
+                                                                        transition: 'all 0.2s'
+                                                                    }}
+                                                                />
+                                                            </div>
+                                                            <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                <label style={{ fontSize: '0.7rem', fontWeight: 800, color: (isDueInvalid || isDueBeforeStart) ? '#ef4444' : '#64748b', marginBottom: '6px', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                                    Deadline {(isDueInvalid || isDueBeforeStart) && (
+                                                                        <span style={{ textTransform: 'none', marginLeft: '4px', fontWeight: 500 }}>
+                                                                            ({row.dueDate < todayStr ? 'Past date' : isDueBeforeStart ? 'Before start date' : 'Out of range'})
+                                                                        </span>
+                                                                    )}
+                                                                </label>
+                                                                <input
+                                                                    type="date"
+                                                                    className="form-input"
+                                                                    value={row.dueDate}
+                                                                    min={row.startDate > todayStr ? row.startDate : todayStr}
+                                                                    max={mEnd || undefined}
+                                                                    onChange={(e) => updateInlineTask(row.id, 'dueDate', e.target.value)}
+                                                                    style={{ 
+                                                                        padding: '0.65rem 1rem', 
+                                                                        borderRadius: '10px', 
+                                                                        fontSize: '0.85rem',
+                                                                        border: (isDueInvalid || isDueBeforeStart) ? '1.5px solid #ef4444' : '1.5px solid #e2e8f0',
+                                                                        transition: 'all 0.2s'
+                                                                    }}
+                                                                />
+                                                            </div>
+                                                            <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', marginBottom: '6px', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Assignees (Lead)</label>
+                                                                <SearchableSelect
+                                                                    options={members
+                                                                        .filter(m => m.projectRole !== 1 && !(row.collaboratorIds || []).includes((m.memberId || m.id || '').toString()))
+                                                                        .map(m => ({ id: (m.memberId || m.id || '').toString(), name: m.fullName || m.userName || 'Unknown Member' }))
+                                                                    }
+                                                                    value={row.memberIds}
+                                                                    onChange={(val) => updateInlineTask(row.id, 'memberIds', val)}
+                                                                    placeholder="No Lab Directors"
+                                                                    multiple
+                                                                />
+                                                            </div>
+                                                            <div className="form-group" style={{ marginBottom: 0 }}>
+                                                                <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', marginBottom: '6px', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Collaborators (Support)</label>
+                                                                <SearchableSelect
+                                                                    options={members
+                                                                        .filter(m => m.projectRole !== 1 && !(row.memberIds || []).includes((m.memberId || m.id || '').toString()))
+                                                                        .map(m => ({ id: (m.memberId || m.id || '').toString(), name: m.fullName || m.userName || 'Unknown Member' }))
+                                                                    }
+                                                                    value={row.collaboratorIds || []}
+                                                                    onChange={(val) => updateInlineTask(row.id, 'collaboratorIds', val)}
+                                                                    placeholder="No Lab Directors"
+                                                                    multiple
+                                                                />
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="form-group" style={{ marginTop: '1rem', marginBottom: 0 }}>
+                                                            <label style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', marginBottom: '6px', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Description</label>
+                                                            <textarea
+                                                                className="form-input"
+                                                                placeholder="Tell us more about this task..."
+                                                                value={row.description}
+                                                                onChange={(e) => updateInlineTask(row.id, 'description', e.target.value)}
+                                                                style={{ padding: '0.75rem 1rem', borderRadius: '10px', fontSize: '0.85rem', width: '100%', minHeight: '60px', resize: 'vertical' }}
+                                                            />
+                                                        </div>
+
+                                                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '1rem', borderTop: '1px solid #f1f5f9', paddingTop: '1rem' }}>
+                                                            <button
+                                                                onClick={() => saveInlineTask(row.id)}
+                                                                className="btn btn-primary"
+                                                                style={{ 
+                                                                    padding: '0.65rem 1.75rem', 
+                                                                    fontWeight: 800, 
+                                                                    borderRadius: '10px', 
+                                                                    fontSize: '0.85rem',
+                                                                    opacity: (submitting || isAnyInvalid) ? 0.6 : 1,
+                                                                    cursor: (submitting || isAnyInvalid) ? 'not-allowed' : 'pointer'
+                                                                }}
+                                                                disabled={submitting || isAnyInvalid}
+                                                                title={isAnyInvalid ? "Please correct the dates to fit within the milestone range" : undefined}
+                                                            >
+                                                                {submitting ? 'Saving...' : 'Create Task'}
+                                                            </button>
+                                                            {newTasks.length > 1 && (
+                                                                <button
+                                                                    onClick={saveAllInlineTasks}
+                                                                    className="btn btn-secondary"
+                                                                    style={{ 
+                                                                        padding: '0.65rem 1.75rem', 
+                                                                        fontWeight: 800, 
+                                                                        borderRadius: '10px', 
+                                                                        fontSize: '0.85rem', 
+                                                                        background: '#f8fafc', 
+                                                                        color: isAnyInvalid ? '#94a3b8' : 'var(--primary-color)', 
+                                                                        border: `1.5px solid ${isAnyInvalid ? '#e2e8f0' : 'var(--primary-color)'}`,
+                                                                        opacity: (submitting || isAnyInvalid) ? 0.6 : 1,
+                                                                        cursor: (submitting || isAnyInvalid) ? 'not-allowed' : 'pointer'
+                                                                    }}
+                                                                    disabled={submitting || isAnyInvalid}
+                                                                    title={isAnyInvalid ? "Some tasks have invalid dates" : undefined}
+                                                                >
+                                                                    Save All ({newTasks.length})
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </>
+                                                );
+                                            })()}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Command Bar for Search/Filters replaced by better positioned Search/Filter but we keep search here for logic */}
 
                                 {tasks.length > 0 ? (
                                     taskView === 'board' ? (
                                         <KanbanBoard tasks={filteredTasks} projectMembers={members} projectId={id || ''} onTaskCreated={refetchTasks} onTaskUpdated={refetchTasks} milestones={milestones} />
                                     ) : (
-                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.25rem' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                             {filteredTasks.length > 0 ? (
                                                 filteredTasks.map(task => {
                                                     const taskMilestone = milestones.find(m => m.id === task.milestoneId);
@@ -1605,11 +2204,12 @@ const ProjectDetails: React.FC = () => {
                                                             task={task}
                                                             onClick={handleTaskClick}
                                                             milestoneName={taskMilestone?.name}
+                                                            isCompact={true}
                                                         />
                                                     );
                                                 })
                                             ) : (
-                                                <div className="card" style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3rem' }}>
+                                                <div className="card" style={{ textAlign: 'center', padding: '3rem' }}>
                                                     <p style={{ color: 'var(--text-secondary)' }}>No research activities match your current search criteria.</p>
                                                 </div>
                                             )}

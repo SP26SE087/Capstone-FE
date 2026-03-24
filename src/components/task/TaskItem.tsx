@@ -20,9 +20,10 @@ interface TaskItemProps {
     task: Task;
     onClick?: (task: Task) => void;
     milestoneName?: string;
+    isCompact?: boolean;
 }
 
-const TaskItem: React.FC<TaskItemProps> = ({ task, onClick, milestoneName }) => {
+const TaskItem: React.FC<TaskItemProps> = ({ task, onClick, milestoneName, isCompact }) => {
     const getStatusStyle = (status: TaskStatus) => {
         switch (status) {
             case TaskStatus.Todo: return { color: '#64748b', bg: '#f1f5f9', label: 'To Do', icon: <Clock size={14} /> };
@@ -47,6 +48,102 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onClick, milestoneName }) => 
 
     const statusStyle = getStatusStyle(task.status);
     const priorityStyle = getPriorityStyle(task.priority);
+
+    if (isCompact) {
+        return (
+            <div
+                onClick={() => onClick?.(task)}
+                style={{
+                    padding: '0.75rem 1rem',
+                    background: 'white',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '12px',
+                    cursor: onClick ? 'pointer' : 'default',
+                    transition: 'all 0.2s ease',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '1.25rem',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
+                    position: 'relative'
+                }}
+                onMouseOver={(e) => e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.06)'}
+                onMouseOut={(e) => e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.02)'}
+            >
+                <div style={{ width: '120px', flexShrink: 0 }}>
+                    <div style={{
+                        fontSize: '0.65rem',
+                        padding: '2px 8px',
+                        borderRadius: '20px',
+                        background: priorityStyle.bg,
+                        color: priorityStyle.color,
+                        fontWeight: 600,
+                        textTransform: 'uppercase',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                    }}>
+                        {priorityStyle.icon}
+                        {priorityStyle.label}
+                    </div>
+                </div>
+
+                <div style={{ flex: 1, minWidth: 0 }}>
+                    <h4 style={{
+                        margin: 0,
+                        fontSize: '0.9rem',
+                        fontWeight: 700,
+                        color: '#1e293b',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis'
+                    }}>
+                        {task.name}
+                    </h4>
+                    {milestoneName && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.65rem', color: 'var(--primary-color)', fontWeight: 700, marginTop: '2px' }}>
+                            <MapPin size={10} />
+                            {milestoneName}
+                        </div>
+                    )}
+                </div>
+
+                <div style={{ width: '100px', flexShrink: 0, display: 'flex', justifyContent: 'flex-start' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                        <Calendar size={12} />
+                        {task.dueDate ? new Date(task.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'No date'}
+                    </div>
+                </div>
+
+                <div style={{ width: '80px', flexShrink: 0, display: 'flex', justifyContent: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                        {task.memberId && (
+                            <div title="Assignee" style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'var(--primary-color)', border: '2px solid white', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '0.6rem', fontWeight: 700 }}>
+                                {task.members?.find(m => (m.memberId || m.id) === task.memberId)?.userName?.charAt(0) || <User size={12} />}
+                            </div>
+                        )}
+                        {!task.memberId && <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}><User size={12} /></div>}
+                    </div>
+                </div>
+
+                <div style={{ width: '120px', flexShrink: 0, display: 'flex', justifyContent: 'flex-end' }}>
+                    <div style={{
+                        fontSize: '0.7rem',
+                        padding: '3px 10px',
+                        borderRadius: '6px',
+                        background: statusStyle.bg,
+                        color: statusStyle.color,
+                        fontWeight: 600,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                    }}>
+                        {statusStyle.icon}
+                        {statusStyle.label}
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div

@@ -36,9 +36,9 @@ const MilestoneRoadmapPreview: React.FC<RoadmapPreviewProps> = ({
         if (allDates.length === 0) return null;
 
         const min = new Date(Math.min(...allDates.map(d => d.getTime())));
-        min.setDate(1); 
+        min.setMonth(min.getMonth() - 2); // Show some past context
         const max = new Date(Math.max(...allDates.map(d => d.getTime())));
-        max.setMonth(max.getMonth() + 2); 
+        max.setMonth(max.getMonth() + 6); // More future context to "zoom out"
         max.setDate(0); 
 
         return {
@@ -112,7 +112,8 @@ const MilestoneRoadmapPreview: React.FC<RoadmapPreviewProps> = ({
     // Calculate dynamic height based on total lanes
     const maxExistingLane = existingLanes.length > 0 ? Math.max(...existingLanes) : -1;
     const maxCurrentLane = rowLanes.length > 0 ? Math.max(...rowLanes) : -1;
-    const totalHeight = 80 + (maxExistingLane + 1) * 22 + (maxCurrentLane + 1) * 22;
+    const laneHeight = 30; // Better density
+    const totalHeight = 100 + (maxExistingLane + 1) * laneHeight + (maxCurrentLane + 1) * laneHeight;
 
     if (!timelineMeta) return null;
 
@@ -146,8 +147,8 @@ const MilestoneRoadmapPreview: React.FC<RoadmapPreviewProps> = ({
             `}</style>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <h3 style={{ margin: 0, fontSize: '0.7rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>Roadmap Context</h3>
-                    <span style={{ fontSize: '0.6rem', color: '#94a3b8' }}>Visual project schedule preview</span>
+                    <h3 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>Activities Roadmap</h3>
+                    <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Visual schedule of research activities</span>
                 </div>
                 <div style={{ display: 'flex', gap: '12px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.55rem', fontWeight: 700, color: '#6366f1' }}>
@@ -155,7 +156,7 @@ const MilestoneRoadmapPreview: React.FC<RoadmapPreviewProps> = ({
                     </div>
                     {currentMilestones.length > 0 && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.55rem', fontWeight: 700, color: '#E8720C' }}>
-                            <div style={{ width: '6px', height: '6px', borderRadius: '2px', background: '#E8720C' }} /> {highlightId ? 'Active Phase' : 'Changes'}
+                            <div style={{ width: '6px', height: '6px', borderRadius: '2px', background: '#E8720C' }} /> {highlightId ? 'Active Activity' : 'Internal Planning'}
                         </div>
                     )}
                     {hasOverlap && (
@@ -168,8 +169,8 @@ const MilestoneRoadmapPreview: React.FC<RoadmapPreviewProps> = ({
 
             <div style={{ 
                 position: 'relative', 
-                maxHeight: '130px',
-                minHeight: '70px',
+                maxHeight: '750px',
+                minHeight: '400px',
                 background: 'white', 
                 border: '1.5px solid #e2e8f0', 
                 borderRadius: '12px',
@@ -183,7 +184,7 @@ const MilestoneRoadmapPreview: React.FC<RoadmapPreviewProps> = ({
                   position: 'sticky',
                   top: 0,
                   zIndex: 50,
-                  height: '20px',
+                  height: '35px',
                   background: '#f8fafc',
                   borderBottom: '1px solid #e2e8f0',
                   display: 'flex',
@@ -206,7 +207,7 @@ const MilestoneRoadmapPreview: React.FC<RoadmapPreviewProps> = ({
                               zIndex: 51
                           }}>
                               <span style={{
-                                  fontSize: '0.5rem',
+                                  fontSize: '0.7rem',
                                   fontWeight: 800,
                                   color: '#475569',
                                   whiteSpace: 'nowrap',
@@ -232,7 +233,7 @@ const MilestoneRoadmapPreview: React.FC<RoadmapPreviewProps> = ({
                           top: '50%',
                           left: '4px',
                           transform: 'translateY(-50%)',
-                          fontSize: '0.45rem',
+                          fontSize: '0.65rem',
                           fontWeight: 900,
                           color: '#ef4444',
                           whiteSpace: 'nowrap'
@@ -286,22 +287,22 @@ const MilestoneRoadmapPreview: React.FC<RoadmapPreviewProps> = ({
                             position: 'absolute',
                             left: `${left}%`,
                             width: `${width}%`,
-                            top: `${8 + (lane * 22)}px`,
-                            height: '16px',
+                            top: `${10 + (lane * 30)}px`,
+                            height: '20px',
                             background: isConflict ? '#fee2e2' : (isHighlighted ? '#fdf2f8' : '#e0e7ff'),
                             border: isConflict ? '1.5px solid #ef4444' : (isHighlighted ? '1.5px solid #db2777' : '1px solid #818cf8'),
                             borderRadius: '4px',
                             zIndex: 10,
                             display: 'flex',
                             alignItems: 'center',
-                            padding: '0 6px',
+                            padding: '0 8px',
                             overflow: 'hidden',
                             boxShadow: isHighlighted ? '0 0 8px rgba(219, 39, 119, 0.2)' : 'none',
                             transition: 'all 0.3s ease'
                         }}>
                             <span style={{ 
-                                fontSize: '0.5rem', 
-                                fontWeight: 800, 
+                                fontSize: '0.65rem', 
+                                fontWeight: 700, 
                                 color: isConflict ? '#b91c1c' : (isHighlighted ? '#9d174d' : '#4338ca'), 
                                 whiteSpace: 'nowrap', 
                                 textOverflow: 'ellipsis' 
@@ -336,7 +337,8 @@ const MilestoneRoadmapPreview: React.FC<RoadmapPreviewProps> = ({
                     const isConflict = overlaps[row.id];
 
                     const isHighlighted = row.id === highlightId;
-                    const baseTop = 22 + (maxExistingLane + 1) * 22;
+                    const laneHeight = 30;
+                    const baseTop = 40 + (maxExistingLane + 1) * laneHeight;
 
                     return (
                         <React.Fragment key={row.id}>
@@ -344,20 +346,20 @@ const MilestoneRoadmapPreview: React.FC<RoadmapPreviewProps> = ({
                             position: 'absolute',
                             left: `${left}%`,
                             width: `${width}%`,
-                            top: `${baseTop + (lane * 22)}px`,
-                            height: '18px',
+                            top: `${baseTop + (lane * laneHeight)}px`,
+                            height: '24px',
                             background: isConflict ? '#fee2e2' : (isHighlighted ? '#fff7ed' : '#fff7ed'),
                             border: isConflict ? '2px solid #ef4444' : (isHighlighted ? '2.5px solid #E8720C' : '1.5px solid #E8720C'),
-                            borderRadius: '5px',
+                            borderRadius: '6px',
                             zIndex: 20,
                             boxShadow: isConflict ? '0 0 10px rgba(239, 68, 68, 0.2)' : (isHighlighted ? '0 0 12px rgba(232, 114, 12, 0.3)' : '0 2px 4px rgba(232, 114, 12, 0.1)'),
                             display: 'flex',
                             alignItems: 'center',
-                            padding: '0 6px',
+                            padding: '0 12px',
                             overflow: 'hidden',
                             transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
                         }}>
-                            <span style={{ fontSize: '0.55rem', fontWeight: 900, color: isConflict ? '#b91c1c' : '#E8720C', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+                            <span style={{ fontSize: '0.7rem', fontWeight: 900, color: isConflict ? '#b91c1c' : '#E8720C', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
                                 {row.name}
                             </span>
                         </div>
@@ -365,13 +367,13 @@ const MilestoneRoadmapPreview: React.FC<RoadmapPreviewProps> = ({
                             <div style={{
                                 position: 'absolute',
                                 left: `calc(${left + width}% + 4px)`,
-                                top: `${baseTop + 9 + (lane * 22)}px`,
+                                top: `${baseTop + 14 + (lane * laneHeight)}px`,
                                 transform: 'translateY(-50%)',
                                 zIndex: 25,
                                 flexShrink: 0,
-                                width: '6px', height: '6px', borderRadius: '50%',
+                                width: '8px', height: '8px', borderRadius: '50%',
                                 background: '#ef4444', border: '1.5px solid white',
-                                boxShadow: '0 0 6px #ef4444',
+                                boxShadow: '0 0 8px #ef4444',
                                 animation: 'warningBlink 1s ease-in-out infinite'
                             }} title="Deadline is within 3 days or overdue!" />
                         )}
