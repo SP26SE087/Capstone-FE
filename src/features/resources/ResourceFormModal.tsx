@@ -158,8 +158,8 @@ const ResourceFormModal: React.FC<ResourceFormModalProps> = ({ resource, onClose
                 </div>
 
                 <div className="form-group">
-                    <label className="form-label">
-                      <User size={14} className="text-muted" /> Managed By (Responsible ID) <span style={{ color: 'var(--danger)' }}>*</span>
+                      <label className="form-label">
+                      <User size={14} className="text-muted" /> Managed By <span style={{ color: 'var(--danger)' }}>*</span>
                     </label>
                     <div style={{ position: 'relative' }}>
                       <select
@@ -176,7 +176,7 @@ const ResourceFormModal: React.FC<ResourceFormModalProps> = ({ resource, onClose
                           )}
                           {directors.filter(d => d.id !== currentUser.userId).map(dir => (
                               <option key={dir.id} value={dir.id}>
-                                  {dir.fullName || dir.name} ({dir.id.substring(0,8)})
+                                  {dir.fullName || dir.name}
                               </option>
                           ))}
                       </select>

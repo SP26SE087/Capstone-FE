@@ -14,14 +14,39 @@ const FaceScannerModal: React.FC<FaceScannerModalProps> = ({ isOpen, onClose, in
     const [userId, setUserId] = useState(initialUserId);
     const [isScanning, setIsScanning] = useState(false);
     const [status, setStatus] = useState<string | null>(null);
+    const videoRef = React.useRef<HTMLVideoElement>(null);
 
     useEffect(() => {
         if (isOpen) {
             setUserId(initialUserId);
             setIsScanning(false);
             setStatus(null);
+        } else {
+            setIsScanning(false);
         }
     }, [isOpen, initialUserId]);
+
+    useEffect(() => {
+        let stream: MediaStream | null = null;
+        if (isOpen) {
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
+                .then(s => {
+                    stream = s;
+                    if (videoRef.current) {
+                        videoRef.current.srcObject = s;
+                    }
+                })
+                .catch(err => {
+                    console.error('Camera access failed:', err);
+                    setStatus('Could not access camera.');
+                });
+        }
+        return () => {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+        };
+    }, [isOpen]);
 
     const handleStart = async () => {
         if (!userId) {
@@ -109,32 +134,63 @@ const FaceScannerModal: React.FC<FaceScannerModalProps> = ({ isOpen, onClose, in
                     position: 'relative',
                     overflow: 'hidden'
                 }}>
+                    <video 
+                        ref={videoRef}
+                        autoPlay 
+                        playsInline 
+                        style={{ 
+                            position: 'absolute', 
+                            width: '100%', 
+                            height: '100%', 
+                            objectFit: 'cover',
+                            zIndex: 0
+                        }} 
+                    />
                     {isScanning ? (
                         <>
+                            <div style={{
+                                position: 'absolute',
+                                top: 0,
+                                left: 0,
+                                right: 0,
+                                bottom: 0,
+                                background: 'rgba(0, 0, 0, 0.3)',
+                                zIndex: 1
+                            }} />
                             <div className="animate-spin" style={{ 
                                 width: '100px', height: '100px', borderRadius: '50%',
                                 border: '3px solid rgba(255, 255, 255, 0.1)',
                                 borderTopColor: 'var(--accent-color)',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                zIndex: 2
                             }}>
                                 <Camera size={40} className="animate-pulse" style={{ color: 'white' }} />
                             </div>
-                            <div style={{ textAlign: 'center', color: 'white', zIndex: 1 }}>
+                            <div style={{ textAlign: 'center', color: 'white', zIndex: 2 }}>
                                 <div style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '4px' }}>SCANNING...</div>
                                 <div style={{ fontSize: '0.8rem', opacity: 0.8 }}>{status}</div>
                             </div>
                             <div style={{
                                 position: 'absolute', top: 0, left: 0, right: 0, height: '2px',
-                                background: 'rgba(232, 114, 12, 0.5)',
+                                background: 'var(--accent-color)',
                                 animation: 'scanLine 2s infinite linear',
-                                boxShadow: '0 0 15px var(--accent-color)'
+                                boxShadow: '0 0 15px var(--accent-color)',
+                                zIndex: 3
                             }} />
                         </>
                     ) : (
-                        <>
-                            <Camera size={48} style={{ color: 'var(--text-muted)', opacity: 0.3 }} />
-                            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Camera system ready</p>
-                        </>
+                        <div style={{ 
+                            zIndex: 1, 
+                            display: 'flex', 
+                            flexDirection: 'column', 
+                            alignItems: 'center', 
+                            background: 'rgba(0,0,0,0.1)',
+                            padding: '1rem',
+                            borderRadius: 'var(--radius-md)'
+                        }}>
+                            <Camera size={24} style={{ color: 'white', opacity: 0.6, marginBottom: '0.5rem' }} />
+                            <p style={{ color: 'white', fontSize: '0.75rem', margin: 0, fontWeight: 500 }}>Camera active. Ready to register.</p>
+                        </div>
                     )}
                 </div>
 

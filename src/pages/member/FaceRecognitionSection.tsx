@@ -54,8 +54,8 @@ const FaceRecognitionSection: React.FC<FaceRecognitionSectionProps> = ({ userId,
             {/* Header Area */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <div style={{ 
-                        width: '36px', height: '36px', borderRadius: '10px', 
+                    <div style={{
+                        width: '36px', height: '36px', borderRadius: '10px',
                         background: 'var(--primary-color)', color: 'white',
                         display: 'flex', alignItems: 'center', justifyContent: 'center'
                     }}>
@@ -66,8 +66,8 @@ const FaceRecognitionSection: React.FC<FaceRecognitionSectionProps> = ({ userId,
                     </div>
                 </div>
 
-                <button 
-                    className="btn btn-primary" 
+                <button
+                    className="btn btn-primary"
                     onClick={() => setIsScannerOpen(true)}
                     style={{ gap: '8px', padding: '8px 16px', background: '#10b981', fontSize: '0.8rem' }}
                 >
@@ -76,9 +76,9 @@ const FaceRecognitionSection: React.FC<FaceRecognitionSectionProps> = ({ userId,
             </div>
 
             {/* Quick Actions Row */}
-            <div style={{ 
-                display: 'grid', 
-                gridTemplateColumns: 'repeat(3, 1fr)', 
+            <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, 1fr)',
                 gap: '0.75rem',
                 paddingTop: '0.5rem',
                 borderTop: '1px solid var(--border-color)'
@@ -94,7 +94,7 @@ const FaceRecognitionSection: React.FC<FaceRecognitionSectionProps> = ({ userId,
                 </button>
             </div>
 
-            <FaceScannerModal 
+            <FaceScannerModal
                 isOpen={isScannerOpen}
                 onClose={() => setIsScannerOpen(false)}
                 initialUserId={userId}
