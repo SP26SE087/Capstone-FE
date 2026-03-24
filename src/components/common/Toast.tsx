@@ -53,23 +53,24 @@ const Toast: React.FC<ToastProps> = ({ message, type = 'info', duration = 3000, 
                 right: '24px',
                 zIndex: 10000,
                 display: 'flex',
-                alignItems: 'flex-start',
+                alignItems: 'center', // Aligned icon and text
                 gap: '16px',
-                padding: '16px 24px',
-                backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                backdropFilter: 'blur(20px)',
-                borderRadius: '20px',
-                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.15)',
-                border: '1.5px solid rgba(255, 255, 255, 0.8)',
-                borderLeft: `6px solid ${getBorderColor()}`,
-                transform: isVisible ? 'translateY(0) scale(1)' : 'translateY(100px) scale(0.9)',
+                padding: '14px 20px',
+                backgroundColor: 'rgba(255, 255, 255, 0.96)',
+                backdropFilter: 'blur(25px) saturate(200%)',
+                borderRadius: '16px',
+                boxShadow: '0 12px 32px -8px rgba(0, 0, 0, 0.12), 0 4px 12px -4px rgba(0, 0, 0, 0.08)',
+                border: '1px solid rgba(255, 255, 255, 0.7)',
+                borderLeft: `5px solid ${getBorderColor()}`,
+                transform: isVisible ? 'translateX(0) scale(1)' : 'translateX(50px) scale(0.95)',
                 opacity: isVisible ? 1 : 0,
-                transition: 'all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-                minWidth: '350px',
-                maxWidth: '600px'
+                transition: 'all 0.4s cubic-bezier(0.22, 1, 0.36, 1)',
+                minWidth: '320px',
+                maxWidth: '480px',
+                marginBottom: '4px' // Spacing between stacked items
             }}
         >
-            <div style={{ flexShrink: 0, marginTop: '2px' }}>
+            <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>
                 {getIcon()}
             </div>
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -92,9 +93,9 @@ const Toast: React.FC<ToastProps> = ({ message, type = 'info', duration = 3000, 
                     setTimeout(onClose, 300);
                 }}
                 style={{
-                    background: 'rgba(0,0,0,0.04)',
+                    background: 'rgba(0,0,0,0.03)',
                     border: 'none',
-                    color: '#64748b',
+                    color: '#94a3b8',
                     cursor: 'pointer',
                     padding: '6px',
                     borderRadius: '50%',
@@ -105,10 +106,23 @@ const Toast: React.FC<ToastProps> = ({ message, type = 'info', duration = 3000, 
                     flexShrink: 0
                 }}
                 onMouseOver={(e) => (e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.08)')}
-                onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.04)')}
+                onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.03)')}
             >
-                <X size={16} />
+                <X size={14} />
             </button>
+
+            {/* Premium Progress Bar */}
+            <div style={{
+                position: 'absolute',
+                bottom: 0,
+                left: 0,
+                height: '3px',
+                backgroundColor: getBorderColor(),
+                width: isVisible && !isPaused ? '0%' : '100%',
+                transition: isVisible && !isPaused ? `width ${duration}ms linear` : 'none',
+                opacity: 0.6,
+                borderBottomLeftRadius: '16px'
+            }} />
 
             <style>{`
                 @keyframes slideIn {

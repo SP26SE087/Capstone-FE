@@ -5,17 +5,9 @@ import { useNavigate } from 'react-router-dom';
 import { Search, FileText, CheckCircle, Clock, AlertTriangle, FileInput, Plus, Sparkles } from 'lucide-react';
 import reportService, { Report } from '@/services/reportService';
 import { projectService, userService, milestoneService } from '@/services';
+import { SystemRoleEnum } from '@/types/enums';
 
 type TabType = 'my_reports' | 'all_reports' | 'my_assignee';
-
-// Role Enum from backend
-enum SystemRoleEnum {
-    Admin = 1,
-    LabDirector = 2,
-    SeniorResearcher = 3,
-    Member = 4,
-    Guest = 5
-}
 
 const Reports: React.FC = () => {
     const { user } = useAuth();
@@ -399,36 +391,41 @@ const Reports: React.FC = () => {
                 ) : displayReports.length > 0 ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                         {displayReports.map((report) => {
-                            const statusInfo = getStatusLabel(report.status);
+                            const statusInfo = getStatusLabel(report.status ?? (report as any).Status ?? 0);
                             return (
                                 <div key={report.id} onClick={() => navigate(`/reports/${report.id}`)} className="card" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', transition: 'box-shadow 0.2s, transform 0.2s', cursor: 'pointer', borderLeft: `4px solid ${statusInfo.color}` }} onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 16px rgba(0,0,0,0.06)'; }} onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'var(--shadow-sm)'; }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                         <div>
                                             <h3 style={{ margin: '0 0 4px 0', fontSize: '1.1rem', color: 'var(--text-primary)', fontWeight: 600 }}>
-                                                {report.title || 'Untitled Report segment'}
+                                                {report.title || (report as any).Title || 'Untitled Report'}
                                             </h3>
                                             <div style={{ display: 'flex', gap: '15px', fontSize: '0.85rem', color: 'var(--text-secondary)', flexWrap: 'wrap' }}>
-                                                {report.projectId && (
-                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                        <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', background: 'var(--primary-color)' }}></span>
-                                                        Project: <strong style={{ color: 'var(--text-primary)' }}>{projectsMap[report.projectId] || 'Unknown'}</strong>
-                                                    </span>
-                                                )}
+                                                {(() => {
+                                                    const pId = report.projectId || (report as any).ProjectId;
+                                                    return pId ? (
+                                                        <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                            <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', background: 'var(--primary-color)' }}></span>
+                                                            Project: <strong style={{ color: 'var(--text-primary)' }}>{projectsMap[pId] || 'Unknown'}</strong>
+                                                        </span>
+                                                    ) : null;
+                                                })()}
                                                 <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                                     <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', background: 'var(--info-color)' }}></span>
                                                     Assignees: <strong style={{ color: 'var(--text-primary)' }}>
                                                         {(() => {
-                                                            // Support both 'assignees' and 'members' property from API
-                                                            const members = report.assignees || (report as any).members;
-                                                            const ids = report.assigneeIds || (report as any).memberIds;
+                                                            // Support multiple property name variations (PascalCase, camelCase, members)
+                                                            const r = report as any;
+                                                            const members = r.assignees || r.Assignees || r.members || r.Members;
+                                                            const ids = r.assigneeIds || r.AssigneeIds || r.memberIds || r.MemberIds;
                                                             
-                                                            if (members && members.length > 0) {
+                                                            if (members && Array.isArray(members) && members.length > 0) {
+                                                                const getName = (a: any) => a.fullName || a.FullName || a.name || a.Name || a.email || a.Email || 'User';
                                                                 return members.length > 2 
-                                                                    ? members.slice(0, 2).map((a: any) => a.fullName || a.name || a.email).join(', ') + ', ...'
-                                                                    : members.map((a: any) => a.fullName || a.name || a.email).join(', ');
+                                                                    ? members.slice(0, 2).map(getName).join(', ') + ', ...'
+                                                                    : members.map(getName).join(', ');
                                                             }
                                                             
-                                                            if (ids && ids.length > 0) {
+                                                            if (ids && Array.isArray(ids) && ids.length > 0) {
                                                                 return ids.length > 2
                                                                     ? ids.slice(0, 2).map((id: string) => usersMap[id] || 'User').join(', ') + ', ...'
                                                                     : ids.map((id: string) => usersMap[id] || 'User').join(', ');
@@ -482,7 +479,7 @@ const Reports: React.FC = () => {
                                     </div>
                                     
                                     <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.5 }}>
-                                        {report.description || report.goals || 'No summary available for this report.'}
+                                        {report.description || (report as any).Description || report.goals || (report as any).Goals || 'No summary available for this report.'}
                                     </p>
 
                                     <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '0.75rem', marginTop: '0.25rem', display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--text-muted)' }}>

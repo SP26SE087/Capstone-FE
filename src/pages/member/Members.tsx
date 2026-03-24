@@ -11,19 +11,7 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { userService } from '@/services/userService';
 import UserDetailModal from './UserDetailModal';
-
-const SystemRoleMap: Record<number | string, string> = {
-    1: 'Admin',
-    2: 'Lab Director',
-    3: 'Senior Researcher',
-    4: 'Member',
-    5: 'Guest',
-    'Admin': 'Admin',
-    'LabDirector': 'Lab Director',
-    'SeniorResearcher': 'Senior Researcher',
-    'Member': 'Member',
-    'Guest': 'Guest'
-};
+import { SystemRoleMap } from '@/types/enums';
 
 const Members: React.FC = () => {
     const { user } = useAuth();

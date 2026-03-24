@@ -1,6 +1,7 @@
 import React from 'react';
 import Sidebar from '@/components/navigation/Sidebar';
 import Header from '@/components/navigation/Header';
+import ToastContainer from '@/components/feedback/ToastContainer';
 
 interface MainLayoutProps {
     children: React.ReactNode;
@@ -22,6 +23,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, customSidebar, hideSi
                     {children}
                 </main>
             </div>
+            <ToastContainer />
         </div>
     );
 };

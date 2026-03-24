@@ -1,11 +1,11 @@
 import axios from 'axios';
-
-import { setupInterceptors } from './api';
+import { setupInterceptors, API_BASE_URL } from './api';
 
 const reportApi = axios.create({
-    baseURL: 'https://localhost:7262',
+    baseURL: API_BASE_URL || '/',
     headers: {
         'Content-Type': 'application/json',
+        'Accept': '*/*',
     },
 });
 
@@ -60,6 +60,14 @@ export interface UpdateReportRequest {
     nextWeek?: string | null;
     status?: number;
     assigneeIds?: string[] | null;
+}
+
+export interface BulkReportCreateResult {
+    index: number;
+    request: CreateReportRequest | null;
+    success: boolean;
+    report: Report | null;
+    errorMessage: string | null;
 }
 
 export interface SemanticSearchRequest {
@@ -147,6 +155,17 @@ const reportService = {
             return response.data;
         } catch (error) {
             console.error('Error creating report:', error);
+            throw error;
+        }
+    },
+
+    // Create multiple reports at once
+    createBulkReports: async (reports: CreateReportRequest[]) => {
+        try {
+            const response = await reportApi.post('/api/Reports/bulk', reports);
+            return response.data;
+        } catch (error) {
+            console.error('Error creating bulk reports:', error);
             throw error;
         }
     },

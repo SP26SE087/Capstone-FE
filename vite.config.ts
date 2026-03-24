@@ -22,6 +22,26 @@ export default defineConfig({
                 changeOrigin: true,
                 secure: false,
             },
+            '/api/bookings': {
+                target: 'https://localhost:7162',
+                changeOrigin: true,
+                secure: false,
+            },
+            '/api/resources': {
+                target: 'https://localhost:7162',
+                changeOrigin: true,
+                secure: false,
+            },
+            '/api/equipment-logs': {
+                target: 'https://localhost:7162',
+                changeOrigin: true,
+                secure: false,
+            },
+            '/api/Reports': {
+                target: 'https://localhost:7262',
+                changeOrigin: true,
+                secure: false,
+            },
             '/api': {
                 target: 'https://localhost:7215',
                 changeOrigin: true,

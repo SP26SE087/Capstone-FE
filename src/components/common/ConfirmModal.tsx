@@ -23,33 +23,35 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({
     cancelText = 'Cancel',
     variant = 'info'
 }) => {
-    // Brand colors: Cam (Orange) and Xanh Xám (Slate/Blue-Gray)
-    const BRAND_ORANGE = '#ea580c';
-    const BRAND_SLATE = '#475569';
-
     const getIcon = () => {
         switch (variant) {
-            case 'danger': return <AlertTriangle size={32} color={BRAND_ORANGE} />;
-            case 'success': return <CheckCircle2 size={32} color={BRAND_ORANGE} />;
-            default: return <HelpCircle size={32} color={BRAND_SLATE} />;
+            case 'danger': return <AlertTriangle size={32} color="#e11d48" />;
+            case 'success': return <CheckCircle2 size={32} color="#16a34a" />;
+            default: return <HelpCircle size={32} color="#3b82f6" />;
         }
     };
 
-    const getPrimaryColor = () => {
-        // Use Orange for all primary/confirm actions to keep it simple
-        return BRAND_ORANGE;
+    const getColors = () => {
+        switch (variant) {
+            case 'danger': return { primary: '#e11d48', bg: '#fff1f2' };
+            case 'success': return { primary: '#16a34a', bg: '#f0fdf4' };
+            default: return { primary: '#3b82f6', bg: '#eff6ff' };
+        }
     };
 
+    const colors = getColors();
+
     const footer = (
-        <>
+        <div style={{ display: 'flex', gap: '12px', width: '100%' }}>
             <button 
                 onClick={onClose} 
                 className="btn btn-secondary" 
                 style={{ 
-                    padding: '0.6rem 1.5rem', 
-                    borderRadius: '10px',
-                    color: BRAND_SLATE,
-                    fontWeight: 600
+                    flex: 1,
+                    padding: '0.75rem 1.5rem', 
+                    borderRadius: '12px',
+                    fontWeight: 600,
+                    border: '1px solid #e2e8f0'
                 }}
             >
                 {cancelText}
@@ -57,37 +59,42 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({
             <button 
                 onClick={() => {
                     onConfirm();
-                    onClose();
                 }} 
                 style={{ 
-                    padding: '0.6rem 2rem', 
-                    borderRadius: '10px', 
+                    flex: 1,
+                    padding: '0.75rem 1.5rem', 
+                    borderRadius: '12px', 
                     border: 'none', 
-                    background: getPrimaryColor(), 
+                    background: colors.primary, 
                     color: 'white', 
                     fontWeight: 700, 
                     cursor: 'pointer',
-                    boxShadow: `0 4px 6px -1px ${getPrimaryColor()}33`
+                    boxShadow: `0 10px 15px -3px ${colors.primary}40`,
+                    transition: 'all 0.2s'
                 }}
+                onMouseOver={(e) => (e.currentTarget.style.transform = 'translateY(-2px)')}
+                onMouseOut={(e) => (e.currentTarget.style.transform = 'translateY(0)')}
             >
                 {confirmText}
             </button>
-        </>
+        </div>
     );
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title={title} variant={variant} footer={footer}>
-            <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'flex-start' }}>
+        <Modal isOpen={isOpen} onClose={onClose} title={title} variant={variant} footer={footer} maxWidth="440px">
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '1.5rem' }}>
                 <div style={{ 
-                    flexShrink: 0, 
-                    padding: '12px', 
-                    borderRadius: '12px', 
-                    background: variant === 'info' ? `${BRAND_SLATE}10` : `${BRAND_ORANGE}10` 
+                    padding: '20px', 
+                    borderRadius: '24px', 
+                    background: colors.bg,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
                 }}>
                     {getIcon()}
                 </div>
-                <div style={{ flex: 1 }}>
-                    <p style={{ margin: 0, fontSize: '0.95rem', color: BRAND_SLATE, lineHeight: 1.6, fontWeight: 500 }}>
+                <div>
+                    <p style={{ margin: 0, fontSize: '1.05rem', color: '#334155', lineHeight: 1.6, fontWeight: 500 }}>
                         {message}
                     </p>
                 </div>

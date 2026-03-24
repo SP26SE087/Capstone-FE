@@ -136,8 +136,15 @@ const ReportDetail: React.FC = () => {
                 achievements: reportData.achievements || '',
                 blockers: reportData.blockers || '',
                 nextWeek: reportData.nextWeek || '',
-                assigneeIds: reportData.assignees?.map((a: any) => a.id) || reportData.assigneeIds || [],
-                status: reportData.status ?? 0
+                assigneeIds: (() => {
+                    const r = reportData as any;
+                    const members = r.assignees || r.Assignees || r.members || r.Members;
+                    if (members && Array.isArray(members)) {
+                        return members.map((a: any) => a.id || a.Id || a.userId || a.UserId || a);
+                    }
+                    return r.assigneeIds || r.AssigneeIds || r.memberIds || r.MemberIds || [];
+                })(),
+                status: reportData.status ?? (reportData as any).Status ?? 0
             });
         } catch (error) {
             console.error('Failed to fetch report:', error);
@@ -460,17 +467,28 @@ const ReportDetail: React.FC = () => {
                                 <div>
                                     <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '8px' }}>Assignees</label>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                        {(isEditMode ? editData.assigneeIds : (report.assignees?.map(a => a.id) || [])).map(id => {
-                                            const u = allUsers.find(user => user.id === id);
-                                            return u ? (
-                                                <div key={id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '4px' }}>
-                                                    <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', fontWeight: 700 }}>
-                                                        {u.fullName?.charAt(0) || u.name?.charAt(0)}
+                                        {(() => {
+                                            const r = report as any;
+                                            const currentAssignees = isEditMode 
+                                                ? editData.assigneeIds 
+                                                : (r.assignees || r.Assignees || r.members || r.Members || []);
+                                            
+                                            const ids = Array.isArray(currentAssignees) && currentAssignees.length > 0 && typeof currentAssignees[0] === 'object'
+                                                ? currentAssignees.map((a: any) => a.id || a.Id || a.userId || a.UserId)
+                                                : (currentAssignees as string[]);
+
+                                            return (ids || []).map(id => {
+                                                const u = allUsers.find(user => (user.id || user.Id || user.userId || user.UserId) === id);
+                                                return u ? (
+                                                    <div key={id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '4px' }}>
+                                                        <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', fontWeight: 700 }}>
+                                                            {(u.fullName || u.FullName || u.name || u.Name || 'U').charAt(0)}
+                                                        </div>
+                                                        <span style={{ fontSize: '0.85rem' }}>{u.fullName || u.FullName || u.name || u.Name || u.email || u.Email}</span>
                                                     </div>
-                                                    <span style={{ fontSize: '0.85rem' }}>{u.fullName || u.name}</span>
-                                                </div>
-                                            ) : null;
-                                        })}
+                                                ) : null;
+                                            });
+                                        })()}
                                         {isEditMode && (
                                             <button onClick={() => setIsAssigneeModalOpen(true)} style={{ border: '1px dashed #cbd5e1', background: 'none', padding: '6px', cursor: 'pointer', borderRadius: '6px', fontSize: '0.75rem', color: '#64748b' }}>
                                                 Manage members

@@ -14,6 +14,8 @@ import AuthGuard from '@/components/auth/AuthGuard';
 import Reports from '@/pages/report/Reports';
 import CreateReport from '@/pages/report/CreateReport';
 import ReportDetail from '@/pages/report/ReportDetail';
+import ResourceBooking from '@/pages/resource/ResourceBooking';
+import LabResourceAdmin from '@/pages/admin/LabResourceAdmin';
 import ComingSoon from '@/pages/common/ComingSoon';
 
 export const router = createBrowserRouter([
@@ -72,6 +74,18 @@ export const router = createBrowserRouter([
     {
         path: '/reports/:id',
         element: <AuthGuard><ReportDetail /></AuthGuard>,
+    },
+    {
+        path: '/bookings',
+        element: <AuthGuard><ResourceBooking /></AuthGuard>,
+    },
+    {
+        path: '/admin/resources',
+        element: <AuthGuard><LabResourceAdmin /></AuthGuard>,
+    },
+    {
+        path: '/admin/logs',
+        element: <AuthGuard><LabResourceAdmin initialTab="logs" /></AuthGuard>,
     },
     {
         path: '/schedules',

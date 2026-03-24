@@ -999,11 +999,154 @@ a:hover {
   animation: pulse-animation 1.5s infinite;
 }
 
-@keyframes pulse-animation {
-  0% {
-    box-shadow: 0 0 0 0px rgba(232, 114, 12, 0.4);
-  }
-  100% {
-    box-shadow: 0 0 0 10px rgba(232, 114, 12, 0);
-  }
+/* =============================================
+   MISC UTILS
+   ============================================= */
+.animate-spin {
+  animation: rotate 1s linear infinite;
 }
+
+@keyframes rotate {
+  100% { transform: rotate(360deg); }
+}
+
+/* =============================================
+   TABLES
+   ============================================= */
+.table-container {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: var(--radius-md);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  text-align: left;
+}
+
+.table thead {
+  background: #f8fafc; /* Subtle slate-50 */
+  border-bottom: 2px solid var(--border-color);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.table th {
+  padding: 16px 20px;
+  font-weight: 800;
+  color: #334155; /* Slate 700 - Professional and readable */
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  letter-spacing: 0.075em;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-primary);
+  vertical-align: middle;
+}
+
+.table tbody tr {
+  transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+.table tbody tr:hover {
+  background: #fbfcfd; /* Very subtle hover */
+}
+
+.table-row-active {
+  background: var(--accent-bg);
+}
+
+/* =============================================
+   MODALS
+   ============================================= */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 5000; /* Ensure it stays above Sidebar(1000) and Header(1001) */
+  animation: fadeIn 0.2s ease-out;
+}
+
+.modal-container {
+  background: white;
+  width: 95%;
+  max-width: 600px;
+  max-height: 90vh;
+  border-radius: var(--radius-lg);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.modal-header {
+  padding: 1.25rem 2rem;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-body {
+  padding: 2rem;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.modal-footer {
+  padding: 1.25rem 2rem;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  background: var(--surface-hover);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes pulse-animation {
+  0% { box-shadow: 0 0 0 0px rgba(232, 114, 12, 0.4); }
+  100% { box-shadow: 0 0 0 10px rgba(232, 114, 12, 0); }
+}
+
+/* =============================================
+   ANIMATIONS
+   ============================================= */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse-subtle {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+

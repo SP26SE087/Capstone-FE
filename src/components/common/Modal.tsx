@@ -14,78 +14,100 @@ interface ModalProps {
 const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, footer, variant = 'info', maxWidth = '480px' }) => {
     if (!isOpen) return null;
 
-    const getHeaderColor = () => {
-        const BRAND_ORANGE = '#ea580c';
-        const BRAND_SLATE = '#475569';
-        switch (variant) {
-            case 'danger': 
-            case 'success': return BRAND_ORANGE;
-            default: return BRAND_SLATE;
-        }
-    };
-
     return (
         <div style={{
             position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.4)',
-            backdropFilter: 'blur(4px)',
+            top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.4)', // Darker Slate
+            backdropFilter: 'blur(10px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 2000,
-            padding: '1rem'
+            zIndex: 3000,
+            padding: '1.5rem',
+            animation: 'fadeIn 0.3s ease-out'
         }} onClick={onClose}>
             <div
                 style={{
                     backgroundColor: 'white',
-                    borderRadius: '16px',
+                    borderRadius: '24px', // Rounder corners
                     width: '100%',
                     maxWidth: maxWidth,
-                    boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+                    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
                     overflow: 'hidden',
                     display: 'flex',
-                    flexDirection: 'column'
+                    flexDirection: 'column',
+                    animation: 'scaleIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                    border: '1px solid rgba(255, 255, 255, 0.3)'
                 }}
                 onClick={e => e.stopPropagation()}
             >
                 <div style={{
-                    padding: '1.25rem 1.5rem',
-                    borderBottom: '1px solid #f1f5f9',
+                    padding: '1.5rem 1.75rem',
+                    background: variant === 'danger' ? '#fff1f2' : (variant === 'success' ? '#f0fdf4' : '#f8fafc'),
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    background: `${getHeaderColor()}08`
                 }}>
-                    <h3 style={{ margin: 0, fontSize: '1.1rem', color: getHeaderColor(), fontWeight: 700 }}>{title}</h3>
+                    <h3 style={{ 
+                        margin: 0, 
+                        fontSize: '1.25rem', 
+                        color: variant === 'danger' ? '#e11d48' : (variant === 'success' ? '#16a34a' : '#0f172a'), 
+                        fontWeight: 800,
+                        letterSpacing: '-0.02em'
+                    }}>
+                        {title}
+                    </h3>
                     <button
                         onClick={onClose}
-                        style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px', borderRadius: '4px' }}
+                        style={{ 
+                            background: 'rgba(0,0,0,0.05)', 
+                            border: 'none', 
+                            color: '#64748b', 
+                            cursor: 'pointer', 
+                            width: '32px', 
+                            height: '32px', 
+                            borderRadius: '50%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'all 0.2s'
+                        }}
+                        onMouseOver={(e) => (e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.1)')}
+                        onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.05)')}
                     >
-                        <X size={20} />
+                        <X size={18} />
                     </button>
                 </div>
-
-                <div style={{ padding: '1.5rem', fontSize: '0.95rem', color: '#475569', lineHeight: 1.6 }}>
+ 
+                <div style={{ padding: '2rem 1.75rem', fontSize: '1rem', color: '#334155', lineHeight: 1.6 }}>
                     {children}
                 </div>
-
+ 
                 {footer && (
                     <div style={{
-                        padding: '1rem 1.5rem',
-                        borderTop: '1px solid #f1f5f9',
+                        padding: '1.25rem 1.75rem',
+                        background: '#f8fafc',
                         display: 'flex',
                         justifyContent: 'flex-end',
                         gap: '12px',
-                        background: '#f8fafc'
+                        borderTop: '1px solid #f1f5f9'
                     }}>
                         {footer}
                     </div>
                 )}
             </div>
+
+            <style>{`
+                @keyframes fadeIn {
+                    from { opacity: 0; }
+                    to { opacity: 1; }
+                }
+                @keyframes scaleIn {
+                    from { transform: scale(0.9); opacity: 0; }
+                    to { transform: scale(1); opacity: 1; }
+                }
+            `}</style>
         </div>
     );
 };

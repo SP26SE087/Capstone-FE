@@ -5,3 +5,4 @@ export * from './researchFieldService';
 export * from './milestoneService';
 export * from './membershipService';
 export * from './userService';
+export * from './resourceService';

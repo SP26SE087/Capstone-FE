@@ -9,6 +9,7 @@ import {
     FlaskConical,
     BarChart2,
     Presentation,
+    Box
 } from 'lucide-react';
 
 const Sidebar: React.FC = () => {
@@ -18,6 +19,7 @@ const Sidebar: React.FC = () => {
         { icon: <CheckSquare size={20} />, label: 'Tasks', path: '/tasks' },
         { icon: <Users size={20} />, label: 'Members', path: '/members' },
         { icon: <BarChart2 size={20} />, label: 'Reports', path: '/reports' },
+        { icon: <Box size={20} />, label: 'Booking Resource', path: '/bookings' },
         { icon: <Calendar size={20} />, label: 'Schedules', path: '/schedules' },
         { icon: <Presentation size={20} />, label: 'Seminars', path: '/seminars' },
     ];

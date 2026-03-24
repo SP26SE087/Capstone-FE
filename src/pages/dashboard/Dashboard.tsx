@@ -53,7 +53,7 @@ function Dashboard() {
         { label: 'Resources', value: stats?.availableResourcesCount ?? 0, icon: <Layout size={20} />, color: 'var(--text-secondary)', bg: 'var(--border-light)' },
     ];
 
-    const canCreateProject = user.role === 'Lab Director' || user.role === 'Admin';
+    const canCreateProject = Number(user.role) === 1 || Number(user.role) === 2 || user.role === 'Admin' || user.role === 'Lab Director' || user.role === 'LabDirector';
 
     return (
         <MainLayout role={user.role} userName={user.name}>
@@ -283,7 +283,11 @@ function Dashboard() {
                             <p style={{ fontSize: '0.85rem', opacity: 0.75 }}>
                                 Lab resources for GPU servers are currently at {stats?.availableResourcesCount ?? '--'}% capacity.
                             </p>
-                            <button className="btn btn-primary" style={{ marginTop: '1rem', width: '100%' }}>
+                            <button 
+                                className="btn btn-primary" 
+                                style={{ marginTop: '1rem', width: '100%' }}
+                                onClick={() => navigate('/bookings')}
+                            >
                                 Book Resource
                             </button>
                         </section>
