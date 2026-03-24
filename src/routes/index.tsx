@@ -16,6 +16,8 @@ import CreateReport from '@/pages/report/CreateReport';
 import ReportDetail from '@/pages/report/ReportDetail';
 import ComingSoon from '@/pages/common/ComingSoon';
 import UserManagement from '@/pages/user-management/UserManagement';
+import PaperSubmissions from '@/pages/paper/PaperSubmissions';
+import PaperReview from '@/pages/paper/PaperReview';
 
 export const router = createBrowserRouter([
     {
@@ -65,6 +67,14 @@ export const router = createBrowserRouter([
     {
         path: '/members',
         element: <AuthGuard><Members /></AuthGuard>,
+    },
+    {
+        path: '/papers',
+        element: <AuthGuard><PaperSubmissions /></AuthGuard>,
+    },
+    {
+        path: '/paper-review',
+        element: <AuthGuard><PaperReview /></AuthGuard>,
     },
     {
         path: '/reports',

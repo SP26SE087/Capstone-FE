@@ -10,6 +10,8 @@ import {
     BarChart2,
     Presentation,
     UserCog,
+    FileText,
+    FileSearch,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -21,6 +23,7 @@ const Sidebar: React.FC = () => {
         { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/dashboard' },
         { icon: <Briefcase size={20} />, label: 'My Projects', path: '/projects' },
         { icon: <CheckSquare size={20} />, label: 'Tasks', path: '/tasks' },
+        { icon: <FileText size={20} />, label: 'Papers', path: '/papers' },
         { icon: <Users size={20} />, label: 'Members', path: '/members' },
         { icon: <BarChart2 size={20} />, label: 'Reports', path: '/reports' },
         { icon: <Calendar size={20} />, label: 'Schedules', path: '/schedules' },
@@ -67,6 +70,15 @@ const Sidebar: React.FC = () => {
                         >
                             <span className="sidebar-link-icon"><UserCog size={20} /></span>
                             <span className="sidebar-link-label">User Management</span>
+                        </NavLink>
+                        <NavLink
+                            to="/paper-review"
+                            className={({ isActive }) =>
+                                `sidebar-link ${isActive ? 'active' : ''}`
+                            }
+                        >
+                            <span className="sidebar-link-icon"><FileSearch size={20} /></span>
+                            <span className="sidebar-link-label">Paper Review</span>
                         </NavLink>
                     </>
                 )}

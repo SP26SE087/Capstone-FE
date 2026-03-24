@@ -84,8 +84,8 @@ const UserManagement: React.FC = () => {
             setMembers(data);
             setError(null);
         } catch (err) {
-            console.error('Lỗi tải danh sách thành viên:', err);
-            setError('Không thể tải danh sách người dùng. Vui lòng thử lại sau.');
+            console.error('Error loading members:', err);
+            setError('Failed to load user list. Please try again.');
         } finally {
             setLoading(false);
         }
@@ -114,14 +114,14 @@ const UserManagement: React.FC = () => {
             setAddEmail('');
             setAddFullName('');
             setAddRole(4);
-            setAddSuccess(`Đã thêm thành viên "${addFullName}" thành công!`);
+            setAddSuccess(`Member "${addFullName}" added successfully!`);
             setTimeout(() => setAddSuccess(null), 4000);
         } catch (err: any) {
             const data = err.response?.data;
-            let errorMessage = 'Thêm người dùng thất bại. Vui lòng thử lại.';
+            let errorMessage = 'Failed to add user. Please try again.';
             if (data?.message) errorMessage = data.message;
             else if (typeof data === 'string') errorMessage = data;
-            else if (!err.response) errorMessage = 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra Backend đang chạy.';
+            else if (!err.response) errorMessage = 'Cannot connect to server. Please ensure Backend is running.';
             setAddError(errorMessage);
         } finally {
             setAddLoading(false);
@@ -138,8 +138,8 @@ const UserManagement: React.FC = () => {
             if (expandedUserId === userId) setExpandedUserId(null);
             if (editingUserId === userId) setEditingUserId(null);
         } catch (err: any) {
-            console.error('Xóa người dùng thất bại:', err);
-            const msg = err.response?.data?.message || 'Xóa người dùng thất bại. Người dùng có thể có dữ liệu liên quan ngăn việc xóa.';
+            console.error('Failed to delete user:', err);
+            const msg = err.response?.data?.message || 'Failed to delete user. The user may have related data preventing deletion.';
             setDeleteConfirmId(null);
             alert(msg);
         } finally {
@@ -187,11 +187,11 @@ const UserManagement: React.FC = () => {
                 }
                 return m;
             }));
-            setEditSuccess('Cập nhật người dùng thành công!');
+            setEditSuccess('User updated successfully!');
             setTimeout(() => { setEditSuccess(null); setEditingUserId(null); }, 2000);
         } catch (err: any) {
             const data = err.response?.data;
-            let errorMessage = 'Cập nhật người dùng thất bại.';
+            let errorMessage = 'Failed to update user.';
             if (data?.message) errorMessage = data.message;
             else if (typeof data === 'string') errorMessage = data;
             setEditError(errorMessage);
@@ -218,14 +218,14 @@ const UserManagement: React.FC = () => {
                 {/* Page Header */}
                 <div className="page-header">
                     <div>
-                        <h1>Quản lý người dùng</h1>
-                        <p>Thêm, chỉnh sửa, tìm kiếm và quản lý tài khoản LabSync.</p>
+                        <h1>User Management</h1>
+                        <p>Add, edit, search, and manage LabSync accounts.</p>
                     </div>
                     <button
                         className={`btn ${showAddForm ? 'btn-secondary' : 'btn-primary'}`}
                         onClick={() => { setShowAddForm(!showAddForm); setAddError(null); setAddSuccess(null); }}
                     >
-                        {showAddForm ? <><X size={18} /> Đóng</> : <><UserPlus size={18} /> Thêm thành viên</>}
+                        {showAddForm ? <><X size={18} /> Close</> : <><UserPlus size={18} /> Add Member</>}
                     </button>
                 </div>
 
@@ -233,7 +233,7 @@ const UserManagement: React.FC = () => {
                 {showAddForm && (
                     <div className="um-add-form card">
                         <h3 style={{ margin: '0 0 1.25rem', fontSize: '1.05rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <UserPlus size={18} style={{ color: 'var(--accent-color)' }} /> Thêm thành viên mới
+                            <UserPlus size={18} style={{ color: 'var(--accent-color)' }} /> Add New Member
                         </h3>
 
                         {addError && (
@@ -249,7 +249,7 @@ const UserManagement: React.FC = () => {
 
                         <form onSubmit={handleAddUser} className="um-form-grid">
                             <div className="um-form-field">
-                                <label><Mail size={14} /> Địa chỉ Email *</label>
+                                <label><Mail size={14} /> Email Address *</label>
                                 <input
                                     required
                                     type="email"
@@ -261,7 +261,7 @@ const UserManagement: React.FC = () => {
                                 />
                             </div>
                             <div className="um-form-field">
-                                <label><User size={14} /> Họ và tên *</label>
+                                <label><User size={14} /> Full Name *</label>
                                 <input
                                     required
                                     type="text"
@@ -273,7 +273,7 @@ const UserManagement: React.FC = () => {
                                 />
                             </div>
                             <div className="um-form-field">
-                                <label><Shield size={14} /> Vai trò *</label>
+                                <label><Shield size={14} /> Role *</label>
                                 <select
                                     value={addRole}
                                     onChange={(e) => setAddRole(Number(e.target.value))}
@@ -290,7 +290,7 @@ const UserManagement: React.FC = () => {
                             <div className="um-form-actions">
                                 <button type="submit" disabled={addLoading} className="btn btn-primary">
                                     {addLoading && <Loader2 size={16} className="animate-spin" />}
-                                    {addLoading ? 'Đang thêm...' : 'Thêm người dùng'}
+                                    {addLoading ? 'Adding...' : 'Add User'}
                                 </button>
                             </div>
                         </form>
@@ -303,7 +303,7 @@ const UserManagement: React.FC = () => {
                         <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                         <input
                             type="text"
-                            placeholder="Tìm kiếm theo tên, email hoặc vai trò..."
+                            placeholder="Search by name, email, or role..."
                             className="form-input"
                             style={{ paddingLeft: '40px' }}
                             value={searchQuery}
@@ -311,7 +311,7 @@ const UserManagement: React.FC = () => {
                         />
                     </div>
                     <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                        {filteredMembers.length} người dùng
+                        {filteredMembers.length} user{filteredMembers.length !== 1 ? 's' : ''}
                     </span>
                 </div>
 
@@ -319,7 +319,7 @@ const UserManagement: React.FC = () => {
                 {loading && (
                     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '300px', flexDirection: 'column', gap: '1rem' }}>
                         <Loader2 className="animate-spin" size={40} style={{ color: 'var(--primary-color)' }} />
-                        <p style={{ color: 'var(--text-secondary)' }}>Đang tải danh sách...</p>
+                        <p style={{ color: 'var(--text-secondary)' }}>Loading users...</p>
                     </div>
                 )}
 
@@ -327,7 +327,7 @@ const UserManagement: React.FC = () => {
                 {!loading && error && (
                     <div className="card" style={{ padding: '2rem', textAlign: 'center', color: 'var(--danger)' }}>
                         <p>{error}</p>
-                        <button className="btn btn-primary" onClick={fetchMembers} style={{ marginTop: '1rem' }}>Thử lại</button>
+                        <button className="btn btn-primary" onClick={fetchMembers} style={{ marginTop: '1rem' }}>Retry</button>
                     </div>
                 )}
 
@@ -339,17 +339,17 @@ const UserManagement: React.FC = () => {
                                 <thead>
                                     <tr>
                                         <th style={{ width: '50px' }}></th>
-                                        <th>Họ và tên</th>
+                                        <th>Full Name</th>
                                         <th>Email</th>
-                                        <th>Vai trò</th>
-                                        <th>Trạng thái</th>
-                                        <th style={{ width: '120px', textAlign: 'center' }}>Hành động</th>
+                                        <th>Role</th>
+                                        <th>Status</th>
+                                        <th style={{ width: '120px', textAlign: 'center' }}>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {filteredMembers.map((member: any) => {
                                         const userId = member.userId || member.id;
-                                        const name = member.fullName || member.userName || member.name || 'Không rõ';
+                                        const name = member.fullName || member.userName || member.name || 'Unknown';
                                         const initials = name.split(' ').map((n: string) => n[0]).join('').slice(0, 2);
                                         const isExpanded = expandedUserId === userId;
                                         const isDeleting = deleteConfirmId === userId;
@@ -379,7 +379,7 @@ const UserManagement: React.FC = () => {
                                                     </td>
                                                     <td>
                                                         <span className={`badge ${member.isActive !== false ? 'badge-success' : 'badge-muted'}`}>
-                                                            {member.isActive !== false ? 'Hoạt động' : 'Ngừng hoạt động'}
+                                                            {member.isActive !== false ? 'Active' : 'Inactive'}
                                                         </span>
                                                     </td>
                                                     <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
@@ -388,7 +388,7 @@ const UserManagement: React.FC = () => {
                                                                 className="btn btn-ghost"
                                                                 style={{ color: 'var(--accent-color)', padding: '4px 8px' }}
                                                                 onClick={() => startEditing(member)}
-                                                                title="Chỉnh sửa"
+                                                                title="Edit"
                                                             >
                                                                 <Pencil size={15} />
                                                             </button>
@@ -396,7 +396,7 @@ const UserManagement: React.FC = () => {
                                                                 className="btn btn-ghost"
                                                                 style={{ color: 'var(--danger)', padding: '4px 8px' }}
                                                                 onClick={() => setDeleteConfirmId(isDeleting ? null : userId)}
-                                                                title="Xóa"
+                                                                title="Delete"
                                                             >
                                                                 <Trash2 size={15} />
                                                             </button>
@@ -410,7 +410,7 @@ const UserManagement: React.FC = () => {
                                                         <td colSpan={6}>
                                                             <div className="um-confirm-bar">
                                                                 <AlertTriangle size={16} style={{ color: 'var(--danger)', flexShrink: 0 }} />
-                                                                <span>Xóa <strong>{name}</strong>? Hành động này không thể hoàn tác.</span>
+                                                                <span>Delete <strong>{name}</strong>? This action cannot be undone.</span>
                                                                 <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', flexShrink: 0 }}>
                                                                     <button
                                                                         className="btn btn-secondary"
@@ -427,7 +427,7 @@ const UserManagement: React.FC = () => {
                                                                         disabled={deleteLoading}
                                                                     >
                                                                         {deleteLoading ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                                                                        {deleteLoading ? ' Đang xóa...' : ' Xác nhận xóa'}
+                                                                        {deleteLoading ? ' Deleting...' : ' Confirm Delete'}
                                                                     </button>
                                                                 </div>
                                                             </div>
@@ -449,7 +449,7 @@ const UserManagement: React.FC = () => {
                                                                             </div>
                                                                             <div style={{ flex: 1 }}>
                                                                                 <h3 style={{ margin: 0, fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                                                    <Pencil size={16} style={{ color: 'var(--accent-color)' }} /> Chỉnh sửa người dùng
+                                                                                    <Pencil size={16} style={{ color: 'var(--accent-color)' }} /> Edit User
                                                                                 </h3>
                                                                                 <p style={{ margin: '4px 0 0', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{member.email}</p>
                                                                             </div>
@@ -468,7 +468,7 @@ const UserManagement: React.FC = () => {
 
                                                                         <div className="um-edit-grid">
                                                                             <div className="um-form-field">
-                                                                                <label><User size={14} /> Họ và tên</label>
+                                                                                <label><User size={14} /> Full Name</label>
                                                                                 <input
                                                                                     type="text"
                                                                                     value={editFullName}
@@ -479,7 +479,7 @@ const UserManagement: React.FC = () => {
                                                                                 />
                                                                             </div>
                                                                             <div className="um-form-field">
-                                                                                <label><Shield size={14} /> Vai trò</label>
+                                                                                <label><Shield size={14} /> Role</label>
                                                                                 <select
                                                                                     value={editRole}
                                                                                     onChange={(e) => setEditRole(Number(e.target.value))}
@@ -494,15 +494,15 @@ const UserManagement: React.FC = () => {
                                                                                 </select>
                                                                             </div>
                                                                             <div className="um-form-field">
-                                                                                <label>Trạng thái</label>
+                                                                                <label>Status</label>
                                                                                 <select
                                                                                     value={editIsActive ? 'true' : 'false'}
                                                                                     onChange={(e) => setEditIsActive(e.target.value === 'true')}
                                                                                     disabled={editLoading}
                                                                                     className="form-input"
                                                                                 >
-                                                                                    <option value="true">Hoạt động</option>
-                                                                                    <option value="false">Ngừng hoạt động</option>
+                                                                                    <option value="true">Active</option>
+                                                                                    <option value="false">Inactive</option>
                                                                                 </select>
                                                                             </div>
                                                                         </div>
@@ -515,7 +515,7 @@ const UserManagement: React.FC = () => {
                                                                                 disabled={editLoading}
                                                                                 style={{ padding: '6px 18px' }}
                                                                             >
-                                                                                Hủy
+                                                                                Cancel
                                                                             </button>
                                                                             <button
                                                                                 type="submit"
@@ -524,7 +524,7 @@ const UserManagement: React.FC = () => {
                                                                                 style={{ padding: '6px 18px', display: 'flex', alignItems: 'center', gap: '6px' }}
                                                                             >
                                                                                 {editLoading ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
-                                                                                {editLoading ? 'Đang lưu...' : 'Lưu thay đổi'}
+                                                                                {editLoading ? 'Saving...' : 'Save Changes'}
                                                                             </button>
                                                                         </div>
                                                                     </form>
@@ -544,20 +544,20 @@ const UserManagement: React.FC = () => {
                                                                                 style={{ padding: '6px 14px', fontSize: '0.82rem' }}
                                                                                 onClick={(e) => { e.stopPropagation(); startEditing(member); }}
                                                                             >
-                                                                                <Pencil size={14} /> Chỉnh sửa
+                                                                                <Pencil size={14} /> Edit
                                                                             </button>
                                                                         </div>
                                                                         <div className="um-detail-grid">
                                                                             <div className="um-detail-item">
-                                                                                <span className="um-detail-label">Vai trò</span>
+                                                                                <span className="um-detail-label">Role</span>
                                                                                 <span className={`badge ${getRoleBadgeClass(member.role)}`}>
                                                                                     {SystemRoleMap[member.role] || member.role || 'Member'}
                                                                                 </span>
                                                                             </div>
                                                                             <div className="um-detail-item">
-                                                                                <span className="um-detail-label">Trạng thái tài khoản</span>
+                                                                                <span className="um-detail-label">Account Status</span>
                                                                                 <span className={`badge ${member.isActive !== false ? 'badge-success' : 'badge-muted'}`}>
-                                                                                    {member.isActive !== false ? 'Hoạt động' : 'Ngừng hoạt động'}
+                                                                                    {member.isActive !== false ? 'Active' : 'Inactive'}
                                                                                 </span>
                                                                             </div>
                                                                             <div className="um-detail-item">
@@ -566,7 +566,7 @@ const UserManagement: React.FC = () => {
                                                                             </div>
                                                                             {member.createdAt && (
                                                                                 <div className="um-detail-item">
-                                                                                    <span className="um-detail-label">Ngày tạo</span>
+                                                                                    <span className="um-detail-label">Created</span>
                                                                                     <span>{new Date(member.createdAt).toLocaleDateString('vi-VN')}</span>
                                                                                 </div>
                                                                             )}
@@ -594,8 +594,8 @@ const UserManagement: React.FC = () => {
                             <div className="empty-state-icon">
                                 <Users size={36} />
                             </div>
-                            <h2>Không tìm thấy người dùng</h2>
-                            <p>{searchQuery ? `Không có kết quả cho "${searchQuery}"` : 'Thêm thành viên vào phòng thí nghiệm.'}</p>
+                            <h2>No users found</h2>
+                            <p>{searchQuery ? `No results for "${searchQuery}"` : 'Add members to your lab.'}</p>
                         </div>
                     )
                 )}

@@ -28,7 +28,7 @@ export const userService = {
             const response = await api.get('/api/users');
             return response.data.data || response.data;
         } catch (error) {
-            console.error('Lỗi khi tải danh sách người dùng:', error);
+            console.error('Error loading user list:', error);
             throw error;
         }
     },
@@ -38,7 +38,7 @@ export const userService = {
             const response = await api.get(`/api/users/email/${email}`);
             return response.data.data || response.data;
         } catch (error) {
-            console.error(`Lỗi khi tìm người dùng theo email ${email}:`, error);
+            console.error(`Error finding user by email ${email}:`, error);
             throw error;
         }
     },
@@ -48,7 +48,7 @@ export const userService = {
             const response = await api.get(`/api/users/${userId}`);
             return response.data.data || response.data;
         } catch (error) {
-            console.error(`Lỗi khi tìm người dùng ${userId}:`, error);
+            console.error(`Error finding user ${userId}:`, error);
             throw error;
         }
     },
