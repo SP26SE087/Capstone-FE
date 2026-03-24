@@ -5,7 +5,6 @@ export interface AuthResponse {
     tokenType: string;
     expiresIn: number;
     refreshToken: string;
-    userId: string;
     email: string;
     fullName: string;
     role: string;
@@ -47,7 +46,6 @@ export const authService = {
         localStorage.setItem(AUTH_KEYS.TOKEN, data.accessToken);
         localStorage.setItem(AUTH_KEYS.REFRESH_TOKEN, data.refreshToken);
         localStorage.setItem(AUTH_KEYS.USER, JSON.stringify({
-            userId: data.userId,
             email: data.email,
             fullName: data.fullName,
             role: data.role,
@@ -64,7 +62,7 @@ export const authService = {
         return localStorage.getItem(AUTH_KEYS.TOKEN);
     },
 
-    getAuthUser(): { userId: string; email: string; fullName: string; role: string } | null {
+    getAuthUser(): { email: string; fullName: string; role: string } | null {
         const raw = localStorage.getItem(AUTH_KEYS.USER);
         if (!raw) return null;
         try {

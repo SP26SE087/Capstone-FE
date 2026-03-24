@@ -1,5 +1,5 @@
 export interface Project {
-    id: string;
+    projectId: string;
     projectName: string;
     projectDescription: string | null;
     startDate: string | null;
@@ -65,9 +65,8 @@ export enum ResearchFieldStatus {
 }
 
 export interface ResearchField {
-    id: string;
+    researchFieldId: string;
     name: string;
     description: string | null;
-    status: ResearchFieldStatus;
+    status: number;
 }
-

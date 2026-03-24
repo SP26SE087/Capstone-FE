@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { GoogleLogin, CredentialResponse } from '@react-oauth/google';
+import React, { useState, useCallback } from 'react';
+import { Navigate, useNavigate } from 'react-router-dom';
+import { GoogleLogin, CredentialResponse, useGoogleLogin } from '@react-oauth/google';
 import { authService } from '@/services/authService';
 import { FlaskConical } from 'lucide-react';
 
@@ -8,6 +8,24 @@ const LoginPage: React.FC = () => {
     const navigate = useNavigate();
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
+
+    if (authService.isAuthenticated()) {
+        return <Navigate to="/home" replace />;
+    }
+
+    // Google Calendar consent — opens Google's native consent popup
+    const requestCalendarConsent = useGoogleLogin({
+        flow: 'auth-code',
+        scope: 'https://www.googleapis.com/auth/calendar.events',
+        onSuccess: () => {
+            localStorage.setItem('calendar_authorized', 'true');
+            navigate('/home', { replace: true });
+        },
+        onError: () => {
+            // User denied or error — still go to home, just without calendar
+            navigate('/home', { replace: true });
+        },
+    });
 
     const handleGoogleSuccess = async (credentialResponse: CredentialResponse) => {
         if (!credentialResponse.credential) {
@@ -20,7 +38,8 @@ const LoginPage: React.FC = () => {
 
         try {
             await authService.loginWithGoogle(credentialResponse.credential);
-            navigate('/dashboard', { replace: true });
+            // After login, open Google's Calendar consent popup
+            requestCalendarConsent();
         } catch (err: any) {
             const status = err?.response?.status;
             const serverMessage = typeof err?.response?.data === 'string'
@@ -36,7 +55,6 @@ const LoginPage: React.FC = () => {
             } else {
                 setError('Không thể kết nối đến server. Vui lòng kiểm tra backend đang chạy.');
             }
-        } finally {
             setLoading(false);
         }
     };

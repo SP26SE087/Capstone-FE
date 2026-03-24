@@ -1,4 +1,4 @@
-import { createBrowserRouter } from 'react-router-dom';
+import { createBrowserRouter, Navigate } from 'react-router-dom';
 import Dashboard from '@/pages/dashboard/Dashboard';
 import LoginPage from '@/pages/auth/LoginPage';
 import Projects from '@/pages/project/Projects';
@@ -17,15 +17,22 @@ import ReportDetail from '@/pages/report/ReportDetail';
 import ResourceBooking from '@/pages/resource/ResourceBooking';
 import LabResourceAdmin from '@/pages/admin/LabResourceAdmin';
 import ComingSoon from '@/pages/common/ComingSoon';
+import UserManagement from '@/pages/user-management/UserManagement';
+import PaperSubmissions from '@/pages/paper/PaperSubmissions';
+import PaperReview from '@/pages/paper/PaperReview';
 
 export const router = createBrowserRouter([
+    {
+        path: '/',
+        element: <Navigate to="/login" replace />,
+    },
     {
         path: '/login',
         element: <LoginPage />,
     },
     {
-        path: '/',
-        element: <Home />,
+        path: '/home',
+        element: <AuthGuard><Home /></AuthGuard>,
     },
     {
         path: '/dashboard',
@@ -45,7 +52,7 @@ export const router = createBrowserRouter([
     },
     {
         path: '/explore/projects/:id',
-        element: <PublicProjectDetails />,
+        element: <AuthGuard><PublicProjectDetails /></AuthGuard>,
     },
     {
         path: '/projects/edit/:id',
@@ -62,6 +69,14 @@ export const router = createBrowserRouter([
     {
         path: '/members',
         element: <AuthGuard><Members /></AuthGuard>,
+    },
+    {
+        path: '/papers',
+        element: <AuthGuard><PaperSubmissions /></AuthGuard>,
+    },
+    {
+        path: '/paper-review',
+        element: <AuthGuard><PaperReview /></AuthGuard>,
     },
     {
         path: '/reports',
@@ -94,5 +109,13 @@ export const router = createBrowserRouter([
     {
         path: '/seminars',
         element: <AuthGuard><ComingSoon title="Seminars" /></AuthGuard>,
+    },
+    {
+        path: '/user-management',
+        element: <AuthGuard><UserManagement /></AuthGuard>,
+    },
+    {
+        path: '*',
+        element: <Navigate to="/login" replace />,
     },
 ]);

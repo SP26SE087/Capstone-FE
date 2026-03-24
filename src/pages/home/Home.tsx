@@ -18,7 +18,7 @@ import { useAuth } from '@/hooks/useAuth';
 
 const Home: React.FC = () => {
     const navigate = useNavigate();
-    const { user, isAuthenticated } = useAuth();
+    const { user } = useAuth();
     const [publicProjects, setPublicProjects] = useState<Project[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -271,21 +271,12 @@ const Home: React.FC = () => {
                     <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '1rem' }}>
                         Are you an AiTA Lab researcher?
                     </p>
-                    {isAuthenticated ? (
-                        <button
-                            onClick={() => navigate('/dashboard')}
-                            className="btn btn-outline"
-                        >
-                            Go to Researcher Workspace
-                        </button>
-                    ) : (
-                        <button
-                            onClick={() => navigate('/login')}
-                            className="btn btn-primary"
-                        >
-                            Sign in to get started
-                        </button>
-                    )}
+                    <button
+                        onClick={() => navigate('/dashboard')}
+                        className="btn btn-outline"
+                    >
+                        Go to Researcher Workspace
+                    </button>
                 </div>
             </div>
         </MainLayout>

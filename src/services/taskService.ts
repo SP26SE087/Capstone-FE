@@ -103,7 +103,7 @@ export const taskService = {
         try {
             // Per updated model: PUT /api/projects/tasks
             const updatePayload = {
-                id: taskId,
+                taskId: taskId,
                 name: taskData.name,
                 description: taskData.description,
                 priority: taskData.priority,
@@ -245,7 +245,7 @@ export const taskService = {
             };
         } catch (error) {
             console.error(`Error fetching task details for ${taskId}:`, error);
-            const mockTask = mockTasks.find(t => t.id === taskId);
+            const mockTask = mockTasks.find(t => t.taskId === taskId);
             return mockTask || null;
         }
     },

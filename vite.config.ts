@@ -42,6 +42,11 @@ export default defineConfig({
                 changeOrigin: true,
                 secure: false,
             },
+            '/api/papersubmissions': {
+                target: 'https://localhost:7252',
+                changeOrigin: true,
+                secure: false,
+            },
             '/api': {
                 target: 'https://localhost:7215',
                 changeOrigin: true,

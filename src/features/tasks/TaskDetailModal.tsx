@@ -250,7 +250,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
         }
 
         // Re-inject current milestone if it was filtered out but is active
-        if (currentMilestone && !list.some(m => m.id === milestoneId)) {
+        if (currentMilestone && !list.some(m => m.milestoneId === milestoneId)) {
             list = [currentMilestone, ...list];
         }
 
@@ -877,7 +877,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                             >
                                                 <option value="">No Milestone Linked</option>
                                                 {filteredMilestones.map(m => (
-                                                    <option key={m.id} value={m.id}>
+                                                    <option key={m.milestoneId} value={m.milestoneId}>
                                                         [{getMilestoneStatusLabel(m.status)}] {m.name} ({formatDate(m.startDate)} - {formatDate(m.dueDate)})
                                                     </option>
                                                 ))}

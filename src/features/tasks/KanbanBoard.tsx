@@ -172,7 +172,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
     };
 
     const handleTaskClick = (task: Task) => {
-        setSelectedTaskId(task.id);
+        setSelectedTaskId(task.taskId);
         setIsDetailModalOpen(true);
     };
 

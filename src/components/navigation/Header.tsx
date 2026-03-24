@@ -14,7 +14,7 @@ const Header: React.FC = () => {
     // System Roles: Admin = 1, LabDirector = 2
     const isLabDirector = Number(user.role) === SystemRoleEnum.Admin || Number(user.role) === SystemRoleEnum.LabDirector;
 
-    const workspaceRoutes = ['/dashboard', '/projects', '/tasks', '/meetings', '/members', '/bookings', '/admin'];
+    const workspaceRoutes = ['/dashboard', '/projects', '/tasks', '/meetings', '/members', '/bookings', '/admin', '/user-management'];
     const isInWorkspace = workspaceRoutes.some(route => location.pathname.startsWith(route));
 
     useEffect(() => {
@@ -28,7 +28,7 @@ const Header: React.FC = () => {
     }, []);
 
     const navItems = [
-        { label: 'Home Page', path: '/', icon: <Library size={18} /> },
+        { label: 'Home Page', path: '/home', icon: <Library size={18} /> },
         { label: 'Work Researcher Space', path: '/dashboard', icon: <FlaskConical size={18} /> },
     ];
 
