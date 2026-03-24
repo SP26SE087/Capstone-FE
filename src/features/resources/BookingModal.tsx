@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Resource, CreateBookingRequest, Booking, BookingStatus } from '@/types/booking';
-import { X, Calendar, Clock, ChevronLeft, ChevronRight, Package, FileText, AlertCircle } from 'lucide-react';
+import { X, Calendar, Clock, ChevronLeft, ChevronRight, Package, FileText, AlertCircle, Plus, Minus } from 'lucide-react';
 import { bookingService } from '@/services/bookingService';
 
 interface BookingModalProps {
@@ -48,13 +48,9 @@ const BookingModal: React.FC<BookingModalProps> = ({ resource, onClose, onSubmit
   const [calYear, setCalYear] = useState(now.getFullYear());
   // Simple selection state
   const [selectingDateEnd, setSelectingDateEnd] = useState(false);
-  const [selectingTimeEnd, setSelectingTimeEnd] = useState(false);
   const draggingDate = useRef(false);
   const dateAnchor = useRef<Date | null>(null);
   const hasMovedDate = useRef(false);
-  const draggingTime = useRef(false);
-  const timeAnchor = useRef<{ h: number; m: number } | null>(null);
-  const hasMovedTime = useRef(false);
 
   // ── Date selection: click or drag ──
   const handleDateDown = useCallback((date: Date) => {
@@ -119,74 +115,18 @@ const BookingModal: React.FC<BookingModalProps> = ({ resource, onClose, onSubmit
     }
   }, []);
 
-  // ── Time selection: click or drag ──
-  const handleTimeDown = useCallback((h: number, m: number) => {
-    if (isTimePast(h, m)) return;
-
-    if (selectingTimeEnd) {
-      const sMin = new Date(startTime).getHours() * 60 + new Date(startTime).getMinutes();
-      const clickMin = h * 60 + m;
-      if (clickMin > sMin) {
-        // End click: add 5 mins but avoid rolling over to next day
-        const e = new Date(endTime);
-        const totalMin = h * 60 + m + 5;
-        if (totalMin >= 1440) e.setHours(23, 59, 0, 0);
-        else e.setHours(Math.floor(totalMin / 60), totalMin % 60, 0, 0);
-        setEndTime(fmt(e));
-      } else {
-        const d = new Date(startTime); d.setHours(h, m, 0, 0);
-        setStartTime(fmt(d));
-      }
-      setSelectingTimeEnd(false);
-      return;
-    }
-
-    draggingTime.current = true;
-    timeAnchor.current = { h, m };
-    hasMovedTime.current = false;
-    const d = new Date(startTime); d.setHours(h, m, 0, 0);
-    setStartTime(fmt(d));
-    const e = new Date(endTime);
-    // If m+5 >= 60 and h=23, it must stay on same day
-    if (h === 23 && m + 5 >= 60) e.setHours(23, 59, 0, 0);
-    else e.setHours(h, m + 5, 0, 0);
-    setEndTime(fmt(e));
-  }, [selectingTimeEnd, startTime, endTime]);
-
-  const handleTimeEnter = useCallback((h: number, m: number) => {
-    if (!draggingTime.current || !timeAnchor.current) return;
-    const anchor = timeAnchor.current;
-    if (h !== anchor.h || m !== anchor.m) hasMovedTime.current = true;
-    if (isTimePast(h, m)) return;
-    if (!anchor) return;
-    const anchorMin = anchor.h * 60 + anchor.m;
-    const curMin = h * 60 + m;
-    const minM = Math.min(anchorMin, curMin);
-    const maxM = Math.max(anchorMin, curMin) + 5;
-
-    const d = new Date(startTime);
-    d.setHours(Math.floor(minM / 60), minM % 60, 0, 0);
-    setStartTime(fmt(d));
-
-    const e = new Date(endTime);
-    if (maxM >= 1440) e.setHours(23, 59, 0, 0);
-    else e.setHours(Math.floor(maxM / 60), maxM % 60, 0, 0);
-    setEndTime(fmt(e));
-  }, [startTime, endTime]);
-
-  const handleTimeUp = useCallback(() => {
-    if (draggingTime.current) {
-      draggingTime.current = false;
-      timeAnchor.current = null;
-      if (!hasMovedTime.current) {
-        setSelectingTimeEnd(true);
-      }
-    }
-  }, []);
+  // ─── Time selection manually ───
+  const updateTime = (type: 'start' | 'end', update: { h?: string; m?: string }) => {
+    const base = new Date(type === 'start' ? startTime : endTime);
+    if (update.h !== undefined) base.setHours(parseInt(update.h));
+    if (update.m !== undefined) base.setMinutes(parseInt(update.m));
+    if (type === 'start') setStartTime(fmt(base));
+    else setEndTime(fmt(base));
+  };
 
   // Global mouseup cleanup
   useEffect(() => {
-    const up = () => { draggingDate.current = false; draggingTime.current = false; };
+    const up = () => { draggingDate.current = false; };
     window.addEventListener('mouseup', up);
     return () => window.removeEventListener('mouseup', up);
   }, []);
@@ -252,7 +192,9 @@ const BookingModal: React.FC<BookingModalProps> = ({ resource, onClose, onSubmit
   const error = useMemo(() => {
     if (quantity < 1 && dynamicAvailable > 0) return 'Select at least 1 unit';
     if (quantity > dynamicAvailable) return `Only ${dynamicAvailable} available`;
-    if (new Date(startTime) >= new Date(endTime)) return 'Time range is invalid';
+    const s = new Date(startTime), e = new Date(endTime);
+    if (s >= e) return 'Time range is invalid';
+    if (e.getTime() - s.getTime() > 14 * 24 * 60 * 60 * 1000) return 'Booking duration cannot exceed 2 weeks';
     return '';
   }, [startTime, endTime, quantity, dynamicAvailable]);
 
@@ -297,33 +239,39 @@ const BookingModal: React.FC<BookingModalProps> = ({ resource, onClose, onSubmit
   const nextMonth = () => { if (calMonth === 11) { setCalMonth(0); setCalYear(y => y + 1); } else setCalMonth(m => m + 1); };
   const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-  // ─── Time heatmap helpers ──────────────────────────────
-  const getPeak = (h: number, m: number) => {
-    const sDate = new Date(startTime); sDate.setHours(0, 0, 0, 0);
-    const eDate = new Date(endTime); eDate.setHours(0, 0, 0, 0);
-    let peak = 0;
-    for (let d = new Date(sDate); d <= eDate; d.setDate(d.getDate() + 1)) {
-      const p = new Date(d); p.setHours(h, m, 0, 0);
-      const occ = existingBookings.reduce((t, b) =>
-        (new Date(b.startTime) <= p && new Date(b.endTime) > p) ? t + (b.quantity || 1) : t, 0);
-      peak = Math.max(peak, occ);
-    }
-    return peak;
-  };
+  // ─── Day-level occupancy status ───────────────────────
+  const dayStatusMap = useMemo(() => {
+    const stats: Record<string, number> = {};
+    calDays.forEach(day => {
+      if (!day) return;
+      const key = day.toDateString();
+      const s = new Date(day); s.setHours(0, 0, 0, 0);
+      const e = new Date(day); e.setHours(23, 59, 59, 999);
 
-  const isTimeSel = (h: number, m: number) => {
-    const c = h * 60 + m;
-    const s = new Date(startTime), e = new Date(endTime);
-    return c >= s.getHours() * 60 + s.getMinutes() && c < e.getHours() * 60 + e.getMinutes();
-  };
+      let peak = 0;
+      const events: { t: number, v: number }[] = [];
+      existingBookings.forEach(b => {
+        const bs = new Date(b.startTime).getTime();
+        const be = new Date(b.endTime).getTime();
+        if (bs < e.getTime() && be > s.getTime()) {
+          events.push({ t: Math.max(s.getTime(), bs), v: b.quantity || 1 });
+          events.push({ t: Math.min(e.getTime(), be), v: -(b.quantity || 1) });
+        }
+      });
+      events.sort((a, b) => a.t - b.t || a.v - b.v);
+      let cur = 0;
+      events.forEach(ev => {
+        cur += ev.v;
+        if (cur > peak) peak = cur;
+      });
 
-  const isTimePast = (h: number, m: number) => {
-    const sDate = new Date(startTime); sDate.setHours(0, 0, 0, 0);
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    if (sDate.getTime() !== today.getTime()) return false;
-    const nowMinutes = new Date().getHours() * 60 + new Date().getMinutes();
-    return h * 60 + m < nowMinutes;
-  };
+      if (peak >= resource.availableQuantity) stats[key] = 2; // Full
+      else if (peak > 0) stats[key] = 1; // Partial
+      else stats[key] = 0;
+    });
+    return stats;
+  }, [calDays, existingBookings, resource.availableQuantity]);
+
 
 
   // ─── Status badge ────────────────────────────────────
@@ -359,7 +307,38 @@ const BookingModal: React.FC<BookingModalProps> = ({ resource, onClose, onSubmit
   // ─── Render ──────────────────────────────────────────
   const sObj = new Date(startTime), eObj = new Date(endTime);
   const fmtDate = (d: Date) => d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
-  const fmtTime = (d: Date) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  // ─── Time Stepper Component ───
+  const renderStepper = (type: 'start' | 'end', field: 'h' | 'm', label: string) => {
+    const date = type === 'start' ? sObj : eObj;
+    const value = field === 'h' ? date.getHours() : date.getMinutes();
+    const max = field === 'h' ? 23 : 59;
+    const handleAdj = (delta: number) => {
+      let next = value + delta;
+      if (next < 0) next = max;
+      if (next > max) next = 0;
+      updateTime(type, { [field]: next.toString() });
+    };
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+        <div style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>{label}</div>
+        <div
+          style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#fff', padding: '4px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}
+          onWheel={(e) => { e.preventDefault(); handleAdj(e.deltaY < 0 ? 1 : -1); }}
+        >
+          <button type="button" onClick={() => handleAdj(-1)} style={{ width: '28px', height: '28px', border: 'none', background: '#f8fafc', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>
+            <Minus size={14} />
+          </button>
+          <div style={{ width: '36px', textAlign: 'center', fontSize: '1.1rem', fontWeight: 900, color: 'var(--accent-color)', fontFamily: 'monospace' }}>
+            {value.toString().padStart(2, '0')}
+          </div>
+          <button type="button" onClick={() => handleAdj(1)} style={{ width: '28px', height: '28px', border: 'none', background: '#f8fafc', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>
+            <Plus size={14} />
+          </button>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div style={S.overlay} onClick={onClose}>
@@ -446,26 +425,48 @@ const BookingModal: React.FC<BookingModalProps> = ({ resource, onClose, onSubmit
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', justifyItems: 'center' }}>
-                    {calDays.map((day, i) => {
-                      if (!day) return <div key={`empty-${i}`} />;
-                      const today = new Date(); today.setHours(0, 0, 0, 0);
-                      const isPast = day < today;
-                      const inRange = isDayInRange(day);
-                      const isStart = sObj.toDateString() === day.toDateString();
-                      const isEnd = eObj.toDateString() === day.toDateString();
-                      return (
-                        <div
-                          key={i}
-                          onMouseDown={(e) => { e.preventDefault(); handleDateDown(day); }}
-                          onMouseEnter={() => handleDateEnter(day)}
-                          onMouseUp={handleDateUp}
-                          style={S.calDay(false, inRange, isPast, isStart || isEnd)}
-                        >
-                          {day.getDate()}
-                        </div>
-                      );
-                    })}
-                  </div>
+                     {calDays.map((day, i) => {
+                       if (!day) return <div key={`empty-${i}`} />;
+                       const today = new Date(); today.setHours(0, 0, 0, 0);
+                       const isPast = day < today;
+                       const inRange = isDayInRange(day);
+                       const isStart = sObj.toDateString() === day.toDateString();
+                       const isEnd = eObj.toDateString() === day.toDateString();
+                       const status = dayStatusMap[day.toDateString()] || 0;
+
+                       return (
+                         <div
+                           key={i}
+                           onMouseDown={(e) => { e.preventDefault(); handleDateDown(day); }}
+                           onMouseEnter={() => handleDateEnter(day)}
+                           onMouseUp={handleDateUp}
+                           style={{
+                             ...S.calDay(false, inRange, isPast, isStart || isEnd),
+                             position: 'relative',
+                             ...(status === 2 && !isPast && !isStart && !isEnd ? { background: '#fff1f2', borderColor: '#fecaca', color: '#e11d48' } : {})
+                           }}
+                         >
+                           {day.getDate()}
+                           {status === 1 && !isPast && !isStart && !isEnd && (
+                             <div style={{ position: 'absolute', bottom: '4px', width: '4px', height: '4px', borderRadius: '50%', background: '#f59e0b' }} />
+                           )}
+                           {status === 2 && !isPast && !isStart && !isEnd && (
+                             <div style={{ position: 'absolute', bottom: '4px', width: '12px', height: '2px', borderRadius: '1px', background: '#ef4444' }} />
+                           )}
+                         </div>
+                       );
+                     })}
+                   </div>
+
+                   {/* Calendar Legend */}
+                   <div style={{ marginTop: '16px', display: 'flex', gap: '12px', padding: '0 4px' }}>
+                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8' }}>
+                       <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#f59e0b' }} /> Partial
+                     </div>
+                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8' }}>
+                       <div style={{ width: '10px', height: '2px', background: '#ef4444' }} /> Fully Booked
+                     </div>
+                   </div>
 
                   {/* Selected range summary */}
                   <div style={{ marginTop: '16px', padding: '10px 12px', background: '#fff', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
@@ -479,72 +480,35 @@ const BookingModal: React.FC<BookingModalProps> = ({ resource, onClose, onSubmit
                   </div>
                 </div>
 
-                {/* ── Time Heatmap (24h × 12 slots of 5min) ── */}
+                {/* ── Time Selection ── */}
                 <div style={S.section}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <Clock size={16} color="#64748b" />
-                      <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#1e293b' }}>Time Availability</span>
-                    </div>
-                    <div style={{ display: 'flex', gap: '12px', fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8' }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ width: '8px', height: '8px', borderRadius: '2px', background: 'repeating-linear-gradient(135deg, #cbd5e1, #cbd5e1 1px, #e2e8f0 1px, #e2e8f0 3px)' }} />Past</span>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ width: '8px', height: '8px', borderRadius: '2px', background: '#ef4444' }} />Busy</span>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ width: '8px', height: '8px', borderRadius: '2px', background: '#3b82f6' }} />Partial</span>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ width: '8px', height: '8px', borderRadius: '2px', background: 'var(--accent-color)' }} />Selected</span>
-                    </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
+                    <Clock size={16} color="#64748b" />
+                    <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#1e293b' }}>Select Pickup & Return Time</span>
                   </div>
 
-                  <div style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', marginBottom: '4px', textAlign: 'center' }}>
-                    {selectingTimeEnd ? '⏱ Now click END time' : '⏱ Click or drag to select time'}
-                  </div>
+                   <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                     {/* Pickup Time Section */}
+                     <div>
+                       <div style={{ ...S.label, color: 'var(--accent-color)', marginBottom: '16px' }}>Pickup Time (Expected)</div>
+                       <div style={{ display: 'flex', gap: '12px', alignItems: 'center', background: '#fff', padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
+                         {renderStepper('start', 'h', 'Hour')}
+                         <span style={{ fontSize: '1.5rem', fontWeight: 900, color: '#e2e8f0', marginTop: '14px' }}>:</span>
+                         {renderStepper('start', 'm', 'Minute')}
+                       </div>
+                     </div>
 
-                  <div style={{ maxHeight: '200px', overflowY: 'auto', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', padding: '8px', userSelect: 'none' }} onMouseLeave={handleTimeUp}>
-                    {Array.from({ length: 24 }).map((_, h) => (
-                      <div key={h} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
-                        <span style={{ width: '36px', fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textAlign: 'right' }}>{h.toString().padStart(2, '0')}:00</span>
-                        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '2px', height: '14px' }}>
-                          {Array.from({ length: 12 }).map((_, slot) => {
-                            const m = slot * 5;
-                            const occ = getPeak(h, m);
-                            const full = occ >= resource.availableQuantity;
-                            const sel = isTimeSel(h, m);
-                            const partial = occ > 0 && !full;
-                            const past = isTimePast(h, m);
-                            return (
-                              <div
-                                key={slot}
-                                onMouseDown={(e) => { e.preventDefault(); if (!past) handleTimeDown(h, m); }}
-                                onMouseEnter={() => { if (!past) handleTimeEnter(h, m); }}
-                                onMouseUp={handleTimeUp}
-                                title={past ? `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')} — Past` : `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')} — ${occ}/${resource.availableQuantity} booked`}
-                                style={{
-                                  borderRadius: '3px',
-                                  cursor: past ? 'not-allowed' : 'pointer',
-                                  background: past
-                                    ? 'repeating-linear-gradient(135deg, #cbd5e1, #cbd5e1 1px, #e2e8f0 1px, #e2e8f0 3px)'
-                                    : sel ? 'var(--accent-color)' : full ? '#ef4444' : partial ? `rgba(59,130,246,${Math.max(0.15, occ / resource.availableQuantity)})` : '#f1f5f9',
-                                  opacity: past ? 0.6 : 1,
-                                  transition: 'background 0.05s',
-                                }}
-                              />
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                     {/* Return Time Section */}
+                     <div>
+                       <div style={{ ...S.label, color: 'var(--accent-color)', marginBottom: '16px' }}>Return Time (Expected)</div>
+                       <div style={{ display: 'flex', gap: '12px', alignItems: 'center', background: '#fff', padding: '16px', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
+                         {renderStepper('end', 'h', 'Hour')}
+                         <span style={{ fontSize: '1.5rem', fontWeight: 900, color: '#e2e8f0', marginTop: '14px' }}>:</span>
+                         {renderStepper('end', 'm', 'Minute')}
+                       </div>
+                     </div>
+                   </div>
 
-                  {/* Time summary */}
-                  <div style={{ marginTop: '12px', display: 'flex', gap: '12px' }}>
-                    <div style={{ flex: 1, padding: '10px 14px', background: '#fff', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-                      <div style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8' }}>START</div>
-                      <div style={{ fontSize: '1rem', fontWeight: 900, color: 'var(--accent-color)' }}>{fmtTime(sObj)}</div>
-                    </div>
-                    <div style={{ flex: 1, padding: '10px 14px', background: '#fff', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-                      <div style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8' }}>END</div>
-                      <div style={{ fontSize: '1rem', fontWeight: 900, color: 'var(--accent-color)' }}>{fmtTime(eObj)}</div>
-                    </div>
-                  </div>
 
                   {/* Units selection moved here */}
                   <div style={{ marginTop: '16px', padding: '12px 16px', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '16px' }}>
