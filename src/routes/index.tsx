@@ -15,6 +15,7 @@ import Reports from '@/pages/report/Reports';
 import CreateReport from '@/pages/report/CreateReport';
 import ReportDetail from '@/pages/report/ReportDetail';
 import ComingSoon from '@/pages/common/ComingSoon';
+import UserManagement from '@/pages/user-management/UserManagement';
 
 export const router = createBrowserRouter([
     {
@@ -84,6 +85,12 @@ export const router = createBrowserRouter([
     {
         path: '/seminars',
         element: <AuthGuard><ComingSoon title="Seminars" /></AuthGuard>,
+    },
+    {
+        path: '/user-management',
+        element: <AuthGuard><UserManagement /></AuthGuard>,
+    },
+    {
         path: '*',
         element: <Navigate to="/login" replace />,
     },
