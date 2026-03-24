@@ -11,14 +11,14 @@ interface ProjectCardProps {
 const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick }) => {
     const totalTasks = project.totalTasks ?? (project as any).TotalTasks ?? 0;
     const completedTasks = project.completedTasks ?? (project as any).CompletedTasks ?? 0;
-    const progress = project.progress !== undefined 
-        ? project.progress 
+    const progress = project.progress !== undefined
+        ? project.progress
         : (totalTasks > 0 ? Math.round(completedTasks / totalTasks * 100) : 0);
 
     return (
         <div
             className="card"
-            onClick={() => onClick(project.id)}
+            onClick={() => onClick(project.projectId)}
             style={{
                 display: 'flex',
                 flexDirection: 'column',

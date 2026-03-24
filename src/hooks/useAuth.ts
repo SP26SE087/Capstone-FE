@@ -2,17 +2,19 @@ import { useState, useEffect, useCallback } from 'react';
 import { authService } from '@/services/authService';
 
 interface AuthUser {
+    userId: string;
     name: string;
     role: string;
     email: string;
 }
 
-const GUEST: AuthUser = { name: 'Guest User', role: 'Visitor', email: '' };
+const GUEST: AuthUser = { userId: '', name: 'Guest User', role: 'Visitor', email: '' };
 
 const getStoredUser = (): AuthUser => {
     const user = authService.getAuthUser();
     if (!user) return GUEST;
     return {
+        userId: (user as any).id || (user as any).userId || '',
         name: user.fullName || 'User',
         role: user.role || 'User',
         email: user.email || '',

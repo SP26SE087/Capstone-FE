@@ -61,7 +61,7 @@ const MilestoneFormModal: React.FC<MilestoneFormModalProps> = ({
     useEffect(() => {
         if (milestone && isOpen) {
             setRows([{
-                id: milestone.id,
+                id: milestone.milestoneId,
                 name: milestone.name || '',
                 description: milestone.description || '',
                 startDate: milestone.startDate ? (milestone.startDate as string).split('T')[0] : '',
@@ -91,7 +91,7 @@ const MilestoneFormModal: React.FC<MilestoneFormModalProps> = ({
 
     const handleFormSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        
+
         const todayStr = new Date().toISOString().split('T')[0];
 
         if (milestone) {
@@ -171,10 +171,10 @@ const MilestoneFormModal: React.FC<MilestoneFormModalProps> = ({
 
                 {/* Body */}
                 <form onSubmit={handleFormSubmit} style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                    
+
                     {/* Timeline Preview Component */}
-                    <MilestoneRoadmapPreview 
-                        existingMilestones={existingMilestones.filter(m => !milestone || m.id !== milestone.id)}
+                    <MilestoneRoadmapPreview
+                        existingMilestones={existingMilestones.filter(m => !milestone || m.milestoneId !== milestone.milestoneId)}
                         currentMilestones={rows.filter((r: MilestoneRow) => r.startDate && r.dueDate).map((r: MilestoneRow) => ({
                             id: r.id,
                             name: r.name || `Phase ${rows.indexOf(r) + 1}`,
@@ -183,15 +183,15 @@ const MilestoneFormModal: React.FC<MilestoneFormModalProps> = ({
                         }))}
                         projectStartDate={projectStartDate}
                         projectEndDate={projectEndDate}
-                        highlightId={milestone?.id}
+                        highlightId={milestone?.milestoneId}
                     />
 
                     <div style={{ padding: '2rem', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                         {rows.map((row: MilestoneRow, index: number) => (
                             <div key={row.id} style={{
-                                padding: '1.5rem', 
-                                background: '#f8fafc', 
-                                borderRadius: '16px', 
+                                padding: '1.5rem',
+                                background: '#f8fafc',
+                                borderRadius: '16px',
                                 border: '1.5px solid #e2e8f0',
                                 position: 'relative',
                                 display: 'flex',
@@ -202,8 +202,8 @@ const MilestoneFormModal: React.FC<MilestoneFormModalProps> = ({
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                                         <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#E8720C', textTransform: 'uppercase' }}>Phase {index + 1}</span>
                                         {rows.length > 1 && (
-                                            <button 
-                                                type="button" 
+                                            <button
+                                                type="button"
                                                 onClick={() => removeRow(row.id)}
                                                 style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', fontWeight: 700 }}
                                             >
@@ -253,11 +253,11 @@ const MilestoneFormModal: React.FC<MilestoneFormModalProps> = ({
                                             placeholder="Describe the objectives and deliverables for this phase..."
                                             value={row.description}
                                             onChange={(e) => updateRow(row.id, 'description', e.target.value)}
-                                            style={{ 
-                                                padding: '0.8rem 1rem', 
-                                                borderRadius: '10px', 
-                                                border: '1.5px solid #e2e8f0', 
-                                                fontSize: '0.9rem', 
+                                            style={{
+                                                padding: '0.8rem 1rem',
+                                                borderRadius: '10px',
+                                                border: '1.5px solid #e2e8f0',
+                                                fontSize: '0.9rem',
                                                 outline: 'none',
                                                 minHeight: '104px',
                                                 resize: 'none',

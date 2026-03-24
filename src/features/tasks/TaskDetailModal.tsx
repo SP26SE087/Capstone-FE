@@ -63,13 +63,13 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     const effectiveMembers = (projectMembers && projectMembers.length > 0) ? projectMembers : internalMembers;
     const baseMilestones = (milestones && milestones.length > 0) ? milestones : internalMilestones;
     const effectiveMilestones = useMemo(() => {
-        let list = baseMilestones.filter(m => 
-            m.status === MilestoneStatus.NotStarted || 
+        let list = baseMilestones.filter(m =>
+            m.status === MilestoneStatus.NotStarted ||
             m.status === MilestoneStatus.InProgress ||
-            (task && String(m.id) === String((task as any).milestoneId || (task as any).milestone?.id))
+            (task && String(m.milestoneId) === String((task as any).milestoneId || (task as any).milestone?.id))
         );
 
-        if (fetchedMilestone && !list.some(m => String(m.id).toLowerCase() === String(fetchedMilestone.id).toLowerCase())) {
+        if (fetchedMilestone && !list.some(m => String(m.milestoneId).toLowerCase() === String(fetchedMilestone.milestoneId).toLowerCase())) {
             return [fetchedMilestone, ...list];
         }
         return list;
@@ -119,7 +119,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     const isTaskMember = useMemo(() => {
         if (!task || !currentUser) return false;
 
-        const currentUserId = currentUser.userId;
+        const currentUserId = (currentUser as any).userId || (currentUser as any).id || "";
         const myMemberId = currentMember?.memberId || currentMember?.id;
 
         // Check if primary member
@@ -233,7 +233,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 
         // Always include the currently selected milestone in the list even if it doesn't match filters
         const currentMilestone = effectiveMilestones.find(m => {
-            const mId = String(m.id || (m as any).ID || '').toLowerCase();
+            const mId = String(m.milestoneId || (m as any).id || (m as any).ID || '').toLowerCase();
             const targetId = String(milestoneId).toLowerCase();
             return mId === targetId && targetId !== '';
         });
@@ -503,20 +503,20 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 
         // Validate dates are within milestone range
         if (milestoneId) {
-            const milestone = effectiveMilestones.find(m => String(m.id) === String(milestoneId));
+            const milestone = effectiveMilestones.find(m => String(m.milestoneId) === String(milestoneId));
             if (milestone && milestone.startDate && milestone.dueDate) {
                 const mStart = new Date(milestone.startDate).getTime();
                 const mEnd = new Date(milestone.dueDate).getTime();
-                
+
                 // If only startDate is provided, use it as baseline
                 const tStart = startDate ? new Date(startDate).getTime() : null;
                 const tEnd = dueDate ? new Date(dueDate).getTime() : (tStart || null);
 
                 if ((tStart && tStart < mStart) || (tEnd && tEnd > mEnd)) {
                     const formatDateStr = (d: string) => new Date(d).toLocaleDateString('vi-VN', { month: '2-digit', day: '2-digit' });
-                    setToast({ 
-                        message: `Activity dates must be within milestone period: ${formatDateStr(milestone.startDate)} - ${formatDateStr(milestone.dueDate)}`, 
-                        type: 'error' 
+                    setToast({
+                        message: `Activity dates must be within milestone period: ${formatDateStr(milestone.startDate)} - ${formatDateStr(milestone.dueDate)}`,
+                        type: 'error'
                     });
                     return;
                 }
@@ -703,7 +703,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                 {(() => {
                     // 1. Get current Milestone Context
                     const currentMid = (task as any)?.milestoneId || (task as any)?.milestone?.id || milestoneId;
-                    const milestoneContext = effectiveMilestones.find(m => String(m.id || (m as any).ID || '').toLowerCase() === String(currentMid).toLowerCase()) || fetchedMilestone;
+                    const milestoneContext = effectiveMilestones.find(m => String(m.milestoneId || (m as any).id || (m as any).ID || '').toLowerCase() === String(currentMid).toLowerCase()) || fetchedMilestone;
 
                     // If we don't have a milestone ID, we don't show the roadmap
                     if (!currentMid) return null;
@@ -714,7 +714,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 
                     // 3. Source Sibling Activities — ONLY from getTasksByMilestone API
                     const siblingTasks = milestoneTasks.filter(t => {
-                        const tId = String(t.id || (t as any).ID || '').toLowerCase();
+                        const tId = String(t.taskId || (t as any).id || (t as any).ID || '').toLowerCase();
                         const currentTaskId = String(taskId || '').toLowerCase();
                         return tId !== currentTaskId; // Exclude the current task
                     });
@@ -729,7 +729,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                         }}>
                             <MilestoneRoadmapPreview
                                 existingMilestones={siblingTasks.map(t => ({
-                                    id: t.id,
+                                    id: t.taskId,
                                     name: t.name,
                                     startDate: t.startDate || "",
                                     dueDate: t.dueDate || "",
@@ -742,7 +742,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                     startDate: startDate,
                                     dueDate: dueDate
                                 }] : (task?.startDate && task?.dueDate ? [{
-                                    id: task.id,
+                                    id: task.taskId,
                                     name: task.name,
                                     startDate: task.startDate,
                                     dueDate: task.dueDate
@@ -889,20 +889,18 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                     ) : (
                                         <div style={{ padding: '0.85rem 1.15rem', borderRadius: '12px', background: '#f8fafc', border: '1.5px solid #f1f5f9', fontWeight: 700, color: '#1e293b' }}>
                                             {effectiveMilestones.find(m => {
-                                                const mId = String(m.id || (m as any).ID || '').toLowerCase();
+                                                const mId = String(m.milestoneId || (m as any).id || (m as any).ID || '').toLowerCase();
                                                 const targetId = String(milestoneId).toLowerCase();
                                                 return mId === targetId && targetId !== '';
                                             })?.name || (task as any)?.milestone?.name || 'No Associated Milestone'}
-
                                         </div>
                                     )}
                                 </div>
 
                                 {(() => {
-                                    const milestone = effectiveMilestones.find(m => String(m.id || (m as any).ID || '').toLowerCase() === String(milestoneId).toLowerCase());
+                                    const milestone = effectiveMilestones.find(m => String(m.milestoneId || (m as any).id || (m as any).ID || '').toLowerCase() === String(milestoneId).toLowerCase());
                                     const minVal = milestone?.startDate ? new Date(milestone.startDate).toISOString().split('T')[0] : undefined;
                                     const maxVal = milestone?.dueDate ? new Date(milestone.dueDate).toISOString().split('T')[0] : undefined;
-
                                     const msStart = minVal ? new Date(minVal).getTime() : null;
                                     const msEnd = maxVal ? new Date(maxVal).getTime() : null;
                                     const tStart = startDate ? new Date(startDate).getTime() : null;
@@ -924,10 +922,10 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                                     min={minVal}
                                                     max={maxVal}
                                                     onChange={(e) => setStartDate(e.target.value)}
-                                                    style={{ 
-                                                        padding: '0.85rem 1.15rem', borderRadius: '12px', 
-                                                        border: isStartInvalid ? '2px solid #ef4444' : '1.5px solid #e2e8f0', 
-                                                        background: isEditMode ? (isStartInvalid ? '#fff1f2' : 'white') : '#f8fafc' 
+                                                    style={{
+                                                        padding: '0.85rem 1.15rem', borderRadius: '12px',
+                                                        border: isStartInvalid ? '2px solid #ef4444' : '1.5px solid #e2e8f0',
+                                                        background: isEditMode ? (isStartInvalid ? '#fff1f2' : 'white') : '#f8fafc'
                                                     }}
                                                 />
                                             </div>
@@ -942,10 +940,10 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                                     min={startDate || minVal}
                                                     max={maxVal}
                                                     onChange={(e) => setDueDate(e.target.value)}
-                                                    style={{ 
-                                                        padding: '0.85rem 1.15rem', borderRadius: '12px', 
-                                                        border: isDueInvalid ? '2px solid #ef4444' : '1.5px solid #e2e8f0', 
-                                                        background: isEditMode ? (isDueInvalid ? '#fff1f2' : 'white') : '#f8fafc' 
+                                                    style={{
+                                                        padding: '0.85rem 1.15rem', borderRadius: '12px',
+                                                        border: isDueInvalid ? '2px solid #ef4444' : '1.5px solid #e2e8f0',
+                                                        background: isEditMode ? (isDueInvalid ? '#fff1f2' : 'white') : '#f8fafc'
                                                     }}
                                                 />
                                             </div>
@@ -1000,7 +998,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                                             <File size={20} />
                                                         </div>
                                                         <div style={{ flex: 1, minWidth: 0 }}>
-                                                            <p 
+                                                            <p
                                                                 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
                                                                 title={ev.fileName || ev.name || 'Unnamed File'}
                                                             >
@@ -1059,7 +1057,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                                     fontSize: '0.8rem', fontWeight: 600, color: '#475569'
                                                 }}>
                                                     <FileText size={18} color="#94a3b8" />
-                                                    <span 
+                                                    <span
                                                         style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
                                                         title={file.name}
                                                     >

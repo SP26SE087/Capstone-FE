@@ -73,7 +73,7 @@ const MilestoneDetailModal: React.FC<MilestoneDetailModalProps> = ({
         title: '',
         message: '',
         confirmText: '',
-        onConfirm: () => {}
+        onConfirm: () => { }
     });
 
     // Form states for editing
@@ -157,7 +157,7 @@ const MilestoneDetailModal: React.FC<MilestoneDetailModalProps> = ({
         if (newStatus === MilestoneStatus.InProgress) {
             const hasStart = milestone.startDate && !milestone.startDate.startsWith('0001');
             const hasDue = milestone.dueDate && !milestone.dueDate.startsWith('0001');
-            
+
             if (!hasStart || !hasDue) {
                 setConfirmModalConfig({
                     type: 'error',
@@ -198,7 +198,7 @@ const MilestoneDetailModal: React.FC<MilestoneDetailModalProps> = ({
 
     const handleDelete = async () => {
         if (!milestoneId) return;
-        
+
         setConfirmModalConfig({
             type: 'confirm',
             title: 'Delete Phase?',
@@ -246,9 +246,9 @@ const MilestoneDetailModal: React.FC<MilestoneDetailModalProps> = ({
                             .filter((item: any) => !item.success)
                             .map((item: any) => item.request?.name || `Item ${item.index + 1}`)
                             .join(', ');
-                        
+
                         const firstError = response.data.find((item: any) => !item.success)?.errorMessage;
-                        
+
                         if (successCount > 0) {
                             showToast(`${successCount}/${totalCount} activities created. Failed: [${failedNames}]. Error: ${firstError || 'Format error'}`, 'warning', 8000);
                         } else {
@@ -397,295 +397,295 @@ const MilestoneDetailModal: React.FC<MilestoneDetailModalProps> = ({
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
                             {/* Visual Roadmap Preview */}
                             <div style={{ margin: '-2rem -2rem 0 -2rem' }}>
-                                <MilestoneRoadmapPreview 
-                                    existingMilestones={milestones.filter(m => m.id !== milestone.id)}
+                                <MilestoneRoadmapPreview
+                                    existingMilestones={milestones.filter(m => m.milestoneId !== milestone.milestoneId)}
                                     currentMilestones={isEditMode && name && startDate && dueDate ? [{
-                                        id: milestone.id,
+                                        id: milestone.milestoneId,
                                         name: name,
                                         startDate: startDate,
                                         dueDate: dueDate
                                     }] : (milestone.startDate && milestone.dueDate ? [{
-                                        id: milestone.id,
+                                        id: milestone.milestoneId,
                                         name: milestone.name,
                                         startDate: milestone.startDate,
                                         dueDate: milestone.dueDate
                                     }] : [])}
                                     projectStartDate={projectStartDate}
                                     projectEndDate={projectEndDate}
-                                    highlightId={milestone.id}
+                                    highlightId={milestone.milestoneId}
                                 />
                             </div>
 
                             <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '2.5rem' }}>
-                            {/* Left Side: Info & Tasks or Form */}
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-                                {isEditMode ? (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                            <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Milestone Name</label>
-                                            <input
-                                                value={name}
-                                                onChange={e => setName(e.target.value)}
-                                                placeholder="Enter milestone title..."
-                                                style={{ padding: '0.85rem 1rem', borderRadius: '12px', border: '1.5px solid #e2e8f0', fontSize: '1rem', outline: 'none' }}
-                                            />
-                                        </div>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                            <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Description</label>
-                                            <textarea
-                                                value={description}
-                                                onChange={e => setDescription(e.target.value)}
-                                                placeholder="Describe the goals..."
-                                                rows={5}
-                                                style={{ padding: '0.85rem 1rem', borderRadius: '12px', border: '1.5px solid #e2e8f0', fontSize: '0.95rem', outline: 'none', resize: 'none' }}
-                                            />
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <>
-                                        <div>
-                                            <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '1rem' }}>
-                                                <AlignLeft size={16} /> Description
-                                            </h4>
-                                            <p style={{ margin: 0, color: '#1e293b', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
-                                                {milestone.description || "No description provided for this milestone."}
-                                            </p>
-                                        </div>
-                                        <div>
-                                            <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '1rem' }}>
-                                                <Activity size={16} /> Progress
-                                            </h4>
-                                            <div style={{ background: '#f1f5f9', height: '12px', borderRadius: '6px', overflow: 'hidden', marginBottom: '1rem' }}>
-                                                <div style={{
-                                                    width: `${milestone.progress || (milestone.status === MilestoneStatus.Completed ? 100 : 0)}%`,
-                                                    height: '100%',
-                                                    background: 'linear-gradient(90deg, #E8720C, #f97316)',
-                                                    transition: 'width 0.5s ease'
-                                                }} />
+                                {/* Left Side: Info & Tasks or Form */}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                                    {isEditMode ? (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Milestone Name</label>
+                                                <input
+                                                    value={name}
+                                                    onChange={e => setName(e.target.value)}
+                                                    placeholder="Enter milestone title..."
+                                                    style={{ padding: '0.85rem 1rem', borderRadius: '12px', border: '1.5px solid #e2e8f0', fontSize: '1rem', outline: 'none' }}
+                                                />
                                             </div>
-                                            <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600, color: '#1e293b', textAlign: 'right' }}>
-                                                {milestone.progress || (milestone.status === MilestoneStatus.Completed ? 100 : 0)}% Completed
-                                            </p>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Description</label>
+                                                <textarea
+                                                    value={description}
+                                                    onChange={e => setDescription(e.target.value)}
+                                                    placeholder="Describe the goals..."
+                                                    rows={5}
+                                                    style={{ padding: '0.85rem 1rem', borderRadius: '12px', border: '1.5px solid #e2e8f0', fontSize: '0.95rem', outline: 'none', resize: 'none' }}
+                                                />
+                                            </div>
                                         </div>
-
-                                        <div>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                                                <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', margin: 0 }}>
-                                                    <Activity size={16} /> Associated Research Tasks ({tasks.length})
+                                    ) : (
+                                        <>
+                                            <div>
+                                                <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '1rem' }}>
+                                                    <AlignLeft size={16} /> Description
                                                 </h4>
+                                                <p style={{ margin: 0, color: '#1e293b', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                                                    {milestone.description || "No description provided for this milestone."}
+                                                </p>
+                                            </div>
+                                            <div>
+                                                <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '1rem' }}>
+                                                    <Activity size={16} /> Progress
+                                                </h4>
+                                                <div style={{ background: '#f1f5f9', height: '12px', borderRadius: '6px', overflow: 'hidden', marginBottom: '1rem' }}>
+                                                    <div style={{
+                                                        width: `${milestone.progress || (milestone.status === MilestoneStatus.Completed ? 100 : 0)}%`,
+                                                        height: '100%',
+                                                        background: 'linear-gradient(90deg, #E8720C, #f97316)',
+                                                        transition: 'width 0.5s ease'
+                                                    }} />
+                                                </div>
+                                                <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600, color: '#1e293b', textAlign: 'right' }}>
+                                                    {milestone.progress || (milestone.status === MilestoneStatus.Completed ? 100 : 0)}% Completed
+                                                </p>
+                                            </div>
 
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                                    {tasks.length > 0 && (
-                                                        <div style={{ position: 'relative', width: '160px' }}>
-                                                            <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-                                                            <input
-                                                                type="text"
-                                                                placeholder="Search..."
-                                                                value={taskSearchTerm}
-                                                                onChange={(e) => setTaskSearchTerm(e.target.value)}
-                                                                style={{
-                                                                    width: '100%',
-                                                                    padding: '6px 10px 6px 30px',
-                                                                    borderRadius: '20px',
-                                                                    border: '1.5px solid #e2e8f0',
-                                                                    fontSize: '0.75rem',
-                                                                    outline: 'none'
+                                            <div>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                                                    <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', margin: 0 }}>
+                                                        <Activity size={16} /> Associated Research Tasks ({tasks.length})
+                                                    </h4>
+
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                        {tasks.length > 0 && (
+                                                            <div style={{ position: 'relative', width: '160px' }}>
+                                                                <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                                                                <input
+                                                                    type="text"
+                                                                    placeholder="Search..."
+                                                                    value={taskSearchTerm}
+                                                                    onChange={(e) => setTaskSearchTerm(e.target.value)}
+                                                                    style={{
+                                                                        width: '100%',
+                                                                        padding: '6px 10px 6px 30px',
+                                                                        borderRadius: '20px',
+                                                                        border: '1.5px solid #e2e8f0',
+                                                                        fontSize: '0.75rem',
+                                                                        outline: 'none'
+                                                                    }}
+                                                                />
+                                                            </div>
+                                                        )}
+
+                                                        {canManage && (
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setIsTaskModalOpen(true);
                                                                 }}
-                                                            />
+                                                                style={{
+                                                                    padding: '6px 12px',
+                                                                    borderRadius: '20px',
+                                                                    background: '#E8720C',
+                                                                    color: 'white',
+                                                                    border: 'none',
+                                                                    fontSize: '0.75rem',
+                                                                    fontWeight: 700,
+                                                                    cursor: 'pointer',
+                                                                    display: 'flex',
+                                                                    alignItems: 'center',
+                                                                    gap: '6px'
+                                                                }}
+                                                            >
+                                                                <Plus size={14} /> New Activity
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                <div style={{
+                                                    display: 'flex',
+                                                    flexDirection: 'column',
+                                                    gap: '10px',
+                                                    height: '168px', /* Fixed height for 2 tasks to prevent layout shift */
+                                                    overflowY: 'auto',
+                                                    paddingRight: '6px',
+                                                    scrollbarWidth: 'thin',
+                                                    scrollbarColor: '#cbd5e1 transparent'
+                                                }}>
+                                                    {filteredTasks.length > 0 ? filteredTasks.map(task => {
+                                                        const taskInfo = getTaskStatusInfo(task.status);
+                                                        return (
+                                                            <div
+                                                                key={task.taskId}
+                                                                onClick={() => handleTaskClick(task.taskId)}
+                                                                style={{
+                                                                    padding: '0.9rem 1.15rem', borderRadius: '14px', border: '1px solid #f1f5f9',
+                                                                    background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                                                    cursor: 'pointer', transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                                                                    boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
+                                                                    flexShrink: 0
+                                                                }}
+                                                                onMouseOver={(e) => {
+                                                                    e.currentTarget.style.transform = 'translateY(-2px)';
+                                                                    e.currentTarget.style.borderColor = '#E8720C';
+                                                                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.05)';
+                                                                    e.currentTarget.style.background = 'white';
+                                                                }}
+                                                                onMouseOut={(e) => {
+                                                                    e.currentTarget.style.transform = 'translateY(0)';
+                                                                    e.currentTarget.style.borderColor = '#f1f5f9';
+                                                                    e.currentTarget.style.boxShadow = '0 1px 2px rgba(0,0,0,0.02)';
+                                                                    e.currentTarget.style.background = '#f8fafc';
+                                                                }}
+                                                            >
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: taskInfo.color, boxShadow: `0 0 0 3px ${taskInfo.color}15` }} />
+                                                                    <div>
+                                                                        <span style={{ fontWeight: 700, fontSize: '0.9rem', color: '#1e293b', display: 'block' }}>{task.name}</span>
+                                                                        <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>Status: <span style={{ color: taskInfo.color }}>{taskInfo.label}</span></span>
+                                                                    </div>
+                                                                </div>
+                                                                <ChevronRight size={16} color="#94a3b8" />
+                                                            </div>
+                                                        );
+                                                    }) : (
+                                                        <div style={{
+                                                            height: '100%',
+                                                            display: 'flex',
+                                                            flexDirection: 'column',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center',
+                                                            background: '#f8fafc',
+                                                            borderRadius: '16px',
+                                                            border: '1px dashed #e2e8f0'
+                                                        }}>
+                                                            {taskSearchTerm ? (
+                                                                <>
+                                                                    <SearchX size={32} color="#94a3b8" style={{ marginBottom: '10px' }} />
+                                                                    <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.85rem' }}>No results match "{taskSearchTerm}"</p>
+                                                                </>
+                                                            ) : (
+                                                                <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.85rem' }}>No activities in this phase.</p>
+                                                            )}
                                                         </div>
                                                     )}
-                                                    
-                                                    {canManage && (
-                                                        <button 
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                setIsTaskModalOpen(true);
-                                                            }}
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+
+                                {/* Right Side: Metadata or Form Controls */}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                                    <div style={{ padding: '1.5rem', background: '#f8fafc', borderRadius: '16px', border: '1px solid #f1f5f9' }}>
+                                        <h4 style={{ margin: '0 0 1rem 0', fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Timeline & Status</h4>
+
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                                            {isEditMode && (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                    <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748b' }}>STATUS</label>
+                                                    <select
+                                                        value={status}
+                                                        onChange={e => setStatus(Number(e.target.value))}
+                                                        style={{ padding: '0.75rem', borderRadius: '10px', border: '1.5px solid #e2e8f0', background: 'white', fontWeight: 600, outline: 'none' }}
+                                                    >
+                                                        <option value={MilestoneStatus.NotStarted}>Not Started</option>
+                                                        <option value={MilestoneStatus.InProgress}>In Progress</option>
+                                                        <option value={MilestoneStatus.Completed}>Completed</option>
+                                                        <option value={MilestoneStatus.OnHold}>On Hold</option>
+                                                        <option value={MilestoneStatus.Cancelled}>Cancelled</option>
+                                                    </select>
+                                                </div>
+                                            )}
+
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #e2e8f0', color: '#1e293b' }}>
+                                                    <Calendar size={16} />
+                                                </div>
+                                                <div style={{ flex: 1 }}>
+                                                    <p style={{ margin: 0, fontSize: '0.7rem', color: '#64748b', marginBottom: isEditMode ? '4px' : '0' }}>Start Date</p>
+                                                    {isEditMode ? (
+                                                        <input
+                                                            type="date"
+                                                            value={startDate}
+                                                            onChange={e => setStartDate(e.target.value)}
                                                             style={{
-                                                                padding: '6px 12px',
-                                                                borderRadius: '20px',
-                                                                background: '#E8720C',
-                                                                color: 'white',
-                                                                border: 'none',
-                                                                fontSize: '0.75rem',
-                                                                fontWeight: 700,
-                                                                cursor: 'pointer',
-                                                                display: 'flex',
-                                                                alignItems: 'center',
-                                                                gap: '6px'
+                                                                width: '100%',
+                                                                padding: '6px 10px',
+                                                                borderRadius: '8px',
+                                                                border: '1.5px solid #e2e8f0',
+                                                                background: 'white',
+                                                                fontSize: '0.85rem',
+                                                                fontWeight: 600,
+                                                                outline: 'none',
+                                                                cursor: 'pointer'
                                                             }}
-                                                        >
-                                                            <Plus size={14} /> New Activity
-                                                        </button>
+                                                        />
+                                                    ) : (
+                                                        <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600 }}>{formatDate(milestone.startDate)}</p>
                                                     )}
                                                 </div>
                                             </div>
 
-                                            <div style={{
-                                                display: 'flex',
-                                                flexDirection: 'column',
-                                                gap: '10px',
-                                                height: '168px', /* Fixed height for 2 tasks to prevent layout shift */
-                                                overflowY: 'auto',
-                                                paddingRight: '6px',
-                                                scrollbarWidth: 'thin',
-                                                scrollbarColor: '#cbd5e1 transparent'
-                                            }}>
-                                                {filteredTasks.length > 0 ? filteredTasks.map(task => {
-                                                    const taskInfo = getTaskStatusInfo(task.status);
-                                                    return (
-                                                        <div
-                                                            key={task.id}
-                                                            onClick={() => handleTaskClick(task.id)}
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #e2e8f0', color: '#E8720C' }}>
+                                                    <Calendar size={16} />
+                                                </div>
+                                                <div style={{ flex: 1 }}>
+                                                    <p style={{ margin: 0, fontSize: '0.7rem', color: '#64748b', marginBottom: isEditMode ? '4px' : '0' }}>Due Date</p>
+                                                    {isEditMode ? (
+                                                        <input
+                                                            type="date"
+                                                            value={dueDate}
+                                                            onChange={e => setDueDate(e.target.value)}
                                                             style={{
-                                                                padding: '0.9rem 1.15rem', borderRadius: '14px', border: '1px solid #f1f5f9',
-                                                                background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                                                                cursor: 'pointer', transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                                                                boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
-                                                                flexShrink: 0
+                                                                width: '100%',
+                                                                padding: '6px 10px',
+                                                                borderRadius: '8px',
+                                                                border: '1.5px solid #e2e8f0',
+                                                                background: 'white',
+                                                                fontSize: '0.85rem',
+                                                                fontWeight: 600,
+                                                                outline: 'none',
+                                                                cursor: 'pointer'
                                                             }}
-                                                            onMouseOver={(e) => {
-                                                                e.currentTarget.style.transform = 'translateY(-2px)';
-                                                                e.currentTarget.style.borderColor = '#E8720C';
-                                                                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.05)';
-                                                                e.currentTarget.style.background = 'white';
-                                                            }}
-                                                            onMouseOut={(e) => {
-                                                                e.currentTarget.style.transform = 'translateY(0)';
-                                                                e.currentTarget.style.borderColor = '#f1f5f9';
-                                                                e.currentTarget.style.boxShadow = '0 1px 2px rgba(0,0,0,0.02)';
-                                                                e.currentTarget.style.background = '#f8fafc';
-                                                            }}
-                                                        >
-                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                                                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: taskInfo.color, boxShadow: `0 0 0 3px ${taskInfo.color}15` }} />
-                                                                <div>
-                                                                    <span style={{ fontWeight: 700, fontSize: '0.9rem', color: '#1e293b', display: 'block' }}>{task.name}</span>
-                                                                    <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600 }}>Status: <span style={{ color: taskInfo.color }}>{taskInfo.label}</span></span>
-                                                                </div>
-                                                            </div>
-                                                            <ChevronRight size={16} color="#94a3b8" />
-                                                        </div>
-                                                    );
-                                                }) : (
-                                                    <div style={{ 
-                                                        height: '100%',
-                                                        display: 'flex',
-                                                        flexDirection: 'column',
-                                                        alignItems: 'center',
-                                                        justifyContent: 'center',
-                                                        background: '#f8fafc', 
-                                                        borderRadius: '16px', 
-                                                        border: '1px dashed #e2e8f0' 
-                                                    }}>
-                                                        {taskSearchTerm ? (
-                                                            <>
-                                                                <SearchX size={32} color="#94a3b8" style={{ marginBottom: '10px' }} />
-                                                                <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.85rem' }}>No results match "{taskSearchTerm}"</p>
-                                                            </>
-                                                        ) : (
-                                                            <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.85rem' }}>No activities in this phase.</p>
-                                                        )}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </>
-                                )}
-                            </div>
-
-                            {/* Right Side: Metadata or Form Controls */}
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                                <div style={{ padding: '1.5rem', background: '#f8fafc', borderRadius: '16px', border: '1px solid #f1f5f9' }}>
-                                    <h4 style={{ margin: '0 0 1rem 0', fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Timeline & Status</h4>
-
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                                        {isEditMode && (
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                                <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748b' }}>STATUS</label>
-                                                <select
-                                                    value={status}
-                                                    onChange={e => setStatus(Number(e.target.value))}
-                                                    style={{ padding: '0.75rem', borderRadius: '10px', border: '1.5px solid #e2e8f0', background: 'white', fontWeight: 600, outline: 'none' }}
-                                                >
-                                                    <option value={MilestoneStatus.NotStarted}>Not Started</option>
-                                                    <option value={MilestoneStatus.InProgress}>In Progress</option>
-                                                    <option value={MilestoneStatus.Completed}>Completed</option>
-                                                    <option value={MilestoneStatus.OnHold}>On Hold</option>
-                                                    <option value={MilestoneStatus.Cancelled}>Cancelled</option>
-                                                </select>
-                                            </div>
-                                        )}
-
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #e2e8f0', color: '#1e293b' }}>
-                                                <Calendar size={16} />
-                                            </div>
-                                            <div style={{ flex: 1 }}>
-                                                <p style={{ margin: 0, fontSize: '0.7rem', color: '#64748b', marginBottom: isEditMode ? '4px' : '0' }}>Start Date</p>
-                                                {isEditMode ? (
-                                                    <input
-                                                        type="date"
-                                                        value={startDate}
-                                                        onChange={e => setStartDate(e.target.value)}
-                                                        style={{
-                                                            width: '100%',
-                                                            padding: '6px 10px',
-                                                            borderRadius: '8px',
-                                                            border: '1.5px solid #e2e8f0',
-                                                            background: 'white',
-                                                            fontSize: '0.85rem',
-                                                            fontWeight: 600,
-                                                            outline: 'none',
-                                                            cursor: 'pointer'
-                                                        }}
-                                                    />
-                                                ) : (
-                                                    <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600 }}>{formatDate(milestone.startDate)}</p>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #e2e8f0', color: '#E8720C' }}>
-                                                <Calendar size={16} />
-                                            </div>
-                                            <div style={{ flex: 1 }}>
-                                                <p style={{ margin: 0, fontSize: '0.7rem', color: '#64748b', marginBottom: isEditMode ? '4px' : '0' }}>Due Date</p>
-                                                {isEditMode ? (
-                                                    <input
-                                                        type="date"
-                                                        value={dueDate}
-                                                        onChange={e => setDueDate(e.target.value)}
-                                                        style={{
-                                                            width: '100%',
-                                                            padding: '6px 10px',
-                                                            borderRadius: '8px',
-                                                            border: '1.5px solid #e2e8f0',
-                                                            background: 'white',
-                                                            fontSize: '0.85rem',
-                                                            fontWeight: 600,
-                                                            outline: 'none',
-                                                            cursor: 'pointer'
-                                                        }}
-                                                    />
-                                                ) : (
-                                                    <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600 }}>{formatDate(milestone.dueDate)}</p>
-                                                )}
+                                                        />
+                                                    ) : (
+                                                        <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600 }}>{formatDate(milestone.dueDate)}</p>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
+
+                                    {!isEditMode && milestone.createdAt && (
+                                        <div style={{ padding: '0 0.5rem', fontSize: '0.75rem', color: '#94a3b8' }}>
+                                            <p>Registered on {formatDate(milestone.createdAt)}</p>
+                                            {milestone.updatedAt && <p>Last updated on {formatDate(milestone.updatedAt)}</p>}
+                                        </div>
+                                    )}
                                 </div>
-
-                                {!isEditMode && milestone.createdAt && (
-                                    <div style={{ padding: '0 0.5rem', fontSize: '0.75rem', color: '#94a3b8' }}>
-                                        <p>Registered on {formatDate(milestone.createdAt)}</p>
-                                        {milestone.updatedAt && <p>Last updated on {formatDate(milestone.updatedAt)}</p>}
-                                    </div>
-                                )}
                             </div>
                         </div>
-                    </div>
                     ) : (
                         <div style={{ textAlign: 'center', padding: '3rem' }}>
                             <AlertCircle size={48} color="#ef4444" style={{ margin: '0 auto 1rem' }} />

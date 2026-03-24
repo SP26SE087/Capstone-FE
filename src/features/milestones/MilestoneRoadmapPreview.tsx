@@ -1,15 +1,18 @@
 import React, { useMemo } from 'react';
 import { Milestone } from '@/types';
 
+interface RoadmapItem {
+    id: string; // Generic unique identifier
+    name: string;
+    startDate: string;
+    dueDate: string;
+    status?: number;
+    description?: string;
+}
+
 interface RoadmapPreviewProps {
-    existingMilestones: Milestone[];
-    currentMilestones?: Array<{
-        id: string;
-        name: string;
-        startDate: string;
-        dueDate: string;
-        status?: number;
-    }>;
+    existingMilestones: (Milestone | RoadmapItem)[];
+    currentMilestones?: RoadmapItem[];
     projectStartDate?: string;
     projectEndDate?: string;
     highlightId?: string; // ID for the milestone being viewed
@@ -57,7 +60,7 @@ const MilestoneRoadmapPreview: React.FC<RoadmapPreviewProps> = ({
     const overlaps = useMemo(() => {
         const results: Record<string, boolean> = {};
         const all = [
-            ...existingMilestones.map(m => ({ id: m.id, start: new Date(m.startDate || "").getTime(), end: new Date(m.dueDate || "").getTime() })),
+            ...existingMilestones.map(m => ({ id: (m as any).milestoneId || (m as any).id, start: new Date(m.startDate || "").getTime(), end: new Date(m.dueDate || "").getTime() })),
             ...currentMilestones.map(r => ({ id: r.id, start: new Date(r.startDate || "").getTime(), end: new Date(r.dueDate || "").getTime() }))
         ].filter(i => i.start && i.end);
 
@@ -274,15 +277,16 @@ const MilestoneRoadmapPreview: React.FC<RoadmapPreviewProps> = ({
 
                 {/* Existing Milestones (Sibling Tasks) */}
                 {existingMilestones.map((m, i) => {
+                    const mId = (m as any).milestoneId || (m as any).id;
                     if (!m.startDate || !m.dueDate) return null;
                     const left = getX(m.startDate);
                     const width = Math.max(1, getX(m.dueDate) - left);
-                    const isHighlighted = m.id === highlightId;
-                    const isConflict = overlaps[m.id];
+                    const isHighlighted = mId === highlightId;
+                    const isConflict = overlaps[mId];
                     const lane = existingLanes[i] || 0;
                     
                     return (
-                        <React.Fragment key={m.id || i}>
+                        <React.Fragment key={mId || i}>
                         <div style={{
                             position: 'absolute',
                             left: `${left}%`,

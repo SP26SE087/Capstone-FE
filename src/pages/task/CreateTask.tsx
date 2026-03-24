@@ -111,7 +111,7 @@ const CreateTask: React.FC = () => {
                             >
                                 <option value="">Select a project...</option>
                                 {projects.map(p => (
-                                    <option key={p.id} value={p.id}>{p.projectName}</option>
+                                    <option key={p.projectId} value={p.projectId}>{p.projectName}</option>
                                 ))}
                             </select>
                         </div>

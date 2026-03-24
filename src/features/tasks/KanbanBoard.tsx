@@ -72,7 +72,7 @@ const DraggableColumn: React.FC<{
         >
             {tasks.map(task => (
                 <div
-                    key={task.id}
+                    key={task.taskId}
                     onClickCapture={(e) => {
                         if (hasMoved) {
                             e.stopPropagation();
@@ -82,7 +82,7 @@ const DraggableColumn: React.FC<{
                     <TaskItem
                         task={task}
                         milestoneName={milestones.find(m => {
-                            const mId = String(m.id || (m as any).ID || '').toLowerCase();
+                            const mId = String(m.milestoneId || (m as any).id || (m as any).ID || '').toLowerCase();
                             const tMid = String(task.milestoneId || (task as any).milestoneID || (task as any).milestone_id || '').toLowerCase();
                             return mId === tMid && tMid !== '';
                         })?.name}

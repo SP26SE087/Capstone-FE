@@ -71,8 +71,8 @@ const Tasks: React.FC = () => {
 
     const handleFormSubmit = async (taskData: any) => {
         try {
-            if (editingTask?.id) {
-                await taskService.update(editingTask.id, taskData);
+            if (editingTask?.taskId) {
+                await taskService.update(editingTask.taskId, taskData);
                 await fetchTasks();
                 setIsEditDrawerOpen(false);
                 setEditingTask(null);
@@ -263,8 +263,8 @@ const Tasks: React.FC = () => {
                                             const priorityStyle = getPriorityStyle(task.priority);
                                             return (
                                                 <tr
-                                                    key={task.id}
-                                                    onClick={() => handleTaskClick(task.id)}
+                                                    key={task.taskId}
+                                                    onClick={() => handleTaskClick(task.taskId)}
                                                     style={{ borderBottom: '1px solid var(--border-color)', transition: 'background 0.15s', cursor: 'pointer' }}
                                                     onMouseOver={(e) => e.currentTarget.style.background = 'var(--surface-hover)'}
                                                     onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}

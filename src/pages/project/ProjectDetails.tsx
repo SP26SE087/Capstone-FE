@@ -253,7 +253,7 @@ const ProjectDetails: React.FC = () => {
         try {
             if (editingMilestone) {
                 // milestoneData is a single object from Edit mode
-                await milestoneService.update(editingMilestone.id, { ...milestoneData, projectId: id });
+                await milestoneService.update(editingMilestone.milestoneId || (editingMilestone as any).id, { ...milestoneData, projectId: id });
                 showToast('Milestone updated successfully!', 'success');
             } else {
                 // milestoneData is an array of objects from Bulk Create mode
@@ -311,7 +311,7 @@ const ProjectDetails: React.FC = () => {
         try {
             if (editingTask) {
                 // taskData is a single object from Edit mode
-                const result = await taskService.update(editingTask.id, { ...taskData, projectId: id });
+                const result = await taskService.update(editingTask.taskId, { ...taskData, projectId: id });
                 if (result?._partialError) {
                     showToast(result._partialError, 'warning');
                 } else {
@@ -752,12 +752,12 @@ const ProjectDetails: React.FC = () => {
             let targetId: string | null = null;
 
             if (inProgress.length > 0) {
-                targetId = inProgress[0].id; // Already sorted by dueDate in filtreredMilestones
+                targetId = inProgress[0].milestoneId; // Already sorted by dueDate in filtreredMilestones
             } else {
                 // Priority 2: Last Completed milestone
                 const completed = filteredMilestones.filter(m => m.status === MilestoneStatus.Completed);
                 if (completed.length > 0) {
-                    targetId = completed[completed.length - 1].id;
+                    targetId = completed[completed.length - 1].milestoneId;
                 }
             }
 
@@ -1006,7 +1006,7 @@ const ProjectDetails: React.FC = () => {
                                                     const isNearDeadline = task.dueDate && (task.status !== TaskStatus.Completed && task.status !== TaskStatus.Submitted) && ((new Date(task.dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) <= 3;
 
                                                     return (
-                                                        <div key={task.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.9rem', padding: '8px', border: '1px solid #f1f5f9', borderRadius: '8px', position: 'relative' }}>
+                                                        <div key={task.taskId} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.9rem', padding: '8px', border: '1px solid #f1f5f9', borderRadius: '8px', position: 'relative' }}>
                                                             <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: getStatusColor(task.status) }} />
                                                             <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{task.name}</span>
                                                             <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{formatProjectDate(task.dueDate, 'No date')}</span>
@@ -1185,8 +1185,8 @@ const ProjectDetails: React.FC = () => {
                                     }} className="custom-scrollbar">
                                     {filteredMilestones.length > 0 ? filteredMilestones.map((milestone, idx) => (
                                         <div
-                                            key={milestone.id}
-                                            id={`milestone-item-${milestone.id}`}
+                                            key={milestone.milestoneId}
+                                            id={`milestone-item-${milestone.milestoneId}`}
                                             style={{
                                                 position: 'relative',
                                                 marginBottom: idx === filteredMilestones.length - 1 ? 0 : '2rem'
@@ -1661,10 +1661,10 @@ const ProjectDetails: React.FC = () => {
                                                     <h4 style={{ margin: '0 0 10px', fontSize: '0.75rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Phases (Milestones)</h4>
                                                     <div style={{ maxHeight: '180px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }} className="custom-scrollbar-thin">
                                                         {milestones.map(m => {
-                                                            const isChecked = taskMilestoneFilters.includes(m.id);
+                                                            const isChecked = taskMilestoneFilters.includes(m.milestoneId);
                                                             return (
-                                                                <div key={m.id} onClick={() => {
-                                                                    setTaskMilestoneFilters(prev => isChecked ? prev.filter(p => p !== m.id) : [...prev, m.id]);
+                                                                <div key={m.milestoneId} onClick={() => {
+                                                                    setTaskMilestoneFilters(prev => isChecked ? prev.filter(p => p !== m.milestoneId) : [...prev, m.milestoneId]);
                                                                 }}
                                                                     style={{
                                                                         display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '6px 8px', borderRadius: '8px', background: isChecked ? '#f0f9ff' : 'transparent', border: `1px solid ${isChecked ? '#bae6fd' : 'transparent'}`
@@ -1748,7 +1748,7 @@ const ProjectDetails: React.FC = () => {
                                 <div style={{ marginBottom: '1rem', border: '1px solid #e2e8f0', borderRadius: '16px', overflow: 'hidden', background: 'white', minHeight: '350px' }}>
                                     <TaskRoadmapPreview
                                         existingTasks={filteredTasks.map(t => ({
-                                            id: t.id,
+                                            id: t.taskId,
                                             name: t.name,
                                             startDate: t.startDate || t.createdAt || "",
                                             dueDate: t.dueDate || "",
@@ -2007,7 +2007,7 @@ const ProjectDetails: React.FC = () => {
                                             {newTasks.find(row => row.id === activeTaskDraftId) && (() => {
                                                 const row = newTasks.find(t => t.id === activeTaskDraftId)!;
                                                 const todayStr = new Date().toISOString().split('T')[0];
-                                                const selectedMilestone = milestones.find(m => m.id === row.milestoneId);
+                                                const selectedMilestone = milestones.find(m => m.milestoneId === row.milestoneId);
                                                 const mStart = selectedMilestone ? selectedMilestone.startDate.split('T')[0] : '';
                                                 const mEnd = selectedMilestone ? selectedMilestone.dueDate.split('T')[0] : '';
                                                 
@@ -2039,7 +2039,7 @@ const ProjectDetails: React.FC = () => {
                                                                     style={{ padding: '0.65rem 1rem', borderRadius: '10px', fontSize: '0.85rem' }}
                                                                 >
                                                                     <option value="">No phase linked</option>
-                                                                    {milestones.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                                                                    {milestones.map(m => <option key={m.milestoneId} value={m.milestoneId}>{m.name}</option>)}
                                                                 </select>
                                                             </div>
                                                             <div className="form-group" style={{ marginBottom: 0 }}>

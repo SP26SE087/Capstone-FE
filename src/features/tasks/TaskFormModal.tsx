@@ -287,11 +287,11 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
             list = list.filter(m => 
                 m.status === MilestoneStatus.NotStarted || 
                 m.status === MilestoneStatus.InProgress ||
-                String(m.id) === String(currentMid)
+                String(m.milestoneId || (m as any).id) === String(currentMid)
             );
         }
 
-        if (fetchedMilestone && !list.some(m => String(m.id).toLowerCase() === String(fetchedMilestone.id).toLowerCase())) {
+        if (fetchedMilestone && !list.some(m => String(m.milestoneId || (m as any).id).toLowerCase() === String(fetchedMilestone.milestoneId || (fetchedMilestone as any).id).toLowerCase())) {
             return [fetchedMilestone, ...list];
         }
         return list;
@@ -347,10 +347,10 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
     };
 
     const handleDeleteEvidence = async (evidenceId: number) => {
-        if (!task?.id) return;
+        if (!task?.taskId) return;
         if (window.confirm("Are you sure you want to remove this evidence?")) {
             try {
-                await taskService.deleteEvidence(task.id, evidenceId);
+                await taskService.deleteEvidence(task.taskId, evidenceId);
                 setServerEvidences(prev => prev.filter(e => e.id !== evidenceId));
             } catch (err) {
                 console.error("Failed to delete evidence:", err);
@@ -373,7 +373,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                 }
 
                 if (row.milestoneId) {
-                    const milestone = effectiveMilestones.find(m => String(m.id) === String(row.milestoneId));
+                    const milestone = effectiveMilestones.find(m => String(m.milestoneId || (m as any).id) === String(row.milestoneId));
                     if (milestone && milestone.startDate && milestone.dueDate) {
                         const mStart = new Date(milestone.startDate).getTime();
                         const mEnd = new Date(milestone.dueDate).getTime();
@@ -412,7 +412,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
 
         // Validation for single mode
         if (milestoneId) {
-            const milestone = effectiveMilestones.find(m => String(m.id) === String(milestoneId));
+            const milestone = effectiveMilestones.find(m => String(m.milestoneId || (m as any).id) === String(milestoneId));
             if (milestone && milestone.startDate && milestone.dueDate) {
                 const mStart = new Date(milestone.startDate).getTime();
                 const mEnd = new Date(milestone.dueDate).getTime();
@@ -494,7 +494,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                 }
 
                 // Fetch evidences
-                taskService.getEvidences(task.id).then(setServerEvidences);
+                taskService.getEvidences(task.taskId).then(setServerEvidences);
             }
         } else if (!isOpen) {
             resetForm();
@@ -524,7 +524,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
 
         // Always include the currently selected milestone in the list even if it doesn't match filters
         const currentMilestone = effectiveMilestones.find(m => {
-            const mId = String(m.id || (m as any).ID || '').toLowerCase();
+            const mId = String(m.milestoneId || (m as any).id || (m as any).ID || '').toLowerCase();
             const targetId = String(milestoneId).toLowerCase();
             return mId === targetId && targetId !== '';
         });
@@ -723,7 +723,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                 {/* Body - Roadmap Preview First */}
                 {!isReadOnly && (() => {
                     const activeMid = milestoneId || (rows.length > 0 ? rows[0].milestoneId : initialMilestoneId) || "";
-                    const currentMilestoneContext = effectiveMilestones.find(m => String(m.id || (m as any).ID || '').toLowerCase() === String(activeMid).toLowerCase());
+                    const currentMilestoneContext = effectiveMilestones.find(m => String(m.milestoneId || (m as any).id || (m as any).ID || '').toLowerCase() === String(activeMid).toLowerCase());
                     const roadmapStart = currentMilestoneContext?.startDate || projectStartDate;
                     const roadmapEnd = currentMilestoneContext?.dueDate || projectEndDate;
 
@@ -731,10 +731,10 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                         <MilestoneRoadmapPreview 
                             existingMilestones={effectiveExistingTasks.filter(t => {
                                 if (!activeMid) return false;
-                                const tMid = (t as any).milestoneId || (t as any).milestoneID || (t as any).milestone_id || (t as any).milestone?.id || '';
-                                return String(tMid).toLowerCase() === String(activeMid).toLowerCase() && (!task || t.id !== task.id);
+                                 const tMid = (t as any).milestoneId || (t as any).milestoneID || (t as any).milestone_id || (t as any).milestone?.id || '';
+                                return String(tMid).toLowerCase() === String(activeMid).toLowerCase() && (!task || t.taskId !== task.taskId);
                             }).map(t => ({
-                                id: t.id,
+                                id: t.taskId,
                                 name: t.name,
                                 startDate: t.startDate || "",
                                 dueDate: t.dueDate || "",
@@ -747,14 +747,14 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                                 startDate: r.startDate || "",
                                 dueDate: r.dueDate || ""
                             })) : (name && startDate && dueDate ? [{
-                                id: task?.id || 'new',
+                                id: task?.taskId || 'new',
                                 name: name,
                                 startDate: startDate,
                                 dueDate: dueDate
                             }] : [])}
                             projectStartDate={roadmapStart}
                             projectEndDate={roadmapEnd}
-                            highlightId={task?.id}
+                            highlightId={task?.taskId}
                         />
                     );
                 })()}
@@ -900,7 +900,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                                                 options={[
                                                     { id: '', name: 'No Milestone', info: 'Clear milestone' },
                                                     ...effectiveMilestones.map(m => ({
-                                                        id: (m.id || '').toString(),
+                                                        id: (m.milestoneId || (m as any).id || '').toString(),
                                                         name: m.name || 'Unnamed Milestone',
                                                         info: m.startDate ? `${formatDate(m.startDate)} - ${formatDate(m.dueDate)}` : 'No dates'
                                                     }))
@@ -911,7 +911,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                                             />
                                         </div>
                                             {(() => {
-                                                const milestone = effectiveMilestones.find(m => String(m.id) === String(row.milestoneId));
+                                                const milestone = effectiveMilestones.find(m => String(m.milestoneId || (m as any).id) === String(row.milestoneId));
                                                 const mStart = milestone?.startDate ? new Date(milestone.startDate).getTime() : null;
                                                 const mEnd = milestone?.dueDate ? new Date(milestone.dueDate).getTime() : null; 
                                                 
@@ -1256,7 +1256,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                         </div>
 
                         {(() => {
-                            const milestone = effectiveMilestones.find(m => String(m.id) === String(milestoneId));
+                            const milestone = effectiveMilestones.find(m => String(m.milestoneId || (m as any).id) === String(milestoneId));
                             const minDate = milestone?.startDate ? new Date(milestone.startDate).toISOString().split('T')[0] : undefined;
                             const maxDate = milestone?.dueDate ? new Date(milestone.dueDate).toISOString().split('T')[0] : undefined;
                             

@@ -41,7 +41,7 @@ export const projectService = {
             console.error(`Error fetching project by id ${id}:`, error);
             // Only fallback to mock if the real ID matches a specific mock pattern if needed, 
             // but for now let's just return null to indicate not found
-            return mockProjects.find(p => p.id === id) || null;
+            return mockProjects.find(p => p.projectId === id) || null;
         }
     },
 

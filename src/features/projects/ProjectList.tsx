@@ -34,9 +34,9 @@ const ProjectList: React.FC = () => {
             {projects.length > 0 ? (
                 projects.map(project => (
                     <ProjectCard
-                        key={project.id}
+                        key={project.projectId}
                         project={project}
-                        onClick={handleProjectClick}
+                        onClick={() => handleProjectClick(project.projectId)}
                     />
                 ))
             ) : (
