@@ -66,4 +66,20 @@ export const userService = {
         const response = await api.put(`/api/users/${userId}`, data);
         return response.data.data || response.data;
     },
+
+    exchangeGoogleToken: async (userId: string, code: string, redirectUri: string): Promise<any> => {
+        const response = await api.post(`/api/users/${userId}/google-token/exchange`, {
+            code,
+            redirectUri
+        });
+        return response.data.data || response.data;
+    },
+
+    getMe: async (token?: string): Promise<any> => {
+        const config = token
+            ? { headers: { Authorization: `Bearer ${token}` } }
+            : {};
+        const response = await api.get('/api/users/me', config);
+        return response.data.data || response.data;
+    },
 };

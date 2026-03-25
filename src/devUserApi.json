@@ -181,8 +181,10 @@
                         "description": "OK"
                     }
                 }
-            },
-            "delete": {
+            }
+        },
+        "/api/users/{userId}/google-token": {
+            "get": {
                 "tags": [
                     "User"
                 ],
@@ -197,6 +199,88 @@
                         }
                     }
                 ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "User"
+                ],
+                "parameters": [
+                    {
+                        "name": "userId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateGoogleCredentialRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateGoogleCredentialRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateGoogleCredentialRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/api/users/{userId}/google-token/exchange": {
+            "post": {
+                "tags": [
+                    "User"
+                ],
+                "parameters": [
+                    {
+                        "name": "userId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ExchangeGoogleCodeRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ExchangeGoogleCodeRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ExchangeGoogleCodeRequest"
+                            }
+                        }
+                    }
+                },
                 "responses": {
                     "200": {
                         "description": "OK"
@@ -225,6 +309,18 @@
                     }
                 }
             }
+        },
+        "/api/users/me": {
+            "get": {
+                "tags": [
+                    "User"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
         }
     },
     "components": {
@@ -242,6 +338,20 @@
                     },
                     "role": {
                         "$ref": "#/components/schemas/SystemRoleEnum"
+                    }
+                },
+                "additionalProperties": false
+            },
+            "ExchangeGoogleCodeRequest": {
+                "type": "object",
+                "properties": {
+                    "code": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "redirectUri": {
+                        "type": "string",
+                        "nullable": true
                     }
                 },
                 "additionalProperties": false
@@ -276,6 +386,25 @@
                 ],
                 "type": "integer",
                 "format": "int32"
+            },
+            "UpdateGoogleCredentialRequest": {
+                "type": "object",
+                "properties": {
+                    "accessToken": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "refreshToken": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "expiresAtUtc": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
             },
             "UpdateUserRequest": {
                 "type": "object",

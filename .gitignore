@@ -27,3 +27,7 @@ dist-ssr
 devApi.json
 devReport.json
 devUserApi.json
+devBooking.json
+
+#env files
+.env
