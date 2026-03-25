@@ -1736,14 +1736,6 @@ const ProjectDetails: React.FC = () => {
                                     </div>
                                 </div>
 
-                                {/* Action Header for Roadmap */}
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <div style={{ width: '4px', height: '18px', background: 'var(--primary-color)', borderRadius: '2px' }} />
-                                        <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 900, color: '#1e293b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Activities Roadmap</h3>
-                                    </div>
-                                </div>
-
                                 {/* Roadmap Context */}
                                 <div style={{ marginBottom: '1rem', border: '1px solid #e2e8f0', borderRadius: '16px', overflow: 'hidden', background: 'white', minHeight: '350px' }}>
                                     <TaskRoadmapPreview
@@ -2010,7 +2002,7 @@ const ProjectDetails: React.FC = () => {
                                                 const selectedMilestone = milestones.find(m => m.milestoneId === row.milestoneId);
                                                 const mStart = selectedMilestone ? selectedMilestone.startDate.split('T')[0] : '';
                                                 const mEnd = selectedMilestone ? selectedMilestone.dueDate.split('T')[0] : '';
-                                                
+
                                                 const isStartInvalid = !!(row.startDate < todayStr || (selectedMilestone && (row.startDate < mStart || (mEnd && row.startDate > mEnd))));
                                                 const isDueInvalid = !!(row.dueDate < todayStr || (selectedMilestone && (row.dueDate < mStart || (mEnd && row.dueDate > mEnd))));
                                                 const isDueBeforeStart = !!(row.startDate && row.dueDate && row.dueDate < row.startDate);
@@ -2070,9 +2062,9 @@ const ProjectDetails: React.FC = () => {
                                                                     min={mStart > todayStr ? mStart : todayStr}
                                                                     max={mEnd || undefined}
                                                                     onChange={(e) => updateInlineTask(row.id, 'startDate', e.target.value)}
-                                                                    style={{ 
-                                                                        padding: '0.65rem 1rem', 
-                                                                        borderRadius: '10px', 
+                                                                    style={{
+                                                                        padding: '0.65rem 1rem',
+                                                                        borderRadius: '10px',
                                                                         fontSize: '0.85rem',
                                                                         border: isStartInvalid ? '1.5px solid #ef4444' : '1.5px solid #e2e8f0',
                                                                         transition: 'all 0.2s'
@@ -2094,9 +2086,9 @@ const ProjectDetails: React.FC = () => {
                                                                     min={row.startDate > todayStr ? row.startDate : todayStr}
                                                                     max={mEnd || undefined}
                                                                     onChange={(e) => updateInlineTask(row.id, 'dueDate', e.target.value)}
-                                                                    style={{ 
-                                                                        padding: '0.65rem 1rem', 
-                                                                        borderRadius: '10px', 
+                                                                    style={{
+                                                                        padding: '0.65rem 1rem',
+                                                                        borderRadius: '10px',
                                                                         fontSize: '0.85rem',
                                                                         border: (isDueInvalid || isDueBeforeStart) ? '1.5px solid #ef4444' : '1.5px solid #e2e8f0',
                                                                         transition: 'all 0.2s'
@@ -2146,10 +2138,10 @@ const ProjectDetails: React.FC = () => {
                                                             <button
                                                                 onClick={() => saveInlineTask(row.id)}
                                                                 className="btn btn-primary"
-                                                                style={{ 
-                                                                    padding: '0.65rem 1.75rem', 
-                                                                    fontWeight: 800, 
-                                                                    borderRadius: '10px', 
+                                                                style={{
+                                                                    padding: '0.65rem 1.75rem',
+                                                                    fontWeight: 800,
+                                                                    borderRadius: '10px',
                                                                     fontSize: '0.85rem',
                                                                     opacity: (submitting || isAnyInvalid) ? 0.6 : 1,
                                                                     cursor: (submitting || isAnyInvalid) ? 'not-allowed' : 'pointer'
@@ -2163,13 +2155,13 @@ const ProjectDetails: React.FC = () => {
                                                                 <button
                                                                     onClick={saveAllInlineTasks}
                                                                     className="btn btn-secondary"
-                                                                    style={{ 
-                                                                        padding: '0.65rem 1.75rem', 
-                                                                        fontWeight: 800, 
-                                                                        borderRadius: '10px', 
-                                                                        fontSize: '0.85rem', 
-                                                                        background: '#f8fafc', 
-                                                                        color: isAnyInvalid ? '#94a3b8' : 'var(--primary-color)', 
+                                                                    style={{
+                                                                        padding: '0.65rem 1.75rem',
+                                                                        fontWeight: 800,
+                                                                        borderRadius: '10px',
+                                                                        fontSize: '0.85rem',
+                                                                        background: '#f8fafc',
+                                                                        color: isAnyInvalid ? '#94a3b8' : 'var(--primary-color)',
                                                                         border: `1.5px solid ${isAnyInvalid ? '#e2e8f0' : 'var(--primary-color)'}`,
                                                                         opacity: (submitting || isAnyInvalid) ? 0.6 : 1,
                                                                         cursor: (submitting || isAnyInvalid) ? 'not-allowed' : 'pointer'
