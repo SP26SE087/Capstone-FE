@@ -117,20 +117,20 @@ function Dashboard() {
                                     projects.slice(0, 3).map((proj, index) => {
                                         const totalTasks = proj.totalTasks ?? (proj as any).TotalTasks ?? 0;
                                         const completedTasks = proj.completedTasks ?? (proj as any).CompletedTasks ?? 0;
-                                        const progress = proj.progress !== undefined 
-                                            ? proj.progress 
+                                        const progress = proj.progress !== undefined
+                                            ? proj.progress
                                             : (totalTasks > 0 ? Math.round(completedTasks / totalTasks * 100) : 0);
 
                                         return (
                                             <div
-                                                key={proj.id || index}
-                                                onClick={() => navigate(`/projects/${proj.id}`)}
+                                                key={proj.projectId || index}
+                                                onClick={() => navigate(`/projects/${proj.projectId}`)}
                                                 className="card card-interactive"
                                                 style={{ marginBottom: 0 }}
                                             >
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
                                                     <span className="badge badge-muted">
-                                                        #{(proj.id || '').substring(0, 6).toUpperCase()}
+                                                        #{(proj.projectId || '').substring(0, 6).toUpperCase()}
                                                     </span>
                                                     <span className="badge" style={{
                                                         background: getProjectStatusStyle(proj.status).bg,
@@ -205,11 +205,11 @@ function Dashboard() {
                                 ) : tasks.length > 0 ? (
                                     tasks.slice(0, 4).map((task) => {
                                         const isNearDeadline = task.dueDate && (task.status !== TaskStatus.Completed && task.status !== TaskStatus.Submitted) && ((new Date(task.dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) <= 3;
-                                        
+
                                         return (
-                                            <div 
-                                                key={task.id} 
-                                                onClick={() => navigate(`/tasks?selectedId=${task.id}`)}
+                                            <div
+                                                key={task.taskId}
+                                                onClick={() => navigate(`/tasks?selectedId=${task.taskId}`)}
                                                 style={{
                                                     padding: '0.9rem 1rem',
                                                     background: 'var(--surface-hover)',
@@ -242,7 +242,7 @@ function Dashboard() {
                                                 )}
                                                 <div>
                                                     <span style={{ fontSize: '0.7rem', color: 'var(--accent-color)', fontWeight: 600 }}>
-                                                        {task.id.substring(0, 8).toUpperCase()}
+                                                        {task.taskId.substring(0, 8).toUpperCase()}
                                                     </span>
                                                     <p style={{ margin: '3px 0', fontSize: '0.9rem', fontWeight: 500 }}>{task.name}</p>
                                                     <div style={{ display: 'flex', gap: '12px', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
@@ -283,8 +283,8 @@ function Dashboard() {
                             <p style={{ fontSize: '0.85rem', opacity: 0.75 }}>
                                 Lab resources for GPU servers are currently at {stats?.availableResourcesCount ?? '--'}% capacity.
                             </p>
-                            <button 
-                                className="btn btn-primary" 
+                            <button
+                                className="btn btn-primary"
                                 style={{ marginTop: '1rem', width: '100%' }}
                                 onClick={() => navigate('/bookings')}
                             >

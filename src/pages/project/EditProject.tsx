@@ -96,7 +96,7 @@ const EditProject: React.FC = () => {
                         endDate: !isDefaultDate(projectData.endDate) ? new Date(projectData.endDate!).toISOString().split('T')[0] : '',
                         status: projectData.status
                     });
-                    setSelectedFieldIds(projectData.researchFields?.map(f => f.id) || []);
+                    setSelectedFieldIds(projectData.researchFields?.map(f => f.researchFieldId) || []);
 
                     const fields = await researchFieldService.getAll();
                     setAvailableFields(fields);
@@ -472,7 +472,7 @@ const EditProject: React.FC = () => {
                             </div>
 
                             <h3 style={{ margin: '0 0 1rem' }}>Research Fields</h3>
-                            
+
                             <div style={{ position: 'relative', marginBottom: '10px' }}>
                                 <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                                 <input
@@ -500,32 +500,32 @@ const EditProject: React.FC = () => {
                                 {availableFields
                                     .filter(f => f.name.toLowerCase().includes(fieldSearchTerm.toLowerCase()))
                                     .length > 0 ? (
-                                        availableFields
-                                            .filter(f => f.name.toLowerCase().includes(fieldSearchTerm.toLowerCase()))
-                                            .map((field) => (
-                                                <button
-                                                    key={field.id}
-                                                    type="button"
-                                                    onClick={() => !isReadOnly && toggleField(field.id)}
-                                                    className={`filter-chip ${selectedFieldIds.includes(field.id) ? 'active' : ''}`}
-                                                    style={{
-                                                        cursor: isReadOnly ? 'not-allowed' : 'pointer',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        gap: '6px',
-                                                        opacity: isReadOnly && !selectedFieldIds.includes(field.id) ? 0.5 : 1
-                                                    }}
-                                                    disabled={isReadOnly}
-                                                >
-                                                    {selectedFieldIds.includes(field.id) ? <Check size={14} /> : <Plus size={14} />}
-                                                    {field.name}
-                                                </button>
-                                            ))
-                                    ) : (
-                                        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: '0 auto', padding: '10px' }}>
-                                            {availableFields.length > 0 ? "No fields match your search." : "Loading research fields..."}
-                                        </p>
-                                    )}
+                                    availableFields
+                                        .filter(f => f.name.toLowerCase().includes(fieldSearchTerm.toLowerCase()))
+                                        .map((field) => (
+                                            <button
+                                                key={field.researchFieldId}
+                                                type="button"
+                                                onClick={() => !isReadOnly && toggleField(field.researchFieldId)}
+                                                className={`filter-chip ${selectedFieldIds.includes(field.researchFieldId) ? 'active' : ''}`}
+                                                style={{
+                                                    cursor: isReadOnly ? 'not-allowed' : 'pointer',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '6px',
+                                                    opacity: isReadOnly && !selectedFieldIds.includes(field.researchFieldId) ? 0.5 : 1
+                                                }}
+                                                disabled={isReadOnly}
+                                            >
+                                                {selectedFieldIds.includes(field.researchFieldId) ? <Check size={14} /> : <Plus size={14} />}
+                                                {field.name}
+                                            </button>
+                                        ))
+                                ) : (
+                                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: '0 auto', padding: '10px' }}>
+                                        {availableFields.length > 0 ? "No fields match your search." : "Loading research fields..."}
+                                    </p>
+                                )}
                             </div>
                         </section>
 
@@ -678,13 +678,13 @@ const EditProject: React.FC = () => {
                 footer={(
                     <>
                         <button className="btn btn-secondary" onClick={() => { setIsDeleteConfirmOpen(false); setDeleteInput(''); }}>Cancel</button>
-                        <button 
-                            className="btn" 
-                            style={{ 
-                                background: deleteInput === formData.projectName ? 'var(--danger)' : '#fca5a5', 
+                        <button
+                            className="btn"
+                            style={{
+                                background: deleteInput === formData.projectName ? 'var(--danger)' : '#fca5a5',
                                 color: 'white',
                                 cursor: deleteInput === formData.projectName ? 'pointer' : 'not-allowed'
-                            }} 
+                            }}
                             onClick={handleDelete}
                             disabled={deleteInput !== formData.projectName}
                         >
@@ -706,11 +706,11 @@ const EditProject: React.FC = () => {
                         <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
                             Please type <strong>{formData.projectName}</strong> to confirm.
                         </label>
-                        <input 
-                            type="text" 
-                            className="form-input" 
-                            value={deleteInput} 
-                            onChange={(e) => setDeleteInput(e.target.value)} 
+                        <input
+                            type="text"
+                            className="form-input"
+                            value={deleteInput}
+                            onChange={(e) => setDeleteInput(e.target.value)}
                             placeholder={formData.projectName}
                             style={{ width: '100%', borderColor: deleteInput === formData.projectName ? 'var(--success)' : 'var(--border-color)' }}
                         />

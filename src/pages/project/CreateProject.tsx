@@ -61,7 +61,7 @@ const CreateProject: React.FC = () => {
         try {
             const today = new Date().toISOString().split('T')[0];
             const startDate = formData.startDate || today;
-            
+
             const projectData = {
                 projectName: formData.projectName,
                 projectDescription: formData.projectDescription,
@@ -183,7 +183,7 @@ const CreateProject: React.FC = () => {
 
                             <div>
                                 <label className="form-label">Research Fields (Select relevant areas)</label>
-                                
+
                                 <div style={{ position: 'relative', marginBottom: '10px' }}>
                                     <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                                     <input
@@ -211,46 +211,46 @@ const CreateProject: React.FC = () => {
                                         availableFields
                                             .filter(f => f.name.toLowerCase().includes(fieldSearchTerm.toLowerCase()))
                                             .length > 0 ? (
-                                                availableFields
-                                                    .filter(f => f.name.toLowerCase().includes(fieldSearchTerm.toLowerCase()))
-                                                    .map((field) => (
-                                                        <button
-                                                            key={field.id}
-                                                            type="button"
-                                                            onClick={() => toggleField(field.id)}
-                                                            style={{
-                                                                padding: '8px 16px',
-                                                                borderRadius: '20px',
-                                                                fontSize: '0.85rem',
-                                                                fontWeight: 500,
-                                                                cursor: 'pointer',
-                                                                display: 'flex',
-                                                                alignItems: 'center',
-                                                                gap: '6px',
-                                                                transition: 'all 0.2s',
-                                                                background: selectedFieldIds.includes(field.id)
-                                                                    ? 'var(--accent-color)'
-                                                                    : 'white',
-                                                                color: selectedFieldIds.includes(field.id)
-                                                                    ? 'white'
-                                                                    : 'var(--text-secondary)',
-                                                                border: selectedFieldIds.includes(field.id)
-                                                                    ? '1px solid var(--accent-color)'
-                                                                    : '1px solid var(--border-color)',
-                                                                boxShadow: selectedFieldIds.includes(field.id)
-                                                                    ? '0 2px 4px rgba(42, 111, 151, 0.2)'
-                                                                    : 'none'
-                                                            }}
-                                                        >
-                                                            {selectedFieldIds.includes(field.id) ? <Check size={14} /> : <Plus size={14} />}
-                                                            {field.name}
-                                                        </button>
-                                                    ))
-                                            ) : (
-                                                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: '0 auto', padding: '10px' }}>
-                                                    No fields match your search.
-                                                </p>
-                                            )
+                                            availableFields
+                                                .filter(f => f.name.toLowerCase().includes(fieldSearchTerm.toLowerCase()))
+                                                .map((field) => (
+                                                    <button
+                                                        key={field.researchFieldId}
+                                                        type="button"
+                                                        onClick={() => toggleField(field.researchFieldId)}
+                                                        style={{
+                                                            padding: '8px 16px',
+                                                            borderRadius: '20px',
+                                                            fontSize: '0.85rem',
+                                                            fontWeight: 500,
+                                                            cursor: 'pointer',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: '6px',
+                                                            transition: 'all 0.2s',
+                                                            background: selectedFieldIds.includes(field.researchFieldId)
+                                                                ? 'var(--accent-color)'
+                                                                : 'white',
+                                                            color: selectedFieldIds.includes(field.researchFieldId)
+                                                                ? 'white'
+                                                                : 'var(--text-secondary)',
+                                                            border: selectedFieldIds.includes(field.researchFieldId)
+                                                                ? '1px solid var(--accent-color)'
+                                                                : '1px solid var(--border-color)',
+                                                            boxShadow: selectedFieldIds.includes(field.researchFieldId)
+                                                                ? '0 2px 4px rgba(42, 111, 151, 0.2)'
+                                                                : 'none'
+                                                        }}
+                                                    >
+                                                        {selectedFieldIds.includes(field.researchFieldId) ? <Check size={14} /> : <Plus size={14} />}
+                                                        {field.name}
+                                                    </button>
+                                                ))
+                                        ) : (
+                                            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: '0 auto', padding: '10px' }}>
+                                                No fields match your search.
+                                            </p>
+                                        )
                                     ) : (
                                         <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>Loading research fields...</p>
                                     )}

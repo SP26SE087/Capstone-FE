@@ -177,15 +177,15 @@ const Projects: React.FC = () => {
                             const statusStyle = getProjectStatusStyle(project.status);
                             const totalTasks = project.totalTasks ?? (project as any).TotalTasks ?? 0;
                             const completedTasks = project.completedTasks ?? (project as any).CompletedTasks ?? 0;
-                            const progress = project.progress !== undefined 
-                                ? project.progress 
+                            const progress = project.progress !== undefined
+                                ? project.progress
                                 : (totalTasks > 0 ? Math.round(completedTasks / totalTasks * 100) : 0);
 
                             return (
                                 <div
-                                    key={project.id}
+                                    key={project.projectId}
                                     className="card card-interactive"
-                                    onClick={() => navigate(`/projects/${project.id}`)}
+                                    onClick={() => navigate(`/projects/${project.projectId}`)}
                                     style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}
                                 >
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
