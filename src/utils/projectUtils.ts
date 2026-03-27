@@ -42,17 +42,18 @@ export const getProjectStatusStyle = (status: ProjectStatus): StatusStyle => {
     }
 };
 
-export const isDefaultDate = (date: string | null | undefined): boolean => {
+export const isDefaultDate = (date: string | Date | null | undefined): boolean => {
     if (!date) return true;
+    if (typeof date !== 'string') return false;
     return date.startsWith('0001-01-01');
 };
 
-export const formatProjectDate = (date: string | null | undefined, fallback: string = 'N/A'): string => {
+export const formatProjectDate = (date: string | Date | null | undefined, fallback: string = 'N/A'): string => {
     if (isDefaultDate(date)) return fallback;
     try {
         const d = new Date(date!);
         if (isNaN(d.getTime())) return fallback;
-        return d.toLocaleDateString();
+        return d.toLocaleDateString('vi-VN');
     } catch {
         return fallback;
     }

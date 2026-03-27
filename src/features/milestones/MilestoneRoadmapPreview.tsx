@@ -150,8 +150,8 @@ const MilestoneRoadmapPreview: React.FC<RoadmapPreviewProps> = ({
             `}</style>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <h3 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>Activities Roadmap</h3>
-                    <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Visual schedule of research activities</span>
+                    <h3 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>Milestones Roadmap</h3>
+                    <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Visual schedule of research milestones</span>
                 </div>
                 <div style={{ display: 'flex', gap: '12px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.55rem', fontWeight: 700, color: '#6366f1' }}>
@@ -159,7 +159,7 @@ const MilestoneRoadmapPreview: React.FC<RoadmapPreviewProps> = ({
                     </div>
                     {currentMilestones.length > 0 && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.55rem', fontWeight: 700, color: '#E8720C' }}>
-                            <div style={{ width: '6px', height: '6px', borderRadius: '2px', background: '#E8720C' }} /> {highlightId ? 'Active Activity' : 'Internal Planning'}
+                            <div style={{ width: '6px', height: '6px', borderRadius: '2px', background: '#E8720C' }} /> {highlightId ? 'Active Milestone' : 'Internal Planning'}
                         </div>
                     )}
                     {hasOverlap && (

@@ -76,15 +76,10 @@ const CreateTask: React.FC = () => {
     return (
         <MainLayout role={user.role} userName={user.name}>
             <div style={{ maxWidth: '800px', margin: '0 auto', padding: '0 1rem' }}>
-                <header style={{
-                    marginBottom: '2rem',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center'
-                }}>
+                <div className="page-header" style={{ marginBottom: '2.5rem' }}>
                     <div>
-                        <h1 style={{ margin: 0, fontSize: '1.75rem' }}>Create New Task</h1>
-                        <p style={{ color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>Assign a new task to yourself or a team member.</p>
+                        <h1>Create New Task</h1>
+                        <p>Assign a new task to yourself or a team member.</p>
                     </div>
                     <button
                         onClick={() => navigate('/tasks')}
@@ -93,7 +88,7 @@ const CreateTask: React.FC = () => {
                     >
                         <X size={20} />
                     </button>
-                </header>
+                </div>
 
                 <form onSubmit={handleSubmit} className="card" style={{ padding: '2.5rem' }}>
                     <div className="form-group">

@@ -162,12 +162,18 @@ body {
 
 .page-header h1 {
   margin: 0;
+  font-size: 2.25rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  line-height: 1.2;
 }
 
 .page-header p {
   color: var(--text-secondary);
-  margin: 4px 0 0;
-  font-size: 0.9rem;
+  margin: 6px 0 0;
+  font-size: 1rem;
+  font-weight: 500;
 }
 
 /* =============================================
@@ -509,9 +515,27 @@ body {
   box-shadow: var(--shadow-sm);
 }
 
+/* Reusable Split Layout for Cards */
+.card-body {
+  padding: 1.5rem;
+  flex: 1;
+}
+
+.card-footer {
+  padding: 1rem 1.5rem;
+  background: var(--surface-hover);
+  border-top: 1px solid var(--border-light);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
 /* Card that is clickable */
 .card-interactive {
   cursor: pointer;
+  padding: 0; /* Let body/footer handle padding */
+  display: flex;
+  flex-direction: column;
 }
 
 .card-interactive:hover {
@@ -522,13 +546,27 @@ body {
 /* =============================================
    TYPOGRAPHY
    ============================================= */
-h1,
-h2,
-h3,
-h4 {
-  color: var(--text-primary);
+h1 {
+  font-size: 2.25rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+h2 {
+  font-size: 1.75rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+h3 {
+  font-size: 1.15rem;
   font-weight: 700;
-  margin-top: 0;
+}
+
+h4 {
+  font-size: 1rem;
+  font-weight: 700;
 }
 
 a {

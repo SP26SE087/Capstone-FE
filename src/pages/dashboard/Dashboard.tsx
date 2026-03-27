@@ -59,15 +59,16 @@ function Dashboard() {
         <MainLayout role={user.role} userName={user.name}>
             <div className="page-container">
                 {/* Page Header */}
-                <div className="page-header">
+                <div className="page-header" style={{ marginBottom: '2.5rem' }}>
                     <div>
                         <h1>Lab Dashboard</h1>
-                        <p>Overview of lab activities and prioritized priorities.</p>
+                        <p>Overview of lab tasks and prioritized research goals.</p>
                     </div>
                     {canCreateProject && (
                         <button
                             onClick={() => navigate('/projects/new')}
                             className="btn btn-primary"
+                            style={{ padding: '0.8rem 1.5rem' }}
                         >
                             <Plus size={18} />
                             New Project
@@ -123,55 +124,63 @@ function Dashboard() {
 
                                         return (
                                             <div
-                                                key={proj.projectId || index}
-                                                onClick={() => navigate(`/projects/${proj.projectId}`)}
+                                                key={proj.projectId || (proj as any).id || (proj as any).ProjectID || index}
+                                                onClick={() => {
+                                                    const pid = proj.projectId || (proj as any).id || (proj as any).ProjectID;
+                                                    if (pid) {
+                                                        navigate(`/projects/${pid}`);
+                                                    }
+                                                }}
                                                 className="card card-interactive"
                                                 style={{ marginBottom: 0 }}
                                             >
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
-                                                    <span className="badge badge-muted">
-                                                        #{(proj.projectId || '').substring(0, 6).toUpperCase()}
-                                                    </span>
-                                                    <span className="badge" style={{
-                                                        background: getProjectStatusStyle(proj.status).bg,
-                                                        color: getProjectStatusStyle(proj.status).color
-                                                    }}>
-                                                        {getProjectStatusStyle(proj.status).label}
-                                                    </span>
-                                                </div>
-
-                                                <h3 style={{ margin: '0 0 8px 0', fontSize: '1.05rem' }}>
-                                                    {proj.projectName || (proj as any).name || 'Untitled Project'}
-                                                </h3>
-
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                                                    <div className="avatar avatar-sm avatar-brand">
-                                                        {(proj.nameProjectCreator || proj.NameProjectCreator || 'A')[0]}
+                                                <div className="card-body" style={{ padding: '1.25rem' }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+                                                        <span className="badge badge-muted">
+                                                            #{(proj.projectId || '').substring(0, 6).toUpperCase()}
+                                                        </span>
+                                                        <span className="badge" style={{
+                                                            background: getProjectStatusStyle(proj.status).bg,
+                                                            color: getProjectStatusStyle(proj.status).color
+                                                        }}>
+                                                            {getProjectStatusStyle(proj.status).label}
+                                                        </span>
                                                     </div>
-                                                    <span style={{ fontSize: '0.75rem', fontWeight: 500, color: 'var(--text-secondary)' }}>
-                                                        {proj.NameProjectCreator || proj.nameProjectCreator || proj.createdBy || "Anonymous"}
-                                                    </span>
-                                                </div>
 
-                                                <p style={{
-                                                    margin: '0 0 1rem',
-                                                    fontSize: '0.85rem',
-                                                    color: 'var(--text-secondary)',
-                                                    display: '-webkit-box',
-                                                    WebkitLineClamp: 2,
-                                                    WebkitBoxOrient: 'vertical',
-                                                    overflow: 'hidden',
-                                                    lineHeight: '1.5'
-                                                }}>
-                                                    {proj.projectDescription || (proj as any).description || "No description provided."}
-                                                </p>
+                                                    <h3 style={{ margin: '0 0 8px 0', fontSize: '1.05rem' }}>
+                                                        {proj.projectName || (proj as any).name || 'Untitled Project'}
+                                                    </h3>
 
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '6px' }}>
-                                                    <span style={{ color: 'var(--text-secondary)' }}>Progress</span>
-                                                    <span style={{ fontWeight: 600, color: 'var(--accent-color)' }}>{progress}%</span>
-                                                </div>
-                                                <div className="progress-bar-track">
-                                                    <div className="progress-bar-fill" style={{ width: `${progress}%` }} />
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                                                        <div className="avatar avatar-sm avatar-brand">
+                                                            {(proj.nameProjectCreator || proj.NameProjectCreator || 'A')[0]}
+                                                        </div>
+                                                        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                                                            {proj.NameProjectCreator || proj.nameProjectCreator || proj.createdBy || "Anonymous"}
+                                                        </span>
+                                                    </div>
+
+                                                    <p style={{
+                                                        margin: '0 0 1rem',
+                                                        fontSize: '0.85rem',
+                                                        color: 'var(--text-secondary)',
+                                                        display: '-webkit-box',
+                                                        WebkitLineClamp: 2,
+                                                        WebkitBoxOrient: 'vertical',
+                                                        overflow: 'hidden',
+                                                        lineHeight: '1.5',
+                                                        fontWeight: 500
+                                                    }}>
+                                                        {proj.projectDescription || (proj as any).description || "No description provided."}
+                                                    </p>
+
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '6px' }}>
+                                                        <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>Progress</span>
+                                                        <span style={{ fontWeight: 800, color: 'var(--accent-color)' }}>{progress}%</span>
+                                                    </div>
+                                                    <div className="progress-bar-track">
+                                                        <div className="progress-bar-fill" style={{ width: `${progress}%` }} />
+                                                    </div>
                                                 </div>
                                             </div>
                                         );

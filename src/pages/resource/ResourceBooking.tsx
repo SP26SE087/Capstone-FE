@@ -173,10 +173,10 @@ const ResourceBooking: React.FC = () => {
   return (
     <MainLayout role={user.role} userName={user.name}>
       <div className="page-container">
-        <div className="page-header">
+        <div className="page-header" style={{ marginBottom: '2.5rem' }}>
           <div>
-            <h1 className="text-3xl font-bold">Lab Resource Booking</h1>
-            <p className="text-gray-500">Secure equipment for your cutting-edge research projects.</p>
+            <h1 style={{ marginBottom: '4px' }}>Lab Resource Booking</h1>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>Secure equipment for your cutting-edge research projects.</p>
           </div>
         </div>
 

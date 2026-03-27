@@ -39,7 +39,7 @@ const ComingSoon: React.FC<ComingSoonProps> = ({ title }) => {
                     />
                 </div>
                 
-                <h1 style={{ fontSize: '2.5rem', marginBottom: '1rem', color: 'var(--text-primary)' }}>
+                <h1 style={{ marginBottom: '1rem' }}>
                     {title} is Coming Soon
                 </h1>
                 

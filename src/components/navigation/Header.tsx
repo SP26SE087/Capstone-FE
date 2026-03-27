@@ -1,21 +1,16 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { NavLink, useLocation, useNavigate, Link } from 'react-router-dom';
-import { User, Bell, Search, Library, FlaskConical, LogIn, LogOut, Settings, UserCircle } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { User, Bell, LogIn, LogOut, Settings, UserCircle, FlaskConical } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { SystemRoleEnum, SystemRoleMap } from '@/types/enums';
 
 const Header: React.FC = () => {
-    const location = useLocation();
     const navigate = useNavigate();
     const { user, isAuthenticated, logout } = useAuth();
     const [showUserMenu, setShowUserMenu] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
     
-    // System Roles: Admin = 1, LabDirector = 2
     const isLabDirector = Number(user.role) === SystemRoleEnum.Admin || Number(user.role) === SystemRoleEnum.LabDirector;
-
-    const workspaceRoutes = ['/dashboard', '/projects', '/tasks', '/meetings', '/members', '/bookings', '/admin', '/user-management'];
-    const isInWorkspace = workspaceRoutes.some(route => location.pathname.startsWith(route));
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -27,11 +22,6 @@ const Header: React.FC = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    const navItems = [
-        { label: 'Home Page', path: '/home', icon: <Library size={18} /> },
-        { label: 'Work Researcher Space', path: '/dashboard', icon: <FlaskConical size={18} /> },
-    ];
-
     const handleLogout = async () => {
         await logout();
         setShowUserMenu(false);
@@ -40,39 +30,24 @@ const Header: React.FC = () => {
     return (
         <header className="top-header">
             <div className="header-left">
-                <div className="header-brand">
-                    <h2 className="header-logo-text">AiTA Lab</h2>
-                </div>
-
-                <nav className="header-nav">
-                    {navItems.map(item => (
-                        <NavLink
-                            key={item.path}
-                            to={item.path}
-                            end={item.path === '/'}
-                            className={({ isActive }) => {
-                                const active = item.path === '/'
-                                    ? isActive
-                                    : isInWorkspace;
-                                return `header-nav-link ${active ? 'active' : ''}`;
-                            }}
-                        >
-                            {item.icon}
-                            <span>{item.label}</span>
-                        </NavLink>
-                    ))}
-                </nav>
-            </div>
-
-            <div className="header-center">
-                <div className="header-search">
-                    <Search size={16} className="header-search-icon" />
-                    <input
-                        type="text"
-                        placeholder="Search..."
-                        className="header-search-input"
-                    />
-                </div>
+                <Link to="/dashboard" className="header-brand-link" style={{ textDecoration: 'none' }}>
+                    <div className="header-brand" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div className="header-brand-icon" style={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            justifyContent: 'center',
+                            color: 'var(--accent-color)'
+                        }}>
+                            <FlaskConical size={24} />
+                        </div>
+                        <h2 className="header-logo-text" style={{ 
+                            margin: 0, 
+                            lineHeight: 1,
+                            display: 'flex',
+                            alignItems: 'center'
+                        }}>LabSync</h2>
+                    </div>
+                </Link>
             </div>
 
             <div className="header-right">

@@ -186,7 +186,8 @@ const Reports: React.FC = () => {
     return (
         <MainLayout role={user.role} userName={user.name}>
             <div className="page-container">
-                <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                {/* Page Header */}
+                <div className="page-header" style={{ marginBottom: '2.5rem' }}>
                     <div>
                         <h1>Reports Workspace</h1>
                         <p>View, search, and manage cross-project reports.</p>

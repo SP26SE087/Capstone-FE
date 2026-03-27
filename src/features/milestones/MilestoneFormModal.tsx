@@ -153,10 +153,10 @@ const MilestoneFormModal: React.FC<MilestoneFormModalProps> = ({
                         </div>
                         <div>
                             <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#1e293b' }}>
-                                {milestone ? 'Edit Phase' : 'Define Research Roadmap'}
+                                {milestone ? 'Edit Milestone' : 'Define Research Roadmap'}
                             </h2>
                             <p style={{ margin: 0, fontSize: '0.8rem', color: '#64748b' }}>
-                                {milestone ? 'Update existing project phase' : 'You can create multiple phases at once'}
+                                {milestone ? 'Update existing project milestone' : 'You can create multiple milestones at once'}
                             </p>
                         </div>
                     </div>
@@ -177,7 +177,7 @@ const MilestoneFormModal: React.FC<MilestoneFormModalProps> = ({
                         existingMilestones={existingMilestones.filter(m => !milestone || m.milestoneId !== milestone.milestoneId)}
                         currentMilestones={rows.filter((r: MilestoneRow) => r.startDate && r.dueDate).map((r: MilestoneRow) => ({
                             id: r.id,
-                            name: r.name || `Phase ${rows.indexOf(r) + 1}`,
+                            name: r.name || `Milestone ${rows.indexOf(r) + 1}`,
                             startDate: r.startDate,
                             dueDate: r.dueDate
                         }))}
@@ -200,14 +200,14 @@ const MilestoneFormModal: React.FC<MilestoneFormModalProps> = ({
                             }}>
                                 {!milestone && (
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                                        <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#E8720C', textTransform: 'uppercase' }}>Phase {index + 1}</span>
+                                        <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#E8720C', textTransform: 'uppercase' }}>Milestone {index + 1}</span>
                                         {rows.length > 1 && (
                                             <button
                                                 type="button"
                                                 onClick={() => removeRow(row.id)}
                                                 style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', fontWeight: 700 }}
                                             >
-                                                <Trash2 size={14} /> Remove Phase
+                                                <Trash2 size={14} /> Remove Milestone
                                             </button>
                                         )}
                                     </div>
@@ -215,7 +215,7 @@ const MilestoneFormModal: React.FC<MilestoneFormModalProps> = ({
 
                                 <div style={{ display: 'grid', gridTemplateColumns: milestone ? '1fr 1fr' : '1fr', gap: '1.5rem' }}>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                        <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Phase Name</label>
+                                        <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Milestone Name</label>
                                         <input
                                             type="text"
                                             placeholder="e.g., Initial Research"
@@ -250,7 +250,7 @@ const MilestoneFormModal: React.FC<MilestoneFormModalProps> = ({
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><AlignLeft size={14} /> Description</div>
                                         </label>
                                         <textarea
-                                            placeholder="Describe the objectives and deliverables for this phase..."
+                                            placeholder="Describe the objectives and deliverables for this milestone..."
                                             value={row.description}
                                             onChange={(e) => updateRow(row.id, 'description', e.target.value)}
                                             style={{
@@ -308,7 +308,7 @@ const MilestoneFormModal: React.FC<MilestoneFormModalProps> = ({
                                 onMouseOver={(e) => { e.currentTarget.style.borderColor = '#E8720C'; e.currentTarget.style.color = '#E8720C'; }}
                                 onMouseOut={(e) => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.color = '#64748b'; }}
                             >
-                                <Plus size={20} /> Add Another Phase
+                                <Plus size={20} /> Add Another Milestone
                             </button>
                         )}
                     </div>
@@ -333,7 +333,7 @@ const MilestoneFormModal: React.FC<MilestoneFormModalProps> = ({
                                 boxShadow: '0 10px 15px -3px rgba(232, 114, 12, 0.3)'
                             }}
                         >
-                            {milestone ? 'Save Phase' : `Create ${rows.length} Phases`}
+                            {milestone ? 'Save Milestone' : `Create ${rows.length} Milestones`}
                         </button>
                     </div>
                 </form>

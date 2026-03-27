@@ -162,7 +162,7 @@ const MilestoneDetailModal: React.FC<MilestoneDetailModalProps> = ({
                 setConfirmModalConfig({
                     type: 'error',
                     title: 'Timeline Required',
-                    message: 'Please define both Start Date and Due Date in Edit Mode before starting this phase.',
+                    message: 'Please define both Start Date and Due Date in Edit Mode before starting this milestone.',
                     confirmText: 'Update Timeline',
                     onConfirm: () => {
                         setIsConfirmModalOpen(false);
@@ -176,8 +176,8 @@ const MilestoneDetailModal: React.FC<MilestoneDetailModalProps> = ({
 
         setConfirmModalConfig({
             type: 'confirm',
-            title: newStatus === MilestoneStatus.InProgress ? 'Start Phase?' : 'Complete Phase?',
-            message: `Are you sure you want to ${newStatus === MilestoneStatus.InProgress ? 'kick off' : 'mark as finished'} this research phase? This action will be logged.`,
+            title: newStatus === MilestoneStatus.InProgress ? 'Start Milestone?' : 'Complete Milestone?',
+            message: `Are you sure you want to ${newStatus === MilestoneStatus.InProgress ? 'kick off' : 'mark as finished'} this research milestone? This action will be logged.`,
             confirmText: 'Confirm Status Change',
             onConfirm: async () => {
                 setIsConfirmModalOpen(false);
@@ -201,8 +201,8 @@ const MilestoneDetailModal: React.FC<MilestoneDetailModalProps> = ({
 
         setConfirmModalConfig({
             type: 'confirm',
-            title: 'Delete Phase?',
-            message: 'This action is irreversible. Are you sure you want to remove this roadmap phase and all associated configuration?',
+            title: 'Delete Milestone?',
+            message: 'This action is irreversible. Are you sure you want to remove this roadmap milestone and all associated configuration?',
             confirmText: 'Delete Permanently',
             onConfirm: async () => {
                 setIsConfirmModalOpen(false);
@@ -250,12 +250,12 @@ const MilestoneDetailModal: React.FC<MilestoneDetailModalProps> = ({
                         const firstError = response.data.find((item: any) => !item.success)?.errorMessage;
 
                         if (successCount > 0) {
-                            showToast(`${successCount}/${totalCount} activities created. Failed: [${failedNames}]. Error: ${firstError || 'Format error'}`, 'warning', 8000);
+                            showToast(`${successCount}/${totalCount} tasks created. Failed: [${failedNames}]. Error: ${firstError || 'Format error'}`, 'warning', 8000);
                         } else {
-                            showToast(`Failed to create activities: [${failedNames}]. Error: ${firstError || 'Server error'}`, 'error', 8000);
+                            showToast(`Failed to create tasks: [${failedNames}]. Error: ${firstError || 'Server error'}`, 'error', 8000);
                         }
                     } else {
-                        showToast(`${successCount} research activities created!`, 'success');
+                        showToast(`${successCount} research tasks created!`, 'success');
                     }
                 } else {
                     showToast(`${taskData.length} tasks created!`, 'success');
@@ -334,7 +334,7 @@ const MilestoneDetailModal: React.FC<MilestoneDetailModalProps> = ({
                         <div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                 <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#1e293b' }}>
-                                    {loading ? 'Processing...' : (isEditMode ? 'Edit Milestone Phase' : milestone?.name)}
+                                    {loading ? 'Processing...' : (isEditMode ? 'Edit Milestone Details' : milestone?.name)}
                                 </h2>
                                 {!loading && (
                                     <span style={{
@@ -515,7 +515,7 @@ const MilestoneDetailModal: React.FC<MilestoneDetailModalProps> = ({
                                                                     gap: '6px'
                                                                 }}
                                                             >
-                                                                <Plus size={14} /> New Activity
+                                                                <Plus size={14} /> New Task
                                                             </button>
                                                         )}
                                                     </div>
@@ -584,7 +584,7 @@ const MilestoneDetailModal: React.FC<MilestoneDetailModalProps> = ({
                                                                     <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.85rem' }}>No results match "{taskSearchTerm}"</p>
                                                                 </>
                                                             ) : (
-                                                                <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.85rem' }}>No activities in this phase.</p>
+                                                                <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.85rem' }}>No tasks in this milestone.</p>
                                                             )}
                                                         </div>
                                                     )}
@@ -710,7 +710,7 @@ const MilestoneDetailModal: React.FC<MilestoneDetailModalProps> = ({
                                 marginRight: 'auto'
                             }}
                         >
-                            <Trash2 size={18} /> Delete Phase
+                            <Trash2 size={18} /> Delete Milestone
                         </button>
                     )}
 
@@ -740,7 +740,7 @@ const MilestoneDetailModal: React.FC<MilestoneDetailModalProps> = ({
                                         className="btn btn-primary"
                                         style={{ padding: '0.75rem 2.5rem', borderRadius: '12px', border: 'none', background: '#E8720C', color: 'white', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}
                                     >
-                                        <PlayCircle size={18} /> Start Phase
+                                        <PlayCircle size={18} /> Start Milestone
                                     </button>
                                 )}
                                 {milestone && milestone.status === MilestoneStatus.InProgress && (
@@ -749,7 +749,7 @@ const MilestoneDetailModal: React.FC<MilestoneDetailModalProps> = ({
                                         className="btn btn-primary"
                                         style={{ padding: '0.75rem 2.5rem', borderRadius: '12px', border: 'none', background: '#10b981', color: 'white', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}
                                     >
-                                        <CheckCircle2 size={18} /> Complete Phase
+                                        <CheckCircle2 size={18} /> Complete Milestone
                                     </button>
                                 )}
                             </div>

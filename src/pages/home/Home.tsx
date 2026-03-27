@@ -10,8 +10,7 @@ import {
     Calendar,
     ArrowRight,
     SearchX,
-    TrendingUp,
-    Library
+    TrendingUp
 } from 'lucide-react';
 
 import { useAuth } from '@/hooks/useAuth';
@@ -56,90 +55,46 @@ const Home: React.FC = () => {
     });
 
     return (
-        <MainLayout role={user.role} userName={user.name} hideSidebar>
+        <MainLayout role={user.role} userName={user.name}>
             <div className="page-container" style={{ margin: '0 auto' }}>
-                {/* Hero Section */}
-                <section style={{
-                    padding: '3rem 2rem',
-                    background: 'linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%)',
-                    borderRadius: 'var(--radius-lg)',
-                    color: 'white',
-                    marginBottom: '3rem',
-                    position: 'relative',
-                    overflow: 'hidden'
-                }}>
-                    <div style={{ position: 'relative', zIndex: 2 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '1rem' }}>
-                            <div style={{ background: 'rgba(232,114,12,0.2)', padding: '8px', borderRadius: 'var(--radius-md)' }}>
-                                <Library size={24} color="var(--accent-light)" />
-                            </div>
-                            <span style={{
-                                fontSize: '0.85rem',
-                                fontWeight: 700,
-                                color: 'var(--accent-light)',
-                                textTransform: 'uppercase',
-                                letterSpacing: '1px'
-                            }}>
-                                Research Repository
-                            </span>
-                        </div>
-                        <h1 style={{ color: 'white', fontSize: '2.5rem', marginBottom: '1rem', lineHeight: 1.2 }}>
-                            Explore the Frontiers of <br /> Lab Innovation
-                        </h1>
-                        <p style={{
-                            fontSize: '1.05rem',
-                            color: 'rgba(255,255,255,0.7)',
-                            maxWidth: '600px',
-                            marginBottom: '2rem',
-                            lineHeight: 1.7
-                        }}>
-                            Discover publicly shared research projects, collaborative initiatives, and scientific breakthroughs
-                            from the AiTA Lab community.
-                        </p>
-
-                        <div style={{
-                            background: 'white',
-                            padding: '6px',
-                            borderRadius: 'var(--radius-md)',
-                            display: 'flex',
-                            maxWidth: '700px',
-                            boxShadow: 'var(--shadow-lg)'
-                        }}>
-                            <div style={{ display: 'flex', alignItems: 'center', flex: 1, padding: '0 15px' }}>
-                                <Search color="var(--text-muted)" size={20} />
-                                <input
-                                    type="text"
-                                    placeholder="Search by project name, creator, or topic..."
-                                    style={{
-                                        border: 'none',
-                                        padding: '12px',
-                                        width: '100%',
-                                        fontSize: '0.95rem',
-                                        outline: 'none',
-                                        color: 'var(--text-primary)',
-                                        fontFamily: 'inherit'
-                                    }}
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                />
-                            </div>
-                            <button className="btn btn-primary" style={{ padding: '0 25px', borderRadius: 'var(--radius-sm)' }}>
-                                Find Projects
-                            </button>
-                        </div>
+                {/* Page Header */}
+                <div className="page-header" style={{ marginBottom: '2.5rem' }}>
+                    <div>
+                        <h1>Project in Lab</h1>
+                        <p>Explore the collective research repository and innovative breakthroughs.</p>
                     </div>
+                </div>
 
-                    {/* Decorative */}
-                    <div style={{
-                        position: 'absolute',
-                        right: '-50px',
-                        top: '-50px',
-                        width: '300px',
-                        height: '300px',
-                        background: 'radial-gradient(circle, rgba(232,114,12,0.12) 0%, transparent 70%)',
-                        zIndex: 1
-                    }} />
-                </section>
+                {/* Search Bar - Integrated style */}
+                <div style={{
+                    background: 'white',
+                    padding: '6px',
+                    borderRadius: 'var(--radius-md)',
+                    display: 'flex',
+                    maxWidth: '100%',
+                    boxShadow: 'var(--shadow-sm)',
+                    border: '1px solid var(--border-color)',
+                    marginBottom: '2rem'
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', flex: 1, padding: '0 15px' }}>
+                        <Search color="var(--text-muted)" size={20} />
+                        <input
+                            type="text"
+                            placeholder="Search by project name, creator, or topic..."
+                            style={{
+                                border: 'none',
+                                padding: '12px',
+                                width: '100%',
+                                fontSize: '0.95rem',
+                                outline: 'none',
+                                color: 'var(--text-primary)',
+                                fontFamily: 'inherit'
+                            }}
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                    </div>
+                </div>
 
                 {/* Filters Row */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>

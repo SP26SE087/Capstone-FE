@@ -51,7 +51,7 @@ export const router = createBrowserRouter([
         element: <AuthGuard><ProjectDetails /></AuthGuard>,
     },
     {
-        path: '/explore/projects/:id',
+        path: '/home/projects/:id',
         element: <AuthGuard><PublicProjectDetails /></AuthGuard>,
     },
     {

@@ -24,7 +24,10 @@ const PublicProjectDetails: React.FC = () => {
 
     useEffect(() => {
         const fetchAllData = async () => {
-            if (!id) return;
+            if (!id || id === 'undefined') {
+                setLoading(false);
+                return;
+            }
             setLoading(true);
             try {
                 const [projectData, milestonesData, membersData, memberInfo] = await Promise.all([
@@ -37,7 +40,7 @@ const PublicProjectDetails: React.FC = () => {
                 let actualProject = projectData;
                 if (!actualProject) {
                     const publicProjects = await projectService.getPublic();
-                    actualProject = publicProjects.find(p => p.id?.toLowerCase() === id.toLowerCase()) || null;
+                    actualProject = publicProjects.find(p => p.projectId?.toLowerCase() === id.toLowerCase()) || null;
                 }
 
                 if (actualProject) {
@@ -103,32 +106,14 @@ const PublicProjectDetails: React.FC = () => {
                     <ArrowLeft size={16} /> Back to Exploration
                 </button>
 
-                {/* Hero Showcase */}
-                <header style={{ marginBottom: '3rem' }}>
+                {/* Project Header Area */}
+                <div className="page-header" style={{ marginBottom: '3rem', display: 'block' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
                         <div style={{ display: 'flex', gap: '8px' }}>
-                            <span style={{
-                                padding: '4px 12px',
-                                background: statusStyle.bg,
-                                color: statusStyle.color,
-                                borderRadius: '20px',
-                                fontSize: '0.7rem',
-                                fontWeight: 700,
-                                textTransform: 'uppercase'
-                            }}>
+                            <span className="badge" style={{ background: statusStyle.bg, color: statusStyle.color }}>
                                 {statusStyle.label}
                             </span>
-                            <span style={{
-                                padding: '4px 12px',
-                                background: '#f1f5f9',
-                                color: '#475569',
-                                borderRadius: '20px',
-                                fontSize: '0.7rem',
-                                fontWeight: 700,
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '4px'
-                            }}>
+                            <span className="badge badge-muted" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                 <Globe size={12} /> PUBLIC ACCESS
                             </span>
                         </div>
@@ -148,13 +133,13 @@ const PublicProjectDetails: React.FC = () => {
                         )}
                     </div>
 
-                    <h1 style={{ fontSize: '2.5rem', marginBottom: '1rem', color: 'var(--primary-color)' }}>
+                    <h1 style={{ marginBottom: '1rem', color: 'var(--primary-color)' }}>
                         {project.projectName || (project as any).name}
                     </h1>
 
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2rem', color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--primary-color)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.8rem' }}>
+                            <div className="avatar avatar-md avatar-brand">
                                 {(project.nameProjectCreator || project.NameProjectCreator || 'A')[0]}
                             </div>
                             <div>
@@ -162,20 +147,20 @@ const PublicProjectDetails: React.FC = () => {
                                 <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{project.nameProjectCreator || project.NameProjectCreator || "Anonymous Researcher"}</span>
                             </div>
                         </div>
-                        <div style={{ borderLeft: '1px solid #e2e8f0', paddingLeft: '2rem' }}>
+                        <div style={{ borderLeft: '1px solid var(--border-color)', paddingLeft: '2rem' }}>
                             <span style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600 }}>Timeline</span>
                             <span style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
                                 <Calendar size={14} /> {formatProjectDate(project.startDate, 'TBD')} — {formatProjectDate(project.endDate, 'Present')}
                             </span>
                         </div>
-                        <div style={{ borderLeft: '1px solid #e2e8f0', paddingLeft: '2rem' }}>
+                        <div style={{ borderLeft: '1px solid var(--border-color)', paddingLeft: '2rem' }}>
                             <span style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600 }}>Collaboration</span>
                             <span style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
                                 <Users size={14} /> {project.membersCount || project.members?.length || 0} Researchers Active
                             </span>
                         </div>
                     </div>
-                </header>
+                </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '3rem' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '3rem' }}>
@@ -193,13 +178,13 @@ const PublicProjectDetails: React.FC = () => {
                         <section>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                                 <h3 style={{ margin: 0 }}>Research Roadmap</h3>
-                                <span style={{ fontSize: '0.85rem', color: 'var(--accent-color)', fontWeight: 600 }}>{milestones.length} Phases</span>
+                                <span style={{ fontSize: '0.85rem', color: 'var(--accent-color)', fontWeight: 600 }}>{milestones.length} Milestones</span>
                             </div>
                             <div style={{ position: 'relative', paddingLeft: '2rem' }}>
                                 <div style={{ position: 'absolute', left: '7px', top: '0', bottom: '0', width: '2px', background: '#e2e8f0' }} />
 
                                 {milestones.length > 0 ? milestones.sort((a, b) => new Date(a.startDate || '').getTime() - new Date(b.startDate || '').getTime()).map((m, idx) => (
-                                    <div key={m.id} style={{ position: 'relative', marginBottom: '2.5rem' }}>
+                                    <div key={m.milestoneId} style={{ position: 'relative', marginBottom: '2.5rem' }}>
                                         <div style={{
                                             position: 'absolute',
                                             left: '-29px',
@@ -219,7 +204,7 @@ const PublicProjectDetails: React.FC = () => {
                                                 </span>
                                             </div>
                                             <p style={{ margin: 0, fontSize: '0.95rem', color: '#475569', lineHeight: 1.6 }}>
-                                                {m.description || "Experimental phase implementation and data analysis."}
+                                                {m.description || "Experimental milestone implementation and data analysis."}
                                             </p>
                                         </div>
                                     </div>
@@ -240,7 +225,7 @@ const PublicProjectDetails: React.FC = () => {
                             </h4>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                 {members.length > 0 ? members.slice(0, 5).map((member, index) => (
-                                    <div key={member.id || member.memberId || index} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <div key={member.memberId || index} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                         <div style={{
                                             width: '28px',
                                             height: '28px',
@@ -280,7 +265,7 @@ const PublicProjectDetails: React.FC = () => {
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                                 {project.researchFields && project.researchFields.length > 0 ? (
                                     project.researchFields.map(field => (
-                                        <span key={field.id} style={{ padding: '6px 12px', background: '#f1f5f9', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 600, color: '#475569' }}>
+                                        <span key={field.researchFieldId} style={{ padding: '6px 12px', background: '#f1f5f9', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 600, color: '#475569' }}>
                                             {field.name}
                                         </span>
                                     ))
