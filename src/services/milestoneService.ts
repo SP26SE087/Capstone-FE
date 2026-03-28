@@ -1,8 +1,10 @@
 import api from './api';
 import { Milestone, Task } from '@/types';
+import { toApiDate } from '@/utils/projectUtils';
 
 export const milestoneService = {
     getByProject: async (projectId: string): Promise<Milestone[]> => {
+        if (!projectId || projectId === 'undefined') return [];
         try {
             const response = await api.get(`/api/projects/${projectId}/milestones`);
             return response.data.data || response.data;
@@ -14,14 +16,14 @@ export const milestoneService = {
 
     create: async (milestoneData: any): Promise<any> => {
         try {
-            // Filter fields for AddMilestoneRequest
+            // Filter and format fields for AddMilestoneRequest
             const payload = {
                 projectId: milestoneData.projectId,
                 name: milestoneData.name,
                 description: milestoneData.description,
-                startDate: milestoneData.startDate,
-                dueDate: milestoneData.dueDate,
-                status: milestoneData.status !== undefined ? milestoneData.status : 0
+                startDate: toApiDate(milestoneData.startDate),
+                dueDate: toApiDate(milestoneData.dueDate),
+                status: milestoneData.status !== undefined ? Number(milestoneData.status) : 0
             };
             const response = await api.post('/api/projects/milestones', payload);
             return response.data;
@@ -59,8 +61,8 @@ export const milestoneService = {
                 milestoneId: milestoneId,
                 name: milestoneData.name,
                 description: milestoneData.description,
-                startDate: milestoneData.startDate,
-                dueDate: milestoneData.dueDate,
+                startDate: toApiDate(milestoneData.startDate),
+                dueDate: toApiDate(milestoneData.dueDate),
                 status: milestoneData.status
             });
             return response.data;

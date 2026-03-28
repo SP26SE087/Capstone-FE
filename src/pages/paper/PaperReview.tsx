@@ -116,14 +116,13 @@ const PaperReview: React.FC = () => {
     return (
         <MainLayout>
             <div className="page-container">
-                {/* Header */}
-                <div className="page-header" style={{ marginBottom: '1.5rem' }}>
+                <div className="page-header" style={{ marginBottom: '2.5rem' }}>
                     <div>
-                        <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                            <FileSearch size={24} style={{ marginRight: '0.5rem', verticalAlign: 'middle' }} />
+                        <h1 style={{ marginBottom: '4px' }}>
+                            <FileSearch size={28} style={{ marginRight: '0.75rem', verticalAlign: 'middle', color: 'var(--primary-color)' }} />
                             Paper Review
                         </h1>
-                        <p style={{ margin: '0.25rem 0 0', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
                             Review and manage paper submissions from researchers
                         </p>
                     </div>

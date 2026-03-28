@@ -215,18 +215,20 @@ const UserManagement: React.FC = () => {
     return (
         <MainLayout role={user.role} userName={user.name}>
             <div className="page-container">
-                {/* Page Header */}
-                <div className="page-header">
-                    <div>
-                        <h1>User Management</h1>
-                        <p>Add, edit, search, and manage LabSync accounts.</p>
+                <div className="page-header" style={{ marginBottom: '2.5rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                        <div>
+                            <h1 style={{ marginBottom: '4px' }}>User Management</h1>
+                            <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>Add, edit, search, and manage LabSync accounts.</p>
+                        </div>
+                        <button
+                            className={`btn ${showAddForm ? 'btn-secondary' : 'btn-primary'}`}
+                            style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.75rem 1.5rem', borderRadius: '12px', fontWeight: 700 }}
+                            onClick={() => { setShowAddForm(!showAddForm); setAddError(null); setAddSuccess(null); }}
+                        >
+                            {showAddForm ? <><X size={18} /> Close</> : <><UserPlus size={18} /> Add Member</>}
+                        </button>
                     </div>
-                    <button
-                        className={`btn ${showAddForm ? 'btn-secondary' : 'btn-primary'}`}
-                        onClick={() => { setShowAddForm(!showAddForm); setAddError(null); setAddSuccess(null); }}
-                    >
-                        {showAddForm ? <><X size={18} /> Close</> : <><UserPlus size={18} /> Add Member</>}
-                    </button>
                 </div>
 
                 {/* Inline Add Form */}

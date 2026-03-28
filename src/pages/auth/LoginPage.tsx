@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useGoogleLogin } from '@react-oauth/google';
 import { authService } from '@/services/authService';
-import { FlaskConical } from 'lucide-react';
+import { FlaskConical, AlertTriangle } from 'lucide-react';
 
 const LoginPage: React.FC = () => {
     const navigate = useNavigate();
@@ -10,7 +10,7 @@ const LoginPage: React.FC = () => {
     const [loading, setLoading] = useState(false);
 
     if (authService.isAuthenticated()) {
-        return <Navigate to="/home" replace />;
+        return <Navigate to="/dashboard" replace />;
     }
 
     // Combined Login & Calendar consent flow
@@ -29,7 +29,7 @@ const LoginPage: React.FC = () => {
                 
                 // If the user context requires it, set the calendar authorized flag
                 localStorage.setItem('calendar_authorized', 'true');
-                navigate('/home', { replace: true });
+                navigate('/dashboard', { replace: true });
             } catch (err: any) {
                 console.error('Lỗi đăng nhập:', err);
                 const serverMessage = err?.response?.data?.message || 'Đăng nhập thất bại. Vui lòng thử lại.';
@@ -96,16 +96,16 @@ const LoginPage: React.FC = () => {
                 </div>
 
                 <h1 style={{
-                    color: '#f1f5f9', fontSize: '1.75rem', fontWeight: 700,
+                    color: '#f1f5f9', fontSize: '2.25rem', fontWeight: 800,
                     marginBottom: '0.25rem', letterSpacing: '-0.025em',
                 }}>
-                    AiTA Lab
+                    LabSync
                 </h1>
                 <p style={{
-                    color: '#94a3b8', fontSize: '0.9rem',
+                    color: '#94a3b8', fontSize: '0.95rem',
                     marginBottom: '2rem', lineHeight: 1.6,
                 }}>
-                    Lab Management System
+                    Advanced Laboratory Management System
                 </p>
 
                 {/* Divider */}
@@ -116,10 +116,11 @@ const LoginPage: React.FC = () => {
                 }} />
 
                 <p style={{
-                    color: '#cbd5e1', fontSize: '0.85rem',
+                    color: '#cbd5e1', fontSize: '0.9rem',
                     marginBottom: '1.5rem',
+                    fontWeight: 500,
                 }}>
-                    Đăng nhập bằng tài khoản Google của bạn
+                    Sign in with your institutional account
                 </p>
 
                 {/* Google Login Button */}
@@ -133,31 +134,29 @@ const LoginPage: React.FC = () => {
                     <button
                         onClick={() => loginWithGoogle()}
                         style={{
-                            width: '320px',
-                            height: '48px',
-                            background: '#000000',
-                            color: 'white',
-                            border: '1px solid rgba(255, 255, 255, 0.1)',
-                            borderRadius: '24px',
-                            fontSize: '0.95rem',
-                            fontWeight: 600,
+                            width: '100%',
+                            height: '52px',
+                            background: '#ffffff',
+                            color: '#0f172a',
+                            border: 'none',
+                            borderRadius: '12px',
+                            fontSize: '1rem',
+                            fontWeight: 700,
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             gap: '12px',
                             cursor: 'pointer',
-                            boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
-                            transition: 'all 0.2s ease',
+                            boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)',
+                            transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                         }}
                         onMouseOver={(e) => {
-                            e.currentTarget.style.background = '#1a1a1a';
-                            e.currentTarget.style.transform = 'translateY(-2px)';
-                            e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.3)';
+                            e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
+                            e.currentTarget.style.boxShadow = '0 20px 25px -5px rgba(0,0,0,0.2)';
                         }}
                         onMouseOut={(e) => {
-                            e.currentTarget.style.background = '#000000';
-                            e.currentTarget.style.transform = 'translateY(0)';
-                            e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
+                            e.currentTarget.style.transform = 'translateY(0) scale(1)';
+                            e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0,0,0,0.1)';
                         }}
                     >
                         <svg width="20" height="20" viewBox="0 0 24 24">
@@ -166,44 +165,50 @@ const LoginPage: React.FC = () => {
                             <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" />
                             <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
                         </svg>
-                        Đăng nhập bằng Google
+                        Continue with Google
                     </button>
                 </div>
 
                 {loading && (
                     <p style={{
-                        color: '#818cf8', fontSize: '0.8rem',
+                        color: '#818cf8', fontSize: '0.85rem',
                         marginBottom: '1rem',
+                        fontWeight: 600,
                         animation: 'pulse 1.5s infinite',
                     }}>
-                        Đang xác thực...
+                        Authenticating...
                     </p>
                 )}
 
                 {/* Error */}
                 {error && (
                     <div style={{
-                        padding: '0.75rem 1rem',
+                        padding: '1rem',
                         background: 'rgba(239, 68, 68, 0.15)',
                         border: '1px solid rgba(239, 68, 68, 0.3)',
-                        borderRadius: '10px',
+                        borderRadius: '12px',
                         color: '#fca5a5',
-                        fontSize: '0.82rem',
+                        fontSize: '0.85rem',
                         lineHeight: 1.5,
                         marginBottom: '1rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        justifyContent: 'center'
                     }}>
+                        <AlertTriangle size={16} />
                         {error}
                     </div>
                 )}
 
                 {/* Footer */}
                 <div style={{
-                    marginTop: '1.5rem',
+                    marginTop: '2rem',
                     paddingTop: '1.5rem',
                     borderTop: '1px solid rgba(148,163,184,0.1)',
                 }}>
-                    <p style={{ color: '#64748b', fontSize: '0.72rem', margin: 0 }}>
-                        Chỉ tài khoản đã được Admin cấp quyền mới đăng nhập được.
+                    <p style={{ color: '#64748b', fontSize: '0.75rem', lineHeight: 1.5, margin: 0 }}>
+                        Internal access only. Unauthorized attempts will be logged and reported.
                     </p>
                 </div>
             </div>

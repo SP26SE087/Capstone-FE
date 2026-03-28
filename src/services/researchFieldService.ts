@@ -5,8 +5,11 @@ export const researchFieldService = {
     getAll: async (): Promise<ResearchField[]> => {
         try {
             const response = await api.get('/api/ResearchField');
-            // Handle common API response patterns: direct array or { data: [...] }
-            return response.data.data || response.data;
+            const data = response.data.data || response.data;
+            return Array.isArray(data) ? data.map((f: any) => ({
+                ...f,
+                researchFieldId: f.researchFieldId || f.id || f.ResearchFieldId
+            })) : [];
         } catch (error) {
             console.error('Error fetching research fields:', error);
             // Fallback mock data

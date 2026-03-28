@@ -9,7 +9,11 @@ export const projectService = {
     getAll: async (): Promise<Project[]> => {
         try {
             const response = await api.get('/api/projects');
-            return response.data.data || response.data;
+            const projects = response.data.data || response.data || [];
+            return Array.isArray(projects) ? projects.map(p => ({
+                ...p,
+                projectId: p.projectId || p.id || p.ProjectID || p.ProjectId
+            })) : [];
         } catch (error) {
             console.error('Error fetching projects:', error);
             return mockProjects;
@@ -19,7 +23,11 @@ export const projectService = {
     getPublic: async (): Promise<Project[]> => {
         try {
             const response = await api.get('/api/projects/public');
-            return response.data.data || response.data;
+            const projects = response.data.data || response.data || [];
+            return Array.isArray(projects) ? projects.map(p => ({
+                ...p,
+                projectId: p.projectId || p.id || p.ProjectID || p.ProjectId
+            })) : [];
         } catch (error) {
             console.error('Error fetching public projects:', error);
             return mockProjects;
@@ -27,16 +35,23 @@ export const projectService = {
     },
 
     getById: async (id: string): Promise<Project | null> => {
+        if (!id || id === 'undefined') {
+            console.warn('getById called with invalid id:', id);
+            return null;
+        }
         try {
             console.log(`fetching project by id: ${id}`);
             const response = await api.get(`/api/projects/${id}`);
-            console.log('getById response data:', response.data);
-
-            // Standard .NET / OData / custom wrapper handlers
-            const project = response.data.data || response.data.value || response.data;
-
-            // If the response is an array (sometimes APIs return [item] for id queries)
-            return Array.isArray(project) ? project[0] : project;
+            const rawData = response.data.data || response.data.value || response.data;
+            const projectData = Array.isArray(rawData) ? rawData[0] : rawData;
+            
+            if (projectData && projectData.researchFields) {
+                projectData.researchFields = projectData.researchFields.map((rf: any) => ({
+                    ...rf,
+                    researchFieldId: rf.researchFieldId || rf.id || rf.researchFieldID || rf.ResearchFieldId
+                }));
+            }
+            return projectData;
         } catch (error) {
             console.error(`Error fetching project by id ${id}:`, error);
             // Only fallback to mock if the real ID matches a specific mock pattern if needed, 
@@ -91,6 +106,7 @@ export const projectService = {
     },
 
     getCurrentMember: async (projectId: string): Promise<any> => {
+        if (!projectId || projectId === 'undefined') return null;
         try {
             const response = await api.get(`/api/projects/${projectId}/member`);
             return response.data.data || response.data;
@@ -111,6 +127,7 @@ export const projectService = {
     },
 
     getMilestoneTasks: async (projectId: string): Promise<any> => {
+        if (!projectId || projectId === 'undefined') return null;
         try {
             const response = await api.get(`/api/projects/${projectId}/milestones/tasks`);
             return response.data.data;

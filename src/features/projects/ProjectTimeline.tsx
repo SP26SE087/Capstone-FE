@@ -42,6 +42,106 @@ const getMilestoneStatusConfig = (status: MilestoneStatus) => {
     }
 };
 
+// ── Segmented Task Bar Component ──
+interface SegmentedTaskBarProps {
+    task: Task;
+    range: { start: number; end: number; duration: number };
+    contentWidth: number;
+    onTaskClick: (task: Task) => void;
+    setHoverInfo: (info: { task: Task; x: number; y: number } | null) => void;
+}
+
+const SegmentedTaskBar: React.FC<SegmentedTaskBarProps> = ({ task, range, contentWidth, onTaskClick, setHoverInfo }) => {
+    const tStart = new Date(task.startDate || "").getTime();
+    const tEnd = new Date(task.dueDate || "").getTime();
+    const tUpdate = new Date(task.updatedAt || task.updatedDate || task.createdAt || "").getTime();
+    
+    const left = ((tStart - range.start) / range.duration) * contentWidth;
+    const totalWidth = Math.max(12, ((tEnd - tStart) / range.duration) * contentWidth);
+    
+    const cfg = getTaskStatusConfig(task.status);
+    
+    // Approximation Logic:
+    const hasHistory = task.status !== TaskStatus.Todo && task.status !== TaskStatus.InProgress;
+    const transitionPoint = hasHistory && tUpdate > tStart && tUpdate < tEnd 
+        ? ((tUpdate - tStart) / (tEnd - tStart)) * 100 
+        : (task.status === TaskStatus.Completed ? 100 : 0);
+
+    const isNearDeadline = task.dueDate && (task.status !== TaskStatus.Completed && task.status !== TaskStatus.Submitted) && 
+        ((new Date(task.dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) <= 3;
+
+    return (
+        <div style={{ height: '32px', position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <div
+                onMouseEnter={(e) => setHoverInfo({ task, x: e.clientX, y: e.clientY })}
+                onMouseMove={(e) => setHoverInfo({ task, x: e.clientX, y: e.clientY })}
+                onMouseLeave={() => setHoverInfo(null)}
+                onClick={(e) => { e.stopPropagation(); onTaskClick(task); }}
+                className="timeline-item-bar"
+                style={{
+                    position: 'absolute', left: `${left}px`, width: `${totalWidth}px`,
+                    height: '24px', 
+                    background: hasHistory 
+                        ? `linear-gradient(90deg, #2563eb ${transitionPoint}%, ${cfg.color} ${transitionPoint}%)`
+                        : cfg.gradient,
+                    border: `1.5px solid ${cfg.color}`,
+                    borderRadius: '8px',
+                    display: 'flex', alignItems: 'center', gap: '5px',
+                    padding: '0 8px', cursor: 'pointer', zIndex: 10,
+                    boxShadow: `0 2px 6px ${cfg.color}15`,
+                    overflow: 'hidden'
+                }}
+            >
+                <div style={{
+                    width: '5px', height: '5px', borderRadius: '50%',
+                    background: 'white', border: `1px solid ${cfg.color}`, flexShrink: 0
+                }} />
+                <span style={{
+                    fontSize: '0.62rem', 
+                    color: hasHistory ? 'white' : cfg.color, 
+                    fontWeight: 800,
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                    textShadow: hasHistory ? '0 1px 2px rgba(0,0,0,0.2)' : 'none'
+                }}>
+                    {task.name}
+                </span>
+            </div>
+
+            {/* Deadline Marker */}
+            <div style={{
+                position: 'absolute',
+                left: `${left + totalWidth}px`,
+                top: 0, bottom: 0,
+                width: '1px',
+                background: isNearDeadline ? '#ef4444' : '#e2e8f0',
+                zIndex: 5
+            }}>
+                <div style={{
+                    position: 'absolute',
+                    top: '-4px', left: '-3px',
+                    width: '7px', height: '7px',
+                    borderRadius: '50%',
+                    background: isNearDeadline ? '#ef4444' : '#94a3b8',
+                    border: '1.5px solid white'
+                }} />
+            </div>
+
+            {isNearDeadline && (
+                <div style={{
+                    position: 'absolute',
+                    left: `${left + totalWidth + 4}px`,
+                    top: '50%', transform: 'translateY(-50%)',
+                    width: '8px', height: '8px', borderRadius: '50%',
+                    background: '#ef4444', border: '1.5px solid white',
+                    boxShadow: '0 0 6px #ef4444',
+                    animation: 'warningBlink 1s ease-in-out infinite',
+                    zIndex: 15
+                }} title="Deadline is within 3 days or overdue!" />
+            )}
+        </div>
+    );
+};
+
 const ProjectTimeline: React.FC<ProjectTimelineProps> = ({
     project,
     timelineData,
@@ -111,10 +211,6 @@ const ProjectTimeline: React.FC<ProjectTimelineProps> = ({
         return timelineData.generalTasks.filter(t => t.status >= TaskStatus.InProgress);
     }, [timelineData]);
 
-    const allActiveTasks = useMemo(() => {
-        return [...activeMilestonesData.flatMap(item => item.tasks.filter(t => t.status >= TaskStatus.InProgress)), ...activeOrphanTasks];
-    }, [activeMilestonesData, activeOrphanTasks]);
-
     // ── Timeline Range ──
     const range = useMemo(() => {
         const allDates = [
@@ -134,7 +230,7 @@ const ProjectTimeline: React.FC<ProjectTimelineProps> = ({
         end.setDate(0);
 
         return { start: start.getTime(), end: end.getTime(), duration: Math.max(1, end.getTime() - start.getTime()) };
-    }, [project, activeMilestonesData, allActiveTasks]);
+    }, [project, timelineData]);
 
     const days = range.duration / (24 * 60 * 60 * 1000);
     const contentWidth = Math.max(1400, days * zoomLevel);
@@ -161,23 +257,23 @@ const ProjectTimeline: React.FC<ProjectTimelineProps> = ({
         let expandIds: string[] = [];
 
         if (inProgress.length > 0) {
-            expandIds = inProgress.map(m => m.milestone.id);
+            expandIds = inProgress.map(m => m.milestone.milestoneId);
             const now = Date.now();
             targetId = inProgress.sort((a, b) =>
                 Math.abs(new Date(a.milestone.startDate || "").getTime() - now) - Math.abs(new Date(b.milestone.startDate || "").getTime() - now)
-            )[0].milestone.id;
+            )[0].milestone.milestoneId;
         } else if (completed.length > 0) {
-            expandIds = completed.map(m => m.milestone.id);
+            expandIds = completed.map(m => m.milestone.milestoneId);
             targetId = completed.sort((a, b) =>
                 new Date(b.milestone.dueDate || "").getTime() - new Date(a.milestone.dueDate || "").getTime()
-            )[0].milestone.id;
+            )[0].milestone.milestoneId;
         }
 
         if (expandIds.length > 0) {
             setExpandedMilestones(new Set(expandIds));
             hasInitialFocused.current = true;
             if (targetId) {
-                const mData = timelineData.milestones.find(m => m.milestone.id === targetId);
+                const mData = timelineData.milestones.find(m => m.milestone.milestoneId === targetId);
                 if (mData) {
                     const x = ((new Date(mData.milestone.startDate || mData.milestone.dueDate || "").getTime() - range.start) / range.duration) * contentWidth;
                     setTimeout(() => scrollToMilestone(x), 150);
@@ -211,20 +307,13 @@ const ProjectTimeline: React.FC<ProjectTimelineProps> = ({
                 <h3 style={{ margin: '0 0 0.75rem', color: '#1e293b', fontSize: '1.4rem', fontWeight: 900, letterSpacing: '-0.025em' }}>No Roadmap Content Found</h3>
                 <p style={{ margin: 0, color: '#64748b', fontSize: '0.95rem', textAlign: 'center', maxWidth: '480px', lineHeight: 1.7, fontWeight: 500 }}>
                     {timelineData.milestones.length > 0 || timelineData.generalTasks.length > 0
-                        ? "Your roadmap is currently in a setup phase. Complete the initialization of your milestones or start tracking activities to see them populated here."
-                        : "Start defining your research journey. Once you add milestones and trackable activities, a visual timeline of your project's progress will appear."}
+                        ? "Your roadmap is currently in a setup milestone. Complete the initialization of your milestones or start tracking tasks to see them populated here."
+                        : "Start defining your research journey. Once you add milestones and trackable tasks, a visual timeline of your project's progress will appear."}
                 </p>
                 <style>{`@keyframes floatIcon { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-12px); } }`}</style>
             </div>
         );
     }
-
-    const isNearDeadline = (task: Task) => {
-        if (!task.dueDate) return false;
-        if (task.status === TaskStatus.Completed || task.status === TaskStatus.Submitted) return false;
-        const diffDays = (new Date(task.dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
-        return diffDays <= 3;
-    };
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', height: '100%', position: 'relative' }}>
@@ -346,14 +435,14 @@ const ProjectTimeline: React.FC<ProjectTimelineProps> = ({
                                 const milestone = item.milestone;
                                 if (!milestone) return null;
                                 const mTasks = (item.tasks || []).filter(t => t.status >= TaskStatus.InProgress);
-                                const isExpanded = expandedMilestones.has(milestone.id);
+                                const isExpanded = expandedMilestones.has(milestone.milestoneId);
                                 const mX = ((new Date(milestone.dueDate || "").getTime() - range.start) / range.duration) * contentWidth;
                                 const msConfig = getMilestoneStatusConfig(milestone.status);
                                 const completedTasks = mTasks.filter(t => t.status === TaskStatus.Completed).length;
                                 const progress = mTasks.length > 0 ? Math.round((completedTasks / mTasks.length) * 100) : 0;
 
                                 return (
-                                    <div key={milestone.id} style={{
+                                    <div key={milestone.milestoneId} style={{
                                         display: 'flex',
                                         borderBottom: `1px solid ${isExpanded ? '#e2e8f0' : '#f1f5f9'}`,
                                         minHeight: '70px', flexShrink: 0,
@@ -393,7 +482,7 @@ const ProjectTimeline: React.FC<ProjectTimelineProps> = ({
                                                     </div>
                                                 </div>
                                                 <button
-                                                    onClick={(e) => { e.stopPropagation(); toggleMilestone(milestone.id); }}
+                                                    onClick={(e) => { e.stopPropagation(); toggleMilestone(milestone.milestoneId); }}
                                                     style={{
                                                         background: isExpanded ? '#e2e8f0' : 'transparent', border: 'none',
                                                         cursor: 'pointer', padding: '4px', color: '#64748b',
@@ -455,9 +544,9 @@ const ProjectTimeline: React.FC<ProjectTimelineProps> = ({
                                                         transition: 'opacity 0.2s',
                                                         opacity: isExpanded ? 0.15 : 0.7
                                                     }}
-                                                        onClick={(e) => { e.stopPropagation(); toggleMilestone(milestone.id); }}
+                                                        onClick={(e) => { e.stopPropagation(); toggleMilestone(milestone.milestoneId); }}
                                                     >
-                                                        {/* Phase boundary markers — show dates, positioned outside the bar */}
+                                                        {/* Phase boundary markers */}
                                                         <div style={{
                                                             position: 'absolute', left: 0, top: '-16px',
                                                             fontSize: '0.55rem', color: msConfig.color, fontWeight: 800,
@@ -490,58 +579,16 @@ const ProjectTimeline: React.FC<ProjectTimelineProps> = ({
                                             })()}
 
                                             {/* Task bars */}
-                                            {isExpanded && mTasks.map((task) => {
-                                                const tStart = new Date(task.startDate || milestone.startDate || "").getTime();
-                                                const tEnd = new Date(task.dueDate || task.startDate || milestone.startDate || "").getTime();
-                                                const left = ((tStart - range.start) / range.duration) * contentWidth;
-                                                const width = Math.max(12, ((tEnd - tStart) / range.duration) * contentWidth);
-                                                const cfg = getTaskStatusConfig(task.status);
-
-                                                return (
-                                                    <div key={task.id} style={{ height: '32px', position: 'relative', display: 'flex', alignItems: 'center' }}>
-                                                        <div
-                                                            onMouseEnter={(e) => setHoverInfo({ task, x: e.clientX, y: e.clientY })}
-                                                            onMouseMove={(e) => setHoverInfo({ task, x: e.clientX, y: e.clientY })}
-                                                            onMouseLeave={() => setHoverInfo(null)}
-                                                            onClick={(e) => { e.stopPropagation(); onTaskClick(task); }}
-                                                            className="timeline-item-bar"
-                                                            style={{
-                                                                position: 'absolute', left: `${left}px`, width: `${width}px`,
-                                                                height: '24px', background: cfg.gradient,
-                                                                border: `1.5px solid ${cfg.color}`,
-                                                                borderRadius: '8px',
-                                                                display: 'flex', alignItems: 'center', gap: '5px',
-                                                                padding: '0 8px', cursor: 'pointer', zIndex: 10,
-                                                                boxShadow: `0 2px 6px ${cfg.color}15`,
-                                                                overflow: 'hidden'
-                                                            }}
-                                                        >
-                                                            <div style={{
-                                                                width: '5px', height: '5px', borderRadius: '50%',
-                                                                background: cfg.color, flexShrink: 0
-                                                            }} />
-                                                            <span style={{
-                                                                fontSize: '0.62rem', color: cfg.color, fontWeight: 800,
-                                                                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
-                                                            }}>
-                                                                {task.name}
-                                                            </span>
-                                                        </div>
-                                                        {isNearDeadline(task) && (
-                                                            <div style={{
-                                                                position: 'absolute',
-                                                                left: `${left + width + 4}px`,
-                                                                top: '50%', transform: 'translateY(-50%)',
-                                                                width: '8px', height: '8px', borderRadius: '50%',
-                                                                background: '#ef4444', border: '1.5px solid white',
-                                                                boxShadow: '0 0 6px #ef4444',
-                                                                animation: 'warningBlink 1s ease-in-out infinite',
-                                                                zIndex: 15
-                                                            }} title="Deadline is within 3 days or overdue!" />
-                                                        )}
-                                                    </div>
-                                                );
-                                            })}
+                                            {isExpanded && mTasks.map((task) => (
+                                                <SegmentedTaskBar 
+                                                    key={task.taskId} 
+                                                    task={task} 
+                                                    range={range} 
+                                                    contentWidth={contentWidth} 
+                                                    onTaskClick={onTaskClick}
+                                                    setHoverInfo={setHoverInfo}
+                                                />
+                                            ))}
                                         </div>
                                     </div>
                                 );
@@ -561,7 +608,7 @@ const ProjectTimeline: React.FC<ProjectTimelineProps> = ({
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                 <div style={{ width: '4px', height: '20px', borderRadius: '4px', background: 'linear-gradient(180deg, #94a3b8 0%, #cbd5e1 100%)' }} />
                                                 <div>
-                                                    <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#475569' }}>General Activities</span>
+                                                    <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#475569' }}>General Tasks</span>
                                                     <div style={{ fontSize: '0.6rem', color: '#94a3b8', fontWeight: 600 }}>Independent research tasks</div>
                                                 </div>
                                             </div>
@@ -575,57 +622,16 @@ const ProjectTimeline: React.FC<ProjectTimelineProps> = ({
                                     </div>
 
                                     <div style={{ width: `${contentWidth}px`, flexShrink: 0, position: 'relative', padding: isOrphanExpanded ? '10px 0' : '0' }}>
-                                        {isOrphanExpanded && activeOrphanTasks.map((task) => {
-                                            const tStart = new Date(task.startDate || project.startDate || "").getTime();
-                                            const tEnd = new Date(task.dueDate || task.startDate || project.startDate || "").getTime();
-                                            const left = ((tStart - range.start) / range.duration) * contentWidth;
-                                            const width = Math.max(12, ((tEnd - tStart) / range.duration) * contentWidth);
-                                            const cfg = getTaskStatusConfig(task.status);
-
-                                            return (
-                                                <div key={task.id} style={{ height: '32px', position: 'relative', display: 'flex', alignItems: 'center' }}>
-                                                    <div
-                                                        onMouseEnter={(e) => setHoverInfo({ task, x: e.clientX, y: e.clientY })}
-                                                        onMouseMove={(e) => setHoverInfo({ task, x: e.clientX, y: e.clientY })}
-                                                        onMouseLeave={() => setHoverInfo(null)}
-                                                        onClick={(e) => { e.stopPropagation(); onTaskClick(task); }}
-                                                        className="timeline-item-bar"
-                                                        style={{
-                                                            position: 'absolute', left: `${left}px`, width: `${width}px`,
-                                                            height: '24px', background: cfg.gradient,
-                                                            border: `1.5px solid ${cfg.color}`,
-                                                            borderRadius: '8px',
-                                                            display: 'flex', alignItems: 'center', gap: '5px',
-                                                            padding: '0 8px', cursor: 'pointer', zIndex: 10,
-                                                            overflow: 'hidden'
-                                                        }}
-                                                    >
-                                                        <div style={{
-                                                            width: '5px', height: '5px', borderRadius: '50%',
-                                                            background: cfg.color, flexShrink: 0
-                                                        }} />
-                                                        <span style={{
-                                                            fontSize: '0.62rem', color: cfg.color, fontWeight: 800,
-                                                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
-                                                        }}>
-                                                            {task.name}
-                                                        </span>
-                                                    </div>
-                                                    {isNearDeadline(task) && (
-                                                        <div style={{
-                                                            position: 'absolute',
-                                                            left: `${left + width + 4}px`,
-                                                            top: '50%', transform: 'translateY(-50%)',
-                                                            width: '8px', height: '8px', borderRadius: '50%',
-                                                            background: '#ef4444', border: '1.5px solid white',
-                                                            boxShadow: '0 0 6px #ef4444',
-                                                            animation: 'warningBlink 1s ease-in-out infinite',
-                                                            zIndex: 15
-                                                        }} title="Deadline is within 3 days or overdue!" />
-                                                    )}
-                                                </div>
-                                            );
-                                        })}
+                                        {isOrphanExpanded && activeOrphanTasks.map((task) => (
+                                            <SegmentedTaskBar 
+                                                key={task.taskId} 
+                                                task={task} 
+                                                range={range} 
+                                                contentWidth={contentWidth} 
+                                                onTaskClick={onTaskClick}
+                                                setHoverInfo={setHoverInfo}
+                                            />
+                                        ))}
                                     </div>
                                 </div>
                             )}

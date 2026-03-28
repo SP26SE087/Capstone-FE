@@ -292,14 +292,25 @@ const PaperSubmissions: React.FC = () => {
     return (
         <MainLayout>
             <div className="page-container">
-                <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                    <div>
-                        <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)' }}>Paper Submission</h1>
-                        <p style={{ margin: '0.25rem 0 0', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Manage your scientific paper submissions</p>
+                <div className="page-header" style={{ marginBottom: '2.5rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                        <div>
+                            <h1 style={{ marginBottom: '4px' }}>
+                                <FileText size={28} style={{ marginRight: '0.75rem', verticalAlign: 'middle', color: 'var(--primary-color)' }} />
+                                Paper Submission
+                            </h1>
+                            <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
+                                Manage your scientific paper submissions
+                            </p>
+                        </div>
+                        <button
+                            className={`btn ${showAddForm ? 'btn-secondary' : 'btn-primary'}`}
+                            style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.75rem 1.5rem', borderRadius: '12px', fontWeight: 700 }}
+                            onClick={() => { setShowAddForm(!showAddForm); setAddError(null); setAddSuccess(null); }}
+                        >
+                            {showAddForm ? <><X size={18} /> Close</> : <><Plus size={18} /> New Paper</>}
+                        </button>
                     </div>
-                    <button className={`btn ${showAddForm ? 'btn-secondary' : 'btn-primary'}`} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }} onClick={() => setShowAddForm(!showAddForm)}>
-                        {showAddForm ? <><X size={18} /> Close</> : <><Plus size={18} /> New Paper</>}
-                    </button>
                 </div>
 
                 {showAddForm && (

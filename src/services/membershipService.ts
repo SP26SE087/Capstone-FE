@@ -2,6 +2,7 @@ import api from './api';
 
 export const membershipService = {
     getProjectMembers: async (projectId: string): Promise<any[]> => {
+        if (!projectId || projectId === 'undefined') return [];
         try {
             const response = await api.get(`/api/projects/${projectId}/members`);
             const members = response.data.data || response.data || [];
@@ -28,6 +29,16 @@ export const membershipService = {
             return response.data;
         } catch (error) {
             console.error('Error adding member to project:', error);
+            throw error;
+        }
+    },
+
+    addMembersBatch: async (batchData: any): Promise<any> => {
+        try {
+            const response = await api.post('/api/projects/memberships/batch', batchData);
+            return response.data;
+        } catch (error) {
+            console.error('Error adding batch members to project:', error);
             throw error;
         }
     },

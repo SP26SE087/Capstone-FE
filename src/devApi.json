@@ -206,6 +206,37 @@
                 }
             }
         },
+        "/api/projects/memberships/batch": {
+            "post": {
+                "tags": [
+                    "Membership"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AddMembersRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AddMembersRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AddMembersRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
         "/api/projects/memberships/status": {
             "patch": {
                 "tags": [
@@ -1064,21 +1095,10 @@
                 }
             }
         },
-        "/api/projects/tasks/user/{userId}": {
+        "/api/projects/tasks/me": {
             "get": {
                 "tags": [
                     "Task"
-                ],
-                "parameters": [
-                    {
-                        "name": "userId",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string",
-                            "format": "uuid"
-                        }
-                    }
                 ],
                 "responses": {
                     "200": {
@@ -1333,6 +1353,32 @@
                 },
                 "additionalProperties": false
             },
+            "AddMembersRequest": {
+                "required": [
+                    "projectId",
+                    "projectRole",
+                    "userIds"
+                ],
+                "type": "object",
+                "properties": {
+                    "projectId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "userIds": {
+                        "minItems": 1,
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    "projectRole": {
+                        "$ref": "#/components/schemas/ProjectRoleEnum"
+                    }
+                },
+                "additionalProperties": false
+            },
             "AddMilestoneRequest": {
                 "required": [
                     "name",
@@ -1363,6 +1409,10 @@
                         "type": "string",
                         "format": "date-time",
                         "nullable": true
+                    },
+                    "status": {
+                        "type": "integer",
+                        "format": "int32"
                     }
                 },
                 "additionalProperties": false
@@ -1510,6 +1560,16 @@
                 "format": "int32"
             },
             "PriorityEnum": {
+                "enum": [
+                    1,
+                    2,
+                    3,
+                    4
+                ],
+                "type": "integer",
+                "format": "int32"
+            },
+            "ProjectRoleEnum": {
                 "enum": [
                     1,
                     2,

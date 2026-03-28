@@ -108,12 +108,12 @@ const Tasks: React.FC = () => {
         <MainLayout role={currentUser.role} userName={currentUser.name}>
             <div className="page-container">
                 {/* Page Header */}
-                <div className="page-header">
+                <div className="page-header" style={{ marginBottom: '2.5rem' }}>
                     <div>
                         <h1>Task Management</h1>
                         <p>Track and update your research activities and deadlines.</p>
                     </div>
-                    <button className="btn btn-primary">
+                    <button className="btn btn-primary" style={{ padding: '0.8rem 1.5rem' }}>
                         <Plus size={18} /> New Task
                     </button>
                 </div>

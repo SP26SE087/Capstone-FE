@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { X, Search, Users, Calendar, Activity, AlignLeft, AlertTriangle, MapPin, AlertOctagon, Plus, Trash2, FileText, File, Eye } from 'lucide-react';
+import { X, Search, Users, Calendar, CheckSquare, AlignLeft, AlertTriangle, MapPin, AlertOctagon, Plus, Trash2, FileText, File, Eye } from 'lucide-react';
 import { Priority, TaskStatus, ProjectMember, Task, TaskEvidence, ProjectRoleEnum } from '@/types';
 import MilestoneRoadmapPreview from '../milestones/MilestoneRoadmapPreview';
 
@@ -368,7 +368,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
             for (let i = 0; i < rows.length; i++) {
                 const row = rows[i];
                 if (!row.name) {
-                    alert(`Activity #${i + 1} must have a name.`);
+                    alert(`Task #${i + 1} must have a name.`);
                     return;
                 }
 
@@ -381,7 +381,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                         const tEnd = row.dueDate ? new Date(row.dueDate).getTime() : tStart;
 
                         if (tStart < mStart || tEnd > mEnd) {
-                            alert(`Activity #${i + 1} ("${row.name}") dates must be within milestone period: ${formatDate(milestone.startDate)} - ${formatDate(milestone.dueDate)}`);
+                            alert(`Task #${i + 1} ("${row.name}") dates must be within milestone period: ${formatDate(milestone.startDate)} - ${formatDate(milestone.dueDate)}`);
                             return;
                         }
                     }
@@ -420,7 +420,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                 const tEnd = dueDate ? new Date(dueDate).getTime() : tStart;
 
                 if (tStart < mStart || tEnd > mEnd) {
-                    alert(`Activity dates must be within milestone period: ${formatDate(milestone.startDate)} - ${formatDate(milestone.dueDate)}`);
+                    alert(`Task dates must be within milestone period: ${formatDate(milestone.startDate)} - ${formatDate(milestone.dueDate)}`);
                     return;
                 }
             }
@@ -699,10 +699,10 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                                 color: 'white',
                                 boxShadow: '0 4px 12px rgba(37, 99, 235, 0.2)'
                             }}>
-                                <Activity size={20} />
+                                <CheckSquare size={20} />
                             </div>
                             <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#1e293b', letterSpacing: '-0.02em' }}>
-                                {isReadOnly ? 'Research Activity Details' : (isEdit ? 'Update Task Activity' : 'Register Research Activities')}
+                                {isReadOnly ? 'Research Task Details' : (isEdit ? 'Update Task' : 'Register Research Tasks')}
                             </h2>
                             {!isEdit && !isReadOnly && (
                                 <p style={{ margin: 0, fontSize: '0.8rem', color: '#64748b' }}>
@@ -789,7 +789,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                                             <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'var(--primary-color)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', fontWeight: 800 }}>
                                                 {index + 1}
                                             </div>
-                                            <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Activity #{index + 1}</span>
+                                            <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>Task #{index + 1}</span>
                                         </div>
                                         {rows.length > 1 && (
                                             <button
@@ -804,7 +804,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
 
                                     <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr 1fr', gap: '1.25rem' }}>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                            <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Activity Name *</label>
+                                            <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Task Name *</label>
                                             <input
                                                 required
                                                 type="text"
@@ -971,7 +971,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                                         <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Description</label>
                                         <textarea
-                                            placeholder="Activity details..."
+                                            placeholder="Task details..."
                                             value={row.description}
                                             onChange={(e) => updateRow(row.id, 'description', e.target.value)}
                                             style={{ padding: '0.75rem', borderRadius: '10px', border: '1.5px solid #e2e8f0', fontSize: '0.85rem', outline: 'none', minHeight: '60px', resize: 'none' }}
@@ -1001,7 +1001,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                                 onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--primary-color)'; e.currentTarget.style.background = '#f0f7ff'; }}
                                 onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#cbd5e1'; e.currentTarget.style.background = 'white'; }}
                             >
-                                <Plus size={20} /> Add Another Research Activity
+                                <Plus size={20} /> Add Another Research Task
                             </button>
                         </div>
                     ) : (
@@ -1020,7 +1020,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                     }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                             <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <Activity size={14} /> Activity Name *
+                                <CheckSquare size={14} /> Task Name *
                             </label>
                             <input
                                 required
@@ -1170,7 +1170,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                                         )}
                                     </div>
                                 </div>
-                                <p style={{ margin: 0, fontSize: '0.7rem', color: '#94a3b8', textAlign: 'center' }}>Upload PDFs, Images, or Documents as evidence for this activity.</p>
+                                <p style={{ margin: 0, fontSize: '0.7rem', color: '#94a3b8', textAlign: 'center' }}>Upload PDFs, Images, or Documents as evidence for this task.</p>
                             </div>
                         )}
 
@@ -1230,7 +1230,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                                     onChange={(e) => setMilestoneStatusFilter(e.target.value)}
                                     style={{ padding: '0.6rem', borderRadius: '10px', border: '1.5px solid #e2e8f0', fontSize: '0.8rem', color: '#475569', fontWeight: 600, outline: 'none', display: 'flex', alignItems: 'center' }}
                                 >
-                                    <option value="all">All Phases</option>
+                                    <option value="all">All Milestones</option>
                                     <option value={MilestoneStatus.NotStarted.toString()}>Not Started</option>
                                     <option value={MilestoneStatus.InProgress.toString()}>In Progress</option>
                                     <option value={MilestoneStatus.Completed.toString()}>Completed</option>
@@ -1508,7 +1508,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                 }}>
                     <button type="button" onClick={onClose} className="btn btn-secondary" style={{ padding: '0.75rem 1.75rem', borderRadius: '12px' }}>Cancel</button>
                     <button type="submit" form="create-task-form" className="btn btn-primary" style={{ padding: '0.75rem 3rem', borderRadius: '12px', fontWeight: 800 }}>
-                        {isReadOnly ? 'Save Evidence' : (isEdit ? 'Update Activity' : 'Create Activity')}
+                        {isReadOnly ? 'Save Evidence' : (isEdit ? 'Update Task' : 'Create Task')}
                     </button>
                 </div>
             </div >

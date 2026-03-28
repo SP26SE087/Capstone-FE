@@ -60,12 +60,12 @@ const Members: React.FC = () => {
         <MainLayout role={user.role} userName={user.name}>
             <div className="page-container">
                 {/* Page Header */}
-                <div className="page-header">
+                <div className="page-header" style={{ marginBottom: '2.5rem' }}>
                     <div>
                         <h1>Lab Members</h1>
                         <p>Manage team access, roles and laboratory permissions.</p>
                     </div>
-                    <button className="btn btn-primary">
+                    <button className="btn btn-primary" style={{ padding: '0.8rem 1.5rem' }}>
                         <UserPlus size={18} /> Invite Member
                     </button>
                 </div>
@@ -113,42 +113,45 @@ const Members: React.FC = () => {
                                     <div 
                                         key={member.userId || member.id} 
                                         className="card card-interactive" 
-                                        style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}
                                         onClick={() => handleMemberClick(member.userId || member.id)}
                                     >
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                            <div className="avatar avatar-lg" style={{
-                                                background: 'var(--accent-bg)',
-                                                color: 'var(--accent-color)',
-                                                borderRadius: 'var(--radius-md)',
-                                                fontWeight: 700
-                                            }}>
-                                                {name.split(' ').map((n: string) => n[0]).join('')}
+                                        <div className="card-body">
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem' }}>
+                                                <div className="avatar avatar-lg" style={{
+                                                    background: 'var(--accent-bg)',
+                                                    color: 'var(--accent-color)',
+                                                    borderRadius: 'var(--radius-md)',
+                                                    fontWeight: 700
+                                                }}>
+                                                    {name.split(' ').map((n: string) => n[0]).join('')}
+                                                </div>
                                             </div>
-                                        </div>
 
-                                        <div>
-                                            <h3 style={{ margin: '0 0 4px 0', fontSize: '1.05rem' }}>{name}</h3>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-                                                <Mail size={14} />
-                                                {member.email}
+                                            <div style={{ marginBottom: '1rem' }}>
+                                                <h3 style={{ margin: '0 0 4px 0', fontSize: '1.05rem' }}>{name}</h3>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                                                    <Mail size={14} />
+                                                    {member.email}
+                                                </div>
                                             </div>
-                                        </div>
 
-                                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                                            <span className="badge badge-muted">
-                                                {SystemRoleMap[member.role] || member.role || 'Member'}
-                                            </span>
-                                            {member.status && (
-                                                <span className="badge badge-muted" style={{ opacity: 0.8 }}>
-                                                    {member.status}
+                                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                                <span className="badge badge-muted">
+                                                    {SystemRoleMap[member.role] || member.role || 'Member'}
                                                 </span>
-                                            )}
+                                                {member.status && (
+                                                    <span className="badge badge-muted" style={{ opacity: 0.8 }}>
+                                                        {member.status}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
 
                                         {member.department && (
-                                            <div style={{ marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid var(--border-color)', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                                                Department: <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{member.department}</span>
+                                            <div className="card-footer" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                                                <div>
+                                                    Department: <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{member.department}</span>
+                                                </div>
                                             </div>
                                         )}
                                     </div>

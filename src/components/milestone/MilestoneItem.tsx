@@ -6,15 +6,17 @@ import {
     AlertCircle,
     Clock,
     ChevronRight,
-    MapPin
+    MapPin,
+    Eye
 } from 'lucide-react';
 
 interface MilestoneItemProps {
     milestone: Milestone;
     onClick?: (milestone: Milestone) => void;
+    onDetailClick?: (milestone: Milestone) => void;
 }
 
-const MilestoneItem: React.FC<MilestoneItemProps> = ({ milestone, onClick }) => {
+const MilestoneItem: React.FC<MilestoneItemProps> = ({ milestone, onClick, onDetailClick }) => {
     const getStatusStyle = (status: MilestoneStatus) => {
         switch (status) {
             case MilestoneStatus.NotStarted: return { color: '#64748b', bg: '#f1f5f9', label: 'Not Started', icon: <Clock size={16} /> };
@@ -104,16 +106,16 @@ const MilestoneItem: React.FC<MilestoneItemProps> = ({ milestone, onClick }) => 
                     </div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '15px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
                         <div style={{ flex: 1, height: '8px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
-                            <div style={{ 
-                                width: `${progress}%`, 
-                                height: '100%', 
-                                background: `linear-gradient(90deg, #E8720C, #ff8c33)`, 
+                            <div style={{
+                                width: `${progress}%`,
+                                height: '100%',
+                                background: `linear-gradient(90deg, #E8720C, #ff8c33)`,
                                 transition: 'width 0.8s cubic-bezier(0.4, 0, 0.2, 1)',
                                 boxShadow: `0 0 10px rgba(232,114,12,0.4)`
                             }} />
                         </div>
                     </div>
-                    
+
                     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '15px', fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                             <Calendar size={12} />
@@ -127,8 +129,36 @@ const MilestoneItem: React.FC<MilestoneItemProps> = ({ milestone, onClick }) => 
                 </div>
             </div>
 
-            <div style={{ color: 'var(--border-color)' }}>
-                <ChevronRight size={20} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {onDetailClick && (
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onDetailClick(milestone);
+                        }}
+                        style={{
+                            width: '36px',
+                            height: '36px',
+                            borderRadius: '10px',
+                            border: '1px solid #e2e8f0',
+                            background: 'white',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: 'var(--primary-color)',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+                        }}
+                        title="View Milestone Tasks"
+                        className="detail-btn"
+                    >
+                        <Eye size={18} />
+                    </button>
+                )}
+                <div style={{ color: '#94a3b8' }}>
+                    <ChevronRight size={20} />
+                </div>
             </div>
         </div>
     );

@@ -10,7 +10,7 @@ import { Resource, EquipmentLog, BookingStatus } from '@/types/booking';
 import { resourceService, CreateResourceRequest } from '@/services/resourceService';
 import { equipmentLogService, AddEquipmentLogRequest } from '@/services/equipmentLogService';
 import { userService } from '@/services/userService';
-import { Package, Activity, Loader2, CalendarRange, X, User, Calendar, Clock, Info } from 'lucide-react';
+import { Package, Activity, Loader2, CalendarRange, X, User, Clock } from 'lucide-react';
 import { useToastStore } from '@/store/slices/toastSlice';
 import GlobalBookingList from '@/features/resources/GlobalBookingList';
 import { bookingService, BookingResponse } from '@/services/bookingService';
@@ -258,10 +258,10 @@ const LabResourceAdmin: React.FC<{ initialTab?: 'manage' | 'logs' }> = ({ initia
   return (
     <MainLayout role={user.role} userName={user.name}>
       <div className="page-container">
-        <div className="page-header">
+        <div className="page-header" style={{ marginBottom: '2.5rem' }}>
           <div>
-            <h1>Lab Resource Management</h1>
-            <p>System-level control of laboratory inventory, history, and active reservations.</p>
+            <h1 style={{ marginBottom: '4px' }}>Lab Resource Management</h1>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>System-level control of laboratory inventory, history, and active reservations.</p>
           </div>
         </div>
 

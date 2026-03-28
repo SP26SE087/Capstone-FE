@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import MilestoneRoadmapPreview from '../milestones/MilestoneRoadmapPreview';
 import {
     X,
-    Activity,
+    CheckSquare,
     Users,
     Search,
     FileText,
@@ -197,7 +197,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                         setServerEvidences(evidences || []);
                     }
                 } else {
-                    setError("Activity not found.");
+                    setError("Task not found.");
                 }
             } catch (err) {
                 console.error("Failed to load task details:", err);
@@ -321,22 +321,22 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 
         setConfirmConfig({
             isOpen: true,
-            title: 'Delete Activity',
-            message: 'Are you sure you want to delete this activity? This action cannot be undone and all associated records will be removed.',
+            title: 'Delete Task',
+            message: 'Are you sure you want to delete this task? This action cannot be undone and all associated records will be removed.',
             variant: 'danger',
             confirmText: 'Delete Forever',
             onConfirm: async () => {
                 try {
                     setLoading(true);
                     await taskService.delete(taskId);
-                    setToast({ message: "Activity deleted successfully", type: 'success' });
+                    setToast({ message: "Task deleted successfully", type: 'success' });
                     setTimeout(() => {
                         onTaskUpdated?.();
                         onClose();
                     }, 500);
                 } catch (err: any) {
                     console.error("Failed to delete task:", err);
-                    setToast({ message: extractErrorMessage(err, "Failed to delete activity. Please try again."), type: 'error' });
+                    setToast({ message: extractErrorMessage(err, "Failed to delete task. Please try again."), type: 'error' });
                 } finally {
                     setLoading(false);
                 }
@@ -380,13 +380,13 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 
         // Validate evidence specifically for Submitted status
         if (newStatus === TaskStatus.Submitted && serverEvidences.length === 0 && evidenceFiles.length === 0) {
-            setToast({ message: 'Activities must have at least one evidence file before being submitted.', type: 'error' });
+            setToast({ message: 'Tasks must have at least one evidence file before being submitted.', type: 'error' });
             return;
         }
 
         // Validate assignee specifically for InProgress status
         if (newStatus === TaskStatus.InProgress && !memberId) {
-            setToast({ message: 'Research activity must have an assignee before starting.', type: 'error' });
+            setToast({ message: 'Research task must have an assignee before starting.', type: 'error' });
             return;
         }
 
@@ -396,8 +396,8 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
             isOpen: true,
             title: 'Update Status',
             message: newStatus === TaskStatus.InProgress
-                ? 'Do you want to start this research activity? The status will be changed to "On-going".'
-                : `Do you want to change the activity status to "${getStatusActionLabel(newStatus)}"? This may restrict certain actions based on the new status.`,
+                ? 'Do you want to start this research task? The status will be changed to "In Progress".'
+                : `Do you want to change the task status to "${getStatusActionLabel(newStatus)}"? This may restrict certain actions based on the new status.`,
             variant: 'info',
             onConfirm: async () => {
                 try {
@@ -438,7 +438,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
     const getStatusActionLabel = (s: TaskStatus) => {
         switch (s) {
             case TaskStatus.Todo: return "Todo";
-            case TaskStatus.InProgress: return "On-going";
+            case TaskStatus.InProgress: return "In Progress";
             case TaskStatus.Submitted: return "Submitted";
             case TaskStatus.Missed: return "Missed";
             case TaskStatus.Adjusting: return "Adjusting";
@@ -451,8 +451,8 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 
     const getTaskStatusStyle = (s: TaskStatus) => {
         switch (s) {
-            case TaskStatus.Todo: return { text: '#64748b', bg: '#f1f5f9', label: 'Draft' };
-            case TaskStatus.InProgress: return { text: '#2563eb', bg: '#eff6ff', label: 'On-going' };
+            case TaskStatus.Todo: return { text: '#64748b', bg: '#f1f5f9', label: 'Todo' };
+            case TaskStatus.InProgress: return { text: '#2563eb', bg: '#eff6ff', label: 'In Progress' };
             case TaskStatus.Submitted: return { text: '#7c3aed', bg: '#f5f3ff', label: 'Submitted' };
             case TaskStatus.Missed: return { text: '#ef4444', bg: '#fef2f2', label: 'Missed' };
             case TaskStatus.Adjusting: return { text: '#ea580c', bg: '#fff7ed', label: 'Adjusting' };
@@ -491,13 +491,13 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 
         // Validate evidence specifically for Submitted status
         if (status === TaskStatus.Submitted && serverEvidences.length === 0 && evidenceFiles.length === 0) {
-            setToast({ message: 'Activities must have at least one evidence file before being submitted.', type: 'error' });
+            setToast({ message: 'Tasks must have at least one evidence file before being submitted.', type: 'error' });
             return;
         }
 
         // Validate assignee specifically for InProgress status
         if (status === TaskStatus.InProgress && !memberId) {
-            setToast({ message: 'Research activity must have an assignee before starting (On-going status).', type: 'error' });
+            setToast({ message: 'Research task must have an assignee before starting (In Progress status).', type: 'error' });
             return;
         }
 
@@ -515,7 +515,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                 if ((tStart && tStart < mStart) || (tEnd && tEnd > mEnd)) {
                     const formatDateStr = (d: string) => new Date(d).toLocaleDateString('vi-VN', { month: '2-digit', day: '2-digit' });
                     setToast({
-                        message: `Activity dates must be within milestone period: ${formatDateStr(milestone.startDate)} - ${formatDateStr(milestone.dueDate)}`,
+                        message: `Task dates must be within milestone period: ${formatDateStr(milestone.startDate)} - ${formatDateStr(milestone.dueDate)}`,
                         type: 'error'
                     });
                     return;
@@ -545,7 +545,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
 
                 onTaskUpdated?.();
                 setIsEditMode(false);
-                setToast({ message: isEditMode ? "Activity updated successfully" : "Evidence uploaded successfully", type: 'success' });
+                setToast({ message: isEditMode ? "Task updated successfully" : "Evidence uploaded successfully", type: 'success' });
 
                 // Refresh local state and form states to ensure consistency
                 const updated = await taskService.getById(taskId);
@@ -567,7 +567,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                 }
             } catch (err: any) {
                 console.error("Failed to update task:", err);
-                setToast({ message: extractErrorMessage(err, "Failed to update activity. Please try again."), type: 'error' });
+                setToast({ message: extractErrorMessage(err, "Failed to update task. Please try again."), type: 'error' });
             } finally {
                 setLoading(false);
             }
@@ -612,11 +612,11 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                             padding: '10px', background: isEditMode ? 'var(--primary-color)' : '#64748b',
                             borderRadius: '12px', color: 'white'
                         }}>
-                            <Activity size={20} />
+                            <CheckSquare size={20} />
                         </div>
                         <div>
                             <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#1e293b' }}>
-                                {isEditMode ? 'Edit Research Activity' : 'Research Activity Detail'}
+                                {isEditMode ? 'Edit Research Task' : 'Research Task Detail'}
                             </h2>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px' }}>
                                 <p style={{ margin: 0, fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600 }}>ID: {taskId?.slice(-8).toUpperCase()}</p>
@@ -766,7 +766,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                     {error ? (
                         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '4rem', gap: '1rem' }}>
                             <AlertCircle size={48} color="#ef4444" />
-                            <h3 style={{ margin: 0, color: '#1e293b' }}>Error Loading Activity</h3>
+                            <h3 style={{ margin: 0, color: '#1e293b' }}>Error Loading Task</h3>
                             <p style={{ margin: 0, color: '#64748b' }}>{error}</p>
                             <button type="button" onClick={onClose} className="btn btn-secondary">Go Back</button>
                         </div>
@@ -774,7 +774,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                         <>
                             <div style={{ flex: 1.2, padding: '2rem', overflowY: 'auto', borderRight: '1px solid #f1f5f9', display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Activity Name</label>
+                                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Task Name</label>
                                     <input
                                         required
                                         disabled={!isEditMode}
@@ -1412,7 +1412,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                             : '0 4px 12px rgba(234, 88, 12, 0.2)';
                                     }}
                                 >
-                                    <Activity size={18} />
+                                    <CheckSquare size={18} />
                                     {getStatusActionLabel(s)}
                                 </button>
                             ))}
