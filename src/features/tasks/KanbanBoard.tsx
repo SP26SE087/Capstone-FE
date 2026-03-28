@@ -15,7 +15,6 @@ interface KanbanBoardProps {
     onTaskCreated?: () => void;
     onTaskUpdated?: () => void;
     milestones: Milestone[];
-    onTaskClick?: (task: Task) => void;
 }
 
 import { Milestone } from '@/types/milestone';
@@ -103,8 +102,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
     projectId,
     onTaskCreated,
     onTaskUpdated,
-    milestones,
-    onTaskClick
+    milestones
 }) => {
     const { user: currentUser } = useAuth();
     const currentMember = projectMembers.find(m => m.userId === currentUser?.userId || m.memberId === currentUser?.userId || String(m.id) === String(currentUser?.userId));
@@ -174,12 +172,8 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
     };
 
     const handleTaskClick = (task: Task) => {
-        if (onTaskClick) {
-            onTaskClick(task);
-        } else {
-            setSelectedTaskId(task.taskId);
-            setIsDetailModalOpen(true);
-        }
+        setSelectedTaskId(task.taskId);
+        setIsDetailModalOpen(true);
     };
 
     return (

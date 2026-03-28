@@ -6,13 +6,13 @@ import {
     CheckSquare,
     Users,
     Calendar,
+    FlaskConical,
     BarChart2,
     Presentation,
     Box,
     UserCog,
     FileText,
     FileSearch,
-    Library
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -22,10 +22,9 @@ const Sidebar: React.FC = () => {
 
     const navItems = [
         { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/dashboard' },
-        { icon: <Library size={20} />, label: 'Project in Lab', path: '/home' },
         { icon: <Briefcase size={20} />, label: 'My Projects', path: '/projects' },
         { icon: <CheckSquare size={20} />, label: 'Tasks', path: '/tasks' },
-        ...(!isAdmin ? [{ icon: <FileText size={20} />, label: 'Paper Submission', path: '/papers' }] : []),
+        { icon: <FileText size={20} />, label: 'Papers', path: '/papers' },
         { icon: <Users size={20} />, label: 'Members', path: '/members' },
         { icon: <BarChart2 size={20} />, label: 'Reports', path: '/reports' },
         { icon: <Box size={20} />, label: 'Booking Resource', path: '/bookings' },
@@ -35,7 +34,20 @@ const Sidebar: React.FC = () => {
 
     return (
         <aside className="sidebar">
+            <div className="sidebar-header">
+                <div className="sidebar-brand">
+                    <div className="sidebar-brand-icon">
+                        <FlaskConical size={20} />
+                    </div>
+                    <div>
+                        <h2 className="sidebar-title">Researcher Space</h2>
+                        <span className="sidebar-subtitle">AiTA Lab@FPTU</span>
+                    </div>
+                </div>
+            </div>
+
             <nav className="sidebar-nav">
+                <div className="sidebar-section-label">WORKSPACE</div>
                 {navItems.map((item) => (
                     <NavLink
                         key={item.path}
