@@ -22,6 +22,18 @@ export interface UserResponse {
     updatedAt: string;
 }
 
+export interface ProfileResponse {
+    email: string;
+    fullName: string;
+    role: number;
+    createdAt: string;
+    avatarUrl?: string;
+}
+
+export interface UpdateProfileRequest {
+    fullName?: string;
+}
+
 export const userService = {
     getAll: async (): Promise<any[]> => {
         try {
@@ -81,5 +93,32 @@ export const userService = {
             : {};
         const response = await api.get('/api/users/me', config);
         return response.data.data || response.data;
+    },
+
+    getProfile: async (): Promise<ProfileResponse> => {
+        try {
+            const response = await api.get('/api/users/me');
+            const data = response.data.data || response.data;
+            return {
+                email: data.email || data.Email || '',
+                fullName: data.fullName || data.FullName || '',
+                role: data.role ?? data.Role ?? 4,
+                createdAt: data.createdAt || data.CreatedAt || '',
+                avatarUrl: data.avatarUrl || data.AvatarUrl || data.pictureUrl || data.PictureUrl || '',
+            };
+        } catch (error) {
+            console.error('Error loading profile:', error);
+            throw error;
+        }
+    },
+
+    updateProfile: async (data: UpdateProfileRequest): Promise<any> => {
+        try {
+            const response = await api.put(`/api/users/me/profile`, data);
+            return response.data.data || response.data;
+        } catch (error) {
+            console.error('Error updating profile:', error);
+            throw error;
+        }
     },
 };

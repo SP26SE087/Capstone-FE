@@ -1,5 +1,4 @@
 import api from './api';
-import { userService } from './userService';
 
 export interface AuthResponse {
     userId: string;
@@ -10,6 +9,7 @@ export interface AuthResponse {
     email: string;
     fullName: string;
     role: string | number;
+    avatarUrl?: string;
 }
 
 const AUTH_KEYS = {
@@ -23,13 +23,16 @@ export const authService = {
         const response = await api.post('/api/auth/google', { idToken });
         const authData: AuthResponse = response.data.data || response.data;
 
-        // After login, use the new token to get full user details (including userId)
         try {
             const token = authData.jwtToken || (authData as any).JwtToken;
-            const me = await userService.getMe(token);
-            authData.userId = me.userId;
+            const base64Url = token.split('.')[1];
+            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+            const payload = JSON.parse(decodeURIComponent(atob(base64).split('').map(function(c) {
+                return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+            }).join('')));
+            authData.userId = payload.sub || payload.nameid || payload['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'];
         } catch (err) {
-            console.error('Lỗi khi lấy thông tin người dùng (getMe):', err);
+            console.error('Lỗi khi lấy userId từ token:', err);
         }
 
         this.saveAuthData(authData);
@@ -48,14 +51,19 @@ export const authService = {
             email: rawData.email || rawData.Email,
             fullName: rawData.fullName || rawData.FullName,
             role: rawData.role ?? rawData.Role,
+            avatarUrl: rawData.avatarUrl || rawData.AvatarUrl,
             userId: '' // Will fetch below
         };
 
         try {
-            const me = await userService.getMe(authData.jwtToken);
-            authData.userId = me.userId;
+            const base64Url = authData.jwtToken.split('.')[1];
+            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+            const payload = JSON.parse(decodeURIComponent(atob(base64).split('').map(function(c) {
+                return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+            }).join('')));
+            authData.userId = payload.sub || payload.nameid || payload['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'];
         } catch (err) {
-            console.error('Lỗi khi lấy thông tin getMe sau loginWithCode:', err);
+            console.error('Lỗi khi lấy userId từ token sau loginWithCode:', err);
         }
 
         this.saveAuthData(authData);
@@ -67,10 +75,14 @@ export const authService = {
         const authData: AuthResponse = response.data.data || response.data;
 
         try {
-            const me = await userService.getMe(authData.jwtToken);
-            authData.userId = me.userId;
+            const base64Url = authData.jwtToken.split('.')[1];
+            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+            const payload = JSON.parse(decodeURIComponent(atob(base64).split('').map(function(c) {
+                return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+            }).join('')));
+            authData.userId = payload.sub || payload.nameid || payload['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'];
         } catch (err) {
-            console.error('Lỗi khi lấy thông tin người dùng trong lúc refresh:', err);
+            console.error('Lỗi khi lấy userId trong lúc refresh token:', err);
         }
 
         this.saveAuthData(authData);
@@ -94,6 +106,7 @@ export const authService = {
             email: data.email,
             fullName: data.fullName,
             role: data.role,
+            avatarUrl: data.avatarUrl || (data as any).AvatarUrl,
         }));
     },
 
@@ -107,7 +120,7 @@ export const authService = {
         return localStorage.getItem(AUTH_KEYS.TOKEN);
     },
 
-    getAuthUser(): { userId: string; email: string; fullName: string; role: string } | null {
+    getAuthUser(): { userId: string; email: string; fullName: string; role: string; avatarUrl?: string } | null {
         const raw = localStorage.getItem(AUTH_KEYS.USER);
         if (!raw) return null;
         try {

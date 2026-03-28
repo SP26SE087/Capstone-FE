@@ -20,6 +20,7 @@ import ComingSoon from '@/pages/common/ComingSoon';
 import UserManagement from '@/pages/user-management/UserManagement';
 import PaperSubmissions from '@/pages/paper/PaperSubmissions';
 import PaperReview from '@/pages/paper/PaperReview';
+import ProfilePage from '@/pages/profile/ProfilePage';
 import RoleGuard from '@/components/auth/RoleGuard';
 
 export const router = createBrowserRouter([
@@ -110,6 +111,10 @@ export const router = createBrowserRouter([
     {
         path: '/seminars',
         element: <AuthGuard><ComingSoon title="Seminars" /></AuthGuard>,
+    },
+    {
+        path: '/profile',
+        element: <AuthGuard><ProfilePage /></AuthGuard>,
     },
     {
         path: '/user-management',

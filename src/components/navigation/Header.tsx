@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { User, Bell, LogIn, LogOut, Settings, UserCircle, FlaskConical } from 'lucide-react';
+import { Bell, LogIn, LogOut, Settings, UserCircle, FlaskConical } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { SystemRoleEnum, SystemRoleMap } from '@/types/enums';
 
@@ -8,6 +8,7 @@ const Header: React.FC = () => {
     const navigate = useNavigate();
     const { user, isAuthenticated, logout } = useAuth();
     const [showUserMenu, setShowUserMenu] = useState(false);
+    const [imgError, setImgError] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
     
     const isLabDirector = Number(user.role) === SystemRoleEnum.Admin || Number(user.role) === SystemRoleEnum.LabDirector;
@@ -66,8 +67,14 @@ const Header: React.FC = () => {
                                     <span className="header-user-name">{user.name}</span>
                                     <span className="header-user-role">{SystemRoleMap[user.role] || user.role}</span>
                                 </div>
-                                <div className="header-avatar">
-                                    <User size={18} />
+                                <div className="header-avatar" style={{ overflow: 'hidden', padding: 0 }}>
+                                    {user.avatarUrl && !imgError ? (
+                                        <img src={user.avatarUrl} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} referrerPolicy="no-referrer" onError={() => setImgError(true)} />
+                                    ) : (
+                                        <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, var(--accent-color), var(--accent-light))', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '1rem' }}>
+                                            {user.name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'U'}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
