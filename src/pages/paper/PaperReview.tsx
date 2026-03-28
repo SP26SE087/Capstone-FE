@@ -148,7 +148,7 @@ const PaperReview: React.FC = () => {
                                 transition: 'all 0.2s',
                             }}
                         >
-                            {tab === 'pending' ? `Pending Review (${papers.filter((p) => p.status === SubmissionStatus.InternalReview).length})` : `All Papers (${papers.length})`}
+                            {tab === 'pending' ? `Pending Review (${papers.filter((p) => p.status === SubmissionStatus.InternalReview).length})` : `All Submissions (${papers.length})`}
                         </button>
                     ))}
                 </div>
@@ -225,63 +225,14 @@ const PaperReview: React.FC = () => {
                                                 </td>
                                                 <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
                                                     <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
-                                                        {paper.status === SubmissionStatus.InternalReview ? (
-                                                            <>
-                                                                <button
-                                                                    title="Approve Paper"
-                                                                    onClick={(e) => handleApprove(paper.paperSubmissionId, e)}
-                                                                    disabled={isActing}
-                                                                    className="btn"
-                                                                    style={{ 
-                                                                        background: '#dcfce7', 
-                                                                        color: '#16a34a', 
-                                                                        border: '1px solid #bbf7d0',
-                                                                        padding: '6px', 
-                                                                        borderRadius: '6px',
-                                                                        cursor: 'pointer',
-                                                                        display: 'flex',
-                                                                        alignItems: 'center',
-                                                                        justifyContent: 'center',
-                                                                        transition: 'all 0.2s',
-                                                                    }}
-                                                                    onMouseOver={(e) => (e.currentTarget.style.background = '#bbf7d0')}
-                                                                    onMouseOut={(e) => (e.currentTarget.style.background = '#dcfce7')}
-                                                                >
-                                                                    {isActing ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
-                                                                </button>
-                                                                <button
-                                                                    title="Revision Required (Reject)"
-                                                                    onClick={(e) => handleReject(paper.paperSubmissionId, e)}
-                                                                    disabled={isActing}
-                                                                    className="btn"
-                                                                    style={{ 
-                                                                        background: '#fee2e2', 
-                                                                        color: '#ef4444', 
-                                                                        border: '1px solid #fecaca',
-                                                                        padding: '6px', 
-                                                                        borderRadius: '6px',
-                                                                        cursor: 'pointer',
-                                                                        display: 'flex',
-                                                                        alignItems: 'center',
-                                                                        justifyContent: 'center',
-                                                                        transition: 'all 0.2s',
-                                                                    }}
-                                                                    onMouseOver={(e) => (e.currentTarget.style.background = '#fecaca')}
-                                                                    onMouseOut={(e) => (e.currentTarget.style.background = '#fee2e2')}
-                                                                >
-                                                                    <XCircle size={16} />
-                                                                </button>
-                                                            </>
-                                                        ) : (
-                                                            <button
-                                                                className="btn btn-ghost"
-                                                                style={{ color: 'var(--accent-color)', padding: '4px 8px' }}
-                                                                onClick={(e) => { e.stopPropagation(); toggleRow(paper.paperSubmissionId); }}
-                                                                title="View Details"
-                                                            >
-                                                                <FileText size={15} />
-                                                            </button>
-                                                        )}
+                                                        <button
+                                                            className="btn btn-ghost"
+                                                            style={{ color: 'var(--accent-color)', padding: '4px 8px' }}
+                                                            onClick={(e) => { e.stopPropagation(); toggleRow(paper.paperSubmissionId); }}
+                                                            title="View Details"
+                                                        >
+                                                            {isExpanded ? <FileText size={18} /> : <FileSearch size={18} />}
+                                                        </button>
                                                     </div>
                                                 </td>
                                             </tr>
@@ -316,7 +267,16 @@ const PaperReview: React.FC = () => {
                                                                     <div className="um-detail-item" style={{ gridColumn: '1 / -1' }}>
                                                                         <span className="um-detail-label">Paper URL</span>
                                                                         {paper.paperUrl ? (
-                                                                            <a href={paper.paperUrl} target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--accent-color)' }}><LinkIcon size={14}/> {paper.paperUrl}</a>
+                                                                            <div style={{ marginTop: '4px' }}>
+                                                                                <a href={paper.paperUrl} target="_blank" rel="noreferrer" 
+                                                                                   style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'white', padding: '10px 16px', borderRadius: '8px', border: '1px solid var(--border-color)', color: 'var(--accent-color)', textDecoration: 'none', fontSize: '0.9rem', fontWeight: 500, transition: 'all 0.2s', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}
+                                                                                   onMouseOver={e => e.currentTarget.style.borderColor = 'var(--accent-color)'}
+                                                                                   onMouseOut={e => e.currentTarget.style.borderColor = 'var(--border-color)'}
+                                                                                >
+                                                                                    <LinkIcon size={16} />
+                                                                                    <span style={{ maxWidth: '400px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{paper.paperUrl}</span>
+                                                                                </a>
+                                                                            </div>
                                                                         ) : (
                                                                             <span style={{ color: 'var(--text-muted)' }}>No link provided</span>
                                                                         )}
@@ -330,31 +290,6 @@ const PaperReview: React.FC = () => {
                                                                 {/* Review Actions inside Detail View */}
                                                                 {paper.status === SubmissionStatus.InternalReview && (
                                                                     <div style={{ display: 'flex', gap: '12px', marginTop: '0.5rem', justifyContent: 'flex-end', paddingTop: '1.25rem', borderTop: '1px solid var(--border-color)' }}>
-                                                                        <button
-                                                                            onClick={() => handleReject(paper.paperSubmissionId)}
-                                                                            disabled={isActing}
-                                                                            className="btn"
-                                                                            style={{ 
-                                                                                background: '#fee2e2', 
-                                                                                color: '#dc2626', 
-                                                                                border: '1px solid #fecaca', 
-                                                                                borderRadius: '8px', 
-                                                                                padding: '8px 16px', 
-                                                                                cursor: 'pointer', 
-                                                                                display: 'flex', 
-                                                                                alignItems: 'center', 
-                                                                                gap: '8px', 
-                                                                                fontSize: '0.85rem', 
-                                                                                fontWeight: 600, 
-                                                                                fontFamily: 'inherit',
-                                                                                transition: 'all 0.2s',
-                                                                                boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-                                                                            }}
-                                                                            onMouseOver={(e) => (e.currentTarget.style.background = '#fecaca')}
-                                                                            onMouseOut={(e) => (e.currentTarget.style.background = '#fee2e2')}
-                                                                        >
-                                                                            <XCircle size={18} /> Revision Required
-                                                                        </button>
                                                                         <button
                                                                             onClick={() => handleApprove(paper.paperSubmissionId)}
                                                                             disabled={isActing}
@@ -378,7 +313,32 @@ const PaperReview: React.FC = () => {
                                                                             onMouseOver={(e) => { e.currentTarget.style.boxShadow = '0 4px 6px rgba(22, 163, 74, 0.3)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
                                                                             onMouseOut={(e) => { e.currentTarget.style.boxShadow = '0 2px 4px rgba(22, 163, 74, 0.2)'; e.currentTarget.style.transform = 'translateY(0)'; }}
                                                                         >
-                                                                            {isActing ? <Loader2 size={18} className="animate-spin" /> : <CheckCircle2 size={18} />} Approve Paper
+                                                                            {isActing ? <Loader2 size={18} className="animate-spin" /> : <CheckCircle2 size={18} />} Approve
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => handleReject(paper.paperSubmissionId)}
+                                                                            disabled={isActing}
+                                                                            className="btn"
+                                                                            style={{ 
+                                                                                background: '#fee2e2', 
+                                                                                color: '#dc2626', 
+                                                                                border: '1px solid #fecaca', 
+                                                                                borderRadius: '8px', 
+                                                                                padding: '8px 16px', 
+                                                                                cursor: 'pointer', 
+                                                                                display: 'flex', 
+                                                                                alignItems: 'center', 
+                                                                                gap: '8px', 
+                                                                                fontSize: '0.85rem', 
+                                                                                fontWeight: 600, 
+                                                                                fontFamily: 'inherit',
+                                                                                transition: 'all 0.2s',
+                                                                                boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                                                                            }}
+                                                                            onMouseOver={(e) => (e.currentTarget.style.background = '#fecaca')}
+                                                                            onMouseOut={(e) => (e.currentTarget.style.background = '#fee2e2')}
+                                                                        >
+                                                                            <XCircle size={18} /> Reject
                                                                         </button>
                                                                     </div>
                                                                 )}

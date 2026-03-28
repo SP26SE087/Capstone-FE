@@ -20,6 +20,7 @@ import ComingSoon from '@/pages/common/ComingSoon';
 import UserManagement from '@/pages/user-management/UserManagement';
 import PaperSubmissions from '@/pages/paper/PaperSubmissions';
 import PaperReview from '@/pages/paper/PaperReview';
+import RoleGuard from '@/components/auth/RoleGuard';
 
 export const router = createBrowserRouter([
     {
@@ -72,11 +73,11 @@ export const router = createBrowserRouter([
     },
     {
         path: '/papers',
-        element: <AuthGuard><PaperSubmissions /></AuthGuard>,
+        element: <AuthGuard><RoleGuard allowedRoles={[3, 4]}><PaperSubmissions /></RoleGuard></AuthGuard>,
     },
     {
         path: '/paper-review',
-        element: <AuthGuard><PaperReview /></AuthGuard>,
+        element: <AuthGuard><RoleGuard allowedRoles={[2]}><PaperReview /></RoleGuard></AuthGuard>,
     },
     {
         path: '/reports',
@@ -112,7 +113,7 @@ export const router = createBrowserRouter([
     },
     {
         path: '/user-management',
-        element: <AuthGuard><UserManagement /></AuthGuard>,
+        element: <AuthGuard><RoleGuard allowedRoles={[1]}><UserManagement /></RoleGuard></AuthGuard>,
     },
     {
         path: '*',

@@ -110,7 +110,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
         onConfirm: () => { }
     });
 
-    const isAdmin = currentUser?.role === 'Admin';
+    const isAdmin = currentUser && (Number(currentUser.role) === 1 || currentUser.role === 'Admin');
     const isAuthorizedToEdit = isAdmin ||
         projectRole === ProjectRoleEnum.Leader ||
         projectRole === ProjectRoleEnum.LabDirector;

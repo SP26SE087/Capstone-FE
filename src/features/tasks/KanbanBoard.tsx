@@ -106,7 +106,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
 }) => {
     const { user: currentUser } = useAuth();
     const currentMember = projectMembers.find(m => m.userId === currentUser?.userId || m.memberId === currentUser?.userId || String(m.id) === String(currentUser?.userId));
-    const isAuthorizedToAdd = currentUser?.role === 'Admin' || (currentMember && [ProjectRoleEnum.LabDirector, ProjectRoleEnum.Leader].includes(currentMember.projectRole as ProjectRoleEnum));
+    const isAuthorizedToAdd = (currentUser && (Number(currentUser.role) === 1 || currentUser.role === 'Admin')) || (currentMember && [ProjectRoleEnum.LabDirector, ProjectRoleEnum.Leader].includes(currentMember.projectRole as ProjectRoleEnum));
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedStatus, setSelectedStatus] = useState<TaskStatus>(TaskStatus.Todo);

@@ -25,7 +25,7 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
     currentProjectRole
 }) => {
     const { user: currentUser } = useAuth();
-    const isAdmin = currentUser?.role === 'Admin';
+    const isAdmin = currentUser && (Number(currentUser.role) === 1 || currentUser.role === 'Admin');
     const [foundUser, setFoundUser] = useState<any>(null);
     const [error, setError] = useState<string | null>(null);
     const [roles, setRoles] = useState<any[]>([]);

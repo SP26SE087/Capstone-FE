@@ -18,13 +18,13 @@ import { useAuth } from '@/hooks/useAuth';
 
 const Sidebar: React.FC = () => {
     const { user } = useAuth();
-    const isAdmin = user?.role === 'Admin' || user?.role === 'LabDirector';
+    const isAdmin = user && (Number(user.role) === 1 || Number(user.role) === 2 || user.role === 'Admin' || user.role === 'LabDirector');
 
     const navItems = [
         { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/dashboard' },
         { icon: <Briefcase size={20} />, label: 'My Projects', path: '/projects' },
         { icon: <CheckSquare size={20} />, label: 'Tasks', path: '/tasks' },
-        { icon: <FileText size={20} />, label: 'Papers', path: '/papers' },
+        ...(!isAdmin ? [{ icon: <FileText size={20} />, label: 'Paper Submission', path: '/papers' }] : []),
         { icon: <Users size={20} />, label: 'Members', path: '/members' },
         { icon: <BarChart2 size={20} />, label: 'Reports', path: '/reports' },
         { icon: <Box size={20} />, label: 'Booking Resource', path: '/bookings' },

@@ -74,6 +74,7 @@ export interface CreatePaperRequest {
 }
 
 export interface UpdatePaperRequest {
+    projectId?: string | null;
     title: string;
     abstract: string;
     paperUrl: string;

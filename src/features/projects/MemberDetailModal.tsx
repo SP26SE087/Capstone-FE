@@ -148,7 +148,7 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
         Number(projectDetails?.projectRole) === ProjectRoleEnum.Leader ||
         projectDetails?.projectRoleName === 'Leader';
 
-    const isAdmin = currentUser.role === 'Admin';
+    const isAdmin = currentUser && (Number(currentUser.role) === 1 || currentUser.role === 'Admin');
     const isCurrentUserLD = Number(currentUserProjectRole) === ProjectRoleEnum.LabDirector;
     const isCurrentUserLeader = Number(currentUserProjectRole) === ProjectRoleEnum.Leader;
 
