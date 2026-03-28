@@ -24,7 +24,8 @@ import {
     Send,
     Edit2,
     Save,
-    Link as LinkIcon
+    Link as LinkIcon,
+    FileText
 } from 'lucide-react';
 
 const statusColor: Record<SubmissionStatus, string> = {
