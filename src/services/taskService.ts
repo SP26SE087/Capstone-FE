@@ -103,7 +103,7 @@ export const taskService = {
         try {
             // Per updated model: PUT /api/projects/tasks
             const updatePayload = {
-                taskId: taskId,
+                id: taskId,
                 name: taskData.name,
                 description: taskData.description,
                 priority: taskData.priority,
@@ -317,6 +317,36 @@ export const taskService = {
         } catch (error) {
             console.error('Error creating bulk tasks:', error);
             throw error;
+        }
+    },
+
+    getActivitiesByMilestone: async (milestoneId: string): Promise<any[]> => {
+        try {
+            const response = await api.get(`/api/projects/milestones/${milestoneId}/tasks/status-activities`);
+            return response.data.data || response.data || [];
+        } catch (error) {
+            console.error(`Error fetching milestone activities for ${milestoneId}:`, error);
+            return [];
+        }
+    },
+
+    getActivitiesByMember: async (memberId: string): Promise<any[]> => {
+        try {
+            const response = await api.get(`/api/projects/tasks/member/${memberId}/status-activities`);
+            return response.data.data || response.data || [];
+        } catch (error) {
+            console.error(`Error fetching member activities for ${memberId}:`, error);
+            return [];
+        }
+    },
+
+    getActivitiesByTask: async (taskId: string): Promise<any> => {
+        try {
+            const response = await api.get(`/api/projects/tasks/${taskId}/status-activities`);
+            return response.data.data || response.data;
+        } catch (error) {
+            console.error(`Error fetching task activities for ${taskId}:`, error);
+            return null;
         }
     }
 };

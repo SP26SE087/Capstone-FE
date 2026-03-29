@@ -128,9 +128,9 @@ const Home: React.FC = () => {
                             const statusStyle = getProjectStatusStyle(project.status);
                             return (
                                 <div
-                                    key={project.id}
+                                    key={project.projectId}
                                     className="card card-interactive"
-                                    onClick={() => navigate(`/explore/projects/${project.id}`)}
+                                    onClick={() => navigate(`/explore/projects/${project.projectId}`)}
                                     style={{ padding: 0, display: 'flex', flexDirection: 'column' }}
                                 >
                                     <div style={{ padding: '1.5rem', flex: 1 }}>
@@ -167,7 +167,7 @@ const Home: React.FC = () => {
 
                                         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                                             {project.researchFields?.slice(0, 3).map(rf => (
-                                                <span key={rf.id} className="tag">{rf.name}</span>
+                                                <span key={rf.researchFieldId} className="tag">{rf.name}</span>
                                             ))}
                                         </div>
                                     </div>

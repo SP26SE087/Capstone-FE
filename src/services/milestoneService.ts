@@ -100,5 +100,16 @@ export const milestoneService = {
             console.error(`Error fetching tasks for milestone ${milestoneId}:`, error);
             return [];
         }
+    },
+
+    getMilestoneTasksByProject: async (projectId: string): Promise<any[]> => {
+        if (!projectId) return [];
+        try {
+            const response = await api.get(`/api/projects/${projectId}/milestones/tasks`);
+            return response.data.data || response.data || [];
+        } catch (error) {
+            console.error(`Error fetching milestone tasks for project ${projectId}:`, error);
+            return [];
+        }
     }
 };
