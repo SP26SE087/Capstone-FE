@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-    Search, Plus, X, LayoutGrid, User, Calendar, Loader2, Play, Send,
+    Search, Plus, X, LayoutGrid, User, Users, UserPlus, Calendar, Loader2, Play, Send,
     Upload, Paperclip, Target, Filter, ChevronDown, Check, RotateCw, CheckCircle2, Clock
 } from 'lucide-react';
 import { Project, Task, TaskStatus, Milestone, MilestoneStatus } from '@/types';
@@ -770,9 +770,11 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                                                     onClick={() => setShowCollabs(!showCollabs)}
                                                     style={{
                                                         display: 'flex', alignItems: 'center', gap: '8px', background: '#f8fafc', border: '1px solid #e2e8f0',
-                                                        padding: '6px 12px', borderRadius: '8px', cursor: 'pointer', width: '100%', transition: 'all 0.2s'
+                                                        padding: '6px 12px', borderRadius: '8px', cursor: 'pointer', width: '100%', transition: 'all 0.2s',
+                                                        justifyContent: 'flex-start'
                                                     }}
                                                 >
+                                                    <Users size={14} style={{ color: '#94a3b8' }} />
                                                     <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#475569', flex: 1, textAlign: 'left' }}>
                                                         Collaborators ({collabs.length})
                                                     </div>

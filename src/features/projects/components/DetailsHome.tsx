@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-    Activity, Clock, Calendar, User,
+    Activity, Clock, Calendar, User, Users, UserPlus,
     Play, Send, AlertTriangle,
     Layout, CheckCircle2, Target, ChevronRight, ChevronDown, Loader2
 } from 'lucide-react';
@@ -59,6 +59,8 @@ const DetailsHome: React.FC<DetailsHomeProps> = ({
     // API Stats State
     const [overviewStats, setOverviewStats] = useState<any>(null);
     const [myWorkStats, setMyWorkStats] = useState<any>(null);
+    const [loadingTasks, setLoadingTasks] = useState(false);
+    const [myWorkTasks, setMyWorkTasks] = useState<Task[]>([]);
     const [_loadingStats, setLoadingStats] = useState(false);
 
     // Fetch Dashboard Stats from API
@@ -66,23 +68,7 @@ const DetailsHome: React.FC<DetailsHomeProps> = ({
         const memberId = currentMember?.membershipId || currentMember?.id || (currentMember as any)?.memberId;
         const pId = project?.projectId || (project as any)?.id;
 
-        console.debug('Dashboard Fetch Attempt:', {
-            projectId: pId,
-            milestoneId: selectedMilestoneId,
-            memberId
-        });
-
-        // We only fetch if we have a valid project ID
-        // If selectedMilestoneId is empty, it means we're in the initial state or 'all'
-        if (!pId) {
-            console.debug('Dashboard Fetch: Missing project ID');
-            return;
-        }
-
-        // IMPORTANT: The backend requires memberId for my-work stats
-        if (!memberId) {
-            console.warn('Dashboard Fetch: memberId is missing, cannot fetch my-work stats');
-        }
+        if (!pId) return;
 
         setLoadingStats(true);
         try {
@@ -92,23 +78,39 @@ const DetailsHome: React.FC<DetailsHomeProps> = ({
                 memberId ? dashboardService.getMyWork(memberId, mId) : Promise.resolve(null)
             ]);
 
-            console.debug('Dashboard Stats Response:', { overview, myWork });
-
             setOverviewStats(overview);
             setMyWorkStats(myWork);
         } catch (error) {
-            console.error('Failed to fetch dashboard stats from API:', error);
+            console.error('Failed to fetch dashboard stats:', error);
         } finally {
             setLoadingStats(false);
         }
-    }, [selectedMilestoneId, project, currentMember, tasks, milestones]);
+    }, [selectedMilestoneId, currentMember]);
+
+    const fetchMyTasks = React.useCallback(async () => {
+        setLoadingTasks(true);
+        try {
+            const allMyTasks = await taskService.getPriorityTasks();
+            const pId = project.projectId || (project as any).id;
+            // Filter global priority tasks to only those belonging to THIS project
+            const filteredByProject = allMyTasks.filter((t: any) => (t.projectId || t.project?.id) === pId);
+            setMyWorkTasks(filteredByProject);
+        } catch (err) {
+            console.error('Failed to fetch personal tasks:', err);
+        } finally {
+            setLoadingTasks(false);
+        }
+    }, [project.projectId]);
 
     useEffect(() => {
-        const pId = project?.projectId || (project as any)?.id;
+        const pId = project?.projectId || (project as any).id;
         if (pId) {
             fetchDashboardStats();
+            if (viewMode === 'my-work') {
+                fetchMyTasks();
+            }
         }
-    }, [fetchDashboardStats, project, selectedMilestoneId, currentMember]);
+    }, [fetchDashboardStats, fetchMyTasks, project, selectedMilestoneId, viewMode]);
 
     // Close dropdown on click outside
     useEffect(() => {
@@ -539,9 +541,16 @@ const DetailsHome: React.FC<DetailsHomeProps> = ({
                     // Filter for My Work if needed
                     let displayTasks = filteredTasks;
                     if (viewMode === 'my-work') {
-                        displayTasks = filteredTasks.filter((t: any) =>
-                            (t.memberId === myMembershipId || t.assignedToName === currentUser?.name) &&
-                            [TaskStatus.Todo, TaskStatus.InProgress, TaskStatus.Adjusting].includes(t.status)
+                        // Show all my priority tasks for this project regardless of milestone
+                        displayTasks = myWorkTasks;
+                    }
+
+                    if (loadingTasks) {
+                        return (
+                            <div style={{ textAlign: 'center', height: '340px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', background: '#f8fafc', borderRadius: '20px', border: '1px dashed #e2e8f0' }}>
+                                <Loader2 size={32} className="animate-spin" style={{ color: 'var(--primary-color)' }} />
+                                <p style={{ marginTop: '1rem', fontWeight: 600, color: '#64748b' }}>Fetching your tasks...</p>
+                            </div>
                         );
                     }
 
@@ -572,9 +581,9 @@ const DetailsHome: React.FC<DetailsHomeProps> = ({
                                             ? task.supportMembers.length
                                             : (task.collaboratorIds || []).filter((id: string) => id !== aId).length;
 
-                                    const pColors = task.priority === 4 ? { bg: '#fee2e2', text: '#ef4444', label: 'CRITICAL' } :
-                                        task.priority === 3 ? { bg: '#ffedd5', text: '#ea580c', label: 'HIGH' } :
-                                            task.priority === 2 ? { bg: '#ecfdf5', text: '#10b981', label: 'MEDIUM' } :
+                                    const pColors = task.priority === 4 ? { bg: '#fef2f2', text: '#ef4444', label: 'CRITICAL' } :
+                                        task.priority === 3 ? { bg: '#fff7ed', text: '#f97316', label: 'HIGH' } :
+                                            task.priority === 2 ? { bg: '#eff6ff', text: '#3b82f6', label: 'MEDIUM' } :
                                                 { bg: '#f1f5f9', text: '#64748b', label: 'LOW' };
 
                                     return (
@@ -617,8 +626,8 @@ const DetailsHome: React.FC<DetailsHomeProps> = ({
                                                         </span>
                                                     </div>
                                                     {collabCount > 0 && (
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#fffaf5', padding: '4px 8px', borderRadius: '12px', border: '1px solid #ffd8a8', color: 'var(--primary-color)' }}>
-                                                            <Activity size={12} />
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#f8fafc', padding: '4px 8px', borderRadius: '12px', border: '1px solid #e2e8f0', color: '#64748b' }}>
+                                                            <Users size={12} />
                                                             <span style={{ fontSize: '0.65rem', fontWeight: 800 }}>{collabCount}</span>
                                                         </div>
                                                     )}
