@@ -1,7 +1,7 @@
 {
     "openapi": "3.0.1",
     "info": {
-        "title": "ReportService API",
+        "title": "API",
         "version": "v1"
     },
     "paths": {
@@ -330,17 +330,133 @@
                     }
                 }
             }
+        },
+        "/api/Reports/bulk": {
+            "post": {
+                "tags": [
+                    "Reports"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/components/schemas/CreateReportRequest"
+                                }
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/components/schemas/CreateReportRequest"
+                                }
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "type": "array",
+                                "items": {
+                                    "$ref": "#/components/schemas/CreateReportRequest"
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/api/Reports/{id}/assignee": {
+            "patch": {
+                "tags": [
+                    "Reports"
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AssigneeUpdateRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AssigneeUpdateRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AssigneeUpdateRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/api/Reports/{id}/ai-feedback": {
+            "get": {
+                "tags": [
+                    "Reports"
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
         }
     },
     "components": {
         "schemas": {
+            "AssigneeUpdateRequest": {
+                "type": "object",
+                "properties": {
+                    "status": {
+                        "type": "integer",
+                        "format": "int32",
+                        "nullable": true
+                    },
+                    "feedback": {
+                        "type": "string",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
             "CreateReportRequest": {
                 "type": "object",
                 "properties": {
-                    "userId": {
-                        "type": "string",
-                        "format": "uuid"
-                    },
                     "projectId": {
                         "type": "string",
                         "format": "uuid",
@@ -375,11 +491,10 @@
                         "type": "string",
                         "nullable": true
                     },
-                    "assigneeIds": {
+                    "assigneeEmails": {
                         "type": "array",
                         "items": {
-                            "type": "string",
-                            "format": "uuid"
+                            "type": "string"
                         },
                         "nullable": true
                     }
@@ -467,16 +582,10 @@
                         "type": "string",
                         "nullable": true
                     },
-                    "status": {
-                        "type": "integer",
-                        "format": "int32",
-                        "nullable": true
-                    },
-                    "assigneeIds": {
+                    "assigneeEmails": {
                         "type": "array",
                         "items": {
-                            "type": "string",
-                            "format": "uuid"
+                            "type": "string"
                         },
                         "nullable": true
                     }
@@ -486,10 +595,10 @@
         },
         "securitySchemes": {
             "Bearer": {
-                "type": "http",
-                "description": "JWT Authorization header using the Bearer scheme",
-                "scheme": "bearer",
-                "bearerFormat": "JWT"
+                "type": "apiKey",
+                "description": "Enter 'Bearer {token}' (including the word 'Bearer' and a space) in the Authorization header.",
+                "name": "Authorization",
+                "in": "header"
             }
         }
     },

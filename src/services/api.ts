@@ -21,22 +21,19 @@ export const setupInterceptors = (axiosInstance: any) => {
         },
     });
 
-    // Add a request interceptor to add the auth token to headers
+    // Request interceptor to add the auth token to headers
     axiosInstance.interceptors.request.use(
         (config: any) => {
             const token = localStorage.getItem('token');
-            // Only add the token if it's not already set (e.g., manually passed in getMe)
             if (token && token !== 'undefined' && token !== 'null' && !config.headers.Authorization) {
                 config.headers.Authorization = `Bearer ${token}`;
             }
             return config;
         },
-        (error: any) => {
-            return Promise.reject(error);
-        }
+        (error: any) => Promise.reject(error)
     );
 
-    // Flag to prevent multiple refresh calls
+    // Flag to prevent multiple refresh calls simultaneously
     let isRefreshing = false;
     let failedQueue: any[] = [];
 
@@ -51,18 +48,16 @@ export const setupInterceptors = (axiosInstance: any) => {
         failedQueue = [];
     };
 
-    // Add a response interceptor to handle token refresh
+    // Response interceptor to handle token refresh
     axiosInstance.interceptors.response.use(
-        (response: any) => {
-            return response;
-        },
+        (response: any) => response,
         async (error: any) => {
             const originalRequest = error.config;
 
-            // If error is 401 and we haven't retried yet
-            if (error.response?.status === 401 && !originalRequest._retry) {
-
-                // If it's already refreshing, add to queue
+            // If error is 401 and not already retrying
+            if (error.response?.status === 401 && !originalRequest._retry && !originalRequest.url?.includes('/api/auth/refresh')) {
+                
+                // Concurrent refresh handling
                 if (isRefreshing) {
                     return new Promise((resolve, reject) => {
                         failedQueue.push({ resolve, reject });
@@ -71,157 +66,77 @@ export const setupInterceptors = (axiosInstance: any) => {
                             originalRequest.headers.Authorization = `Bearer ${token}`;
                             return axiosInstance(originalRequest);
                         })
-                        .catch((err) => {
-                            return Promise.reject(err);
-                        });
+                        .catch((err) => Promise.reject(err));
                 }
 
                 originalRequest._retry = true;
                 isRefreshing = true;
 
-                const refreshToken = localStorage.getItem('refreshToken');
+                const currentRefreshToken = localStorage.getItem('refreshToken');
 
-                if (!refreshToken || refreshToken === 'undefined' || refreshToken === 'null') {
+                if (!currentRefreshToken || currentRefreshToken === 'undefined' || currentRefreshToken === 'null') {
                     isRefreshing = false;
-                    processQueue(new Error('No refresh token available'), null);
+                    // No refresh token: session expired
+                    handleSessionExpired();
                     return Promise.reject(error);
                 }
 
                 try {
-                    // Call refresh endpoint using the refreshInstance
-                    // Use absolute path or ensure the instance has correct baseURL
-                    const response = await refreshInstance.post('/api/auth/refresh', { refreshToken });
+                    // Call refresh endpoint with exact relative path
+                    const response = await refreshInstance.post('/api/auth/refresh', { refreshToken: currentRefreshToken });
 
-                    // Assuming the response structure is consistent
-                    const authData = response.data.data || response.data;
-                    const { jwtToken, refreshToken: newRefreshToken } = authData;
+                    // Map fields robustly (handle PascalCase/camelCase)
+                    const data = response.data.data || response.data;
+                    const newToken = data.jwtToken || data.JwtToken;
+                    const newRefreshToken = data.refreshToken || data.RefreshToken;
+
+                    if (!newToken) throw new Error('No token returned from refresh');
 
                     // Update storage
-                    localStorage.setItem('token', jwtToken);
-                    localStorage.setItem('refreshToken', newRefreshToken);
-                    if (authData.userId) {
+                    localStorage.setItem('token', newToken);
+                    localStorage.setItem('refreshToken', newRefreshToken || currentRefreshToken);
+                    
+                    // Optional: Update user info if returned
+                    if (data.email || data.userId) {
                         localStorage.setItem('auth_user', JSON.stringify({
-                            userId: authData.userId,
-                            email: authData.email,
-                            fullName: authData.fullName,
-                            role: authData.role,
+                            userId: data.userId || data.UserId,
+                            email: data.email || data.Email,
+                            fullName: data.fullName || data.FullName,
+                            role: data.role || data.Role,
                         }));
                     }
 
-                    // Update original request and retry
-                    originalRequest.headers.Authorization = `Bearer ${jwtToken}`;
-
-                    processQueue(null, jwtToken);
+                    // Process queuing and retry
+                    originalRequest.headers.Authorization = `Bearer ${newToken}`;
+                    processQueue(null, newToken);
                     isRefreshing = false;
 
                     return axiosInstance(originalRequest);
                 } catch (refreshError) {
-                    // Refresh failed - force logout
                     processQueue(refreshError, null);
                     isRefreshing = false;
-
-                    localStorage.removeItem('token');
-                    localStorage.removeItem('refreshToken');
-                    localStorage.removeItem('auth_user');
-
-                    // Only redirect if we are on a protected page
-                    if (!window.location.pathname.includes('/login')) {
-                        window.location.href = '/login';
-                    }
-
+                    handleSessionExpired();
                     return Promise.reject(refreshError);
                 }
             }
 
             return Promise.reject(error);
-        });
+        }
+    );
 };
 
-setupInterceptors(api);
-
-// ---- Auto Refresh Token Logic ----
-let isRefreshing = false;
-let failedQueue: Array<{
-    resolve: (token: string) => void;
-    reject: (error: unknown) => void;
-}> = [];
-
-const processQueue = (error: unknown, token: string | null = null) => {
-    failedQueue.forEach((prom) => {
-        if (error) {
-            prom.reject(error);
-        } else {
-            prom.resolve(token!);
-        }
-    });
-    failedQueue = [];
-};
-
-api.interceptors.response.use(
-    (response) => response,
-    async (error) => {
-        const originalRequest = error.config;
-
-        // Only handle 401 errors, skip if already retried or if this is the refresh request itself
-        if (
-            error.response?.status === 401 &&
-            !originalRequest._retry &&
-            !originalRequest.url?.includes('/api/auth/refresh')
-        ) {
-            // If already refreshing, queue this request
-            if (isRefreshing) {
-                return new Promise<string>((resolve, reject) => {
-                    failedQueue.push({ resolve, reject });
-                })
-                    .then((token) => {
-                        originalRequest.headers.Authorization = `Bearer ${token}`;
-                        return api(originalRequest);
-                    })
-                    .catch((err) => Promise.reject(err));
-            }
-
-            originalRequest._retry = true;
-            isRefreshing = true;
-
-            try {
-                const refreshToken = localStorage.getItem('refreshToken');
-                if (!refreshToken || refreshToken === 'undefined' || refreshToken === 'null') {
-                    throw new Error('No refresh token available');
-                }
-
-                const response = await api.post('/api/auth/refresh', { refreshToken });
-                const data = response.data.data || response.data;
-
-                // Save new tokens
-                localStorage.setItem('token', data.jwtToken);
-                localStorage.setItem('refreshToken', data.refreshToken);
-                localStorage.setItem('auth_user', JSON.stringify({
-                    email: data.email,
-                    fullName: data.fullName,
-                    role: data.role,
-                }));
-
-                // Process all queued requests with the new token
-                processQueue(null, data.jwtToken);
-
-                // Retry the original request with the new token
-                originalRequest.headers.Authorization = `Bearer ${data.jwtToken}`;
-                return api(originalRequest);
-            } catch (refreshError) {
-                // Refresh failed — clear auth data and redirect to login
-                processQueue(refreshError, null);
-                localStorage.removeItem('token');
-                localStorage.removeItem('refreshToken');
-                localStorage.removeItem('auth_user');
-                window.location.href = '/login';
-                return Promise.reject(refreshError);
-            } finally {
-                isRefreshing = false;
-            }
-        }
-
-        return Promise.reject(error);
+const handleSessionExpired = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('auth_user');
+    
+    // Redirect only if not already on login page
+    if (!window.location.pathname.includes('/login')) {
+        window.location.href = '/login';
     }
-);
+};
+
+// Apply interceptors
+setupInterceptors(api);
 
 export default api;
