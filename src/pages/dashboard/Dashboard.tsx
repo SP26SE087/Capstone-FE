@@ -212,12 +212,12 @@ function Dashboard() {
                                 {loading ? (
                                     <p style={{ color: 'var(--text-secondary)' }}>Loading tasks...</p>
                                 ) : tasks.length > 0 ? (
-                                    tasks.slice(0, 4).map((task) => {
+                                    tasks.slice(0, 4).map((task, index) => {
                                         const isNearDeadline = task.dueDate && (task.status !== TaskStatus.Completed && task.status !== TaskStatus.Submitted) && ((new Date(task.dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) <= 3;
 
                                         return (
                                             <div
-                                                key={task.taskId}
+                                                key={task.taskId || `task-${index}`}
                                                 onClick={() => navigate(`/tasks?selectedId=${task.taskId}`)}
                                                 style={{
                                                     padding: '0.9rem 1rem',
@@ -251,7 +251,7 @@ function Dashboard() {
                                                 )}
                                                 <div>
                                                     <span style={{ fontSize: '0.7rem', color: 'var(--accent-color)', fontWeight: 600 }}>
-                                                        {task.taskId.substring(0, 8).toUpperCase()}
+                                                        {(task.taskId || '').substring(0, 8).toUpperCase()}
                                                     </span>
                                                     <p style={{ margin: '3px 0', fontSize: '0.9rem', fontWeight: 500 }}>{task.name}</p>
                                                     <div style={{ display: 'flex', gap: '12px', fontSize: '0.78rem', color: 'var(--text-muted)' }}>

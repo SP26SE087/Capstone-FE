@@ -23,7 +23,6 @@ import {
     Trash2,
     Send,
     Edit2,
-    Save,
     Link as LinkIcon,
     FileText
 } from 'lucide-react';
@@ -41,7 +40,7 @@ const statusColor: Record<SubmissionStatus, string> = {
 const PaperSubmissions: React.FC = () => {
     const [papers, setPapers] = useState<PaperSubmissionResponse[]>([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    const [_error, setError] = useState<string | null>(null);
     const [search, setSearch] = useState('');
 
     // Form states
@@ -67,11 +66,11 @@ const PaperSubmissions: React.FC = () => {
     const [editingPaperId, setEditingPaperId] = useState<string | null>(null);
     const [editData, setEditData] = useState<any>({});
     const [editLoading, setEditLoading] = useState(false);
-    const [editError, setEditError] = useState<string | null>(null);
+    const [_editError, setEditError] = useState<string | null>(null);
 
     // Delete & Submit
     const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-    const [deleteLoading, setDeleteLoading] = useState(false);
+    const [_deleteLoading, setDeleteLoading] = useState(false);
     const [submitReviewLoading, setSubmitReviewLoading] = useState<string | null>(null);
 
     // Submission Venue Modal
@@ -163,7 +162,7 @@ const PaperSubmissions: React.FC = () => {
                 abstract: addAbstract,
                 conferenceName: addConference,
                 paperUrl: addPaperUrl,
-                submissionDeadline: null,
+                submissionDeadline: '',
                 members: addMembers,
                 // @ts-ignore
                 createdByMembershipId: myMembershipId
@@ -199,7 +198,7 @@ const PaperSubmissions: React.FC = () => {
                 abstract: editData.abstract || '',
                 paperUrl: editData.paperUrl || '',
                 conferenceName: editData.conferenceName || '',
-                submissionDeadline: editData.submissionDeadline || null,
+                submissionDeadline: editData.submissionDeadline || '',
                 members: editData.members?.map((m: any) => ({ membershipId: m.membershipId, role: m.role })) || [],
                 // @ts-ignore
                 lastUpdatedByMembershipId: myMembershipId

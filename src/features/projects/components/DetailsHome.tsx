@@ -1,32 +1,116 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-    Activity, Clock, Flag,
-    Play, Send, AlertTriangle, ArrowUpRight,
-    Layout, CheckCircle2, Target, ChevronRight
+    Activity, Clock, Calendar, User, Users, UserPlus,
+    Play, Send, AlertTriangle,
+    Layout, CheckCircle2, Target, ChevronRight, ChevronDown, Loader2
 } from 'lucide-react';
 import { Project, Milestone, Task, TaskStatus, MilestoneStatus, ProjectRoleEnum } from '@/types';
-import { taskService } from '@/services';
+import { taskService, dashboardService } from '@/services';
 
 interface DetailsHomeProps {
     project: Project;
     tasks: Task[];
     milestones: Milestone[];
+    timelineData: any;
+    members: any[];
     formatProjectDate: (date: string | Date | null | undefined, fallback?: string) => string;
     currentUser: any;
     currentMember: any;
     refreshData: () => void;
 }
 
+const getStatusText = (status: number) => {
+    switch (status) {
+        case 1: return 'To Do';
+        case 2: return 'In Progress';
+        case 3: return 'Submitted';
+        case 4: return 'Missed';
+        case 5: return 'Adjusting';
+        case 6: return 'Done';
+        default: return 'Unknown';
+    }
+};
+
+const getStatusColor = (status: number) => {
+    switch (status) {
+        case 1: return { bg: '#f1f5f9', text: '#64748b' };
+        case 2: return { bg: '#eff6ff', text: '#3b82f6' };
+        case 3: return { bg: '#ecfdf5', text: '#10b981' };
+        case 4: return { bg: '#fef2f2', text: '#ef4444' };
+        case 5: return { bg: '#fff7ed', text: '#f97316' };
+        case 6: return { bg: '#f0fdf4', text: '#22c55e' };
+        default: return { bg: '#f1f5f9', text: '#64748b' };
+    }
+};
+
 const DetailsHome: React.FC<DetailsHomeProps> = ({
-    tasks, milestones, formatProjectDate, currentUser, currentMember, refreshData
+    project, tasks, milestones, timelineData, members, formatProjectDate, currentUser, currentMember, refreshData
 }) => {
     const isManager = currentMember?.projectRole === ProjectRoleEnum.LabDirector || currentMember?.projectRole === ProjectRoleEnum.Leader;
+    const myMembershipId = currentMember?.membershipId || currentMember?.id || (currentMember as any)?.memberId;
 
     const [viewMode, setViewMode] = useState<'my-work' | 'perspective'>(isManager ? 'perspective' : 'my-work');
-    const [selectedMilestoneId, setSelectedMilestoneId] = useState<string>('all');
+    const [selectedMilestoneId, setSelectedMilestoneId] = useState<string>('');
     const [isMilestoneDropdownOpen, setIsMilestoneDropdownOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
     const [submitting, setSubmitting] = useState<string | null>(null);
+    const [expandedTasks, setExpandedTasks] = useState<string[]>([]);
+
+    // API Stats State
+    const [overviewStats, setOverviewStats] = useState<any>(null);
+    const [myWorkStats, setMyWorkStats] = useState<any>(null);
+    const [loadingTasks, setLoadingTasks] = useState(false);
+    const [myWorkTasks, setMyWorkTasks] = useState<Task[]>([]);
+    const [_loadingStats, setLoadingStats] = useState(false);
+
+    // Fetch Dashboard Stats from API
+    const fetchDashboardStats = React.useCallback(async () => {
+        const memberId = currentMember?.membershipId || currentMember?.id || (currentMember as any)?.memberId;
+        const pId = project?.projectId || (project as any)?.id;
+
+        if (!pId) return;
+
+        setLoadingStats(true);
+        try {
+            const mId = selectedMilestoneId === 'all' ? '' : selectedMilestoneId;
+            const [overview, myWork] = await Promise.all([
+                dashboardService.getOverview(mId),
+                memberId ? dashboardService.getMyWork(memberId, mId) : Promise.resolve(null)
+            ]);
+
+            setOverviewStats(overview);
+            setMyWorkStats(myWork);
+        } catch (error) {
+            console.error('Failed to fetch dashboard stats:', error);
+        } finally {
+            setLoadingStats(false);
+        }
+    }, [selectedMilestoneId, currentMember]);
+
+    const fetchMyTasks = React.useCallback(async () => {
+        setLoadingTasks(true);
+        try {
+            const allMyTasks = await taskService.getPriorityTasks();
+            const pId = project.projectId || (project as any).id;
+            // Filter global priority tasks to only those belonging to THIS project
+            const filteredByProject = allMyTasks.filter((t: any) => (t.projectId || t.project?.id) === pId);
+            setMyWorkTasks(filteredByProject);
+        } catch (err) {
+            console.error('Failed to fetch personal tasks:', err);
+        } finally {
+            setLoadingTasks(false);
+        }
+    }, [project.projectId]);
+
+    useEffect(() => {
+        const pId = project?.projectId || (project as any).id;
+        if (pId) {
+            fetchDashboardStats();
+            if (viewMode === 'my-work') {
+                fetchMyTasks();
+            }
+        }
+    }, [fetchDashboardStats, fetchMyTasks, project, selectedMilestoneId, viewMode]);
 
     // Close dropdown on click outside
     useEffect(() => {
@@ -39,94 +123,142 @@ const DetailsHome: React.FC<DetailsHomeProps> = ({
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
+    // Resolve ID consistently
+    const getMId = (m: any) => m.milestoneId || m.id;
+
     const now = new Date();
     const threeDaysFromNow = new Date(now.getTime() + (3 * 24 * 60 * 60 * 1000));
 
-    // SCOPED DATA FILTERING
-    const scopedTasks = selectedMilestoneId === 'all' 
-        ? tasks 
-        : tasks.filter(t => t.milestoneId === selectedMilestoneId);
+    // SCOPED DATA FILTERING (For list display)
+    const scopedTasks = !selectedMilestoneId || selectedMilestoneId === 'all'
+        ? tasks
+        : tasks.filter(t => String(t.milestoneId || "") === String(selectedMilestoneId));
 
-    // Granular Metrics - Managers (Scoped)
-    const managerMissedTasks = scopedTasks.filter(t => t.status !== TaskStatus.Submitted && t.status !== TaskStatus.Completed && t.dueDate && new Date(t.dueDate) < now);
-    const managerWarningTasks = scopedTasks.filter(t => t.status !== TaskStatus.Submitted && t.status !== TaskStatus.Completed && t.dueDate && new Date(t.dueDate) >= now && new Date(t.dueDate) <= threeDaysFromNow);
-    const managerUnstartedTasks = scopedTasks.filter(t => t.status === TaskStatus.Todo && t.startDate && new Date(t.startDate) <= now);
-    const managerPendingApproval = scopedTasks.filter(t => t.status === TaskStatus.Submitted);
-
-    // Filtered Milestone logic
-    const riskyMilestones = milestones.filter(m => {
-        const isCurrent = m.status === MilestoneStatus.InProgress;
-        const milestoneTasks = tasks.filter(t => t.milestoneId === m.milestoneId);
-        const hasUnfinishedTasks = milestoneTasks.some(t => t.status !== TaskStatus.Completed);
-        const isNearDeadline = m.dueDate && new Date(m.dueDate) <= threeDaysFromNow;
-        return isCurrent && hasUnfinishedTasks && isNearDeadline;
-    });
-
-    // Granular Metrics - Practitioners (Scoped)
-    const myMembershipId = currentMember?.membershipId || currentMember?.id;
-    const projectMyTasks = scopedTasks.filter(t => t.memberId === myMembershipId || t.assignedToName === currentUser?.name);
-
-    const myTasksInProgress = projectMyTasks.filter(t => [TaskStatus.Todo, TaskStatus.InProgress, TaskStatus.Adjusting].includes(t.status));
-    const myAdjustingTasks = projectMyTasks.filter(t => t.status === TaskStatus.Adjusting);
-    const myLateStartTasks = projectMyTasks.filter(t => t.status === TaskStatus.Todo && t.startDate && new Date(t.startDate) <= now);
-
-    // Sorting Logic based on Role
-    const getSortedTasks = () => {
-        const priorityScoped = [...scopedTasks];
-        return priorityScoped.sort((a, b) => {
-            if (isManager) {
-                // Manager Priorities: Risky Milestone > Missed > Warning > To Review
-                const aInRisky = riskyMilestones.some(rm => rm.milestoneId === a.milestoneId);
-                const bInRisky = riskyMilestones.some(rm => rm.milestoneId === b.milestoneId);
-                if (aInRisky !== bInRisky) return aInRisky ? -1 : 1;
-
-                const aMissed = a.status !== TaskStatus.Submitted && a.status !== TaskStatus.Completed && a.dueDate && new Date(a.dueDate) < now;
-                const bMissed = b.status !== TaskStatus.Submitted && b.status !== TaskStatus.Completed && b.dueDate && new Date(b.dueDate) < now;
-                if (aMissed !== bMissed) return aMissed ? -1 : 1;
-
-                const aWarning = a.status !== TaskStatus.Submitted && a.status !== TaskStatus.Completed && a.dueDate && new Date(a.dueDate) >= now && new Date(a.dueDate) <= threeDaysFromNow;
-                const bWarning = b.status !== TaskStatus.Submitted && b.status !== TaskStatus.Completed && b.dueDate && new Date(b.dueDate) >= now && new Date(b.dueDate) <= threeDaysFromNow;
-                if (aWarning !== bWarning) return aWarning ? -1 : 1;
-
-                const aReview = a.status === TaskStatus.Submitted;
-                const bReview = b.status === TaskStatus.Submitted;
-                if (aReview !== bReview) return aReview ? -1 : 1;
-            } else {
-                // Researcher Priorities: High Priority (Late Start) > Needs Adjusting > Unstarted (Todo)
-                const aLate = a.status === TaskStatus.Todo && a.startDate && new Date(a.startDate) <= now;
-                const bLate = b.status === TaskStatus.Todo && b.startDate && new Date(b.startDate) <= now;
-                if (aLate !== bLate) return aLate ? -1 : 1;
-
-                const aAdj = a.status === TaskStatus.Adjusting;
-                const bAdj = b.status === TaskStatus.Adjusting;
-                if (aAdj !== bAdj) return aAdj ? -1 : 1;
-
-                const aTodo = a.status === TaskStatus.Todo;
-                const bTodo = b.status === TaskStatus.Todo;
-                if (aTodo !== bTodo) return aTodo ? -1 : 1;
-            }
-            return 0;
+    // Fix Milestone Duplication & Filter
+    const uniqueMilestones = React.useMemo(() => {
+        const seen = new Set();
+        return milestones.filter((m, idx) => {
+            const id = getMId(m) || `temp-${m.name}-${idx}`;
+            if (seen.has(id)) return false;
+            seen.add(id);
+            return true;
         });
+    }, [milestones]);
+
+    // Fallback Metrics Logic (Keep as backup if API doesn't return everything)
+    const getManagerMetrics = () => {
+        if (overviewStats) return {
+            missed: overviewStats.missedTasks ?? 0,
+            warning: overviewStats.warmingTasks ?? overviewStats.warningTasks ?? 0,
+            unstarted: overviewStats.unstartedTasks ?? 0,
+            waiting: overviewStats.waitingTasks ?? 0,
+            pendingApproval: overviewStats.toReviewTasks ?? overviewStats.pendingApproval ?? 0,
+            risky: overviewStats.riskyMilestone ?? overviewStats.riskyMilestones ?? 0,
+            running: overviewStats.runningTasks ?? 0,
+            completed: overviewStats.completedTasks ?? 0,
+            total: overviewStats.totalTasks ?? scopedTasks.length
+        };
+
+        // FE-only fallback
+        return {
+            missed: scopedTasks.filter(t => t.status !== TaskStatus.Submitted && t.status !== TaskStatus.Completed && t.dueDate && new Date(t.dueDate) < now).length,
+            warning: scopedTasks.filter(t => t.status !== TaskStatus.Submitted && t.status !== TaskStatus.Completed && t.dueDate && new Date(t.dueDate) >= now && new Date(t.dueDate) <= threeDaysFromNow).length,
+            unstarted: scopedTasks.filter(t => t.status === TaskStatus.Todo && t.startDate && new Date(t.startDate) <= now).length,
+            waiting: scopedTasks.filter(t => t.status === TaskStatus.Todo).length,
+            pendingApproval: scopedTasks.filter(t => t.status === TaskStatus.Submitted).length,
+            risky: uniqueMilestones.filter(m => {
+                const isC = m.status === MilestoneStatus.InProgress;
+                const mId = getMId(m);
+                const hasU = tasks.filter(t => String(t.milestoneId || "") === String(mId)).some(t => t.status !== TaskStatus.Completed);
+                const isN = m.dueDate && new Date(m.dueDate) <= threeDaysFromNow;
+                return isC && hasU && isN;
+            }).length,
+            running: scopedTasks.filter(t => t.status === TaskStatus.InProgress).length,
+            completed: scopedTasks.filter(t => t.status === TaskStatus.Completed).length,
+            total: scopedTasks.length
+        };
     };
 
-    const sortedTasks = getSortedTasks();
+    const getMyWorkMetrics = () => {
+        if (myWorkStats) return {
+            highPriority: myWorkStats.highPriority ?? myWorkStats.lateStartTasks ?? 0,
+            adjusting: myWorkStats.needsAdjusting ?? myWorkStats.adjustingTasks ?? 0,
+            waiting: myWorkStats.waiting ?? myWorkStats.waitingTasks ?? 0,
+            missed: myWorkStats.missedTasks ?? 0,
+            running: myWorkStats.running ?? myWorkStats.runningTasks ?? 0,
+            completed: myWorkStats.completed ?? myWorkStats.completedTasks ?? 0,
+            assigned: myWorkStats.assigned ?? myWorkStats.assignedTasks ?? 0
+        };
+
+        const myMembershipId = currentMember?.membershipId || currentMember?.id;
+        const projectMyTasks = scopedTasks.filter((t: Task) => t.memberId === myMembershipId || t.assignedToName === currentUser?.name);
+
+        return {
+            highPriority: projectMyTasks.filter(t => t.status === TaskStatus.Todo && t.startDate && new Date(t.startDate) <= now).length,
+            adjusting: projectMyTasks.filter(t => t.status === TaskStatus.Adjusting).length,
+            waiting: projectMyTasks.filter(t => t.status === TaskStatus.Todo).length,
+            missed: projectMyTasks.filter(t => t.status !== TaskStatus.Submitted && t.status !== TaskStatus.Completed && t.dueDate && new Date(t.dueDate) < now).length,
+            running: projectMyTasks.filter(t => [TaskStatus.Todo, TaskStatus.InProgress, TaskStatus.Adjusting].includes(t.status)).length,
+            completed: projectMyTasks.filter(t => t.status === TaskStatus.Completed).length,
+            assigned: projectMyTasks.length
+        };
+    };
+
+    const managerStats = getManagerMetrics();
+    const practitionerStats = getMyWorkMetrics();
+
+    // Auto-select nearest active milestone
+    useEffect(() => {
+        // Only auto-select if we have milestones and haven't selected one yet (or it's the 'all' legacy state)
+        if (uniqueMilestones.length > 0 && (!selectedMilestoneId || selectedMilestoneId === 'all')) {
+            const prioritizedMilestones = uniqueMilestones
+                .filter(m => m.status === MilestoneStatus.InProgress || m.status === MilestoneStatus.Completed)
+                .sort((a, b) => {
+                    const dateA = new Date(a.dueDate).getTime();
+                    const dateB = new Date(b.dueDate).getTime();
+                    return dateA - dateB;
+                });
+
+            if (prioritizedMilestones.length > 0) {
+                const targetId = getMId(prioritizedMilestones[0]);
+                if (targetId) setSelectedMilestoneId(targetId);
+            } else {
+                const targetId = getMId(uniqueMilestones[0]);
+                if (targetId) setSelectedMilestoneId(targetId);
+            }
+        }
+    }, [uniqueMilestones, selectedMilestoneId]);
 
     // Handlers
-    const handleStartTask = async (taskId: string) => {
+    const handleUpdateTaskStatus = async (taskId: string, newStatus: TaskStatus) => {
+        // Ownership check
+        const targetTask = tasks.find(t => (t as any).id === taskId || t.taskId === taskId);
+        const taskOwnerId = targetTask?.memberId || (targetTask as any).assignedToId;
+
+        if (taskOwnerId !== myMembershipId) {
+            console.warn('Unauthorized task update attempt.');
+            return;
+        }
+
         setSubmitting(taskId);
         try {
-            await taskService.updateStatus(taskId, TaskStatus.InProgress);
-            refreshData();
+            await taskService.updateStatus(taskId, newStatus);
+            refreshData(); // Triggers parent refetch
+            fetchDashboardStats(); // Explicitly refresh stats here too
         } catch (error) {
-            console.error('Failed to start task:', error);
+            console.error('Failed to update task status:', error);
         } finally {
             setSubmitting(null);
         }
     };
 
+    const toggleTaskExpand = (taskId: string) => {
+        setExpandedTasks(prev => prev.includes(taskId) ? prev.filter(id => id !== taskId) : [...prev, taskId]);
+    };
+
     // Helper Component for Status Rows
     const StatusRow = ({ icon, label, count, color, tooltip, pulse = false }: { icon: any, label: string, count: number, color: string, tooltip: string, pulse?: boolean }) => (
-        <div 
+        <div
             title={tooltip}
             style={{
                 display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.45rem 0',
@@ -144,6 +276,8 @@ const DetailsHome: React.FC<DetailsHomeProps> = ({
             <span style={{ fontSize: '0.9rem', fontWeight: 800, color: count > 0 ? '#1e293b' : '#94a3b8' }}>{count}</span>
         </div>
     );
+
+    const myTasksInProgressCount = scopedTasks.filter(t => (t.memberId === myMembershipId || t.assignedToName === currentUser?.name) && [TaskStatus.Todo, TaskStatus.InProgress, TaskStatus.Adjusting].includes(t.status)).length;
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', animation: 'fadeIn 0.4s ease-out' }}>
@@ -164,6 +298,17 @@ const DetailsHome: React.FC<DetailsHomeProps> = ({
                     70% { transform: scale(1.1); box-shadow: 0 0 0 6px rgba(245, 158, 11, 0); }
                     100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
                 }
+                .animate-spin {
+                    animation: rotate 1s linear infinite;
+                }
+
+                .animate-spin-slow {
+                    animation: rotate 2s linear infinite;
+                }
+
+                @keyframes rotate {
+                    100% { transform: rotate(360deg); }
+                }
                 .pulse-red { animation: pulse-red 2s infinite; }
                 .pulse-orange { animation: pulse-orange 2s infinite; }
                 .hover-lift:hover {
@@ -173,30 +318,18 @@ const DetailsHome: React.FC<DetailsHomeProps> = ({
                 .roadmap-scroll::-webkit-scrollbar {
                     display: none;
                 }
-                .filter-pill {
-                    padding: 6px 14px;
-                    border-radius: 12px;
-                    border: 1px solid #e2e8f0;
-                    background: white;
-                    color: #64748b;
-                    font-size: 0.75rem;
-                    font-weight: 700;
-                    cursor: pointer;
-                    transition: all 0.2s;
-                    white-space: nowrap;
-                    display: flex;
-                    align-items: center;
+                .custom-scrollbar::-webkit-scrollbar {
+                    width: 6px;
                 }
-                .filter-pill.active {
-                    background: var(--primary-color);
-                    border-color: var(--primary-color);
-                    color: white;
-                    box-shadow: 0 4px 10px rgba(232, 114, 12, 0.2);
+                .custom-scrollbar::-webkit-scrollbar-track {
+                    background: transparent;
                 }
-                .filter-pill:hover:not(.active) {
-                    border-color: var(--primary-color);
-                    color: var(--primary-color);
-                    background: #fffaf5;
+                .custom-scrollbar::-webkit-scrollbar-thumb {
+                    background: #cbd5e1;
+                    border-radius: 10px;
+                }
+                .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+                    background: #cbd5e1;
                 }
             `}</style>
 
@@ -244,15 +377,13 @@ const DetailsHome: React.FC<DetailsHomeProps> = ({
                                 boxShadow: isMilestoneDropdownOpen ? '0 0 0 3px rgba(232,114,12,0.1)' : '0 2px 4px rgba(0,0,0,0.02)'
                             }}
                         >
-                            {selectedMilestoneId === 'all' 
-                                ? 'Entire Project' 
-                                : milestones.find(m => String(m.milestoneId) === String(selectedMilestoneId))?.name || 'Milestone'}
-                            <ChevronRight 
-                                size={14} 
-                                style={{ 
+                            {uniqueMilestones.find(m => String(getMId(m)) === String(selectedMilestoneId))?.name || 'Milestone'}
+                            <ChevronRight
+                                size={14}
+                                style={{
                                     transform: isMilestoneDropdownOpen ? 'rotate(90deg)' : 'rotate(0deg)',
                                     transition: 'transform 0.2s ease'
-                                }} 
+                                }}
                             />
                         </button>
 
@@ -264,74 +395,53 @@ const DetailsHome: React.FC<DetailsHomeProps> = ({
                                 padding: '6px', animation: 'fadeIn 0.2s ease-out',
                                 maxHeight: '300px', overflowY: 'auto'
                             }}>
-                                <div 
-                                    onClick={() => { setSelectedMilestoneId('all'); setIsMilestoneDropdownOpen(false); }}
-                                    style={{
-                                        padding: '10px 14px', borderRadius: '10px', fontSize: '0.8rem', fontWeight: 700,
-                                        color: selectedMilestoneId === 'all' ? 'var(--primary-color)' : '#475569',
-                                        background: selectedMilestoneId === 'all' ? '#fffaf5' : 'transparent',
-                                        cursor: 'pointer', transition: 'all 0.2s'
-                                    }}
-                                    className="dropdown-item"
-                                >
-                                    Entire Project
-                                </div>
-                                {milestones.map(m => (
-                                    <div 
-                                        key={m.milestoneId}
-                                        onClick={() => { setSelectedMilestoneId(m.milestoneId); setIsMilestoneDropdownOpen(false); }}
-                                        style={{
-                                            padding: '10px 14px', borderRadius: '10px', fontSize: '0.8rem', fontWeight: 600,
-                                            color: selectedMilestoneId === m.milestoneId ? 'var(--primary-color)' : '#475569',
-                                            background: selectedMilestoneId === m.milestoneId ? '#fffaf5' : 'transparent',
-                                            cursor: 'pointer', transition: 'all 0.2s'
-                                        }}
-                                        className="dropdown-item"
-                                    >
-                                        {m.name}
-                                    </div>
-                                ))}
+                                {uniqueMilestones.map((m, idx) => {
+                                    const mId = getMId(m) || `idx-${idx}`;
+                                    return (
+                                        <div
+                                            key={mId}
+                                            onClick={() => { setSelectedMilestoneId(String(mId)); setIsMilestoneDropdownOpen(false); }}
+                                            style={{
+                                                padding: '10px 14px', borderRadius: '10px', fontSize: '0.8rem', fontWeight: 600,
+                                                color: String(selectedMilestoneId) === String(mId) ? 'var(--primary-color)' : '#475569',
+                                                background: String(selectedMilestoneId) === String(mId) ? '#fffaf5' : 'transparent',
+                                                cursor: 'pointer', transition: 'all 0.2s'
+                                            }}
+                                            className="dropdown-item"
+                                        >
+                                            {m.name}
+                                        </div>
+                                    );
+                                })}
                             </div>
                         )}
                     </div>
                 </div>
 
                 {/* UNIFIED STATUS BOARD */}
-                <div style={{ 
+                <div style={{
                     background: 'white', padding: '1.25rem 1.5rem', borderRadius: '20px', border: '1px solid #e2e8f0',
                     display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: '1.5rem', alignItems: 'start',
                     boxShadow: '0 4px 20px rgba(0,0,0,0.03)', position: 'relative'
                 }}>
-                    {/* SCOPE BADGE */}
-                    <div style={{ 
-                        position: 'absolute', top: '-10px', right: '20px', 
-                        background: '#fffaf5', padding: '4px 12px', borderRadius: '20px', border: '1px solid #fed7aa',
-                        fontSize: '0.65rem', fontWeight: 800, color: 'var(--primary-color)', textTransform: 'uppercase', letterSpacing: '0.05em',
-                        display: 'flex', alignItems: 'center', gap: '6px', zIndex: 1,
-                        boxShadow: '0 2px 8px rgba(232, 114, 12, 0.1)'
-                    }}>
-                        <Target size={10} color="var(--primary-color)" /> 
-                        {selectedMilestoneId === 'all' 
-                            ? 'Entire Project' 
-                            : milestones.find(m => String(m.milestoneId) === String(selectedMilestoneId))?.name || 'Milestone'}
-                    </div>
 
                     {/* CỘT TRÁI: CRITICAL ALERTS */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                         <h4 style={{ margin: '0 0 0.4rem 0', fontSize: '0.7rem', fontWeight: 800, color: '#ef4444', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                            {viewMode === 'perspective' ? 'Critical Alerts (Project)' : 'Action Required (Tasks)'}
+                            {viewMode === 'perspective' ? 'Critical Alerts' : 'Action Required'}
                         </h4>
                         {viewMode === 'perspective' ? (
                             <>
-                                <StatusRow icon={<AlertTriangle />} label="Missed Tasks" count={managerMissedTasks.length} color="#ef4444" tooltip="Project-wide: Tasks past deadline and not yet submitted." pulse={managerMissedTasks.length > 0} />
-                                <StatusRow icon={<Clock />} label="Warnings" count={managerWarningTasks.length} color="#f59e0b" tooltip="Project-wide: Deadlines approaching in less than 3 days." pulse={managerWarningTasks.length > 0} />
-                                <StatusRow icon={<Play />} label="Unstarted" count={managerUnstartedTasks.length} color="#0ea5e9" tooltip="Project-wide: StartTime passed but work hasn't begun." pulse={managerUnstartedTasks.length > 0} />
-                                <StatusRow icon={<Target />} label="Risky Milestones" count={riskyMilestones.length} color="#b91c1c" tooltip="Milestones near deadline with unfinished tasks." pulse={riskyMilestones.length > 0} />
+                                <StatusRow icon={<AlertTriangle />} label="Missed Tasks" count={managerStats.missed} color="#ef4444" tooltip="Current Milestone: Tasks past deadline and not yet submitted." pulse={managerStats.missed > 0} />
+                                <StatusRow icon={<Clock />} label="Warnings" count={managerStats.warning} color="#f59e0b" tooltip="Current Milestone: Deadlines approaching in less than 3 days." pulse={managerStats.warning > 0} />
+                                <StatusRow icon={<Play />} label="Unstarted" count={managerStats.unstarted} color="#0ea5e9" tooltip="Current Milestone: Scheduled start time has passed." pulse={managerStats.unstarted > 0} />
+                                <StatusRow icon={<Target />} label="Risky Milestones" count={managerStats.risky} color="#b91c1c" tooltip="Milestone is near deadline with unfinished tasks." pulse={managerStats.risky > 0} />
                             </>
                         ) : (
                             <>
-                                <StatusRow icon={<Play />} label="High Priority" count={myLateStartTasks.length} color="#ef4444" tooltip="Your tasks that should have started by today." pulse={myLateStartTasks.length > 0} />
-                                <StatusRow icon={<AlertTriangle />} label="Needs Adjusting" count={myAdjustingTasks.length} color="#f59e0b" tooltip="Your tasks specifically flagged for adjustment." pulse={myAdjustingTasks.length > 0} />
+                                <StatusRow icon={<AlertTriangle />} label="Missed Tasks" count={practitionerStats.missed} color="#ef4444" tooltip="In this milestone: Your tasks past deadline and not yet submitted." pulse={practitionerStats.missed > 0} />
+                                <StatusRow icon={<Play />} label="High Priority" count={practitionerStats.highPriority} color="#f59e0b" tooltip="In this milestone: Your tasks that should have started by today." pulse={practitionerStats.highPriority > 0} />
+                                <StatusRow icon={<AlertTriangle />} label="Needs Adjusting" count={practitionerStats.adjusting} color="#ea580c" tooltip="In this milestone: Your tasks specifically flagged for adjustment." pulse={practitionerStats.adjusting > 0} />
                             </>
                         )}
                     </div>
@@ -342,220 +452,268 @@ const DetailsHome: React.FC<DetailsHomeProps> = ({
                     {/* CỘT PHẢI: PROGRESS INDICATORS */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                         <h4 style={{ margin: '0 0 0.4rem 0', fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                            {viewMode === 'perspective' ? 'Project Metrics (Total)' : 'Your Progress Status'}
+                            {viewMode === 'perspective' ? 'Milestone Metrics' : 'Milestone Progress'}
                         </h4>
                         {viewMode === 'perspective' ? (
                             <>
-                                <StatusRow icon={<Send />} label="To Review" count={managerPendingApproval.length} color="#8b5cf6" tooltip="Tasks submitted and waiting for your approval." />
-                                <StatusRow icon={<Activity />} label="In Progress" count={tasks.filter(t => t.status === TaskStatus.InProgress).length} color="#3b82f6" tooltip="Total tasks currently being worked on by the team." />
-                                <StatusRow icon={<CheckCircle2 />} label="Completed" count={tasks.filter(t => t.status === TaskStatus.Completed).length} color="#22c55e" tooltip="Total tasks fully finished and approved." />
-                                <StatusRow icon={<Layout />} label="Total Tasks" count={tasks.length} color="#94a3b8" tooltip="Total number of tasks defined in this project." />
+                                <StatusRow icon={<Send />} label="To Review" count={managerStats.pendingApproval} color="#8b5cf6" tooltip="In this milestone: Tasks submitted and waiting for your approval." />
+                                <StatusRow icon={<Target />} label="Waiting" count={managerStats.waiting} color="#64748b" tooltip="In this milestone: Tasks currently in To Do or Adjustment state." />
+                                <StatusRow icon={<Activity />} label="Running" count={managerStats.running} color="#3b82f6" tooltip="In this milestone: Tasks currently being worked on by the team." />
+                                <StatusRow icon={<CheckCircle2 />} label="Completed" count={managerStats.completed} color="#22c55e" tooltip="In this milestone: Tasks fully finished and approved." />
+                                <StatusRow icon={<Layout />} label="Total Tasks" count={managerStats.total} color="#94a3b8" tooltip="Total number of tasks defined in this milestone." />
                             </>
                         ) : (
                             <>
-                                <StatusRow icon={<Activity />} label="Tasks Remaining" count={myTasksInProgress.length} color="#0ea5e9" tooltip="Your current active workload (Across all milestones)." />
-                                <StatusRow icon={<CheckCircle2 />} label="My Completed" count={tasks.filter(t => (t.memberId === myMembershipId || t.assignedToName === currentUser?.name) && t.status === TaskStatus.Completed).length} color="#22c55e" tooltip="Tasks you have successfully completed in this project." />
-                                <StatusRow icon={<Layout />} label="Total Assigned" count={projectMyTasks.length} color="#94a3b8" tooltip="Total tasks assigned to you in this project." />
+                                <StatusRow icon={<CheckCircle2 />} label="Completed" count={practitionerStats.completed} color="#22c55e" tooltip="Your completed tasks in this milestone." />
+                                <StatusRow icon={<Activity />} label="In Progress" count={practitionerStats.running} color="#3b82f6" tooltip="Your tasks currently being worked on." />
+                                <StatusRow icon={<Clock />} label="Waiting" count={practitionerStats.waiting} color="#64748b" tooltip="Your tasks assigned but not yet started." />
+                                <StatusRow icon={<Target />} label="Total Assigned" count={practitionerStats.assigned} color="#94a3b8" tooltip="Total number of tasks assigned to you in this milestone." />
                             </>
                         )}
                     </div>
                 </div>
             </div>
 
-            {/* TẦNG 2: Action Items */}
-            <section style={{ background: 'white', padding: '1.5rem', borderRadius: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 20px rgba(0,0,0,0.03)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+            {/* TẦNG 2 & 3: Consolidated Task Execution Overview */}
+            <section style={{ background: 'white', padding: '1.5rem', borderRadius: '24px', border: '1px solid #e2e8f0', boxShadow: '0 4px 20px rgba(0,0,0,0.03)', marginBottom: '3rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.75rem' }}>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
                         <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '10px' }}>
                             {viewMode === 'my-work' ? (
-                                <><Activity size={20} style={{ color: 'var(--primary-color)' }} /> Your Tasks</>
+                                <><Activity size={20} style={{ color: 'var(--primary-color)' }} /> My Tasks</>
                             ) : (
-                                <><Layout size={20} style={{ color: 'var(--primary-color)' }} /> High Priority Focus</>
+                                <><Layout size={20} style={{ color: 'var(--primary-color)' }} /> Milestone Tasks</>
                             )}
                         </h3>
                         <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--primary-color)', opacity: 0.8 }}>
-                            / {selectedMilestoneId === 'all' 
-                                ? 'Entire Project' 
-                                : milestones.find(m => String(m.milestoneId) === String(selectedMilestoneId))?.name || 'Milestone'}
+                            / {selectedMilestoneId === 'all' || !selectedMilestoneId
+                                ? 'Entire Project'
+                                : milestones.find(m => String(m.milestoneId || (m as any).id) === String(selectedMilestoneId))?.name || 'Milestone'}
                         </span>
                     </div>
                     <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#94a3b8', background: '#f8fafc', padding: '4px 12px', borderRadius: '20px', border: '1px solid #f1f5f9', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                        {viewMode === 'my-work' ? `${myTasksInProgress.length} tasks` : `${scopedTasks.length} tasks`}
+                        {viewMode === 'my-work' ? `${myTasksInProgressCount} focus tasks` : `${scopedTasks.length} total tasks`}
                     </span>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    {(viewMode === 'my-work' ? sortedTasks.filter(t => (t.memberId === myMembershipId || t.assignedToName === currentUser?.name) && [TaskStatus.Todo, TaskStatus.InProgress, TaskStatus.Adjusting].includes(t.status)) : sortedTasks.slice(0, 10)).map(task => (
-                        <div key={task.taskId} style={{
-                            padding: '1rem', background: '#f8fafc', borderRadius: '16px', border: '1px solid #f1f5f9',
-                            display: 'flex', alignItems: 'center', gap: '1.5rem', transition: 'all 0.2s'
-                        }} className="hover-lift">
-                            <div style={{ padding: '8px', borderRadius: '10px', background: 'white', border: '1px solid #e2e8f0', color: 'var(--primary-color)' }}>
-                                <CheckCircle2 size={20} />
-                            </div>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                                <h4 style={{ margin: '0 0 4px 0', fontSize: '1rem', fontWeight: 700, color: '#1e293b' }}>{task.name}</h4>
-                                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                        <Clock size={12} /> {task.dueDate ? formatProjectDate(task.dueDate) : 'No deadline'}
-                                    </span>
-                                    <span style={{
-                                        fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase',
-                                        color: task.status === TaskStatus.Todo ? '#64748b' :
-                                            task.status === TaskStatus.InProgress ? '#0ea5e9' :
-                                                task.status === TaskStatus.Adjusting ? '#f59e0b' : '#ef4444'
-                                    }}>
-                                        {TaskStatus[task.status]}
-                                    </span>
-                                </div>
-                            </div>
+                {(() => {
+                    // Extract all tasks from the hierarchical response structure
+                    let sourceTasks = tasks || [];
+                    if (timelineData) {
+                        const tieredTasks: any[] = [];
 
-                            {/* QUICK ACTIONS */}
-                            <div style={{ display: 'flex', gap: '8px' }}>
-                                {task.status === TaskStatus.Todo && (
-                                    <button
-                                        disabled={submitting === task.taskId}
-                                        onClick={() => handleStartTask(task.taskId)}
-                                        style={{
-                                            padding: '8px 16px', borderRadius: '10px', background: 'var(--primary-color)', color: 'white',
-                                            border: 'none', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer',
-                                            display: 'flex', alignItems: 'center', gap: '6px', opacity: submitting === task.taskId ? 0.7 : 1
-                                        }}
-                                    >
-                                        <Play size={16} fill="white" /> Start Task
-                                    </button>
-                                )}
-                                {(task.status === TaskStatus.InProgress || task.status === TaskStatus.Adjusting) && (
-                                    <button style={{
-                                        padding: '8px 16px', borderRadius: '10px', background: '#f0fdf4', color: '#16a34a',
-                                        border: '1px solid #bbf7d0', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer',
-                                        display: 'flex', alignItems: 'center', gap: '6px'
-                                    }}>
-                                        <Send size={16} /> Submit Work
-                                    </button>
-                                )}
-                                <button style={{
-                                    width: '36px', height: '36px', borderRadius: '10px', background: 'white', border: '1px solid #e2e8f0',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', cursor: 'pointer'
-                                }}>
-                                    <ArrowUpRight size={18} />
-                                </button>
-                            </div>
-                        </div>
-                    ))}
+                        // 1. Tasks from milestones
+                        if (timelineData.milestones) {
+                            timelineData.milestones.forEach((m: any) => {
+                                const mId = m.milestone?.id || m.milestone?.milestoneId || (m as any).id;
+                                (m.tasks || m.milestoneTasks || []).forEach((t: any) => {
+                                    tieredTasks.push({ ...t, milestoneId: t.milestoneId || mId });
+                                });
+                            });
+                        } else if (Array.isArray(timelineData) && timelineData.length > 0) {
+                            // Array fallback
+                            timelineData.forEach((m: any) => {
+                                const mId = m.milestone?.id || m.milestone?.milestoneId || (m as any).id;
+                                (m.tasks || m.milestoneTasks || []).forEach((t: any) => {
+                                    tieredTasks.push({ ...t, milestoneId: t.milestoneId || mId });
+                                });
+                            });
+                        }
 
-                    {(viewMode === 'my-work' ? myTasksInProgress : tasks).length === 0 && (
-                        <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
-                            <Activity size={40} style={{ opacity: 0.2, marginBottom: '1rem' }} />
-                            <p style={{ margin: 0, fontWeight: 600 }}>No tasks currently in your focus stream.</p>
-                        </div>
-                    )}
-                </div>
-            </section>
+                        // 2. General tasks (not linked to milestones)
+                        if (timelineData.generalTasks && Array.isArray(timelineData.generalTasks)) {
+                            timelineData.generalTasks.forEach((t: any) => {
+                                tieredTasks.push({ ...t, milestoneId: t.milestoneId || 'general' });
+                            });
+                        }
 
-            {/* CSS for animations */}
-            <style>{`
-                @keyframes fadeIn {
-                    from { opacity: 0; transform: translateY(10px); }
-                    to { opacity: 1; transform: translateY(0); }
-                }
-                .hover-lift {
-                    transition: all 0.2s ease-out;
-                }
-                .hover-lift:hover {
-                    transform: translateY(-2px);
-                    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-                    border-color: var(--primary-color) !important;
-                }
-                .roadmap-scroll::-webkit-scrollbar {
-                    display: none;
-                }
-            `}</style>
+                        // Use the extracted tasks if we found any
+                        if (tieredTasks.length > 0) sourceTasks = tieredTasks;
+                    }
 
-            {/* TẦNG 3: NGỮ CẢNH VÀ ĐƯỜNG ĐI TIẾP THEO */}
-            <section style={{ borderTop: '1px solid #f1f5f9', paddingTop: '1.5rem', marginBottom: '2rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                    <h3 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Project Roadmap</h3>
-                </div>
+                    // Apply scoped filtering based on stats board selection
+                    const filteredTasks = sourceTasks.filter((t: any) => {
+                        const tMId = t.milestoneId || "";
+                        const matchesMilestone = !selectedMilestoneId || selectedMilestoneId === 'all' || String(tMId) === String(selectedMilestoneId);
+                        return matchesMilestone;
+                    });
 
-                <div
-                    className="roadmap-scroll"
-                    style={{
-                        display: 'flex',
-                        gap: '1.5rem',
-                        overflowX: 'auto',
-                        paddingBottom: '1.5rem',
-                        paddingLeft: '4px',
-                        scrollSnapType: 'x mandatory'
-                    }}
-                >
-                    {milestones.length > 0 ? milestones.map((m, idx) => {
-                        const isPast = m.status === MilestoneStatus.Completed;
-                        const isCurrent = m.status === MilestoneStatus.InProgress;
+                    // Filter for My Work if needed
+                    let displayTasks = filteredTasks;
+                    if (viewMode === 'my-work') {
+                        // Show all my priority tasks for this project regardless of milestone
+                        displayTasks = myWorkTasks;
+                    }
 
-                        // Milestone Risk Logic: Near deadline but has unfinished tasks
-                        const milestoneTasks = tasks.filter(t => t.milestoneId === m.milestoneId);
-                        const hasUnfinishedTasks = milestoneTasks.some(t => t.status !== TaskStatus.Completed);
-                        const isNearDeadline = m.dueDate && new Date(m.dueDate) <= threeDaysFromNow;
-                        const isRisky = isCurrent && hasUnfinishedTasks && isNearDeadline;
-
+                    if (loadingTasks) {
                         return (
-                            <div key={`ms-${m.milestoneId || idx}`} style={{
-                                minWidth: '300px', flex: '0 0 300px', padding: '1.5rem', background: 'white',
-                                borderRadius: '24px', border: `2px solid ${isRisky ? '#ef4444' : isCurrent ? 'var(--primary-color)' : '#e2e8f0'}`,
-                                position: 'relative', scrollSnapAlign: 'start',
-                                boxShadow: isRisky ? '0 12px 30px rgba(239, 68, 68, 0.1)' : isCurrent ? '0 12px 30px rgba(232, 114, 12, 0.12)' : 'none',
-                                opacity: isPast ? 0.8 : 1
-                            }}>
-                                {idx < milestones.length - 1 && (
-                                    <div style={{
-                                        position: 'absolute', top: '50%', right: '-32px', transform: 'translateY(-50%)',
-                                        color: isPast ? 'var(--primary-color)' : '#e2e8f0', zIndex: 1
-                                    }}>
-                                        <ChevronRight size={32} strokeWidth={isPast ? 3 : 2} />
-                                    </div>
-                                )}
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem' }}>
-                                    <div style={{
-                                        width: '40px', height: '40px', borderRadius: '12px',
-                                        background: isPast ? '#f0fdf4' : isRisky ? '#fef2f2' : isCurrent ? '#fff7ed' : '#f8fafc',
-                                        color: isPast ? '#16a34a' : isRisky ? '#ef4444' : isCurrent ? '#ea580c' : '#94a3b8',
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        border: isRisky ? '1px solid #fee2e2' : isCurrent ? '1px solid #ffedd5' : 'none'
-                                    }}>
-                                        <Target size={22} />
-                                    </div>
-                                    <span style={{
-                                        fontSize: '0.7rem', fontWeight: 800, padding: '4px 12px', borderRadius: '12px',
-                                        background: isPast ? '#dcfce7' : isRisky ? '#fee2e2' : isCurrent ? '#ffedd5' : '#f1f5f9',
-                                        color: isPast ? '#166534' : isRisky ? '#991b1b' : isCurrent ? '#9a3412' : '#64748b',
-                                        border: isRisky ? '1px solid #fecaca' : isCurrent ? '1px solid #fed7aa' : 'none'
-                                    }}>
-                                        {isPast ? 'DONE' : isRisky ? 'HIGH RISK' : isCurrent ? 'ACTIVE' : 'UPCOMING'}
-                                    </span>
-                                </div>
-                                <h4 style={{ margin: '0 0 8px 0', fontSize: '1.1rem', fontWeight: 800, color: '#1e293b' }}>{m.name}</h4>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary)' }}>
-                                    <Clock size={14} />
-                                    <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>
-                                        {m.dueDate ? formatProjectDate(m.dueDate) : 'No due date'}
-                                    </span>
-                                </div>
-
-                                {isCurrent && (
-                                    <div style={{ marginTop: '1.25rem', height: '6px', width: '100%', background: '#f1f5f9', borderRadius: '3px', overflow: 'hidden' }}>
-                                        <div style={{ height: '100%', width: `${m.progress || 35}%`, background: 'var(--primary-color)', borderRadius: '3px' }}></div>
-                                    </div>
-                                )}
+                            <div style={{ textAlign: 'center', height: '340px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', background: '#f8fafc', borderRadius: '20px', border: '1px dashed #e2e8f0' }}>
+                                <Loader2 size={32} className="animate-spin" style={{ color: 'var(--primary-color)' }} />
+                                <p style={{ marginTop: '1rem', fontWeight: 600, color: '#64748b' }}>Fetching your tasks...</p>
                             </div>
                         );
-                    }) : (
-                        <div style={{ textAlign: 'center', width: '100%', padding: '3rem', color: 'var(--text-secondary)', background: '#f8fafc', borderRadius: '24px', border: '2px dashed #e2e8f0' }}>
-                            <Flag size={40} style={{ opacity: 0.1, marginBottom: '1rem' }} />
-                            <p style={{ margin: 0, fontWeight: 700 }}>Your project roadmap will appear here.</p>
+                    }
+
+                    if (displayTasks.length === 0) {
+                        return (
+                            <div style={{ textAlign: 'center', height: '340px', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: 'var(--text-secondary)', background: '#f8fafc', borderRadius: '20px', border: '1px dashed #e2e8f0' }}>
+                                <Activity size={48} style={{ opacity: 0.1, marginBottom: '1rem' }} />
+                                <p style={{ margin: 0, fontWeight: 700, fontSize: '0.9rem' }}>No tasks found for the current filter.</p>
+                                <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem' }}>Try selecting a different milestone or adjusting your focus.</p>
+                            </div>
+                        );
+                    }
+
+                    return (
+                        <div style={{ height: '340px', overflowY: 'auto', paddingRight: '10px', marginRight: '-10px' }} className="custom-scrollbar">
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', padding: '4px' }}>
+                                {displayTasks.map((task: any) => {
+                                    const tId = task.id || task.taskId;
+                                    const isEx = expandedTasks.includes(tId);
+                                    const sColors = getStatusColor(task.status);
+                                    const aId = task.memberId || (task as any).assignedToId;
+                                    const assignee = members.find(mbr => (mbr.id || mbr.memberId || mbr.membershipId || "") === aId);
+
+                                    // Robust collaborator count check
+                                    const collabCount = (task.collaborators?.length || 0) > 0
+                                        ? task.collaborators.length
+                                        : (task.supportMembers?.length || 0) > 0
+                                            ? task.supportMembers.length
+                                            : (task.collaboratorIds || []).filter((id: string) => id !== aId).length;
+
+                                    const pColors = task.priority === 4 ? { bg: '#fef2f2', text: '#ef4444', label: 'CRITICAL' } :
+                                        task.priority === 3 ? { bg: '#fff7ed', text: '#f97316', label: 'HIGH' } :
+                                            task.priority === 2 ? { bg: '#eff6ff', text: '#3b82f6', label: 'MEDIUM' } :
+                                                { bg: '#f1f5f9', text: '#64748b', label: 'LOW' };
+
+                                    return (
+                                        <div
+                                            key={tId}
+                                            className="hover-lift"
+                                            onClick={() => toggleTaskExpand(tId)}
+                                            style={{
+                                                background: 'white', padding: isEx ? '16px 18px 20px 18px' : '14px 18px', borderRadius: '4px',
+                                                border: '1px solid #cbd5e1', display: 'flex', flexDirection: 'column', gap: isEx ? '16px' : '0',
+                                                boxShadow: isEx ? '0 10px 25px rgba(0,0,0,0.05)' : '0 2px 12px rgba(0,0,0,0.02)',
+                                                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                                cursor: 'pointer',
+                                                position: 'relative',
+                                                overflow: 'hidden',
+                                                flexShrink: 0
+                                            }}
+                                        >
+                                            {isEx && <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--primary-color)' }} />}
+
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) 140px 180px 80px 100px 100px', gap: '16px', alignItems: 'center' }}>
+                                                {/* Task Name & Main Info */}
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                                                    <div style={{ color: isEx ? 'var(--primary-color)' : '#94a3b8', flexShrink: 0 }}>
+                                                        {isEx ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                                                    </div>
+                                                    <div style={{ minWidth: 0 }}>
+                                                        <div title={task.name} style={{ fontSize: '0.9rem', fontWeight: 750, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                            {task.name}
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Assignee & Collab */}
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#f8fafc', padding: '4px 10px', borderRadius: '12px', border: '1px solid #f1f5f9', minWidth: 0 }}>
+                                                        <User size={12} style={{ color: '#94a3b8' }} />
+                                                        <span style={{ fontSize: '0.75rem', fontWeight: 650, color: '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                            {assignee?.fullName || assignee?.userName || task.assignedToName || (task as any).assigneeName || "Unassigned"}
+                                                        </span>
+                                                    </div>
+                                                    {collabCount > 0 && (
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: '#f8fafc', padding: '4px 8px', borderRadius: '12px', border: '1px solid #e2e8f0', color: '#64748b' }}>
+                                                            <Users size={12} />
+                                                            <span style={{ fontSize: '0.65rem', fontWeight: 800 }}>{collabCount}</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {/* Dates */}
+                                                <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                    <Calendar size={13} style={{ color: '#94a3b8' }} />
+                                                    <span>{formatProjectDate(task.startDate)} – {formatProjectDate(task.dueDate)}</span>
+                                                </div>
+
+                                                {/* Priority */}
+                                                <div style={{
+                                                    fontSize: '0.6rem', fontWeight: 900, padding: '3px 8px', borderRadius: '8px',
+                                                    background: pColors.bg, color: pColors.text, textAlign: 'center',
+                                                    letterSpacing: '0.04em', border: `1px solid ${pColors.text}15`
+                                                }}>
+                                                    {pColors.label}
+                                                </div>
+
+                                                {/* Status Badge */}
+                                                <div style={{
+                                                    fontSize: '0.65rem', fontWeight: 800, padding: '4px 12px', borderRadius: '12px',
+                                                    background: sColors.bg, color: sColors.text, textAlign: 'center',
+                                                    border: `1px solid ${sColors.text}10`, width: 'fit-content', justifySelf: 'center'
+                                                }}>
+                                                    {getStatusText(task.status)}
+                                                </div>
+
+                                                {/* Quick Actions */}
+                                                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }} onClick={(e) => e.stopPropagation()}>
+                                                    {(task.status === TaskStatus.Todo && aId === myMembershipId) && (
+                                                        <button
+                                                            onClick={() => handleUpdateTaskStatus(tId, TaskStatus.InProgress)}
+                                                            disabled={submitting === tId}
+                                                            style={{
+                                                                width: '34px', height: '34px', borderRadius: '10px', background: '#f0f9ff', border: '1px solid #e0f2fe',
+                                                                display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0ea5e9', cursor: submitting === tId ? 'not-allowed' : 'pointer'
+                                                            }}
+                                                            title="Start Task"
+                                                        >
+                                                            {submitting === tId ? <Loader2 size={16} className="animate-spin-slow" /> : <Play size={16} />}
+                                                        </button>
+                                                    )}
+                                                    {((task.status === TaskStatus.InProgress || task.status === TaskStatus.Adjusting) && aId === myMembershipId) && (
+                                                        <button
+                                                            onClick={() => handleUpdateTaskStatus(tId, TaskStatus.Submitted)}
+                                                            disabled={submitting === tId}
+                                                            style={{
+                                                                width: '34px', height: '34px', borderRadius: '10px', background: '#f0fdf4', border: '1px solid #dcfce7',
+                                                                display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981', cursor: submitting === tId ? 'not-allowed' : 'pointer'
+                                                            }}
+                                                            title="Submit for Review"
+                                                        >
+                                                            {submitting === tId ? <Loader2 size={16} className="animate-spin-slow" /> : <Send size={16} />}
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Expanded Content: Description */}
+                                            {isEx && (
+                                                <div
+                                                    style={{
+                                                        marginTop: '4px',
+                                                        padding: '12px 16px',
+                                                        background: '#f8fafc',
+                                                        borderRadius: '12px',
+                                                        border: '1px solid #f1f5f9',
+                                                        animation: 'fadeIn 0.2s ease-out'
+                                                    }}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                >
+                                                    <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.05em' }}>Task Description</div>
+                                                    <div style={{ fontSize: '0.85rem', color: '#475569', lineHeight: 1.6, fontWeight: 500 }}>
+                                                        {task.description || "No description provided for this task."}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         </div>
-                    )}
-                </div>
+                    );
+                })()}
             </section>
         </div>
     );

@@ -24,7 +24,7 @@ const EquipmentLogFormModal: React.FC<EquipmentLogFormModalProps> = ({ resources
       resourceName: selectedRes?.name || log?.resourceName || 'Selected Equipment',
       action,
       note,
-      createdAt: log?.createdAt || new Date().toISOString()
+      loggedAt: log?.loggedAt || new Date().toISOString()
     });
   };
 

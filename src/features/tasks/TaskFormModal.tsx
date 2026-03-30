@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { X, Search, Users, Calendar, CheckSquare, AlignLeft, AlertTriangle, MapPin, AlertOctagon, Plus, Trash2, FileText, File, Eye } from 'lucide-react';
+import { X, Search, Users, Calendar, CheckSquare, AlignLeft, AlertTriangle, MapPin, AlertOctagon, Plus, Trash2, FileText, File, Eye, Clock } from 'lucide-react';
 import { Priority, TaskStatus, ProjectMember, Task, TaskEvidence, ProjectRoleEnum } from '@/types';
 import MilestoneRoadmapPreview from '../milestones/MilestoneRoadmapPreview';
 
@@ -18,6 +18,7 @@ interface TaskFormModalProps {
     projectEndDate?: string;
     existingTasks?: Task[];
     projectId?: string;
+    submitting?: boolean;
 }
 
 
@@ -201,7 +202,8 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
     projectStartDate,
     projectEndDate,
     existingTasks = [],
-    projectId
+    projectId,
+    submitting = false
 }) => {
     // Standard single-task states (used for editing existing task)
     const [name, setName] = useState('');
@@ -1506,9 +1508,31 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                     gap: '14px',
                     background: 'white'
                 }}>
-                    <button type="button" onClick={onClose} className="btn btn-secondary" style={{ padding: '0.75rem 1.75rem', borderRadius: '12px' }}>Cancel</button>
-                    <button type="submit" form="create-task-form" className="btn btn-primary" style={{ padding: '0.75rem 3rem', borderRadius: '12px', fontWeight: 800 }}>
-                        {isReadOnly ? 'Save Evidence' : (isEdit ? 'Update Task' : 'Create Task')}
+                    <button type="button" onClick={onClose} disabled={submitting} className="btn btn-secondary" style={{ padding: '0.75rem 1.75rem', borderRadius: '12px' }}>Cancel</button>
+                    <button 
+                        type="submit" 
+                        form="create-task-form" 
+                        className="btn btn-primary" 
+                        disabled={submitting}
+                        style={{ 
+                            padding: '0.75rem 3rem', 
+                            borderRadius: '12px', 
+                            fontWeight: 800,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '8px',
+                            minWidth: '180px'
+                        }}
+                    >
+                        {submitting ? (
+                            <>
+                                <Clock className="animate-spin-slow" size={18} />
+                                {isEdit ? 'Updating...' : 'Creating...'}
+                            </>
+                        ) : (
+                            isReadOnly ? 'Save Evidence' : (isEdit ? 'Update Task' : 'Create Task')
+                        )}
                     </button>
                 </div>
             </div >

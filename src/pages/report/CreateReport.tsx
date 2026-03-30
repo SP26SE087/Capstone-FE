@@ -59,7 +59,7 @@ const CreateReport: React.FC = () => {
         achievements: '',
         blockers: '',
         nextWeek: '',
-        assigneeIds: [] as string[]
+        assigneeEmails: [] as string[]
     };
 
     const [reports, setReports] = useState([{ ...initialFormState }]);
@@ -97,8 +97,10 @@ const CreateReport: React.FC = () => {
         fetchMeta();
     }, []);
 
+    const EMPTY_GUID = '00000000-0000-0000-0000-000000000000';
+
     useEffect(() => {
-        if (activeReport.projectId) {
+        if (activeReport.projectId && activeReport.projectId !== EMPTY_GUID) {
             fetchMilestones(activeReport.projectId);
         } else {
             setMilestones([]);
@@ -106,6 +108,10 @@ const CreateReport: React.FC = () => {
     }, [activeReport.projectId, activeIndex]);
 
     const fetchMilestones = async (projectId: string) => {
+        if (!projectId || projectId === EMPTY_GUID) {
+            setMilestones([]);
+            return;
+        }
         try {
             const data = await milestoneService.getByProject(projectId);
             setMilestones(data || []);
@@ -162,7 +168,7 @@ const CreateReport: React.FC = () => {
 
     const validateReport = (report: typeof initialFormState, index: number, isFinal: boolean) => {
         if (!report.title.trim()) return `Report #${index + 1}: Title is required.`;
-        if (report.assigneeIds.length === 0) return `Report #${index + 1}: At least one assignee is required.`;
+        if (report.assigneeEmails.length === 0) return `Report #${index + 1}: At least one assignee is required.`;
         
         if (isFinal) {
             if (!report.projectId) return `Report #${index + 1}: Project is required.`;
@@ -410,7 +416,7 @@ const CreateReport: React.FC = () => {
                                 </div>
                                 <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
                                     <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                        {projects.find(p => p.id === activeReport.projectId)?.name || projects.find(p => p.id === activeReport.projectId)?.projectName || 'Draft Report'}
+                                        {projects.find(p => (p.projectId || p.id) === activeReport.projectId)?.name || projects.find(p => (p.projectId || p.id) === activeReport.projectId)?.projectName || 'Draft Report'}
                                     </div>
                                     <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                         #{activeIndex + 1}. {activeReport.title || 'Untitled'}
@@ -477,7 +483,7 @@ const CreateReport: React.FC = () => {
                                                         {r.title || 'Untitled Report'}
                                                     </div>
                                                     <div style={{ fontSize: '0.7rem', color: (showValidation && validateReport(r, i, true)) ? '#f87171' : '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                        {projects.find(p => p.id === r.projectId)?.name || projects.find(p => p.id === r.projectId)?.projectName || 'Project not selected'}
+                                                        {projects.find(p => (p.projectId || p.id) === r.projectId)?.name || projects.find(p => (p.projectId || p.id) === r.projectId)?.projectName || 'Project not selected'}
                                                     </div>
                                                 </div>
                                                 {(showValidation && validateReport(r, i, true)) ? (
@@ -567,53 +573,51 @@ const CreateReport: React.FC = () => {
                             </div>
                         </div>
 
-                        <div className="card" style={{ padding: '2.5rem', borderRadius: '16px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.05)' }}>
-                            <div style={{ marginBottom: '2.5rem' }}>
-                                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase' }}>
+                        <div className="card" style={{ padding: '1.5rem 2rem', borderRadius: '16px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.04)' }}>
+                            <div style={{ marginBottom: '1.5rem' }}>
+                                <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '4px', textTransform: 'uppercase' }}>
                                     Report Title <span style={{ color: '#ef4444', marginLeft: '4px' }}>*</span>
                                 </label>
                                 <input
                                     className="form-input"
-                                    style={{ fontSize: '1.5rem', fontWeight: 700, width: '100%', border: 'none', borderBottom: '1px solid #e2e8f0', borderRadius: 0, padding: '4px 0', outline: 'none' }}
+                                    style={{ fontSize: '1.25rem', fontWeight: 700, width: '100%', border: 'none', borderBottom: '1px solid #e2e8f0', borderRadius: 0, padding: '4px 0', outline: 'none' }}
                                     value={activeReport.title}
                                     onChange={(e) => updateActiveReport({ title: e.target.value })}
                                     placeholder="Enter report title..."
                                     maxLength={200}
                                 />
-                                <div style={{ textAlign: 'right', marginTop: '4px' }}>
-                                    <span style={{ fontSize: '0.7rem', color: activeReport.title.length >= 200 ? '#ef4444' : 'var(--text-muted)' }}>
-                                        {activeReport.title.length}/200
+                                <div style={{ textAlign: 'right', marginTop: '4px', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '4px' }}>
+                                    <span style={{ fontSize: '0.7rem', fontWeight: 700, color: (activeReport.title || '').length >= 200 ? '#ef4444' : '#94a3b8' }}>
+                                        {(activeReport.title || '').length}/200
                                     </span>
                                 </div>
                             </div>
 
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '3rem' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
                                 {[
-                                    { label: 'Description', key: 'description' as const, required: false, max: 2000, placeholder: 'Detailed content of the report...' },
+                                    { label: 'Description', key: 'description' as const, required: true, max: 2000, placeholder: 'Detailed content of the report...' },
                                     { label: 'Goals', key: 'goals' as const, required: true, max: 2000, placeholder: 'What are your goals this week?' },
                                     { label: 'Achievements', key: 'achievements' as const, required: true, max: 2000, placeholder: 'What have you achieved?' },
                                     { label: 'Issues', key: 'blockers' as const, required: true, max: 2000, placeholder: 'Are there any challenges or blockers?' },
                                     { label: 'Plans', key: 'nextWeek' as const, required: true, max: 2000, placeholder: 'What are your plans for next week?' }
                                 ].map((section) => (
                                     <section key={section.key}>
-                                        <div style={{ marginBottom: '1rem' }}>
-                                            <h3 style={{ fontSize: '0.9rem', fontWeight: 700, color: '#64748b', margin: 0, textTransform: 'uppercase', letterSpacing: '0.025em' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                                            <h3 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#64748b', margin: 0, textTransform: 'uppercase', letterSpacing: '0.025em' }}>
                                                 {section.label} {section.required && <span style={{ color: '#ef4444' }}>*</span>}
                                             </h3>
+                                            <span style={{ fontSize: '0.7rem', fontWeight: 700, color: (activeReport[section.key] || '').length >= section.max ? '#ef4444' : '#94a3b8' }}>
+                                                {(activeReport[section.key] || '').length}/{section.max}
+                                            </span>
                                         </div>
                                         <textarea
                                             className="form-input"
-                                            style={{ minHeight: '150px', width: '100%', lineHeight: 1.6, fontSize: '0.95rem' }}
+                                            style={{ minHeight: '120px', width: '100%', lineHeight: 1.6, fontSize: '0.9rem', padding: '12px', background: '#fcfdfe' }}
                                             value={activeReport[section.key]}
                                             onChange={(e) => updateActiveReport({ [section.key]: e.target.value })}
                                             placeholder={section.placeholder}
                                             maxLength={section.max}
                                         />
-                                        <div style={{ textAlign: 'right', marginTop: '4px' }}>
-                                            <span style={{ fontSize: '0.7rem', color: (activeReport[section.key] || '').length > section.max * 0.9 ? '#ef4444' : '#94a3b8' }}>
-                                                {(activeReport[section.key] || '').length} / {section.max}
-                                            </span>
-                                        </div>
                                     </section>
                                 ))}
 
@@ -652,45 +656,54 @@ const CreateReport: React.FC = () => {
 
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                                 <div>
-                                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '8px' }}>
-                                        Project <span style={{ color: '#0ea5e9', fontSize: '0.65rem' }}>(Required for submit)</span>
+                                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#64748b', marginBottom: '8px', textTransform: 'uppercase' }}>
+                                        Project <span style={{ color: '#ef4444' }}>*</span>
                                     </label>
-                                    <button onClick={() => setIsProjectModalOpen(true)} style={{ width: '100%', textAlign: 'left', border: '1px solid #e2e8f0', background: 'white', padding: '10px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <Briefcase size={16} />
-                                        <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '0.85rem' }}>
-                                            {projects.find(p => p.id === activeReport.projectId)?.name || projects.find(p => p.id === activeReport.projectId)?.projectName || 'Select Project'}
+                                    <button onClick={() => setIsProjectModalOpen(true)} style={{ width: '100%', textAlign: 'left', border: '1px solid #e2e8f0', background: 'white', padding: '12px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: 'var(--shadow-sm)' }}>
+                                        <Briefcase size={16} color="var(--primary-color)" />
+                                        <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '0.85rem', fontWeight: 600 }}>
+                                            {projects.find(p => (p.projectId || p.id) === activeReport.projectId)?.name || projects.find(p => (p.projectId || p.id) === activeReport.projectId)?.projectName || 'Select Project'}
                                         </span>
-                                        <ChevronRight size={14} />
+                                        <ChevronRight size={14} color="#94a3b8" />
                                     </button>
                                 </div>
 
                                 <div>
-                                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '8px' }}>Milestone <span style={{ color: '#0ea5e9', fontSize: '0.65rem' }}>(Required for submit)</span></label>
-                                    <button onClick={() => { if (!activeReport.projectId) return; setIsMilestoneModalOpen(true); }} style={{ width: '100%', textAlign: 'left', border: '1px solid #e2e8f0', background: 'white', padding: '10px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', opacity: activeReport.projectId ? 1 : 0.5 }}>
-                                        <Zap size={16} />
-                                        <span style={{ flex: 1, fontSize: '0.85rem' }}>{milestones.find(m => m.id === activeReport.milestoneId)?.name || 'Select Milestone'}</span>
-                                        <ChevronRight size={14} />
+                                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#64748b', marginBottom: '8px', textTransform: 'uppercase' }}>
+                                        Milestone <span style={{ color: '#ef4444' }}>*</span>
+                                    </label>
+                                    <button onClick={() => { if (!activeReport.projectId) return; setIsMilestoneModalOpen(true); }} style={{ width: '100%', textAlign: 'left', border: '1px solid #e2e8f0', background: 'white', padding: '12px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', opacity: activeReport.projectId ? 1 : 0.5, boxShadow: 'var(--shadow-sm)' }}>
+                                        <Zap size={16} color="#f59e0b" />
+                                        <span style={{ flex: 1, fontSize: '0.85rem', fontWeight: 600 }}>{milestones.find(m => (m.milestoneId || m.id) === activeReport.milestoneId)?.name || 'Select Milestone'}</span>
+                                        <ChevronRight size={14} color="#94a3b8" />
                                     </button>
                                 </div>
 
                                 <div>
                                     <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '8px' }}>
-                                        Assignees <span style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>
+                                        Reviewers <span style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>
                                     </label>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                        {activeReport.assigneeIds.map(id => {
-                                            const u = allUsers.find(user => user.id === id);
+                                        {activeReport.assigneeEmails.map(email => {
+                                            const u = allUsers.find(user => user.email === email);
                                             return u ? (
-                                                <div key={id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '4px' }}>
+                                                <div key={email} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '4px' }}>
                                                     <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#f1f5f9', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', fontWeight: 700 }}>
                                                         {u.fullName?.charAt(0) || u.name?.charAt(0)}
                                                     </div>
                                                     <span style={{ fontSize: '0.85rem' }}>{u.fullName || u.name}</span>
                                                 </div>
-                                            ) : null;
+                                            ) : (
+                                                <div key={email} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '4px' }}>
+                                                    <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#f1f5f9', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', fontWeight: 700 }}>
+                                                        ?
+                                                    </div>
+                                                    <span style={{ fontSize: '0.85rem' }}>{email}</span>
+                                                </div>
+                                            );
                                         })}
                                         <button onClick={() => setIsAssigneeModalOpen(true)} style={{ border: '1px dashed #cbd5e1', background: 'none', padding: '6px', cursor: 'pointer', borderRadius: '6px', fontSize: '0.75rem', color: '#64748b' }}>
-                                            Add assignees
+                                            Add reviewers
                                         </button>
                                     </div>
                                 </div>
@@ -742,21 +755,29 @@ const CreateReport: React.FC = () => {
                         </div>
                         <div style={{ padding: '1rem', overflowY: 'auto' }}>
                             {projects.map(p => (
-                                <div key={p.id} onClick={() => { updateActiveReport({ projectId: p.id, milestoneId: '' }); setIsProjectModalOpen(false); }} style={{ padding: '0.75rem', cursor: 'pointer', borderRadius: '8px', background: activeReport.projectId === p.id ? '#f1f5f9' : 'transparent' }}>
-                                    <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{p.name || p.projectName}</div>
+                                <div 
+                                    key={p.projectId || p.id} 
+                                    onClick={() => { updateActiveReport({ projectId: (p.projectId || p.id), milestoneId: '' }); }} 
+                                    style={{ padding: '0.75rem', cursor: 'pointer', borderRadius: '8px', background: activeReport.projectId === (p.projectId || p.id) ? 'var(--primary-color)10' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+                                >
+                                    <div style={{ fontWeight: 600, fontSize: '0.85rem', color: activeReport.projectId === (p.projectId || p.id) ? 'var(--primary-color)' : '#1e293b' }}>{p.name || p.projectName}</div>
+                                    {activeReport.projectId === (p.projectId || p.id) && <CheckCircle size={18} color="var(--primary-color)" />}
                                 </div>
                             ))}
+                        </div>
+                        <div style={{ padding: '1rem', borderTop: '1px solid #f1f5f9' }}>
+                            <button onClick={() => setIsProjectModalOpen(false)} className="btn btn-primary" style={{ width: '100%', height: '40px', borderRadius: '10px', fontWeight: 700 }}>Done</button>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* Modals - Assignee */}
+            {/* Modals - Reviewer */}
             {isAssigneeModalOpen && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
                     <div className="card" style={{ width: '100%', maxWidth: '500px', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
                         <div style={{ padding: '1.25rem', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <h3 style={{ margin: 0, fontSize: '1rem' }}>Select Assignees</h3>
+                            <h3 style={{ margin: 0, fontSize: '1rem' }}>Select Reviewers</h3>
                             <button onClick={() => { setIsAssigneeModalOpen(false); setUserSearchQuery(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={18} /></button>
                         </div>
 
@@ -782,15 +803,16 @@ const CreateReport: React.FC = () => {
                                     (u.name || '').toLowerCase().includes(userSearchQuery.toLowerCase())
                                 )
                                 .map(u => {
-                                    const selected = activeReport.assigneeIds.includes(u.id);
+                                    const selected = activeReport.assigneeEmails.includes(u.email);
                                     return (
                                         <div
-                                            key={u.id}
+                                            key={u.email}
                                             onClick={() => {
-                                                const newIds = selected
-                                                    ? activeReport.assigneeIds.filter(id => id !== u.id)
-                                                    : [...activeReport.assigneeIds, u.id];
-                                                updateActiveReport({ assigneeIds: newIds });
+                                                const email = u.email;
+                                                const newEmails = selected
+                                                    ? activeReport.assigneeEmails.filter(e => e !== email)
+                                                    : [...activeReport.assigneeEmails, email];
+                                                updateActiveReport({ assigneeEmails: newEmails });
                                             }}
                                             style={{
                                                 padding: '12px',
@@ -841,11 +863,21 @@ const CreateReport: React.FC = () => {
                             <button onClick={() => setIsMilestoneModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={18} /></button>
                         </div>
                         <div style={{ padding: '1rem', overflowY: 'auto' }}>
-                            {milestones.length === 0 ? <p style={{ textAlign: 'center', fontSize: '0.85rem' }}>No milestones found.</p> : milestones.map(m => (
-                                <div key={m.id} onClick={() => { updateActiveReport({ milestoneId: m.id }); setIsMilestoneModalOpen(false); }} style={{ padding: '0.75rem', cursor: 'pointer', borderRadius: '8px', background: activeReport.milestoneId === m.id ? '#f1f5f9' : 'transparent' }}>
-                                    <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>{m.name}</div>
+                            {milestones.length === 0 ? (
+                                <p style={{ textAlign: 'center', fontSize: '0.85rem', color: 'var(--text-muted)', padding: '1rem' }}>No milestones found.</p>
+                            ) : milestones.map(m => (
+                                <div 
+                                    key={m.milestoneId || m.id} 
+                                    onClick={() => { updateActiveReport({ milestoneId: (m.milestoneId || m.id) }); }} 
+                                    style={{ padding: '0.75rem', cursor: 'pointer', borderRadius: '8px', background: activeReport.milestoneId === (m.milestoneId || m.id) ? 'var(--primary-color)10' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+                                >
+                                    <div style={{ fontSize: '0.85rem', fontWeight: 600, color: activeReport.milestoneId === (m.milestoneId || m.id) ? 'var(--primary-color)' : '#1e293b' }}>{m.name || m.title}</div>
+                                    {activeReport.milestoneId === (m.milestoneId || m.id) && <CheckCircle size={18} color="var(--primary-color)" />}
                                 </div>
                             ))}
+                        </div>
+                        <div style={{ padding: '1rem', borderTop: '1px solid #f1f5f9' }}>
+                            <button onClick={() => setIsMilestoneModalOpen(false)} className="btn btn-primary" style={{ width: '100%', height: '40px', borderRadius: '10px', fontWeight: 700 }}>Done</button>
                         </div>
                     </div>
                 </div>

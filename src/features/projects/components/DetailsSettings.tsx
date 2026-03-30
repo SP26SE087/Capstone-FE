@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShieldAlert, ChevronDown, Briefcase, Save, Search, Calendar, Trash2 } from 'lucide-react';
+import { ChevronDown, Briefcase, Save, Search, Calendar, Trash2 } from 'lucide-react';
 import { Project, ResearchField, ProjectStatus } from '@/types';
 
 interface DetailsSettingsProps {

@@ -51,7 +51,7 @@ const ProjectDetails: React.FC = () => {
     const location = useLocation();
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<ActiveTab>(location.state?.activeTab || 'home');
-    const [taskView, setTaskView] = useState<'list' | 'kanban'>('list');
+    const [taskView, setTaskView] = useState<'list' | 'timeline'>('list');
 
     // Modals visibility
     const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
@@ -67,9 +67,9 @@ const ProjectDetails: React.FC = () => {
 
     // Filters
     const [taskSearchQuery, setTaskSearchQuery] = useState('');
-    const [taskStatusFilter, setTaskStatusFilter] = useState<string>('all');
-    const [taskPriorityFilter, setTaskPriorityFilter] = useState<string>('all');
-    const [taskMilestoneFilter, setTaskMilestoneFilter] = useState<string>('all');
+    const [taskStatusFilter, setTaskStatusFilter] = useState<string[]>([]);
+    const [taskPriorityFilter, setTaskPriorityFilter] = useState<string[]>([]);
+    const [taskMilestoneFilter, setTaskMilestoneFilter] = useState<string[]>([]);
 
     const [milestoneSearchQuery, setMilestoneSearchQuery] = useState('');
     const [milestoneStatusFilter, setMilestoneStatusFilter] = useState<string>('all');
@@ -96,6 +96,7 @@ const ProjectDetails: React.FC = () => {
     const [newMilestoneData, setNewMilestoneData] = useState({ name: '', description: '', startDate: '', dueDate: '', status: 0 });
     const [milestoneAddData, setMilestoneAddData] = useState({ name: '', description: '', startDate: '', dueDate: '', status: 0 });
     const [newTasks, setNewTasks] = useState<any[]>([]);
+    const [isMilestoneSaving, setIsMilestoneSaving] = useState(false);
     const milestoneContainerRef = useRef<HTMLDivElement>(null);
 
     const showToast = (message: string, type: ToastType = 'info', duration: number = 3000) => {
@@ -119,30 +120,49 @@ const ProjectDetails: React.FC = () => {
 
             const projectData = await projectService.getById(id);
             if (projectData) {
-                setProject(projectData);
+                const mappedProject = {
+                    ...projectData,
+                    projectId: projectData.projectId || (projectData as any).id
+                };
+                setProject(mappedProject);
                 setFormData({
-                    projectName: projectData.projectName || (projectData as any).name || '',
-                    projectDescription: projectData.projectDescription || (projectData as any).description || '',
-                    startDate: !isDefaultDate(projectData.startDate) ? new Date(projectData.startDate!).toISOString().split('T')[0] : '',
-                    endDate: !isDefaultDate(projectData.endDate) ? new Date(projectData.endDate!).toISOString().split('T')[0] : '',
-                    status: projectData.status
+                    projectName: mappedProject.projectName || (mappedProject as any).name || '',
+                    projectDescription: mappedProject.projectDescription || (mappedProject as any).description || '',
+                    startDate: !isDefaultDate(mappedProject.startDate) ? new Date(mappedProject.startDate!).toISOString().split('T')[0] : '',
+                    endDate: !isDefaultDate(mappedProject.endDate) ? new Date(mappedProject.endDate!).toISOString().split('T')[0] : '',
+                    status: mappedProject.status
                 });
-                setSelectedFieldIds(projectData.researchFields?.map(f => f.researchFieldId) || []);
+                setSelectedFieldIds(mappedProject.researchFields?.map(f => f.researchFieldId) || []);
             }
 
-            const [milestonesData, membersData, fieldsData, tasksData, timelineResponse] = await Promise.all([
+            // Fetch all required data in parallel without letting one fail the others
+            console.log('ProjectDetails: Starting parallel fetch for workspace data...', { id });
+            const fetchPromises = [
                 milestoneService.getByProject(id),
                 membershipService.getProjectMembers(id),
                 researchFieldService.getAll(),
                 taskService.getByProject(id),
-                projectService.getMilestoneTasks(id)
-            ]);
+                milestoneService.getMilestoneTasksByProject(id)
+            ];
 
-            setMilestones(milestonesData || []);
-            setMembers(membersData || []);
-            setAvailableFields(fieldsData || []);
-            setTasks(tasksData || []);
-            setTimelineData(timelineResponse);
+            const results = await Promise.all(
+                fetchPromises.map((p, idx) => p.catch(e => { 
+                    console.error(`Workspace fetch error [promise ${idx}]:`, e); 
+                    return []; 
+                }))
+            );
+            
+            console.log('ProjectDetails: Parallel fetch results keys:', ['milestones', 'members', 'fields', 'tasks', 'timeline']);
+            const [mRaw, membersRaw, fieldsRaw, tasksRaw, timelineRaw] = results;
+
+            console.log('ProjectDetails: timelineRaw sample:', (timelineRaw as any)?.milestones?.[0] || timelineRaw?.[0] || 'empty');
+
+            setMilestones(mRaw as Milestone[]);
+            setMembers(membersRaw as any[]);
+            setAvailableFields(fieldsRaw as ResearchField[]);
+            setTasks(tasksRaw as Task[]);
+            setTimelineData(timelineRaw);
+            console.log('ProjectDetails: All data states updated.');
         } catch (error) {
             console.error('Failed to fetch project workspace data:', error);
         } finally {
@@ -153,6 +173,26 @@ const ProjectDetails: React.FC = () => {
     useEffect(() => {
         fetchData();
     }, [id]);
+
+    useEffect(() => {
+        const today = new Date().toISOString().split('T')[0];
+        
+        if (milestones.length > 0) {
+            const lastDue = new Date(Math.max(...milestones.map(m => new Date(m.dueDate).getTime())));
+            const nextStart = new Date(lastDue);
+            nextStart.setDate(nextStart.getDate() + 1);
+            const nextStartStr = nextStart.toISOString().split('T')[0];
+            
+            // Use tomorrow of the last milestone, but not earlier than today
+            const finalStartStr = new Date(nextStartStr) < new Date(today) ? today : nextStartStr;
+            
+            setMilestoneAddData(prev => prev.startDate ? prev : { ...prev, startDate: finalStartStr });
+        } else if (project?.startDate) {
+            const pStart = new Date(project.startDate).toISOString().split('T')[0];
+            const finalStartStr = new Date(pStart) < new Date(today) ? today : pStart;
+            setMilestoneAddData(prev => prev.startDate ? prev : { ...prev, startDate: finalStartStr });
+        }
+    }, [milestones, project?.startDate]);
 
     const refetchTasks = async () => {
         if (!id) return;
@@ -168,7 +208,16 @@ const ProjectDetails: React.FC = () => {
         if (!id) return;
         try {
             const milestonesData = await milestoneService.getByProject(id);
-            setMilestones(milestonesData || []);
+            const list = milestonesData || [];
+            setMilestones(list);
+
+            // Synchronize active milestone if currently viewing details
+            if (activeMilestoneForTasks) {
+                const refreshed = list.find(m => (m.milestoneId === activeMilestoneForTasks.milestoneId || (m as any).id === activeMilestoneForTasks.milestoneId));
+                if (refreshed) {
+                    setActiveMilestoneForTasks(refreshed);
+                }
+            }
         } catch (error) {
             console.error('Failed to refetch milestones:', error);
         }
@@ -190,8 +239,15 @@ const ProjectDetails: React.FC = () => {
         setIsDetailModalOpen(true);
     };
 
-    const handleMilestoneClick = (milestone: Milestone) => {
-        setEditingMilestoneId(milestone.milestoneId);
+    const handleMilestoneClick = (milestone: Milestone | null) => {
+        const mId = milestone?.milestoneId || (milestone as any)?.id;
+        if (!milestone || !mId) {
+            // If just entering detail view without a specific milestone (e.g., from Add mode trigger)
+            setMilestoneViewMode('detail');
+            setEditingMilestoneId(null);
+            return;
+        }
+        setEditingMilestoneId(mId);
         setNewMilestoneData({
             name: milestone.name,
             description: milestone.description || '',
@@ -200,7 +256,7 @@ const ProjectDetails: React.FC = () => {
             status: milestone.status
         });
         // Automatically show tasks for this milestone
-        setActiveMilestoneForTasks(milestone);
+        setActiveMilestoneForTasks({ ...milestone, milestoneId: mId });
         setMilestoneViewMode('detail');
     };
 
@@ -218,6 +274,7 @@ const ProjectDetails: React.FC = () => {
     };
 
     const handleTaskSubmit = async (taskData: any) => {
+        setSubmitting(true);
         try {
             if (editingTask) {
                 await taskService.update(editingTask.taskId, { ...taskData, projectId: id });
@@ -232,6 +289,8 @@ const ProjectDetails: React.FC = () => {
         } catch (error) {
             console.error('Failed to save task:', error);
             showToast('Failed to save task.', 'error');
+        } finally {
+            setSubmitting(false);
         }
     };
 
@@ -247,34 +306,76 @@ const ProjectDetails: React.FC = () => {
     const handleQuickMilestoneSave = async () => {
         if (!id) return;
         const dataToSave = editingMilestoneId ? newMilestoneData : milestoneAddData;
-        if (!dataToSave.name || !dataToSave.startDate || !dataToSave.dueDate) {
-            showToast('Please fill in all required fields.', 'warning');
+        if (!dataToSave.name?.trim()) {
+            showToast('Milestone name is required.', 'warning');
             return;
         }
+        if (!dataToSave.startDate || !dataToSave.dueDate) {
+            showToast('Both start and due dates are required.', 'warning');
+            return;
+        }
+
+        if (!dataToSave.name || !id) return;
+
+        if (checkOverlap(dataToSave.startDate, dataToSave.dueDate)) {
+            showToast('This timeframe overlaps with another existing milestone.', 'warning');
+            return;
+        }
+
+        setIsMilestoneSaving(true);
         try {
             if (editingMilestoneId) {
-                await milestoneService.update(editingMilestoneId, { ...dataToSave, projectId: id });
+                // DIFFERENTIAL UPDATE: Only send dates if they changed
+                const updatePayload: any = { ...dataToSave, projectId: id };
+                
+                if (activeMilestoneForTasks) {
+                    const originalStart = activeMilestoneForTasks.startDate ? new Date(activeMilestoneForTasks.startDate).toISOString().split('T')[0] : '';
+                    const originalDue = activeMilestoneForTasks.dueDate ? new Date(activeMilestoneForTasks.dueDate).toISOString().split('T')[0] : '';
+                    
+                    if (dataToSave.startDate === originalStart) delete updatePayload.startDate;
+                    if (dataToSave.dueDate === originalDue) delete updatePayload.dueDate;
+                }
+                
+                await milestoneService.update(editingMilestoneId, updatePayload);
                 showToast('Milestone updated!', 'success');
+                // Stay in detail view, but switch form to view mode
+                setMilestoneViewMode('detail'); 
+                // We'll update activeMilestone for tasks to reflect changes
+                if (activeMilestoneForTasks) {
+                    setActiveMilestoneForTasks({ ...activeMilestoneForTasks, ...dataToSave });
+                }
             } else {
                 await milestoneService.create({ ...dataToSave, projectId: id });
                 showToast('Milestone created!', 'success');
-                // Only clear add data after successful creation
+                
+                // After successful creation, RESET and STAY in roadmap view (as requested)
                 setMilestoneAddData({ name: '', description: '', startDate: '', dueDate: '', status: 0 });
+                setMilestoneViewMode('roadmap'); 
+                setEditingMilestoneId(null);
+                setActiveMilestoneForTasks(null);
             }
-            // Reset and refetch
-            handleCancelMilestoneEdit();
+            // Refetch list
             await refetchMilestones();
         } catch (error) {
             showToast(`Failed to ${editingMilestoneId ? 'update' : 'create'} milestone.`, 'error');
+        } finally {
+            setIsMilestoneSaving(false);
         }
     };
 
     // Inline Task Handlers
     const addInlineTask = () => {
-        setNewTasks(prev => [
-            ...prev,
-            { tempId: `temp-${Date.now()}`, name: '', description: '', milestoneId: '', assigneeId: '', endDate: '' }
-        ]);
+        setNewTasks([{ 
+            tempId: `temp-${Date.now()}`, 
+            name: '', 
+            description: '', 
+            milestoneId: '', 
+            assigneeId: '', 
+            priority: 2, 
+            startDate: '', 
+            endDate: '',
+            supportMemberIds: []
+        }]);
     };
 
     const removeInlineTask = (id_temp: string) => {
@@ -291,20 +392,28 @@ const ProjectDetails: React.FC = () => {
             showToast('Please fill in task name and due date.', 'warning');
             return;
         }
+
+        setSubmitting(true);
         try {
             await taskService.create({
                 name: t.name,
-                description: t.description,
+                description: t.description || null,
+                priority: t.priority || 2,
                 milestoneId: t.milestoneId || null,
                 memberId: t.assigneeId || null,
+                startDate: t.startDate ? new Date(t.startDate).toISOString() : null,
                 dueDate: new Date(t.endDate).toISOString(),
+                supportMembers: t.supportMemberIds || [],
                 projectId: id
             });
-            showToast('Task created!', 'success');
+            showToast('Task created successfully!', 'success');
             removeInlineTask(id_temp);
             await refetchTasks();
         } catch (error) {
-            showToast('Failed to create task.', 'error');
+            console.error('Failed to create task:', error);
+            showToast('Failed to create task. Please check date constraints.', 'error');
+        } finally {
+            setSubmitting(false);
         }
     };
 
@@ -367,7 +476,7 @@ const ProjectDetails: React.FC = () => {
     const isAdmin = currentUser.role === 'Admin';
     const canManageProject = isAdmin || (Number(projectRoleValue) === ProjectRoleEnum.Leader) || (Number(projectRoleValue) === ProjectRoleEnum.LabDirector);
     const canManageMilestones = isAdmin || (Number(projectRoleValue) === ProjectRoleEnum.LabDirector);
-    const canAddTask = isAdmin || [ProjectRoleEnum.Leader, ProjectRoleEnum.LabDirector, ProjectRoleEnum.SeniorResearcher].includes(Number(projectRoleValue));
+    const canAddTask = isAdmin || [ProjectRoleEnum.Leader, ProjectRoleEnum.LabDirector].includes(Number(projectRoleValue));
     const isArchived = project?.status === ProjectStatus.Archived;
     const isReadOnly = (isArchived && !isAdmin) || !canManageProject;
     const canDeleteProject = isAdmin || (Number(projectRoleValue) === ProjectRoleEnum.LabDirector);
@@ -375,9 +484,9 @@ const ProjectDetails: React.FC = () => {
     // Filtered data
     const filteredTasks = tasks.filter(t => {
         const matchesSearch = t.name.toLowerCase().includes(taskSearchQuery.toLowerCase());
-        const matchesStatus = taskStatusFilter === 'all' || t.status.toString() === taskStatusFilter;
-        const matchesPriority = taskPriorityFilter === 'all' || t.priority.toString() === taskPriorityFilter;
-        const matchesMilestone = taskMilestoneFilter === 'all' || t.milestoneId === taskMilestoneFilter;
+        const matchesStatus = taskStatusFilter.length === 0 || taskStatusFilter.includes('all') || taskStatusFilter.includes(t.status.toString());
+        const matchesPriority = taskPriorityFilter.length === 0 || taskPriorityFilter.includes('all') || taskPriorityFilter.includes(t.priority.toString());
+        const matchesMilestone = taskMilestoneFilter.length === 0 || taskMilestoneFilter.includes('all') || taskMilestoneFilter.includes(t.milestoneId || 'ungrouped');
         return matchesSearch && matchesStatus && matchesPriority && matchesMilestone;
     });
 
@@ -560,6 +669,8 @@ const ProjectDetails: React.FC = () => {
                                 project={project}
                                 tasks={tasks}
                                 milestones={milestones}
+                                timelineData={timelineData}
+                                members={members}
                                 formatProjectDate={formatProjectDate}
                                 currentUser={currentUser}
                                 currentMember={currentMember}
@@ -586,10 +697,10 @@ const ProjectDetails: React.FC = () => {
                                 milestoneStatusFilter={milestoneStatusFilter}
                                 setMilestoneStatusFilter={setMilestoneStatusFilter}
                                 canManageMilestones={canManageMilestones}
+                                canManageProject={canManageProject}
                                 isArchived={isArchived}
                                 milestoneContainerRef={milestoneContainerRef}
                                 handleMilestoneClick={handleMilestoneClick}
-                                onDetailClick={handleMilestoneClick}
                                 newMilestoneData={editingMilestoneId ? newMilestoneData : milestoneAddData}
                                 handleMilestoneDataChange={handleMilestoneDataChange}
                                 handleQuickMilestoneSave={handleQuickMilestoneSave}
@@ -600,7 +711,12 @@ const ProjectDetails: React.FC = () => {
                                 viewMode={milestoneViewMode}
                                 activeMilestone={activeMilestoneForTasks}
                                 refreshTasks={refetchTasks}
+                                refreshMilestones={refetchMilestones}
+                                showToast={showToast}
                                 members={members}
+                                projectStartDate={project.startDate}
+                                projectEndDate={project.endDate}
+                                isMilestoneSaving={isMilestoneSaving}
                             />
                         )}
 
@@ -631,9 +747,7 @@ const ProjectDetails: React.FC = () => {
                                 viewMode={taskView}
                                 setViewMode={(mode) => setTaskView(mode as any)}
                                 canManageTasks={canAddTask}
-                                isArchived={isArchived}
-                                setIsTaskModalOpen={setIsTaskModalOpen}
-                                handleTaskClick={handleTaskClick}
+                                isArchived={project.status === ProjectStatus.Archived}
                                 newTasks={newTasks}
                                 handleAddTaskForm={addInlineTask}
                                 handleRemoveTaskForm={removeInlineTask}
@@ -643,6 +757,9 @@ const ProjectDetails: React.FC = () => {
                                 projectMembers={members}
                                 project={project}
                                 formatProjectDate={formatProjectDate}
+                                currentUser={currentUser}
+                                currentMember={currentMember}
+                                refreshTasks={refetchTasks}
                             />
                         )}
 
@@ -669,7 +786,7 @@ const ProjectDetails: React.FC = () => {
             </div>
 
             {/* Modals */}
-            <TaskFormModal
+             <TaskFormModal
                 isOpen={isTaskModalOpen}
                 onClose={() => { setIsTaskModalOpen(false); setEditingTask(null); }}
                 onSubmit={handleTaskSubmit}
@@ -680,6 +797,7 @@ const ProjectDetails: React.FC = () => {
                 projectStartDate={project?.startDate || undefined}
                 projectEndDate={project?.endDate || undefined}
                 existingTasks={tasks}
+                submitting={submitting}
             />
 
             <TaskDetailModal

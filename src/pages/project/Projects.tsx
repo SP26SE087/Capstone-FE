@@ -236,11 +236,11 @@ const Projects: React.FC = () => {
                                             <span style={{ fontWeight: 700 }}>{project.membersCount || 0} Team Members</span>
                                         </div>
                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', justifyContent: 'flex-end', maxWidth: '160px' }}>
-                                            {project.researchFields?.slice(0, 2).map(f => (
-                                                <span key={f.researchFieldId} className="tag" style={{ margin: 0, fontSize: '0.65rem', padding: '2px 8px', borderRadius: '4px', fontWeight: 600 }}>{f.name}</span>
+                                            {project.researchFields?.slice(0, 2).map((f, idx) => (
+                                                <span key={f.researchFieldId || `rf-${idx}`} className="tag" style={{ margin: 0, fontSize: '0.65rem', padding: '2px 8px', borderRadius: '4px', fontWeight: 600 }}>{f.name}</span>
                                             ))}
                                             {project.researchFields && project.researchFields.length > 2 && (
-                                                <span className="tag" style={{ margin: 0, fontSize: '0.65rem', padding: '2px 8px', background: 'var(--surface-hover)', borderRadius: '4px', fontWeight: 600 }}>
+                                                <span key="more-tags" className="tag" style={{ margin: 0, fontSize: '0.65rem', padding: '2px 8px', background: 'var(--surface-hover)', borderRadius: '4px', fontWeight: 600 }}>
                                                     +{project.researchFields.length - 2}
                                                 </span>
                                             )}

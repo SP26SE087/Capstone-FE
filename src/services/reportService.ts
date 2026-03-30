@@ -1,15 +1,4 @@
-import axios from 'axios';
-import { setupInterceptors, API_BASE_URL } from './api';
-
-const reportApi = axios.create({
-    baseURL: API_BASE_URL || '/',
-    headers: {
-        'Content-Type': 'application/json',
-        'Accept': '*/*',
-    },
-});
-
-setupInterceptors(reportApi);
+import api from './api';
 
 export interface Report {
     id: string;
@@ -22,7 +11,7 @@ export interface Report {
     achievements: string;
     blockers: string;
     nextWeek: string;
-    assigneeIds: string[] | null;
+    assigneeEmails: string[] | null;
     assignees?: {
         id: string;
         email: string;
@@ -46,7 +35,7 @@ export interface CreateReportRequest {
     achievements: string;
     blockers: string;
     nextWeek: string;
-    assigneeIds?: string[] | null;
+    assigneeEmails?: string[] | null;
 }
 
 export interface UpdateReportRequest {
@@ -59,7 +48,7 @@ export interface UpdateReportRequest {
     blockers?: string | null;
     nextWeek?: string | null;
     status?: number;
-    assigneeIds?: string[] | null;
+    assigneeEmails?: string[] | null;
 }
 
 export interface BulkReportCreateResult {
@@ -83,7 +72,7 @@ const reportService = {
     // Get all reports that the user has access to
     getAllReports: async () => {
         try {
-            const response = await reportApi.get('/api/Reports');
+            const response = await api.get('/api/Reports');
             return response.data;
         } catch (error) {
             console.error('Error fetching all reports:', error);
@@ -96,7 +85,7 @@ const reportService = {
         try {
             // Note: userId parameter is kept for compatibility but the endpoint is switched 
             // to /api/Reports as it now returns user-specific reports based on token.
-            const response = await reportApi.get('/api/Reports');
+            const response = await api.get('/api/Reports');
             return response.data;
         } catch (error) {
             console.error(`Error fetching reports:`, error);
@@ -107,7 +96,7 @@ const reportService = {
     // Get my owned reports
     getMyReports: async () => {
         try {
-            const response = await reportApi.get('/api/Reports/me');
+            const response = await api.get('/api/Reports/me');
             return response.data;
         } catch (error) {
             console.error('Error fetching my reports:', error);
@@ -118,7 +107,7 @@ const reportService = {
     // Get reports assigned to me
     getAssignedReports: async () => {
         try {
-            const response = await reportApi.get('/api/Reports/me/assigned');
+            const response = await api.get('/api/Reports/me/assigned');
             return response.data;
         } catch (error) {
             console.error('Error fetching assigned reports:', error);
@@ -129,7 +118,7 @@ const reportService = {
     // Ensure a report is indexed/embedded
     ensureEmbedding: async (id: string) => {
         try {
-            const response = await reportApi.post(`/api/Reports/${id}/ensure-embedding`);
+            const response = await api.post(`/api/Reports/${id}/ensure-embedding`);
             return response.data;
         } catch (error) {
             console.error(`Error ensuring embedding for report ${id}:`, error);
@@ -140,7 +129,7 @@ const reportService = {
     // Search reports
     searchReports: async (searchReq: SemanticSearchRequest) => {
         try {
-            const response = await reportApi.post('/api/Reports/search', searchReq);
+            const response = await api.post('/api/Reports/search', searchReq);
             return response.data;
         } catch (error) {
             console.error('Error searching reports:', error);
@@ -151,7 +140,7 @@ const reportService = {
     // Create a new report
     createReport: async (reportData: CreateReportRequest) => {
         try {
-            const response = await reportApi.post('/api/Reports', reportData);
+            const response = await api.post('/api/Reports', reportData);
             return response.data;
         } catch (error) {
             console.error('Error creating report:', error);
@@ -162,7 +151,7 @@ const reportService = {
     // Create multiple reports at once
     createBulkReports: async (reports: CreateReportRequest[]) => {
         try {
-            const response = await reportApi.post('/api/Reports/bulk', reports);
+            const response = await api.post('/api/Reports/bulk', reports);
             return response.data;
         } catch (error) {
             console.error('Error creating bulk reports:', error);
@@ -173,7 +162,7 @@ const reportService = {
     // Update an existing report
     updateReport: async (id: string, reportData: UpdateReportRequest) => {
         try {
-            const response = await reportApi.put(`/api/Reports/${id}`, reportData);
+            const response = await api.put(`/api/Reports/${id}`, reportData);
             return response.data;
         } catch (error) {
             console.error(`Error updating report ${id}:`, error);
@@ -184,7 +173,7 @@ const reportService = {
     // Update report status
     updateReportStatus: async (id: string, status: number) => {
         try {
-            const response = await reportApi.patch(`/api/Reports/${id}/status`, status, {
+            const response = await api.patch(`/api/Reports/${id}/status`, status, {
                 headers: { 'Content-Type': 'application/json' }
             });
             return response.data;
@@ -197,7 +186,7 @@ const reportService = {
     // Get a single report by ID
     getReportById: async (id: string) => {
         try {
-            const response = await reportApi.get(`/api/Reports/${id}`);
+            const response = await api.get(`/api/Reports/${id}`);
             return response.data;
         } catch (error) {
             console.error(`Error fetching report ${id}:`, error);
@@ -208,10 +197,32 @@ const reportService = {
     // Delete a report
     deleteReport: async (id: string) => {
         try {
-            const response = await reportApi.delete(`/api/Reports/${id}`);
+            const response = await api.delete(`/api/Reports/${id}`);
             return response.data;
         } catch (error) {
             console.error(`Error deleting report ${id}:`, error);
+            throw error;
+        }
+    },
+
+    // Get AI feedback for a report
+    getAiFeedback: async (id: string) => {
+        try {
+            const response = await api.get(`/api/Reports/${id}/ai-feedback`);
+            return response.data;
+        } catch (error) {
+            console.error(`Error fetching AI feedback for report ${id}:`, error);
+            throw error;
+        }
+    },
+
+    // Update assignee status or feedback
+    updateAssignee: async (id: string, data: { status?: number, feedback?: string }) => {
+        try {
+            const response = await api.patch(`/api/Reports/${id}/assignee`, data);
+            return response.data;
+        } catch (error) {
+            console.error(`Error updating assignee for report ${id}:`, error);
             throw error;
         }
     }

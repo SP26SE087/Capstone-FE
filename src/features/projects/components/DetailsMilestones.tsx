@@ -1,11 +1,15 @@
 import React from 'react';
 import {
     Plus, Search, Calendar, Target, Edit3,
-    Clock, Activity, CheckCircle2, X, User, Info,
-    Save, Trash2, UserPlus, FileText, ChevronRight, ChevronDown
+    Clock, Activity, CheckCircle2, User, Users, Info,
+    Save, Trash2, ChevronRight, ChevronDown, CheckCircle, Timer
 } from 'lucide-react';
-import { Milestone, MilestoneStatus } from '@/types';
+import { Milestone, MilestoneStatus, Task } from '@/types';
 import MilestoneItem from '@/components/milestone/MilestoneItem';
+import { taskService } from '@/services/taskService';
+import { milestoneService } from '@/services/milestoneService';
+import { dashboardService } from '@/services';
+
 
 interface TaskDraft {
     id: string; // Internal temporary ID
@@ -30,10 +34,10 @@ interface DetailsMilestonesProps {
     milestoneStatusFilter: string;
     setMilestoneStatusFilter: (filter: string) => void;
     canManageMilestones: boolean;
+    canManageProject: boolean;
     isArchived: boolean;
     milestoneContainerRef: React.RefObject<HTMLDivElement>;
-    handleMilestoneClick: (milestone: Milestone) => void;
-    onDetailClick: (milestone: Milestone) => void;
+    handleMilestoneClick: (milestone: Milestone | null) => void;
     newMilestoneData: any;
     handleMilestoneDataChange: (field: string, value: any) => void;
     handleQuickMilestoneSave: () => void;
@@ -45,6 +49,11 @@ interface DetailsMilestonesProps {
     activeMilestone: Milestone | null;
     members: any[];
     refreshTasks?: () => void;
+    refreshMilestones?: () => void;
+    showToast: (message: string, type: 'success' | 'error' | 'info' | 'warning') => void;
+    projectStartDate?: string | null;
+    projectEndDate?: string | null;
+    isMilestoneSaving?: boolean;
 }
 
 type FormTab = 'view' | 'edit' | 'add';
@@ -58,32 +67,115 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
     milestoneStatusFilter,
     setMilestoneStatusFilter,
     canManageMilestones,
+    canManageProject,
     isArchived,
     milestoneContainerRef,
     handleMilestoneClick,
-    onDetailClick,
     newMilestoneData,
     handleMilestoneDataChange,
     handleQuickMilestoneSave,
+    checkOverlap,
     editingMilestoneId,
     onCancelEdit,
-    clearMilestoneEdit,
     viewMode,
     activeMilestone,
     members,
-    refreshTasks
+    refreshTasks,
+    refreshMilestones,
+    showToast,
+    projectStartDate,
+    projectEndDate,
+    isMilestoneSaving = false
 }) => {
+    // Standardize TODAY string using local time (YYYY-MM-DD)
+    const today = new Date().toLocaleDateString('en-CA');
+    const pStartFormatted = projectStartDate ? new Date(projectStartDate).toLocaleDateString('en-CA') : today;
+    const pEndFormatted = projectEndDate ? new Date(projectEndDate).toLocaleDateString('en-CA') : '';
     const [formTab, setFormTab] = React.useState<FormTab>('view');
+    const [showMoreOptions, setShowMoreOptions] = React.useState(false);
     const [draftTasks, setDraftTasks] = React.useState<TaskDraft[]>([]);
     const [confirmState, setConfirmState] = React.useState<{
         isOpen: boolean;
+        title: string;
         message: string;
+        confirmLabel: string;
+        cancelLabel: string;
         onConfirm: () => void;
     }>({
         isOpen: false,
+        title: '',
         message: '',
+        confirmLabel: 'Confirm',
+        cancelLabel: 'Cancel',
         onConfirm: () => { }
     });
+
+    const [milestoneTasks, setMilestoneTasks] = React.useState<Task[]>([]);
+    const [loadingTasks, setLoadingTasks] = React.useState(false);
+    const [taskTab, setTaskTab] = React.useState<'draft' | 'current'>('current');
+    const [expandedTasks, setExpandedTasks] = React.useState<string[]>([]);
+    const [isBulkSaving, setIsBulkSaving] = React.useState(false);
+    const [savingTaskId, setSavingTaskId] = React.useState<string | null>(null);
+
+    // API Stats State
+    const [milestoneStats, setMilestoneStats] = React.useState<any>(null);
+    const [_loadingStats, setLoadingStats] = React.useState(false);
+
+    const fetchStats = React.useCallback(async () => {
+        if (!projectId) return;
+        setLoadingStats(true);
+        try {
+            const data = await dashboardService.getMilestoneStats(projectId);
+            setMilestoneStats(data);
+        } catch (error) {
+            console.error("Failed to fetch milestone stats:", error);
+        } finally {
+            setLoadingStats(false);
+        }
+    }, [projectId]);
+
+    React.useEffect(() => {
+        fetchStats();
+    }, [fetchStats, milestones.length]); // Re-fetch if milestones count changes
+
+    const fetchMilestoneTasks = React.useCallback(async (mId: string) => {
+        setLoadingTasks(true);
+        try {
+            const result = await milestoneService.getTasksByMilestone(mId);
+            // Harmonize task data to ensure memberId is present for updates
+            const processed = (result || []).map((t: any) => {
+                const cIds = Array.isArray(t.collaborators) ? t.collaborators.map((c: any) => (c.memberId || c.membershipId || c.id)).filter(Boolean) : (t.collaboratorIds || []);
+                const existingId = t.memberId || t.assignedToId;
+                const taskId = t.taskId || t.id;
+
+                let finalTask = { ...t, taskId, collaboratorIds: cIds };
+
+                if (!existingId) {
+                    const match = members.find(m => (m.fullName || m.userName) === (t.assignedToName || t.assigneeName));
+                    finalTask.memberId = match ? (match.id || match.memberId || match.membershipId) : null;
+                }
+
+                return finalTask;
+            });
+            setMilestoneTasks(processed);
+        } catch (error) {
+            console.error("Failed to fetch tasks for milestone:", error);
+            setMilestoneTasks([]);
+        } finally {
+            setLoadingTasks(false);
+        }
+    }, []);
+
+    React.useEffect(() => {
+        const mId = editingMilestoneId || activeMilestone?.milestoneId || (activeMilestone as any)?.id;
+        if (mId) {
+            fetchMilestoneTasks(mId);
+        } else {
+            setMilestoneTasks([]);
+        }
+    }, [activeMilestone?.milestoneId, editingMilestoneId, fetchMilestoneTasks]);
+
+
 
     // Helper to format date to DD/MM/YYYY
     const formatDate = (dateInput: string | Date | null | undefined): string => {
@@ -94,13 +186,14 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
             const day = String(date.getDate()).padStart(2, '0');
             const month = String(date.getMonth() + 1).padStart(2, '0');
             const year = date.getFullYear();
-            return `${day}/${month}/${year}`;
+            return `${month}/${day}/${year}`;
         } catch (e) {
             return "TBD";
         }
     };
 
     // Date range constraints for tasks
+    const mStartDate = activeMilestone?.startDate ? new Date(activeMilestone.startDate).toISOString().split('T')[0] : '';
     const mDueDate = activeMilestone?.dueDate ? new Date(activeMilestone.dueDate).toISOString().split('T')[0] : '';
 
     // Task Draft Handlers
@@ -112,14 +205,14 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
             description: '',
             priority: 2, // Medium=2
             status: 1,   // Todo=1
-            startDate: today,
+            startDate: mStartDate || today,
             dueDate: mDueDate || today,
             assigneeId: '',
             collaboratorIds: [],
             isSaving: false,
             isExpanded: true
         };
-        // Auto-collapse others when adding new
+        setTaskTab('draft');
         setDraftTasks([newDraft, ...draftTasks.map(d => ({ ...d, isExpanded: false }))]);
     };
 
@@ -140,65 +233,165 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
         if (!draft.name || !activeMilestone) return;
         setDraftTasks(prev => prev.map(d => d.id === draft.id ? { ...d, isSaving: true } : d));
 
-        // Final task object for API
-        const taskPayload = {
-            name: draft.name,
-            description: draft.description,
-            priority: draft.priority,
-            status: draft.status,
-            memberId: draft.assigneeId,
-            milestoneId: activeMilestone.milestoneId,
-            projectId: projectId,
-            startDate: draft.startDate + "T00:00:00.000Z",
-            dueDate: draft.dueDate + "T23:59:59.000Z",
-            collaborators: draft.collaboratorIds
-        };
+        try {
+            const mId = editingMilestoneId || activeMilestone.milestoneId || (activeMilestone as any).id;
+            const taskPayload = {
+                name: draft.name,
+                description: draft.description,
+                priority: draft.priority,
+                status: draft.status || 1,
+                memberId: draft.assigneeId,
+                milestoneId: mId,
+                projectId: projectId,
+                startDate: draft.startDate + "T00:00:00.000Z",
+                dueDate: draft.dueDate + "T23:59:59.000Z",
+                supportMembers: draft.collaboratorIds
+            };
 
-        // Mock API Call
-        console.log("Saving single task payload:", taskPayload);
-        await new Promise(resolve => setTimeout(resolve, 800));
+            await taskService.create(taskPayload);
+            showToast('Task created successfully', 'success');
 
-        setDraftTasks(prev => prev.filter(d => d.id !== draft.id));
-        if (refreshTasks) refreshTasks();
+            setDraftTasks(prev => prev.filter(d => d.id !== draft.id));
+            if (mId) fetchMilestoneTasks(mId);
+            if (refreshTasks) refreshTasks();
+        } catch (error) {
+            console.error("Failed to save task:", error);
+            showToast('Failed to save task', 'error');
+            setDraftTasks(prev => prev.map(d => d.id === draft.id ? { ...d, isSaving: false } : d));
+        }
     };
 
     const handleBulkTaskSave = async () => {
         const validDrafts = draftTasks.filter(d => d.name.trim() !== '' && d.assigneeId);
-        if (validDrafts.length === 0 || !activeMilestone) return;
+        if (validDrafts.length === 0 || !activeMilestone || isBulkSaving) return;
 
+        setIsBulkSaving(true);
         setDraftTasks(prev => prev.map(d => ({ ...d, isSaving: true })));
 
-        // Prepare payload for bulk API
-        const payloads = validDrafts.map(draft => ({
-            name: draft.name,
-            description: draft.description,
-            priority: draft.priority,
-            status: draft.status,
-            memberId: draft.assigneeId,
-            milestoneId: activeMilestone.milestoneId,
-            projectId: projectId,
-            startDate: draft.startDate + "T00:00:00.000Z",
-            dueDate: draft.dueDate + "T23:59:59.000Z"
-        }));
+        try {
+            const mId = editingMilestoneId || activeMilestone.milestoneId || (activeMilestone as any).id;
+            const payloads = validDrafts.map(draft => ({
+                name: draft.name,
+                description: draft.description,
+                priority: draft.priority,
+                status: draft.status || 1,
+                memberId: draft.assigneeId,
+                milestoneId: mId,
+                projectId: projectId,
+                startDate: draft.startDate + "T00:00:00.000Z",
+                dueDate: draft.dueDate + "T23:59:59.000Z",
+                supportMembers: draft.collaboratorIds
+            }));
 
-        console.log("Saving bulk tasks payloads:", payloads);
-        await new Promise(resolve => setTimeout(resolve, 1500));
+            await taskService.createBulk(payloads);
+            showToast(`Successfully saved ${validDrafts.length} tasks`, 'success');
 
-        setDraftTasks([]);
-        if (refreshTasks) refreshTasks();
+            setDraftTasks([]);
+            if (mId) fetchMilestoneTasks(mId);
+            if (refreshTasks) refreshTasks();
+        } catch (error) {
+            console.error("Failed to save bulk tasks:", error);
+            showToast('Failed to save bulk tasks', 'error');
+            setDraftTasks(prev => prev.map(d => ({ ...d, isSaving: false })));
+        } finally {
+            setIsBulkSaving(false);
+        }
     };
 
-    // State Syncing
-    React.useEffect(() => {
-        if (viewMode === 'detail' && activeMilestone) {
-            setFormTab('view');
-            setDraftTasks([]); // Clear drafts when switching milestones
-        } else if (viewMode === 'roadmap') {
-            setFormTab('add');
-        }
-    }, [activeMilestone?.milestoneId, viewMode]);
+    const handleUpdateTaskField = (taskId: string, field: string, value: any) => {
+        setMilestoneTasks(prev => prev.map(t => (t.taskId === taskId || (t as any).id === taskId) ? { ...t, [field]: value } : t));
+    };
 
-    // Calc latest milestone date tip
+    const handleSaveExistingTask = async (task: any) => {
+        const taskId = task.taskId || task.id;
+        if (savingTaskId === taskId) return;
+        setSavingTaskId(taskId);
+        try {
+            // Construct base payload
+            const updatePayload: any = {
+                name: task.name,
+                description: task.description,
+                status: task.status,
+                priority: task.priority,
+                memberId: task.memberId || (task as any).assignedToId,
+                supportMembers: task.collaboratorIds || [],
+                milestoneId: activeMilestone?.milestoneId || (activeMilestone as any)?.id || editingMilestoneId,
+                projectId: projectId
+            };
+
+            // Requirements: always send both start and due date
+            updatePayload.startDate = task.startDate.includes('T') ? task.startDate : task.startDate + "T00:00:00.000Z";
+            updatePayload.dueDate = task.dueDate.includes('T') ? task.dueDate : task.dueDate + "T23:59:59.000Z";
+
+            await taskService.update(taskId, updatePayload);
+            showToast('Changes saved successfully', 'success');
+
+            const mId = activeMilestone?.milestoneId || (activeMilestone as any)?.id || editingMilestoneId;
+            if (mId) fetchMilestoneTasks(mId);
+            if (refreshTasks) refreshTasks();
+        } catch (error) {
+            console.error('Failed to save task changes:', error);
+            showToast('Failed to save changes', 'error');
+        } finally {
+            setSavingTaskId(null);
+        }
+    };
+
+    const handleDeleteTask = async (taskId: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!taskId) {
+            showToast('Invalid task ID', 'error');
+            return;
+        }
+        setConfirmState({
+            isOpen: true,
+            title: 'Delete Task?',
+            message: 'Are you sure you want to permanently delete this task?',
+            confirmLabel: 'Delete',
+            cancelLabel: 'Cancel',
+            onConfirm: async () => {
+                try {
+                    await taskService.delete(taskId);
+                    showToast('Task deleted successfully', 'success');
+                    const mId = activeMilestone?.milestoneId || (activeMilestone as any)?.id || editingMilestoneId;
+                    if (mId) fetchMilestoneTasks(mId);
+                    if (refreshTasks) refreshTasks();
+                } catch (error) {
+                    console.error('Failed to delete task:', error);
+                    showToast('Failed to delete task', 'error');
+                }
+            }
+        });
+    };
+
+    const toggleTaskExpand = (taskId: string) => {
+        setExpandedTasks(prev => prev.includes(taskId) ? prev.filter(id => id !== taskId) : [...prev, taskId]);
+    };
+
+    const getStatusText = (status: number) => {
+        switch (status) {
+            case 1: return 'To Do';
+            case 2: return 'In Progress';
+            case 3: return 'Submitted';
+            case 4: return 'Missed';
+            case 5: return 'Adjusting';
+            case 6: return 'Done';
+            default: return 'Unknown';
+        }
+    };
+
+    const getStatusColor = (status: number) => {
+        switch (status) {
+            case 1: return { bg: '#f1f5f9', text: '#64748b' };
+            case 2: return { bg: '#eff6ff', text: '#3b82f6' };
+            case 3: return { bg: '#ecfdf5', text: '#10b981' };
+            case 4: return { bg: '#fef2f2', text: '#ef4444' };
+            case 5: return { bg: '#fff7ed', text: '#f97316' };
+            case 6: return { bg: '#f0fdf4', text: '#22c55e' };
+            default: return { bg: '#f1f5f9', text: '#64748b' };
+        }
+    };
+
     const latestMilestoneDate = React.useMemo(() => {
         if (!milestones || milestones.length === 0) return null;
         let latest = new Date(0);
@@ -209,24 +402,70 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
         return latest.getTime() === 0 ? null : latest;
     }, [milestones]);
 
+    // State Syncing
+    React.useEffect(() => {
+        if (activeMilestone && (editingMilestoneId || activeMilestone.milestoneId)) {
+            setFormTab('view');
+            setDraftTasks([]);
+            setShowMoreOptions(false);
+            if (activeMilestone.status === MilestoneStatus.Completed || activeMilestone.status === MilestoneStatus.Cancelled) {
+                setTaskTab('current');
+            }
+        } else if (viewMode === 'roadmap') {
+            setFormTab('add');
+            setShowMoreOptions(false);
+
+            // PRE-FILL Add Milestone form with sensible defaults if empty
+            if (!newMilestoneData.name && !newMilestoneData.startDate && !newMilestoneData.dueDate) {
+                let defaultStart = pStartFormatted;
+
+                // If there are existing milestones, start after the last one
+                if (latestMilestoneDate) {
+                    const nextDay = new Date(latestMilestoneDate);
+                    nextDay.setDate(nextDay.getDate() + 1);
+                    defaultStart = nextDay.toLocaleDateString('en-CA');
+                }
+
+                // If today is later than the calculated next available slot, use today
+                if (new Date(today) > new Date(defaultStart)) {
+                    defaultStart = today;
+                }
+
+                const defaultDue = new Date(defaultStart);
+                defaultDue.setDate(defaultDue.getDate() + 30); // Default to 1 month duration
+                const defaultDueStr = defaultDue.toLocaleDateString('en-CA');
+
+                // Respect project end date if available
+                const finalDueStr = (pEndFormatted && new Date(defaultDueStr) > new Date(pEndFormatted))
+                    ? pEndFormatted
+                    : defaultDueStr;
+
+                handleMilestoneDataChange('startDate', defaultStart);
+                handleMilestoneDataChange('dueDate', finalDueStr);
+            }
+        }
+    }, [activeMilestone?.milestoneId, editingMilestoneId, viewMode, activeMilestone?.status, latestMilestoneDate, pStartFormatted, pEndFormatted]);
+
+
 
     const hasUnsavedChanges = React.useCallback(() => {
         if (formTab === 'view') return false;
         if (formTab === 'add') return !!newMilestoneData.name || !!newMilestoneData.description;
         if (formTab === 'edit' && activeMilestone) {
-            // Check if name or description differs from the original milestone
             return newMilestoneData.name !== activeMilestone.name || (newMilestoneData.description || '') !== (activeMilestone.description || '');
         }
         return false;
     }, [formTab, newMilestoneData, activeMilestone]);
 
     const protectedCancelEdit = () => {
-        // Mode: View/Edit (existing milestone)
         if (formTab !== 'add') {
             if (hasUnsavedChanges()) {
                 setConfirmState({
                     isOpen: true,
+                    title: 'Discard Changes?',
                     message: 'Your unsaved changes will be lost. Return to list anyway?',
+                    confirmLabel: 'Discard',
+                    cancelLabel: 'Stay',
                     onConfirm: () => onCancelEdit()
                 });
                 return;
@@ -235,10 +474,7 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
             return;
         }
 
-        // Mode: Add (new milestone draft)
-        // If we are in "Add Mode" (Detail View with Tasks), going out clears the form
         if (viewMode === 'detail' && formTab === 'add') {
-            // Clear then exit
             handleMilestoneDataChange('name', '');
             handleMilestoneDataChange('description', '');
             handleMilestoneDataChange('startDate', '');
@@ -250,29 +486,96 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
         onCancelEdit();
     };
 
-    const protectedMilestoneClick = (milestone: Milestone) => {
-        // User explicitly said: "Chuyển từ view milestone này sang milestone khác thì không cần thông báo"
-        // This applies regardless of current tab or changes
-        handleMilestoneClick(milestone);
+    const handleSwitchToEdit = () => {
+        if (!activeMilestone) return;
+
+        // Populate the edit form fields with current milestone data
+        handleMilestoneDataChange('name', activeMilestone.name);
+        handleMilestoneDataChange('description', activeMilestone.description || '');
+
+        // Format dates as YYYY-MM-DD for input fields
+        const formatForInput = (dateInput: string | null | undefined) => {
+            if (!dateInput) return '';
+            try {
+                const d = new Date(dateInput);
+                if (isNaN(d.getTime())) return '';
+                return d.toLocaleDateString('en-CA');
+            } catch (e) {
+                return '';
+            }
+        };
+
+        handleMilestoneDataChange('startDate', formatForInput(activeMilestone.startDate));
+        handleMilestoneDataChange('dueDate', formatForInput(activeMilestone.dueDate));
+
+        setFormTab('edit');
     };
 
-    const handleSwitchToEdit = () => {
-        if (activeMilestone) {
-            handleMilestoneDataChange('name', activeMilestone.name);
-            handleMilestoneDataChange('description', activeMilestone.description || '');
-            handleMilestoneDataChange('startDate', activeMilestone.startDate ? new Date(activeMilestone.startDate).toISOString().split('T')[0] : '');
-            handleMilestoneDataChange('dueDate', activeMilestone.dueDate ? new Date(activeMilestone.dueDate).toISOString().split('T')[0] : '');
-            setFormTab('edit');
+    const handleDeleteConfirm = (milestone: Milestone, e?: React.MouseEvent) => {
+        if (e) e.stopPropagation();
+        setConfirmState({
+            isOpen: true,
+            title: 'Delete Milestone?',
+            message: `Are you sure you want to delete "${milestone.name}"? All associated data will be lost.`,
+            confirmLabel: 'Delete',
+            cancelLabel: 'Keep',
+            onConfirm: async () => {
+                try {
+                    const mId = milestone.milestoneId || (milestone as any).id;
+                    if (mId) {
+                        await milestoneService.delete(mId);
+                        showToast('Milestone deleted successfully', 'success');
+                        if (editingMilestoneId === mId) onCancelEdit();
+                        if (refreshMilestones) refreshMilestones();
+                    }
+                } catch (error) {
+                    console.error('Failed to delete milestone:', error);
+                    showToast('Failed to delete milestone', 'error');
+                }
+            }
+        });
+    };
+
+    const handleUpdateStatus = async (milestone: Milestone, newStatus: MilestoneStatus) => {
+        // Validation: Cannot complete if there are incomplete tasks
+        if (newStatus === MilestoneStatus.Completed) {
+            const incompleteTask = milestoneTasks.find(t => t.status !== 6);
+            if (incompleteTask) {
+                setConfirmState({
+                    isOpen: true,
+                    title: 'UNFINISHED TASKS',
+                    message: `You cannot complete this milestone because "${incompleteTask.name}" is not yet finished. Please complete all tasks first.`,
+                    confirmLabel: 'GO TO TASK',
+                    cancelLabel: 'CANCEL',
+                    onConfirm: () => {
+                        setTaskTab('current');
+                        setExpandedTasks([incompleteTask.taskId]);
+                        // Scroll logic if needed
+                        const el = document.querySelector(`[data-task-id="${incompleteTask.taskId}"]`);
+                        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                });
+                return;
+            }
+        }
+
+        try {
+            const mId = milestone.milestoneId || (milestone as any).id;
+            if (!mId) return;
+            await milestoneService.updateStatus(mId, newStatus);
+            showToast('Milestone status updated!', 'success');
+            if (refreshMilestones) refreshMilestones();
+            setShowMoreOptions(false);
+        } catch (error) {
+            console.error('Failed to update milestone status:', error);
+            showToast('Failed to update status', 'error');
         }
     };
 
-    const handleSwitchToAdd = () => {
-        if (clearMilestoneEdit) clearMilestoneEdit();
-        else onCancelEdit();
-        setFormTab('add');
+    const protectedMilestoneClick = (milestone: Milestone) => {
+        handleMilestoneClick(milestone);
     };
 
-    // Helper to get the "live" data of a milestone item in the list
     const getLiveMilestoneItem = (milestone: Milestone | null): any => {
         if (!milestone) return null;
         if (formTab === 'edit' && editingMilestoneId === milestone.milestoneId) {
@@ -294,42 +597,127 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
 
     const cancelBtnLabel = viewMode === 'detail' ? "Back to List" : "Cancel";
 
+    // 📊 Redesigned Stats Logic
+    const getMilestoneMetrics = () => {
+        if (milestoneStats) return {
+            total: milestoneStats.totalMilestones ?? milestoneStats.total ?? milestones.length,
+            inProgress: milestoneStats.inProgressMilestones ?? milestoneStats.inProgress ?? 0,
+            onHold: milestoneStats.onHoldMilestones ?? milestoneStats.onHold ?? 0,
+            notStarted: milestoneStats.notStartedMilestones ?? milestoneStats.notStarted ?? 0,
+            completed: milestoneStats.completedMilestones ?? milestoneStats.completed ?? 0,
+            cancelled: milestoneStats.cancelledMilestones ?? milestoneStats.cancelled ?? 0,
+            nearDeadline: milestoneStats.nearDeadlineMilestones ?? milestoneStats.nearDeadline ?? 0,
+            staleStart: milestoneStats.staleStartMilestones ?? milestoneStats.staleStart ?? 0
+        };
+
+        const now = new Date();
+        const nextWeek = new Date();
+        nextWeek.setDate(now.getDate() + 7);
+
+        return {
+            total: milestones.length,
+            inProgress: milestones.filter(m => m.status == MilestoneStatus.InProgress).length,
+            onHold: milestones.filter(m => m.status == MilestoneStatus.OnHold).length,
+            notStarted: milestones.filter(m => m.status == MilestoneStatus.NotStarted).length,
+            completed: milestones.filter(m => m.status == MilestoneStatus.Completed).length,
+            cancelled: milestones.filter(m => m.status == MilestoneStatus.Cancelled).length,
+            nearDeadline: milestones.filter(m =>
+                m.status != MilestoneStatus.Completed &&
+                m.status != MilestoneStatus.Cancelled &&
+                m.dueDate && new Date(m.dueDate) <= nextWeek && new Date(m.dueDate) >= now
+            ).length,
+            staleStart: milestones.filter(m =>
+                m.status == MilestoneStatus.NotStarted &&
+                m.startDate && new Date(m.startDate) <= now
+            ).length
+        };
+    };
+
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', height: '100%', overflow: 'hidden', position: 'relative' }}>
-            {/* TOP BAR: Summary Stats */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.75rem' }}>
-                {[
-                    { label: 'Total', count: milestones.length, color: '#64748b', bg: '#f1f5f9', icon: <Activity size={16} /> },
-                    { label: 'Active', count: milestones.filter(m => m.status === MilestoneStatus.InProgress).length, color: '#E8720C', bg: '#fff7ed', icon: <Clock size={16} /> },
-                    { label: 'Completed', count: milestones.filter(m => m.status === MilestoneStatus.Completed).length, color: '#10b981', bg: '#ecfdf5', icon: <CheckCircle2 size={16} /> }
-                ].map((stat, i) => (
-                    <div key={i} style={{ padding: '0.75rem 1rem', borderRadius: '12px', background: 'white', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '0.6rem', boxShadow: '0 1px 4px rgba(0,0,0,0.01)' }}>
-                        <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: stat.bg, color: stat.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{stat.icon}</div>
-                        <div>
-                            <div style={{ fontSize: '1rem', fontWeight: 800, color: '#1e293b', lineHeight: 1 }}>{stat.count}</div>
-                            <div style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginTop: '3px' }}>{stat.label}</div>
+            {/* Unified Status Board - Dashboard Style */}
+            <div style={{
+                background: 'white', padding: '1rem 1.5rem', borderRadius: '20px', border: '1px solid #e2e8f0',
+                display: 'grid', gridTemplateColumns: '1.2fr auto 1.2fr auto 1.5fr', gap: '1.25rem', alignItems: 'center',
+                boxShadow: '0 4px 20px rgba(0,0,0,0.03)', position: 'relative', marginBottom: '0.5rem'
+            }}>
+                {/* Helper for Table Rows */}
+                {(() => {
+                    const StatRow = ({ icon, label, count, color, bg, tooltip, pulse = false }: any) => (
+                        <div
+                            title={tooltip}
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.4rem 0',
+                                opacity: count > 0 ? 1 : 0.45, transition: 'all 0.2s', cursor: 'help'
+                            }}>
+                            <div className={pulse ? (color === '#ef4444' ? 'pulse-red' : 'pulse-orange') : ''} style={{
+                                width: '26px', height: '26px', borderRadius: '7px', background: bg, color: color,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                                border: `1px solid ${color}20`
+                            }}>
+                                {React.cloneElement(icon, { size: 14 })}
+                            </div>
+                            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#475569', flex: 1 }}>{label}:</span>
+                            <span style={{ fontSize: '0.9rem', fontWeight: 900, color: count > 0 ? '#1e293b' : '#94a3b8' }}>{count}</span>
                         </div>
-                    </div>
-                ))}
+                    );
+
+                    const metrics = getMilestoneMetrics();
+
+                    return (
+                        <React.Fragment>
+                            {/* Column 1: Primary Status */}
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                <StatRow icon={<Activity />} label="Total" count={metrics.total} color="#0284c7" bg="#f0f9ff" tooltip="Total number of strategic milestones in this project." />
+                                <StatRow icon={<Timer />} label="Running" count={metrics.inProgress} color="#4f46e5" bg="#eef2ff" tooltip="Milestones currently active and in progress." />
+                                <StatRow icon={<Clock />} label="Delayed" count={metrics.onHold} color="#d97706" bg="#fffbeb" tooltip="Milestones that are currently on hold or delayed." />
+                            </div>
+
+                            <div style={{ width: '1px', alignSelf: 'stretch', background: '#f1f5f9' }}></div>
+
+                            {/* Column 2: Detailed Status */}
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                <StatRow icon={<Target />} label="Not Start" count={metrics.notStarted} color="#475569" bg="#f1f5f9" tooltip="Planned milestones that haven't been initiated yet." />
+                                <StatRow icon={<CheckCircle2 />} label="Done" count={metrics.completed} color="#059669" bg="#ecfdf5" tooltip="Milestones that have been successfully completed." />
+                                <StatRow icon={<Trash2 />} label="Cancelled" count={metrics.cancelled} color="#e11d48" bg="#fff1f2" tooltip="Milestones that have been cancelled or terminated." />
+                            </div>
+
+                            <div style={{ width: '1px', alignSelf: 'stretch', background: '#f1f5f9' }}></div>
+
+                            {/* Column 3: Smart Alerts */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                <h4 style={{ margin: '0 0 4px 0', fontSize: '0.62rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Action Items</h4>
+                                <StatRow
+                                    icon={<Calendar />}
+                                    label="Critical Due"
+                                    count={metrics.nearDeadline}
+                                    color={metrics.nearDeadline > 0 ? '#ea580c' : '#94a3b8'}
+                                    bg={metrics.nearDeadline > 0 ? '#fff7ed' : '#f8fafc'}
+                                    tooltip="Warning: Milestones due within 7 days with remaining tasks."
+                                    pulse={metrics.nearDeadline > 0}
+                                />
+                                <StatRow
+                                    icon={<Info />}
+                                    label="Stale Start"
+                                    count={metrics.staleStart}
+                                    color={metrics.staleStart > 0 ? '#ef4444' : '#94a3b8'}
+                                    bg={metrics.staleStart > 0 ? '#fef2f2' : '#f8fafc'}
+                                    tooltip="Warning: Past due start date but not yet running."
+                                    pulse={metrics.staleStart > 0}
+                                />
+                            </div>
+                        </React.Fragment>
+                    );
+                })()}
             </div>
 
             <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'stretch', position: 'relative', transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)', flex: 1, minHeight: 0 }}>
-                {/* LEFT COLUMN: Milestone List */}
-                <div style={{ flex: viewMode === 'roadmap' ? 7 : 0, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '1.25rem', opacity: viewMode === 'roadmap' ? 1 : 0, pointerEvents: viewMode === 'roadmap' ? 'auto' : 'none', transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)', width: viewMode === 'roadmap' ? 'auto' : 0, overflow: 'hidden' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '2px solid var(--primary-color)', width: '100%' }}>
+                <div style={{ flex: viewMode === 'roadmap' ? 7 : 0, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '1.25rem', opacity: viewMode === 'roadmap' ? 1 : 0, pointerEvents: viewMode === 'roadmap' ? 'auto' : 'none', transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)', width: viewMode === 'roadmap' ? 'auto' : 0, overflow: 'hidden', minHeight: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '2px solid #1e293b', width: '100%' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                            <Target size={18} style={{ color: 'var(--primary-color)' }} />
-                            <h4 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 800, color: '#1e293b', textTransform: 'uppercase' }}>Milestone List</h4>
+                            <Target size={18} style={{ color: '#1e293b' }} />
+                            <h4 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 800, color: '#1e293b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Milestone List</h4>
                         </div>
-                        {canManageMilestones && !isArchived && (
-                            <button
-                                onClick={handleSwitchToAdd}
-                                title="Add New Milestone"
-                                style={{ ...iconBtn, width: '28px', height: '28px', background: 'var(--primary-color)', color: 'white', borderRadius: '8px' }}
-                            >
-                                <Plus size={16} />
-                            </button>
-                        )}
                     </div>
                     <div style={{ display: 'flex', gap: '10px', background: 'white', padding: '1rem', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
                         <div style={{ position: 'relative', flex: 1 }}>
@@ -338,78 +726,376 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                         </div>
                         <select value={milestoneStatusFilter} onChange={(e) => setMilestoneStatusFilter(e.target.value)} style={{ ...inputStyle, width: 'auto', padding: '0.6rem 0.75rem', fontSize: '0.75rem', fontWeight: 700 }}>
                             <option value="all">Filter</option>
-                            <option value={MilestoneStatus.InProgress}>Active</option>
+                            <option value={MilestoneStatus.InProgress}>In Progress</option>
                             <option value={MilestoneStatus.Completed}>Done</option>
                         </select>
                     </div>
-                    <div ref={milestoneContainerRef} style={{ maxHeight: '480px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.6rem' }} className="custom-scrollbar">
-                        {filteredMilestones.map((milestone, idx) => (
-                            <MilestoneItem key={`ml-${milestone.milestoneId || idx}`} milestone={getLiveMilestoneItem(milestone)} onClick={protectedMilestoneClick} onDetailClick={onDetailClick} />
+                    <div ref={milestoneContainerRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem' }} className="custom-scrollbar">
+                        {[...filteredMilestones].sort((a, b) => {
+                            const dateA = new Date(a.dueDate).getTime();
+                            const dateB = new Date(b.dueDate).getTime();
+                            const isInvalidA = !a.dueDate || a.dueDate.startsWith('0001');
+                            const isInvalidB = !b.dueDate || b.dueDate.startsWith('0001');
+                            if (isInvalidA && !isInvalidB) return 1;
+                            if (!isInvalidA && isInvalidB) return -1;
+                            return dateA - dateB;
+                        }).map((milestone, idx) => (
+                            <MilestoneItem
+                                key={`ml-${milestone.milestoneId || idx}`}
+                                milestone={getLiveMilestoneItem(milestone)}
+                                onClick={protectedMilestoneClick}
+                            />
                         ))}
                     </div>
                 </div>
 
-                {/* FORM COLUMN */}
-                {canManageMilestones && !isArchived && (
-                    <div style={{ flex: 3, display: 'flex', flexDirection: 'column', gap: '0.8rem', transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)', minWidth: '310px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingBottom: '0.5rem', borderBottom: '2px solid var(--primary-color)', width: 'fit-content' }}>
-                            {formTab === 'add' ? <Plus size={16} /> : formTab === 'edit' ? <Edit3 size={16} /> : <Target size={16} />}
-                            <h4 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 800, color: '#1e293b', textTransform: 'uppercase' }}>{formTab === 'add' ? 'New Milestone' : formTab === 'edit' ? 'Edit Milestone' : 'Milestone Detail'}</h4>
-                        </div>
-                        {viewMode === 'detail' && formTab !== 'add' && (
-                            <div style={{ display: 'flex', background: '#f1f5f9', padding: '4px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                                <button onClick={() => setFormTab('view')} style={{ ...tabStyle, flex: 1, ...(formTab === 'view' ? activeTabStyle : inactiveTabStyle) }}>View</button>
-                                <button onClick={handleSwitchToEdit} style={{ ...tabStyle, flex: 1, ...(formTab === 'edit' ? activeTabStyle : inactiveTabStyle) }}>Edit</button>
-                            </div>
-                        )}
-                        <div style={{ background: 'white', padding: '1.25rem', borderRadius: '20px', border: '1px solid #e2e8f0', boxShadow: '0 8px 30px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                            {formTab === 'view' && activeMilestone ? (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                    <div><label style={labelStyle}>Name</label><div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#1e293b' }}>{activeMilestone.name}</div></div>
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                                        <div><label style={labelStyle}>Start Date</label><div style={{ fontSize: '0.85rem', fontWeight: 700 }}>{formatDate(activeMilestone.startDate)}</div></div>
-                                        <div><label style={labelStyle}>Due Date</label><div style={{ fontSize: '0.85rem', fontWeight: 700 }}>{formatDate(activeMilestone.dueDate)}</div></div>
-                                    </div>
-                                    <div><label style={labelStyle}>Goal</label><div style={{ fontSize: '0.8rem', color: '#475569', lineHeight: 1.5, background: '#f8fafc', padding: '0.85rem', borderRadius: '12px' }}>{activeMilestone.description || "No goal defined."}</div></div>
-                                    <button onClick={protectedCancelEdit} style={{ ...btnSecondary, width: '100%', padding: '0.75rem' }}>{cancelBtnLabel}</button>
+                {!isArchived && (editingMilestoneId || canManageMilestones) && (
+                    <div style={{ flex: 3, display: 'flex', flexDirection: 'column', gap: '0.8rem', transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)', minWidth: '310px', minHeight: 0 }}>
+                        {!!editingMilestoneId ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingBottom: '0.5rem', borderBottom: '2px solid #1e293b', width: '100%' }}>
+                                    {formTab === 'edit' ? <Edit3 size={16} style={{ color: '#1e293b' }} /> : <Target size={16} style={{ color: '#1e293b' }} />}
+                                    <h4 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 800, color: '#1e293b', textTransform: 'uppercase' }}>{formTab === 'edit' ? 'Edit Milestone' : 'Detail Milestone'}</h4>
                                 </div>
-                            ) : (
-                                <>
+                                <div style={{ display: 'flex', background: '#f1f5f9', padding: '4px', borderRadius: '12px', border: '1px solid #e2e8f0', height: '36px', boxSizing: 'border-box' }}>
+                                    <button onClick={() => setFormTab('view')} style={{ ...tabStyle, flex: 1, height: '100%', ...(formTab === 'view' ? activeTabStyle : inactiveTabStyle) }}>View</button>
+                                    {(canManageMilestones && activeMilestone?.status !== MilestoneStatus.Completed && activeMilestone?.status !== MilestoneStatus.Cancelled) && (
+                                        <button onClick={handleSwitchToEdit} style={{ ...tabStyle, flex: 1, height: '100%', ...(formTab === 'edit' ? activeTabStyle : inactiveTabStyle) }}>Edit</button>
+                                    )}
+                                </div>
+                                <div style={{ background: 'white', padding: '1.25rem', borderRadius: '20px', border: '1px solid #e2e8f0', boxShadow: '0 8px 30px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto', flex: 1, minHeight: 0 }} className="custom-scrollbar">
+                                    {formTab === 'view' && activeMilestone ? (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                            <div><label style={labelStyle}>Name</label><div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#1e293b' }}>{activeMilestone.name}</div></div>
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                                <div><label style={labelStyle}>Start Date</label><div style={{ fontSize: '0.85rem', fontWeight: 700 }}>{formatDate(activeMilestone.startDate)}</div></div>
+                                                <div><label style={labelStyle}>Due Date</label><div style={{ fontSize: '0.85rem', fontWeight: 700 }}>{formatDate(activeMilestone.dueDate)}</div></div>
+                                            </div>
+                                            <div><label style={labelStyle}>Goal</label><div style={{ fontSize: '0.8rem', color: '#475569', lineHeight: 1.5, background: '#f8fafc', padding: '0.85rem', borderRadius: '12px' }}>{activeMilestone.description || "No goal defined."}</div></div>
+                                            <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                                {/* More Options Dropdown */}
+                                                {/* More Options Dropdown - Accordion Style */}
+                                                {(canManageMilestones &&
+                                                    activeMilestone.status !== MilestoneStatus.Completed &&
+                                                    activeMilestone.status !== MilestoneStatus.Cancelled) && (
+                                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); setShowMoreOptions(!showMoreOptions); }}
+                                                                style={{ ...btnSecondary, background: 'none', border: 'none', textDecoration: 'underline', width: 'auto', padding: '4px 0', fontSize: '0.85rem', fontWeight: 600, color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'flex-start' }}
+                                                            >
+                                                                More options {showMoreOptions ? '▾' : '▸'}
+                                                            </button>
+                                                            {showMoreOptions && (
+                                                                <div style={{ background: '#f8fafc', borderRadius: '10px', marginTop: '4px', overflow: 'hidden', border: '1px solid #f1f5f9', width: '200px' }}>
+                                                                    {/* Status Transitions */}
+                                                                    {activeMilestone.status == MilestoneStatus.NotStarted && (
+                                                                        <button
+                                                                            onClick={() => handleUpdateStatus(activeMilestone, MilestoneStatus.InProgress)}
+                                                                            style={{ display: 'block', width: '100%', padding: '0.65rem 0.85rem', fontSize: '0.8rem', fontWeight: 700, textAlign: 'left', border: 'none', background: 'transparent', color: '#0284c7', cursor: 'pointer' }}
+                                                                            onMouseOver={(e) => e.currentTarget.style.background = '#f0f9ff'}
+                                                                            onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                                                                        >
+                                                                            Start
+                                                                        </button>
+                                                                    )}
+
+                                                                    {activeMilestone.status == MilestoneStatus.InProgress && (
+                                                                        <>
+                                                                            <button
+                                                                                onClick={() => handleUpdateStatus(activeMilestone, MilestoneStatus.Completed)}
+                                                                                style={{ display: 'block', width: '100%', padding: '0.65rem 0.85rem', fontSize: '0.8rem', fontWeight: 700, textAlign: 'left', border: 'none', background: 'transparent', color: '#10b981', cursor: 'pointer' }}
+                                                                                onMouseOver={(e) => e.currentTarget.style.background = '#f0fdf4'}
+                                                                                onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                                                                            >
+                                                                                Complete
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => handleUpdateStatus(activeMilestone, MilestoneStatus.OnHold)}
+                                                                                style={{ display: 'block', width: '100%', padding: '0.65rem 0.85rem', fontSize: '0.8rem', fontWeight: 700, textAlign: 'left', border: 'none', background: 'transparent', color: '#f59e0b', cursor: 'pointer', borderTop: '1px solid #f1f5f9' }}
+                                                                                onMouseOver={(e) => e.currentTarget.style.background = '#fffbeb'}
+                                                                                onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                                                                            >
+                                                                                Delay
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => handleUpdateStatus(activeMilestone, MilestoneStatus.Cancelled)}
+                                                                                style={{ display: 'block', width: '100%', padding: '0.65rem 0.85rem', fontSize: '0.8rem', fontWeight: 700, textAlign: 'left', border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', borderTop: '1px solid #f1f5f9' }}
+                                                                                onMouseOver={(e) => e.currentTarget.style.background = '#fef2f2'}
+                                                                                onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                                                                            >
+                                                                                Cancel
+                                                                            </button>
+                                                                        </>
+                                                                    )}
+
+                                                                    {activeMilestone.status == MilestoneStatus.OnHold && (
+                                                                        <>
+                                                                            <button
+                                                                                onClick={() => handleUpdateStatus(activeMilestone, MilestoneStatus.InProgress)}
+                                                                                style={{ display: 'block', width: '100%', padding: '0.65rem 0.85rem', fontSize: '0.8rem', fontWeight: 700, textAlign: 'left', border: 'none', background: 'transparent', color: '#0284c7', cursor: 'pointer' }}
+                                                                                onMouseOver={(e) => e.currentTarget.style.background = '#f0f9ff'}
+                                                                                onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                                                                            >
+                                                                                Resume
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => handleUpdateStatus(activeMilestone, MilestoneStatus.Cancelled)}
+                                                                                style={{ display: 'block', width: '100%', padding: '0.65rem 0.85rem', fontSize: '0.8rem', fontWeight: 700, textAlign: 'left', border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', borderTop: '1px solid #f1f5f9' }}
+                                                                                onMouseOver={(e) => e.currentTarget.style.background = '#fef2f2'}
+                                                                                onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                                                                            >
+                                                                                Cancel
+                                                                            </button>
+                                                                        </>
+                                                                    )}
+
+                                                                    {/* Delete for NotStarted and OnHold */}
+                                                                    {(activeMilestone.status == MilestoneStatus.NotStarted || activeMilestone.status == MilestoneStatus.OnHold) && (
+                                                                        <button
+                                                                            onClick={() => { handleDeleteConfirm(activeMilestone); setShowMoreOptions(false); }}
+                                                                            style={{ display: 'block', width: '100%', padding: '0.65rem 0.85rem', fontSize: '0.8rem', fontWeight: 700, textAlign: 'left', border: 'none', background: 'transparent', color: '#e11d48', cursor: 'pointer', borderTop: '1px solid #f1f5f9' }}
+                                                                            onMouseOver={(e) => e.currentTarget.style.background = '#fff1f2'}
+                                                                            onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                                                                        >
+                                                                            Delete
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                <button onClick={protectedCancelEdit} style={{ ...btnSecondary, width: '100%', padding: '0.75rem' }}>{cancelBtnLabel}</button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}><label style={labelStyle}>Name</label><input type="text" placeholder="Enter name..." value={newMilestoneData.name} onChange={(e) => handleMilestoneDataChange('name', e.target.value)} style={{ ...inputStyle, padding: '0.75rem' }} /></div>
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
+                                                <div>
+                                                    <label style={labelStyle}>Start</label>
+                                                    <input
+                                                        type="date" min={today} value={newMilestoneData.startDate}
+                                                        onChange={(e) => handleMilestoneDataChange('startDate', e.target.value)}
+                                                        style={{ ...inputStyle, padding: '0.65rem', border: (checkOverlap(newMilestoneData.startDate, newMilestoneData.dueDate) || (newMilestoneData.startDate && newMilestoneData.dueDate && new Date(newMilestoneData.startDate) > new Date(newMilestoneData.dueDate))) ? '1.5px solid #ef4444' : '1.5px solid #e2e8f0' }}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label style={labelStyle}>Due</label>
+                                                    <input
+                                                        type="date" min={newMilestoneData.startDate || today} value={newMilestoneData.dueDate}
+                                                        onChange={(e) => handleMilestoneDataChange('dueDate', e.target.value)}
+                                                        style={{ ...inputStyle, padding: '0.65rem', border: (checkOverlap(newMilestoneData.startDate, newMilestoneData.dueDate) || (newMilestoneData.startDate && newMilestoneData.dueDate && new Date(newMilestoneData.startDate) > new Date(newMilestoneData.dueDate))) ? '1.5px solid #ef4444' : '1.5px solid #e2e8f0' }}
+                                                    />
+                                                </div>
+                                            </div>
+                                            {newMilestoneData.startDate && newMilestoneData.dueDate && (
+                                                <div style={{ marginBottom: '0.5rem' }}>
+                                                    {new Date(newMilestoneData.startDate) > new Date(newMilestoneData.dueDate) && (
+                                                        <div style={{ color: '#ef4444', fontSize: '0.65rem', fontWeight: 600 }}>⚠ Start date cannot be after due date.</div>
+                                                    )}
+                                                    {checkOverlap(newMilestoneData.startDate, newMilestoneData.dueDate) && (
+                                                        <div style={{ color: '#ef4444', fontSize: '0.65rem', fontWeight: 600 }}>⚠ This time frame overlaps with another milestone.</div>
+                                                    )}
+                                                </div>
+                                            )}
+                                            <div>
+                                                <label style={labelStyle}>Goal</label>
+                                                <textarea placeholder="Description..." value={newMilestoneData.description} onChange={(e) => handleMilestoneDataChange('description', e.target.value)} style={{ ...inputStyle, minHeight: '80px', padding: '0.75rem' }} />
+                                            </div>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.5rem' }}>
+                                                {/* More Options Dropdown in Edit Mode - Accordion Style */}
+                                                {canManageMilestones && activeMilestone &&
+                                                    activeMilestone.status !== MilestoneStatus.Completed &&
+                                                    activeMilestone.status !== MilestoneStatus.Cancelled && (
+                                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); setShowMoreOptions(!showMoreOptions); }}
+                                                                style={{ ...btnSecondary, background: 'none', border: 'none', textDecoration: 'underline', width: 'auto', padding: '4px 0', fontSize: '0.85rem', fontWeight: 600, color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'flex-start' }}
+                                                            >
+                                                                More options {showMoreOptions ? '▾' : '▸'}
+                                                            </button>
+                                                            {showMoreOptions && (
+                                                                <div style={{ background: '#f8fafc', borderRadius: '10px', marginTop: '4px', overflow: 'hidden', border: '1px solid #f1f5f9', width: '200px' }}>
+                                                                    {/* Status Transitions */}
+                                                                    {activeMilestone.status == MilestoneStatus.NotStarted && (
+                                                                        <button
+                                                                            onClick={() => handleUpdateStatus(activeMilestone, MilestoneStatus.InProgress)}
+                                                                            style={{ display: 'block', width: '100%', padding: '0.65rem 0.85rem', fontSize: '0.8rem', fontWeight: 700, textAlign: 'left', border: 'none', background: 'transparent', color: '#0284c7', cursor: 'pointer' }}
+                                                                            onMouseOver={(e) => e.currentTarget.style.background = '#f0f9ff'}
+                                                                            onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                                                                        >
+                                                                            Start
+                                                                        </button>
+                                                                    )}
+
+                                                                    {activeMilestone.status == MilestoneStatus.InProgress && (
+                                                                        <>
+                                                                            <button
+                                                                                onClick={() => handleUpdateStatus(activeMilestone, MilestoneStatus.Completed)}
+                                                                                style={{ display: 'block', width: '100%', padding: '0.65rem 0.85rem', fontSize: '0.8rem', fontWeight: 700, textAlign: 'left', border: 'none', background: 'transparent', color: '#10b981', cursor: 'pointer' }}
+                                                                                onMouseOver={(e) => e.currentTarget.style.background = '#f0fdf4'}
+                                                                                onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                                                                            >
+                                                                                Complete
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => handleUpdateStatus(activeMilestone, MilestoneStatus.OnHold)}
+                                                                                style={{ display: 'block', width: '100%', padding: '0.65rem 0.85rem', fontSize: '0.8rem', fontWeight: 700, textAlign: 'left', border: 'none', background: 'transparent', color: '#f59e0b', cursor: 'pointer', borderTop: '1px solid #f1f5f9' }}
+                                                                                onMouseOver={(e) => e.currentTarget.style.background = '#fffbeb'}
+                                                                                onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                                                                            >
+                                                                                Delay
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => handleUpdateStatus(activeMilestone, MilestoneStatus.Cancelled)}
+                                                                                style={{ display: 'block', width: '100%', padding: '0.65rem 0.85rem', fontSize: '0.8rem', fontWeight: 700, textAlign: 'left', border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', borderTop: '1px solid #f1f5f9' }}
+                                                                                onMouseOver={(e) => e.currentTarget.style.background = '#fef2f2'}
+                                                                                onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                                                                            >
+                                                                                Cancel
+                                                                            </button>
+                                                                        </>
+                                                                    )}
+
+                                                                    {activeMilestone.status == MilestoneStatus.OnHold && (
+                                                                        <>
+                                                                            <button
+                                                                                onClick={() => handleUpdateStatus(activeMilestone, MilestoneStatus.InProgress)}
+                                                                                style={{ display: 'block', width: '100%', padding: '0.65rem 0.85rem', fontSize: '0.8rem', fontWeight: 700, textAlign: 'left', border: 'none', background: 'transparent', color: '#0284c7', cursor: 'pointer' }}
+                                                                                onMouseOver={(e) => e.currentTarget.style.background = '#f0f9ff'}
+                                                                                onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                                                                            >
+                                                                                Resume
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => handleUpdateStatus(activeMilestone, MilestoneStatus.Cancelled)}
+                                                                                style={{ display: 'block', width: '100%', padding: '0.65rem 0.85rem', fontSize: '0.8rem', fontWeight: 700, textAlign: 'left', border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', borderTop: '1px solid #f1f5f9' }}
+                                                                                onMouseOver={(e) => e.currentTarget.style.background = '#fef2f2'}
+                                                                                onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                                                                            >
+                                                                                Cancel
+                                                                            </button>
+                                                                        </>
+                                                                    )}
+
+                                                                    {/* Delete for NotStarted and OnHold */}
+                                                                    {(activeMilestone.status == MilestoneStatus.NotStarted || activeMilestone.status == MilestoneStatus.OnHold) && (
+                                                                        <button
+                                                                            onClick={() => { handleDeleteConfirm(activeMilestone); setShowMoreOptions(false); }}
+                                                                            style={{ display: 'block', width: '100%', padding: '0.65rem 0.85rem', fontSize: '0.8rem', fontWeight: 700, textAlign: 'left', border: 'none', background: 'transparent', color: '#e11d48', cursor: 'pointer', borderTop: '1px solid #f1f5f9' }}
+                                                                            onMouseOver={(e) => e.currentTarget.style.background = '#fff1f2'}
+                                                                            onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                                                                        >
+                                                                            Delete
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                <div style={{ display: 'flex', gap: '0.6rem' }}>
+                                                    <button onClick={() => setFormTab('view')} disabled={isMilestoneSaving} style={{ ...btnSecondary, flex: 1, padding: '0.75rem', opacity: isMilestoneSaving ? 0.7 : 1 }}>Cancel</button>
+                                                    <button 
+                                                        onClick={handleQuickMilestoneSave} 
+                                                        disabled={!newMilestoneData.name || isMilestoneSaving} 
+                                                        style={{ 
+                                                            ...btnPrimary, 
+                                                            flex: 1, 
+                                                            padding: '0.75rem', 
+                                                            opacity: (!newMilestoneData.name || isMilestoneSaving) ? 0.5 : 1,
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center',
+                                                            gap: '8px'
+                                                        }}
+                                                    >
+                                                        {isMilestoneSaving ? (
+                                                            <>
+                                                                <Clock className="animate-spin-slow" size={16} />
+                                                                Saving...
+                                                            </>
+                                                        ) : 'Save Changes'}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        ) : canManageMilestones ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingBottom: '0.5rem', borderBottom: '2px solid var(--primary-color)', width: 'fit-content' }}>
+                                    <Plus size={16} />
+                                    <h4 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 800, color: '#1e293b', textTransform: 'uppercase' }}>New Milestone</h4>
+                                </div>
+                                <div style={{ background: 'white', padding: '1.25rem', borderRadius: '20px', border: '1px solid #e2e8f0', boxShadow: '0 8px 30px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto', flex: 1, minHeight: 0 }} className="custom-scrollbar">
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}><label style={labelStyle}>Name</label><input type="text" placeholder="Enter name..." value={newMilestoneData.name} onChange={(e) => handleMilestoneDataChange('name', e.target.value)} style={{ ...inputStyle, padding: '0.75rem' }} /></div>
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
-                                        <div><label style={labelStyle}>Start</label><input type="date" value={newMilestoneData.startDate} onChange={(e) => handleMilestoneDataChange('startDate', e.target.value)} style={{ ...inputStyle, padding: '0.65rem' }} /></div>
-                                        <div><label style={labelStyle}>Due</label><input type="date" value={newMilestoneData.dueDate} onChange={(e) => handleMilestoneDataChange('dueDate', e.target.value)} style={{ ...inputStyle, padding: '0.65rem' }} /></div>
+                                        <div>
+                                            <label style={labelStyle}>Start</label>
+                                            <input
+                                                type="date"
+                                                min={pStartFormatted}
+                                                max={pEndFormatted || undefined}
+                                                value={newMilestoneData.startDate}
+                                                onChange={(e) => handleMilestoneDataChange('startDate', e.target.value)}
+                                                style={{ ...inputStyle, padding: '0.65rem', border: (checkOverlap(newMilestoneData.startDate, newMilestoneData.dueDate) || (newMilestoneData.startDate && newMilestoneData.dueDate && new Date(newMilestoneData.startDate) > new Date(newMilestoneData.dueDate))) ? '1.5px solid #ef4444' : '1.5px solid #e2e8f0' }}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label style={labelStyle}>Due</label>
+                                            <input
+                                                type="date"
+                                                min={newMilestoneData.startDate || pStartFormatted}
+                                                max={pEndFormatted || undefined}
+                                                value={newMilestoneData.dueDate}
+                                                onChange={(e) => handleMilestoneDataChange('dueDate', e.target.value)}
+                                                style={{ ...inputStyle, padding: '0.65rem', border: (checkOverlap(newMilestoneData.startDate, newMilestoneData.dueDate) || (newMilestoneData.startDate && newMilestoneData.dueDate && new Date(newMilestoneData.startDate) > new Date(newMilestoneData.dueDate))) ? '1.5px solid #ef4444' : '1.5px solid #e2e8f0' }}
+                                            />
+                                        </div>
                                     </div>
+                                    {newMilestoneData.startDate && newMilestoneData.dueDate && (
+                                        <div style={{ marginBottom: '0.5rem' }}>
+                                            {new Date(newMilestoneData.startDate) > new Date(newMilestoneData.dueDate) && (
+                                                <div style={{ color: '#ef4444', fontSize: '0.65rem', fontWeight: 600 }}>⚠ Start date cannot be after due date.</div>
+                                            )}
+                                            {checkOverlap(newMilestoneData.startDate, newMilestoneData.dueDate) && (
+                                                <div style={{ color: '#ef4444', fontSize: '0.65rem', fontWeight: 600 }}>⚠ This time frame overlaps with another milestone.</div>
+                                            )}
+                                        </div>
+                                    )}
                                     <div>
                                         <label style={labelStyle}>Goal</label>
                                         <textarea placeholder="Description..." value={newMilestoneData.description} onChange={(e) => handleMilestoneDataChange('description', e.target.value)} style={{ ...inputStyle, minHeight: '80px', padding: '0.75rem' }} />
                                     </div>
-
-                                    {formTab === 'add' && (
-                                        <div style={{ display: 'flex', justifyContent: 'flex-start', marginTop: '4px' }}>
-                                            <button
-                                                onClick={() => {
-                                                    if (viewMode === 'roadmap') onDetailClick({ name: newMilestoneData.name || "New Milestone" } as any);
-                                                    addDraftSlot();
-                                                }}
-                                                style={{
-                                                    background: 'none', border: 'none', padding: 0,
-                                                    color: 'var(--primary-color)', fontSize: '0.72rem', fontWeight: 800,
-                                                    display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer'
-                                                }}
-                                            >
-                                                Add Milestone Task <ChevronRight size={14} />
-                                            </button>
-                                        </div>
-                                    )}
-
                                     <div style={{ display: 'flex', gap: '0.6rem', marginTop: '0.5rem' }}>
-                                        <button onClick={protectedCancelEdit} style={{ ...btnSecondary, flex: 1, padding: '0.75rem' }}>{cancelBtnLabel}</button>
-                                        <button onClick={handleQuickMilestoneSave} disabled={!newMilestoneData.name} style={{ ...btnPrimary, flex: 1, padding: '0.75rem', opacity: !newMilestoneData.name ? 0.5 : 1 }}>Save Changes</button>
+                                        <button onClick={protectedCancelEdit} disabled={isMilestoneSaving} style={{ ...btnSecondary, flex: 1, padding: '0.75rem', opacity: isMilestoneSaving ? 0.7 : 1 }}>{cancelBtnLabel}</button>
+                                        <button 
+                                            onClick={handleQuickMilestoneSave} 
+                                            disabled={!newMilestoneData.name || isMilestoneSaving} 
+                                            style={{ 
+                                                ...btnPrimary, 
+                                                flex: 1, 
+                                                padding: '0.75rem', 
+                                                opacity: (!newMilestoneData.name || isMilestoneSaving) ? 0.5 : 1,
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                gap: '8px'
+                                            }}
+                                        >
+                                           {isMilestoneSaving ? (
+                                                <>
+                                                    <Clock className="animate-spin-slow" size={16} />
+                                                    Creating...
+                                                </>
+                                            ) : 'Create Milestone'}
+                                        </button>
                                     </div>
-                                </>
-                            )}
-                        </div>
+                                </div>
+                            </div>
+                        ) : null}
+
                         {latestMilestoneDate && (
                             <div style={{ display: 'flex', gap: '8px', padding: '0.85rem 1rem', background: '#f0f9ff', borderRadius: '14px', border: '1px solid #e0f2fe' }}>
                                 <Info size={16} style={{ color: '#0369a1', marginTop: '2px', flexShrink: 0 }} />
@@ -419,11 +1105,27 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                     </div>
                 )}
 
-                {/* TASK BOARD (Right Column) */}
                 <div style={{ flex: viewMode === 'detail' ? 7 : 0, display: 'flex', flexDirection: 'column', gap: '1rem', opacity: viewMode === 'detail' ? 1 : 0, pointerEvents: viewMode === 'detail' ? 'auto' : 'none', transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)', width: viewMode === 'detail' ? 'auto' : 0, overflow: 'hidden', minHeight: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', paddingBottom: '0.5rem', borderBottom: '2px solid #6366f1' }}>
-                        <Target size={18} style={{ color: '#6366f1' }} />
-                        <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800, color: '#1e293b', textTransform: 'uppercase' }}>Milestone Tasks: {header.name}</h4>
+                    <div style={{ display: 'flex', alignItems: 'center', paddingBottom: '0.5rem', borderBottom: '2px solid #1e293b', width: '100%' }}>
+                        <Target size={16} style={{ color: '#1e293b' }} />
+                        <h4 style={{ margin: '0 0 0 8px', fontSize: '0.85rem', fontWeight: 800, color: '#1e293b', textTransform: 'uppercase' }}>Milestone Tasks: {header.name}</h4>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '4px', background: '#f1f5f9', padding: '4px', borderRadius: '12px', border: '1px solid #e2e8f0', height: '36px', boxSizing: 'border-box' }}>
+                        <button
+                            onClick={() => setTaskTab('current')}
+                            style={{ ...tabStyle, flex: 1, height: '100%', fontSize: '0.7rem', borderRadius: '8px', ...(taskTab === 'current' ? activeTabStyle : inactiveTabStyle) }}
+                        >
+                            Current ({milestoneTasks.length})
+                        </button>
+                        {activeMilestone?.status !== MilestoneStatus.Completed && activeMilestone?.status !== MilestoneStatus.Cancelled && (
+                            <button
+                                onClick={() => setTaskTab('draft')}
+                                style={{ ...tabStyle, flex: 1, height: '100%', fontSize: '0.7rem', borderRadius: '8px', ...(taskTab === 'draft' ? activeTabStyle : inactiveTabStyle) }}
+                            >
+                                Draft ({draftTasks.length})
+                            </button>
+                        )}
                     </div>
 
                     <div style={{ flex: 1, background: 'white', borderRadius: '24px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,0.02)', minHeight: 0 }}>
@@ -432,239 +1134,484 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                 <Calendar size={14} /><span style={{ fontSize: '0.72rem', fontWeight: 750 }}>{header.startDate ? `${formatDate(header.startDate)} - ${formatDate(header.dueDate)}` : "TBD"}</span>
                             </div>
                             <div style={{ display: 'flex', gap: '8px' }}>
-                                {draftTasks.length > 0 && (
-                                    <button onClick={handleBulkTaskSave} style={{ ...btnPrimary, padding: '6px 14px', fontSize: '0.75rem', background: '#10b981', boxShadow: '0 4px 12px rgba(16, 185, 129, 0.2)', borderRadius: '10px' }}>
-                                        <Save size={14} /> Save All ({draftTasks.length})
-                                    </button>
+                                {canManageProject && activeMilestone?.status !== MilestoneStatus.Completed && activeMilestone?.status !== MilestoneStatus.Cancelled && (
+                                    <React.Fragment>
+                                        {draftTasks.length > 0 && (
+                                            <button
+                                                onClick={handleBulkTaskSave}
+                                                disabled={isBulkSaving}
+                                                style={{ 
+                                                    ...btnPrimary, 
+                                                    background: '#10b981', 
+                                                    padding: '7px 15px', 
+                                                    fontSize: '0.75rem', 
+                                                    borderRadius: '10px',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '6px',
+                                                    opacity: isBulkSaving ? 0.7 : 1
+                                                }}
+                                            >
+                                                {isBulkSaving ? <Clock className="animate-spin-slow" size={14} /> : <Save size={14} />}
+                                                {isBulkSaving ? 'Saving...' : `Save All (${draftTasks.length})`}
+                                            </button>
+                                        )}
+                                        <button
+                                            onClick={addDraftSlot}
+                                            style={{ ...btnPrimary, padding: '7px 15px', fontSize: '0.75rem', borderRadius: '10px' }}
+                                        >
+                                            <Plus size={14} /> New Task
+                                        </button>
+                                    </React.Fragment>
                                 )}
-                                <button
-                                    onClick={addDraftSlot}
-                                    style={{ ...btnPrimary, padding: '7px 15px', fontSize: '0.75rem', borderRadius: '10px' }}
-                                >
-                                    <Plus size={14} /> New Task
-                                </button>
                             </div>
                         </div>
 
                         <div
-                            style={{ flex: 1, overflowY: 'auto', padding: '1.25rem', maxHeight: '480px' }}
+                            style={{ flex: 1, overflow: 'auto', padding: '1.25rem', minHeight: 0 }}
                             className="custom-scrollbar"
                         >
-                            {draftTasks.length > 0 ? (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.5rem' }}>
-                                    <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#f97316', textTransform: 'uppercase', marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                        <Edit3 size={12} style={{ color: '#f97316' }} /> Planning Mode ({draftTasks.length} draft tasks)
-                                    </div>
-                                    {draftTasks.map((draft) => (
-                                        <div
-                                            key={draft.id}
-                                            style={{
-                                                background: 'white',
-                                                padding: '12px 15px',
-                                                borderRadius: '16px',
-                                                border: '1.5px solid #fb923c', // Minimalist Orange Border
-                                                display: 'flex',
-                                                flexDirection: 'column',
-                                                gap: draft.isExpanded ? '15px' : '0',
-                                                transition: 'all 0.2s ease',
-                                                cursor: 'pointer',
-                                                boxShadow: '0 4px 12px rgba(249, 115, 22, 0.08)',
-                                                animation: 'slideIn 0.2s ease-out'
-                                            }}
-                                            onClick={() => toggleDraftExpand(draft.id)}
-                                        >
-                                            {/* Header / Summary Row */}
-                                            <div style={{ display: 'grid', gridTemplateColumns: '24px minmax(0, 1fr) 80px 140px 80px', gap: '10px', alignItems: 'center' }}>
-                                                <div style={{ color: '#6366f1', display: 'flex', alignItems: 'center' }}>
-                                                    {draft.isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
-                                                </div>
-
-                                                <div style={{ position: 'relative', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                    {draft.isExpanded ? (
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                            <FileText size={14} style={{ color: '#94a3b8', flexShrink: 0 }} />
-                                                            <input
-                                                                type="text" placeholder="Task name..." value={draft.name}
-                                                                onChange={(e) => updateDraft(draft.id, 'name', e.target.value)}
-                                                                onClick={(e) => e.stopPropagation()}
-                                                                style={{ ...compactInput, width: '100%', border: 'none', background: 'transparent', padding: '0', fontWeight: 700, fontSize: '0.85rem' }}
-                                                                autoFocus
-                                                            />
-                                                        </div>
-                                                    ) : (
-                                                        <span style={{ fontSize: '0.8rem', fontWeight: 650, color: draft.name ? '#1e293b' : '#94a3b8' }}>
-                                                            {draft.name || "Untitled Task"}
-                                                        </span>
-                                                    )}
-                                                </div>
-
-                                                {/* Priority Badge */}
-                                                <div style={{ display: 'flex', justifyContent: 'center' }}>
-                                                    {!draft.isExpanded && (
-                                                        <div style={{
-                                                            fontSize: '0.6rem',
-                                                            fontWeight: 800,
-                                                            padding: '2px 6px',
-                                                            borderRadius: '6px',
-                                                            textTransform: 'uppercase',
-                                                            background: draft.priority === 4 ? '#fef2f2' : draft.priority === 3 ? '#fff7ed' : draft.priority === 2 ? '#f0f9ff' : '#f8fafc',
-                                                            color: draft.priority === 4 ? '#991b1b' : draft.priority === 3 ? '#9a3412' : draft.priority === 2 ? '#0369a1' : '#64748b',
-                                                            border: `1px solid ${draft.priority === 4 ? '#fee2e2' : draft.priority === 3 ? '#ffedd5' : draft.priority === 2 ? '#e0f2fe' : '#e2e8f0'}`
-                                                        }}>
-                                                            {draft.priority === 4 ? 'Crit' : draft.priority === 3 ? 'High' : draft.priority === 2 ? 'Med' : 'Low'}
-                                                        </div>
-                                                    )}
-                                                </div>
-
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.7rem', color: '#64748b' }}>
-                                                    {!draft.isExpanded && (
-                                                        <>
-                                                            <User size={12} />
-                                                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                                {(() => {
-                                                                    const m = members.find(mem => (mem.id || mem.userId || mem.memberId) === draft.assigneeId);
-                                                                    return m?.fullName || m?.userName || m?.user?.fullName || "No Assignee";
-                                                                })()}
-                                                            </span>
-                                                            {draft.collaboratorIds.length > 0 && (
-                                                                <span style={{ background: '#e0f2fe', color: '#0369a1', padding: '1px 4px', borderRadius: '4px', fontSize: '0.6rem' }}>
-                                                                    +{draft.collaboratorIds.length}
-                                                                </span>
-                                                            )}
-                                                        </>
-                                                    )}
-                                                </div>
-
-                                                <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
-                                                    <button
-                                                        disabled={draft.isSaving || !draft.name || !draft.assigneeId}
-                                                        onClick={(e) => { e.stopPropagation(); handleSingleTaskSave(draft); }}
-                                                        style={{ ...iconBtn, width: '28px', height: '28px', color: '#10b981', background: '#ecfdf5', opacity: (!draft.name || !draft.assigneeId) ? 0.4 : 1 }}
-                                                    >
-                                                        {draft.isSaving ? <Activity size={12} className="spin" /> : <Save size={12} />}
-                                                    </button>
-                                                    <button onClick={(e) => removeDraft(draft.id, e)} style={{ ...iconBtn, width: '28px', height: '28px', color: '#ef4444', background: '#fef2f2' }}><Trash2 size={12} /></button>
-                                                </div>
+                            {taskTab === 'draft' ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                    {draftTasks.length > 0 ? (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                            <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#1e293b', textTransform: 'uppercase', marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <Edit3 size={12} style={{ color: '#1e293b' }} /> Planning Mode ({draftTasks.length} draft tasks)
                                             </div>
-
-                                            {/* Detailed Section (Shown only when expanded) */}
-                                            {draft.isExpanded && (
+                                            {draftTasks.map((draft) => (
                                                 <div
-                                                    style={{ display: 'flex', flexDirection: 'column', gap: '10px', paddingTop: '10px', borderTop: '1px solid #f1f5f9', animation: 'slideIn 0.2s ease-out' }}
-                                                    onClick={(e) => e.stopPropagation()}
+                                                    key={draft.id}
+                                                    style={{
+                                                        background: 'white',
+                                                        padding: '12px 16px',
+                                                        borderRadius: 'var(--radius-lg)',
+                                                        border: '1px solid var(--border-color)',
+                                                        display: 'flex',
+                                                        flexDirection: 'column',
+                                                        gap: draft.isExpanded ? '1rem' : '0',
+                                                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                                        cursor: 'pointer',
+                                                        boxShadow: draft.isExpanded ? 'var(--shadow-md)' : 'var(--shadow-xs)',
+                                                        animation: 'slideIn 0.3s ease-out',
+                                                        position: 'relative',
+                                                        overflow: 'hidden'
+                                                    }}
+                                                    onClick={() => toggleDraftExpand(draft.id)}
+                                                    className="task-draft-card"
                                                 >
-                                                    <textarea
-                                                        placeholder="Quick notes or specific task requirements..." value={draft.description}
-                                                        onChange={(e) => updateDraft(draft.id, 'description', e.target.value)}
-                                                        style={{ ...inputStyle, minHeight: '54px', padding: '8px 12px', fontSize: '0.75rem', background: '#f8fafc', border: '1px solid #e2e8f0' }}
-                                                    />
-
-                                                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '12px' }}>
-                                                        {/* Priority & Dates Row */}
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                            <div style={{ flex: 1, position: 'relative' }}>
-                                                                <Calendar size={12} style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-                                                                <input
-                                                                    type="date" value={draft.startDate}
-                                                                    onChange={(e) => updateDraft(draft.id, 'startDate', e.target.value)}
-                                                                    style={{ ...compactInput, width: '100%', paddingLeft: '26px', fontSize: '0.65rem' }}
-                                                                />
-                                                            </div>
-                                                            <span style={{ color: '#cbd5e1' }}>→</span>
-                                                            <div style={{ flex: 1, position: 'relative' }}>
-                                                                <Calendar size={12} style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-                                                                <input
-                                                                    type="date" min={draft.startDate} max={mDueDate} value={draft.dueDate}
-                                                                    onChange={(e) => updateDraft(draft.id, 'dueDate', e.target.value)}
-                                                                    style={{ ...compactInput, width: '100%', paddingLeft: '26px', fontSize: '0.65rem' }}
-                                                                />
-                                                            </div>
+                                                    {draft.isExpanded && <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--primary-color)' }} />}
+                                                    <div style={{ display: 'grid', gridTemplateColumns: '24px minmax(0, 1fr) auto auto auto', gap: '12px', alignItems: 'center' }}>
+                                                        <div style={{ color: draft.isExpanded ? 'var(--primary-color)' : 'var(--text-muted)', display: 'flex', alignItems: 'center' }}>
+                                                            {draft.isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
                                                         </div>
-
-                                                        <div style={{ position: 'relative' }}>
-                                                            <Target size={12} style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', zIndex: 1 }} />
-                                                            <select
-                                                                value={draft.priority}
-                                                                onChange={(e) => updateDraft(draft.id, 'priority', parseInt(e.target.value))}
-                                                                style={{ ...compactInput, width: '100%', paddingLeft: '26px', fontSize: '0.65rem' }}
+                                                        <div style={{ position: 'relative', overflow: 'visible' }}>
+                                                            {draft.isExpanded ? (
+                                                                <input
+                                                                    type="text" placeholder="What needs to be done?" value={draft.name}
+                                                                    onChange={(e) => updateDraft(draft.id, 'name', e.target.value)}
+                                                                    onClick={(e) => e.stopPropagation()}
+                                                                    style={{
+                                                                        width: '100%',
+                                                                        border: 'none',
+                                                                        background: 'transparent',
+                                                                        padding: '4px 0',
+                                                                        fontWeight: 700,
+                                                                        fontSize: '0.9rem',
+                                                                        position: 'relative',
+                                                                        zIndex: 10,
+                                                                        color: 'var(--text-primary)',
+                                                                        outline: 'none'
+                                                                    }}
+                                                                    autoFocus
+                                                                />
+                                                            ) : (
+                                                                <div style={{ fontSize: '0.85rem', fontWeight: 650, color: draft.name ? 'var(--text-primary)' : 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{draft.name || "Untitled Task"}</div>
+                                                            )}
+                                                        </div>
+                                                        <div style={{ display: 'flex', justifyContent: 'center' }}>
+                                                            {!draft.isExpanded && <div style={{ fontSize: '0.6rem', fontWeight: 800, padding: '2px 8px', borderRadius: '6px', textTransform: 'uppercase', background: 'var(--border-light)', color: 'var(--text-secondary)', border: '1px solid var(--border-color)', letterSpacing: '0.05em' }}>Draft</div>}
+                                                        </div>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                                                            {!draft.isExpanded && (
+                                                                <>
+                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'var(--surface-hover)', padding: '2px 8px', borderRadius: '20px', border: '1px solid var(--border-color)' }}>
+                                                                        <User size={12} style={{ color: 'var(--text-muted)' }} />
+                                                                        <span style={{ maxWidth: '80px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600 }}>
+                                                                            {(() => {
+                                                                                const match = members.find(m => (m.id || m.memberId || m.membershipId || "") === draft.assigneeId);
+                                                                                return match?.fullName || match?.userName || "Unassigned";
+                                                                            })()}
+                                                                        </span>
+                                                                    </div>
+                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'var(--accent-bg)', padding: '2px 8px', borderRadius: '20px', border: '1px solid var(--accent-color)22', color: 'var(--accent-color)' }}>
+                                                                        <Users size={12} />
+                                                                        <span style={{ fontWeight: 700 }}>{(draft.collaboratorIds || []).filter(id => id !== draft.assigneeId).length}</span>
+                                                                    </div>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                                                            <button 
+                                                                onClick={(e) => { e.stopPropagation(); handleSingleTaskSave(draft); }} 
+                                                                disabled={draft.isSaving}
+                                                                style={{ 
+                                                                    width: '30px', height: '30px', borderRadius: '8px', border: 'none', 
+                                                                    color: draft.isSaving ? 'var(--text-muted)' : 'var(--success)', 
+                                                                    background: 'var(--success-bg)', 
+                                                                    display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                                                                    cursor: draft.isSaving ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
+                                                                    opacity: draft.isSaving ? 0.6 : 1
+                                                                }}
                                                             >
-                                                                <option value="1">Priority: Low</option>
-                                                                <option value="2">Priority: Medium</option>
-                                                                <option value="3">Priority: High</option>
-                                                                <option value="4">Priority: Critical</option>
-                                                            </select>
+                                                                {draft.isSaving ? <Clock className="animate-spin-slow" size={14} /> : <Save size={14} />}
+                                                            </button>
+                                                            <button onClick={(e) => removeDraft(draft.id, e)} disabled={draft.isSaving} style={{ width: '30px', height: '30px', borderRadius: '8px', border: 'none', color: 'var(--danger)', background: 'var(--danger-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s', opacity: draft.isSaving ? 0.5 : 1 }}><Trash2 size={14} /></button>
                                                         </div>
                                                     </div>
-
-                                                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 2fr)', gap: '12px' }}>
-                                                        {/* Team Row */}
-                                                        <div style={{ position: 'relative' }}>
-                                                            <User size={12} style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', zIndex: 10, pointerEvents: 'none' }} />
-                                                            <select
-                                                                value={draft.assigneeId}
-                                                                onChange={(e) => {
-                                                                    const val = e.target.value;
-                                                                    updateDraft(draft.id, 'assigneeId', val);
-                                                                    updateDraft(draft.id, 'collaboratorIds', (draft.collaboratorIds || []).filter(id => id !== val));
-                                                                }}
-                                                                style={{ ...compactInput, width: '100%', paddingLeft: '26px', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer' }}
-                                                            >
-                                                                <option value="">Select Assignee</option>
-                                                                {members.filter(m => Number(m.projectRole) !== 1).map(m => {
-                                                                    const mId = m.id || m.userId || m.memberId || "";
-                                                                    const mName = m.fullName || m.userName || m.user?.fullName || "Member";
-                                                                    return <option key={mId} value={mId}>{mName}</option>;
-                                                                })}
-                                                            </select>
-                                                        </div>
-
-                                                        <div style={{ position: 'relative' }}>
-                                                            <UserPlus size={12} style={{ position: 'absolute', left: '8px', top: '10px', color: '#94a3b8', zIndex: 10, pointerEvents: 'none' }} />
-                                                            <div
-                                                                style={{ padding: '4px 4px 4px 26px', background: 'white', borderRadius: '10px', border: '1.5px solid #e2e8f0', minHeight: '36px', display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center' }}
-                                                            >
-                                                                {(draft.collaboratorIds || []).map(cid => {
-                                                                    const m = members.find(mem => (mem.id || mem.userId || mem.memberId) === cid);
-                                                                    return (
-                                                                        <div key={cid} style={{ background: '#f1f5f9', color: '#1e293b', padding: '1px 8px', borderRadius: '6px', fontSize: '0.65rem', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid #e2e8f0', height: '24px', fontWeight: 600 }}>
-                                                                            {m?.fullName || m?.userName || m?.user?.fullName || "..."}
-                                                                            <X size={10} style={{ cursor: 'pointer', color: '#94a3b8' }} onClick={() => { updateDraft(draft.id, 'collaboratorIds', draft.collaboratorIds.filter(id => id !== cid)); }} />
-                                                                        </div>
-                                                                    );
-                                                                })}
+                                                    {draft.isExpanded && (
+                                                        <React.Fragment>
+                                                            <textarea
+                                                                placeholder="Description..." value={draft.description}
+                                                                onChange={(e) => updateDraft(draft.id, 'description', e.target.value)}
+                                                                onClick={(e) => e.stopPropagation()}
+                                                                style={{ ...inputStyle, minHeight: '54px', padding: '8px 12px', fontSize: '0.75rem' }}
+                                                            />
+                                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }} onClick={(e) => e.stopPropagation()}>
+                                                                <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
+                                                                    <input
+                                                                        type="date" value={draft.startDate}
+                                                                        min={mStartDate || today}
+                                                                        max={draft.dueDate || mDueDate}
+                                                                        onChange={(e) => updateDraft(draft.id, 'startDate', e.target.value)}
+                                                                        style={{ ...compactInput, flex: 1, fontSize: '0.65rem' }}
+                                                                    />
+                                                                    <span style={{ color: '#94a3b8' }}>→</span>
+                                                                    <input
+                                                                        type="date" value={draft.dueDate}
+                                                                        min={draft.startDate || mStartDate || today}
+                                                                        max={mDueDate}
+                                                                        onChange={(e) => updateDraft(draft.id, 'dueDate', e.target.value)}
+                                                                        style={{ ...compactInput, flex: 1, fontSize: '0.65rem' }}
+                                                                    />
+                                                                </div>
+                                                                <select value={draft.priority} onChange={(e) => updateDraft(draft.id, 'priority', parseInt(e.target.value))} style={{ ...compactInput, fontSize: '0.65rem' }}>
+                                                                    <option value="1">Low</option>
+                                                                    <option value="2">Medium</option>
+                                                                    <option value="3">High</option>
+                                                                    <option value="4">Critical</option>
+                                                                </select>
+                                                            </div>
+                                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }} onClick={(e) => e.stopPropagation()}>
+                                                                <select
+                                                                    value={draft.assigneeId}
+                                                                    onChange={(e) => {
+                                                                        const val = e.target.value;
+                                                                        updateDraft(draft.id, 'assigneeId', val);
+                                                                        if (val) {
+                                                                            const next = (draft.collaboratorIds || []).filter(id => id !== val);
+                                                                            updateDraft(draft.id, 'collaboratorIds', next);
+                                                                        }
+                                                                    }}
+                                                                    style={{ ...compactInput, fontSize: '0.65rem' }}
+                                                                >
+                                                                    <option value="">Select Assignee</option>
+                                                                    {members.filter(m => Number(m.projectRole) !== 1).map(m => (
+                                                                        <option key={m.id || m.memberId || m.membershipId} value={m.id || m.memberId || m.membershipId}>{m.fullName || m.userName}</option>
+                                                                    ))}
+                                                                </select>
                                                                 <select
                                                                     value=""
                                                                     onChange={(e) => {
                                                                         const val = e.target.value;
-                                                                        if (val && !draft.collaboratorIds.includes(val) && val !== draft.assigneeId) {
-                                                                            updateDraft(draft.id, 'collaboratorIds', [...(draft.collaboratorIds || []), val]);
-                                                                        }
+                                                                        if (!val) return;
+                                                                        const current = draft.collaboratorIds || [];
+                                                                        const next = current.includes(val) ? current.filter(id => id !== val) : [...current, val];
+                                                                        updateDraft(draft.id, 'collaboratorIds', next);
                                                                     }}
-                                                                    style={{ border: 'none', background: 'transparent', fontSize: '0.7rem', outline: 'none', color: '#1e293b', flex: 1, minWidth: '100px', cursor: 'pointer', height: '100%', fontWeight: 600 }}
+                                                                    style={{ ...compactInput, fontSize: '0.65rem', background: '#f8fafc' }}
                                                                 >
-                                                                    <option value="">+ Add Collabs</option>
-                                                                    {members.filter(m => {
-                                                                        const id = m.id || m.userId || m.memberId || "";
-                                                                        return Number(m.projectRole) !== 1 && id !== draft.assigneeId;
-                                                                    }).map(m => {
-                                                                        const mId = m.id || m.userId || m.memberId || "";
-                                                                        const mName = m.fullName || m.userName || m.user?.fullName || "Member";
-                                                                        return <option key={mId} value={mId} disabled={draft.collaboratorIds.includes(mId)}>{mName}</option>;
-                                                                    })}
+                                                                    <option value="">Select Collaborators ({draft.collaboratorIds.length})</option>
+                                                                    {members.filter(m => Number(m.projectRole) !== 1 && (m.id || m.memberId || m.membershipId) !== draft.assigneeId).map(m => (
+                                                                        <option key={m.id || m.memberId || m.membershipId} value={m.id || m.memberId || m.membershipId}>
+                                                                            {draft.collaboratorIds.includes(m.id || m.memberId || m.membershipId) ? "✓ " : ""} {m.fullName || m.userName} - {m.email || 'No email'}
+                                                                        </option>
+                                                                    ))}
                                                                 </select>
                                                             </div>
-                                                        </div>
-                                                    </div>
+                                                        </React.Fragment>
+                                                    )}
                                                 </div>
-                                            )}
+                                            ))}
                                         </div>
-                                    ))}
+                                    ) : (
+                                        <div style={{ textAlign: 'center', padding: '4rem 2rem', color: '#94a3b8' }}>
+                                            <Plus size={32} style={{ color: '#cbd5e1', marginBottom: '1.5rem' }} />
+                                            <h5 style={{ color: '#1e293b', fontSize: '1rem', fontWeight: 800 }}>Drafting Workspace</h5>
+                                            <p style={{ fontSize: '0.8rem' }}>Plan your new tasks here. Use the "New Task" button above to start.</p>
+                                        </div>
+                                    )}
                                 </div>
                             ) : (
-                                <div style={{ textAlign: 'center', padding: '4rem 2rem', color: '#94a3b8' }}>
-                                    <Target size={32} style={{ color: '#cbd5e1', marginBottom: '1.5rem' }} />
-                                    <h5 style={{ margin: '0 0 0.5rem 0', color: '#1e293b', fontSize: '1rem', fontWeight: 800 }}>{formTab === 'add' ? 'Drafting Mode' : 'Ready for Expansion'}</h5>
-                                    <p style={{ margin: 0, fontSize: '0.8rem', color: '#64748b' }}>{formTab === 'add' ? 'Add tasks below or click "New Task" above to start planning for this draft.' : 'No tasks assigned yet. Click "New Task" to start planning.'}</p>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                    {milestoneTasks.length > 0 ? (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                            <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <CheckCircle size={12} /> Current Task ({milestoneTasks.length})
+                                            </div>
+                                            {milestoneTasks.map((task) => {
+                                                const isEx = expandedTasks.includes(task.taskId);
+                                                const sColors = getStatusColor(task.status);
+                                                const aId = task.memberId || (task as any).assignedToId;
+                                                const match = members.find(m => (m.id || m.memberId || m.membershipId || "") === aId);
+                                                const collabCount = ((task as any).collaboratorIds || []).filter((id: string) => id !== aId).length;
+
+                                                return (
+                                                    <div
+                                                        key={task.taskId}
+                                                        data-task-id={task.taskId}
+                                                        style={{
+                                                            background: 'white',
+                                                            padding: '12px 16px',
+                                                            borderRadius: 'var(--radius-lg)',
+                                                            border: '1px solid var(--border-color)',
+                                                            display: 'flex',
+                                                            flexDirection: 'column',
+                                                            gap: isEx ? '1rem' : '0',
+                                                            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                                            cursor: 'pointer',
+                                                            boxShadow: isEx ? 'var(--shadow-md)' : 'var(--shadow-xs)',
+                                                            position: 'relative',
+                                                            overflow: 'hidden'
+                                                        }}
+                                                        onClick={() => toggleTaskExpand(task.taskId)}
+                                                        className="task-item-card"
+                                                    >
+                                                        {isEx && <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--primary-color)' }} />}
+                                                        <div style={{ display: 'grid', gridTemplateColumns: '24px minmax(0, 1fr) auto auto auto 70px', gap: '12px', alignItems: 'center' }}>
+                                                            <div style={{ color: isEx ? 'var(--primary-color)' : 'var(--text-muted)' }}>
+                                                                {isEx ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                                                            </div>
+                                                            <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+                                                                {isEx && (canManageProject && !isArchived && task.status !== 3 && task.status !== 6 && activeMilestone?.status !== MilestoneStatus.Completed && activeMilestone?.status !== MilestoneStatus.Cancelled) ? (
+                                                                    <input
+                                                                        type="text" value={task.name} placeholder="Task Name"
+                                                                        onChange={(e) => handleUpdateTaskField(task.taskId, 'name', e.target.value)}
+                                                                        onClick={(e) => e.stopPropagation()}
+                                                                        style={{
+                                                                            width: '100%',
+                                                                            border: 'none',
+                                                                            background: 'transparent',
+                                                                            padding: '2px 0',
+                                                                            fontWeight: 700,
+                                                                            fontSize: '0.9rem',
+                                                                            color: 'var(--text-primary)',
+                                                                            outline: 'none'
+                                                                        }}
+                                                                        autoFocus
+                                                                    />
+                                                                ) : (
+                                                                    <div title={task.name} style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.name}</div>
+                                                                )}
+                                                            </div>
+
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'var(--surface-hover)', padding: '2px 8px', borderRadius: '20px', border: '1px solid var(--border-color)' }}>
+                                                                    <User size={12} style={{ color: 'var(--text-muted)' }} />
+                                                                    <span style={{ maxWidth: '80px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600 }}>
+                                                                        {!aId ? "Unassigned" : (match?.fullName || match?.userName || task.member?.fullName || task.assignedToName || (task as any).assigneeName || "Member")}
+                                                                    </span>
+                                                                </div>
+                                                                {collabCount > 0 && (
+                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'var(--accent-bg)', padding: '2px 8px', borderRadius: '20px', border: '1px solid var(--accent-color)22', color: 'var(--accent-color)' }}>
+                                                                        <Users size={12} />
+                                                                        <span style={{ fontWeight: 700 }}>{collabCount}</span>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+
+                                                            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                                <Calendar size={12} />
+                                                                <span>{formatDate(task.startDate)} - {formatDate(task.dueDate)}</span>
+                                                            </div>
+
+                                                            <div style={{ display: 'flex', justifyContent: 'center' }}>
+                                                                <div style={{
+                                                                    fontSize: '0.6rem',
+                                                                    fontWeight: 800,
+                                                                    padding: '2px 10px',
+                                                                    borderRadius: 'var(--radius-full)',
+                                                                    textTransform: 'uppercase',
+                                                                    background: sColors.bg,
+                                                                    color: sColors.text,
+                                                                    border: `1px solid ${sColors.text}15`,
+                                                                    letterSpacing: '0.05em'
+                                                                }}>
+                                                                    {getStatusText(task.status)}
+                                                                </div>
+                                                            </div>
+
+                                                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                                                                {(canManageProject && !isArchived && task.status !== 3 && task.status !== 6) && (
+                                                                    <button
+                                                                        onClick={(e) => { e.stopPropagation(); handleSaveExistingTask(task); }}
+                                                                        disabled={savingTaskId === task.taskId}
+                                                                        style={{
+                                                                            width: '28px',
+                                                                            height: '28px',
+                                                                            borderRadius: '8px',
+                                                                            border: 'none',
+                                                                            color: savingTaskId === task.taskId ? 'var(--text-muted)' : 'var(--success)',
+                                                                            background: 'var(--success-bg)',
+                                                                            display: 'flex',
+                                                                            alignItems: 'center',
+                                                                            justifyContent: 'center',
+                                                                            cursor: savingTaskId === task.taskId ? 'not-allowed' : 'pointer',
+                                                                            opacity: savingTaskId === task.taskId ? 0.6 : 1
+                                                                        }}
+                                                                        title="Save Update"
+                                                                    >
+                                                                        {savingTaskId === task.taskId ? <Clock className="animate-spin-slow" size={14} /> : <Save size={14} />}
+                                                                    </button>
+                                                                )}
+                                                                {activeMilestone?.status !== MilestoneStatus.Completed && activeMilestone?.status !== MilestoneStatus.Cancelled && (
+                                                                    <button onClick={(e) => handleDeleteTask(task.taskId || (task as any).id, e)} disabled={savingTaskId === task.taskId} style={{ width: '28px', height: '28px', borderRadius: '8px', border: 'none', color: 'var(--danger)', background: 'var(--danger-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', opacity: savingTaskId === task.taskId ? 0.5 : 1 }}><Trash2 size={14} /></button>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        {isEx && (
+                                                            <React.Fragment>
+                                                                {(() => {
+                                                                    const canEditAny = canManageProject && !isArchived && task.status !== 3 && task.status !== 6 && activeMilestone?.status !== MilestoneStatus.Completed && activeMilestone?.status !== MilestoneStatus.Cancelled;
+                                                                    const canEditDates = canEditAny && task.status === 1; // Only To Do (1) can change dates
+
+                                                                    if (!canEditAny) {
+                                                                        return (
+                                                                            <div style={{ padding: '0.85rem 1rem', background: 'var(--warning-bg)', color: 'var(--warning)', borderRadius: 'var(--radius-md)', fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: '10px', border: '1px solid var(--warning)22' }} onClick={(e) => e.stopPropagation()}>
+                                                                                <Info size={16} />
+                                                                                <span style={{ fontWeight: 600 }}>This task is locked for editing due to its status or your project role.</span>
+                                                                            </div>
+                                                                        );
+                                                                    }
+
+                                                                    return (
+                                                                        <React.Fragment>
+                                                                            <textarea
+                                                                                placeholder="Add a detailed description..."
+                                                                                value={task.description || ''}
+                                                                                onChange={(e) => handleUpdateTaskField(task.taskId, 'description', e.target.value)}
+                                                                                onClick={(e) => e.stopPropagation()}
+                                                                                style={{
+                                                                                    ...inputStyle,
+                                                                                    minHeight: '70px',
+                                                                                    padding: '10px 14px',
+                                                                                    fontSize: '0.8rem',
+                                                                                    background: 'var(--surface-hover)',
+                                                                                    border: '1px solid var(--border-color)',
+                                                                                    borderRadius: '12px'
+                                                                                }}
+                                                                            />
+                                                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }} onClick={(e) => e.stopPropagation()}>
+                                                                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                                                                    <div style={{ flex: 1, position: 'relative' }}>
+                                                                                        <label style={{ position: 'absolute', top: '-8px', left: '10px', background: 'white', padding: '0 4px', fontSize: '0.6rem', fontWeight: 800, color: 'var(--text-muted)' }}>START</label>
+                                                                                        <input
+                                                                                            type="date"
+                                                                                            value={task.startDate ? new Date(task.startDate).toISOString().split('T')[0] : ''}
+                                                                                            disabled={!canEditDates}
+                                                                                            min={mStartDate || undefined}
+                                                                                            max={task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : undefined}
+                                                                                            onChange={(e) => handleUpdateTaskField(task.taskId, 'startDate', e.target.value)}
+                                                                                            style={{ ...compactInput, width: '100%', fontSize: '0.75rem', padding: '10px', background: canEditDates ? 'white' : 'var(--border-light)', borderRadius: '10px' }}
+                                                                                        />
+                                                                                    </div>
+                                                                                    <span style={{ color: 'var(--text-muted)' }}>→</span>
+                                                                                    <div style={{ flex: 1, position: 'relative' }}>
+                                                                                        <label style={{ position: 'absolute', top: '-8px', left: '10px', background: 'white', padding: '0 4px', fontSize: '0.6rem', fontWeight: 800, color: 'var(--text-muted)' }}>DUE</label>
+                                                                                        <input
+                                                                                            type="date"
+                                                                                            value={task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : ''}
+                                                                                            disabled={!canEditDates}
+                                                                                            min={task.startDate ? new Date(task.startDate).toISOString().split('T')[0] : undefined}
+                                                                                            max={mDueDate || undefined}
+                                                                                            onChange={(e) => handleUpdateTaskField(task.taskId, 'dueDate', e.target.value)}
+                                                                                            style={{ ...compactInput, width: '100%', fontSize: '0.75rem', padding: '10px', background: canEditDates ? 'white' : 'var(--border-light)', borderRadius: '10px' }}
+                                                                                        />
+                                                                                    </div>
+                                                                                </div>
+                                                                                <div style={{ position: 'relative' }}>
+                                                                                    <label style={{ position: 'absolute', top: '-8px', left: '10px', background: 'white', padding: '0 4px', fontSize: '0.6rem', fontWeight: 800, color: 'var(--text-muted)' }}>PRIORITY</label>
+                                                                                    <select value={task.priority} onChange={(e) => handleUpdateTaskField(task.taskId, 'priority', parseInt(e.target.value))} style={{ ...compactInput, width: '100%', fontSize: '0.75rem', padding: '10px', borderRadius: '10px' }}>
+                                                                                        <option value="1">Low</option>
+                                                                                        <option value="2">Medium</option>
+                                                                                        <option value="3">High</option>
+                                                                                        <option value="4">Critical</option>
+                                                                                    </select>
+                                                                                </div>
+                                                                            </div>
+                                                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }} onClick={(e) => e.stopPropagation()}>
+                                                                                <div style={{ position: 'relative' }}>
+                                                                                    <label style={{ position: 'absolute', top: '-8px', left: '10px', background: 'white', padding: '0 4px', fontSize: '0.6rem', fontWeight: 800, color: 'var(--text-muted)' }}>ASSIGNEE</label>
+                                                                                    <select
+                                                                                        value={task.memberId || (task as any).assignedToId || ''}
+                                                                                        onChange={(e) => {
+                                                                                            const val = e.target.value;
+                                                                                            handleUpdateTaskField(task.taskId, 'memberId', val);
+                                                                                            if (val) {
+                                                                                                const cur = (task as any).collaboratorIds || [];
+                                                                                                const next = cur.filter((id: string) => id !== val);
+                                                                                                handleUpdateTaskField(task.taskId, 'collaboratorIds', next);
+                                                                                            }
+                                                                                        }}
+                                                                                        style={{ ...compactInput, width: '100%', fontSize: '0.75rem', padding: '10px', borderRadius: '10px' }}
+                                                                                    >
+                                                                                        <option value="">Select Assignee</option>
+                                                                                        {members.filter(m => Number(m.projectRole) !== 1).map(m => (
+                                                                                            <option key={m.id || m.memberId || m.membershipId} value={m.id || m.memberId || m.membershipId}>{m.fullName || m.userName}</option>
+                                                                                        ))}
+                                                                                    </select>
+                                                                                </div>
+                                                                                <div style={{ position: 'relative' }}>
+                                                                                    <label style={{ position: 'absolute', top: '-8px', left: '10px', background: 'white', padding: '0 4px', fontSize: '0.6rem', fontWeight: 800, color: 'var(--text-muted)' }}>COLLABORATORS</label>
+                                                                                    <select
+                                                                                        value=""
+                                                                                        onChange={(e) => {
+                                                                                            const val = e.target.value;
+                                                                                            if (!val) return;
+                                                                                            const current = (task as any).collaboratorIds || [];
+                                                                                            const next = current.includes(val) ? current.filter((id: string) => id !== val) : [...current, val];
+                                                                                            handleUpdateTaskField(task.taskId, 'collaboratorIds', next);
+                                                                                        }}
+                                                                                        style={{ ...compactInput, width: '100%', fontSize: '0.75rem', padding: '10px', borderRadius: '10px', background: 'var(--surface-hover)' }}
+                                                                                    >
+                                                                                        <option value="">Add Collaborators ({((task as any).collaboratorIds || []).length})</option>
+                                                                                        {members.filter(m => Number(m.projectRole) !== 1 && (m.id || m.memberId || m.membershipId) !== (task.memberId || (task as any).assignedToId)).map(m => (
+                                                                                            <option key={m.id || m.memberId || m.membershipId} value={m.id || m.memberId || m.membershipId}>
+                                                                                                {((task as any).collaboratorIds || []).includes(m.id || m.memberId || m.membershipId) ? "✓ " : ""} {m.fullName || m.userName}
+                                                                                            </option>
+                                                                                        ))}
+                                                                                    </select>
+                                                                                </div>
+                                                                            </div>
+                                                                        </React.Fragment>
+                                                                    );
+                                                                })()}
+                                                            </React.Fragment>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    ) : (
+                                        <div style={{ textAlign: 'center', padding: '4rem 2rem', color: '#94a3b8' }}>
+                                            {loadingTasks ? (
+                                                <div className="spin"><Clock size={32} style={{ color: '#cbd5e1', marginBottom: '1.5rem' }} /></div>
+                                            ) : (
+                                                <Target size={32} style={{ color: '#cbd5e1', marginBottom: '1.5rem' }} />
+                                            )}
+                                            <h5 style={{ color: '#1e293b', fontSize: '1rem', fontWeight: 800 }}>{loadingTasks ? "Loading Tasks..." : "Current Tasks"}</h5>
+                                            <p style={{ fontSize: '0.8rem' }}>{loadingTasks ? "Syncing..." : "No committed tasks for this milestone."}</p>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -672,53 +1619,19 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                 </div>
             </div>
 
-            {/* MINIMALIST CONFIRMATION MODAL */}
             {confirmState.isOpen && (
-                <div style={{
-                    position: 'fixed',
-                    top: 0, left: 0, right: 0, bottom: 0,
-                    background: 'rgba(255, 255, 255, 0.3)',
-                    backdropFilter: 'blur(10px)',
-                    zIndex: 9999,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    animation: 'fadeIn 0.2s ease-out'
-                }}>
-                    <div style={{
-                        background: 'white',
-                        padding: '1.25rem',
-                        borderRadius: '20px',
-                        boxShadow: '0 20px 50px rgba(0,0,0,0.12)',
-                        border: '1px solid #e2e8f0',
-                        maxWidth: '260px',
-                        width: '90%',
-                        textAlign: 'center',
-                        animation: 'popIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)'
-                    }}>
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(255, 255, 255, 0.3)', backdropFilter: 'blur(10px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'fadeIn 0.2s ease-out' }}>
+                    <div style={{ background: 'white', padding: '1.25rem', borderRadius: '12px', boxShadow: '0 20px 50px rgba(0,0,0,0.12)', border: '1px solid #e2e8f0', maxWidth: '300px', width: '90%', textAlign: 'center', animation: 'popIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
                         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.75rem' }}>
-                            <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: '#fff1f2', color: '#e11d48', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <X size={20} />
+                            <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: confirmState.title.includes('Delete') ? '#fff1f2' : '#f0f9ff', color: confirmState.title.includes('Delete') ? '#e11d48' : '#0369a1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                {confirmState.title.includes('Delete') ? <Trash2 size={20} /> : <Info size={20} />}
                             </div>
                         </div>
-                        <div style={{ fontWeight: 800, color: '#1e293b', marginBottom: '0.4rem', fontSize: '0.9rem' }}>Discard Changes?</div>
+                        <div style={{ fontWeight: 800, color: '#1e293b', marginBottom: '0.4rem', fontSize: '0.9rem' }}>{confirmState.title}</div>
                         <p style={{ fontSize: '0.75rem', color: '#64748b', margin: '0 0 1.25rem 0', lineHeight: 1.5 }}>{confirmState.message}</p>
                         <div style={{ display: 'flex', gap: '0.6rem' }}>
-                            <button
-                                onClick={() => setConfirmState(prev => ({ ...prev, isOpen: false }))}
-                                style={{ ...btnSecondary, flex: 1, padding: '0.6rem', fontSize: '0.75rem', borderRadius: '10px' }}
-                            >
-                                Stay
-                            </button>
-                            <button
-                                onClick={() => {
-                                    confirmState.onConfirm();
-                                    setConfirmState(prev => ({ ...prev, isOpen: false }));
-                                }}
-                                style={{ ...btnPrimary, flex: 1, padding: '0.6rem', fontSize: '0.75rem', background: '#e11d48', borderRadius: '10px' }}
-                            >
-                                Discard
-                            </button>
+                            <button onClick={() => setConfirmState(prev => ({ ...prev, isOpen: false }))} style={{ ...btnSecondary, flex: 1, padding: '0.6rem', fontSize: '0.75rem', borderRadius: '10px' }}>{confirmState.cancelLabel}</button>
+                            <button onClick={() => { confirmState.onConfirm(); setConfirmState(prev => ({ ...prev, isOpen: false })); }} style={{ ...btnPrimary, flex: 1, padding: '0.6rem', fontSize: '0.75rem', background: confirmState.title.includes('Delete') ? '#e11d48' : '#0369a1', borderRadius: '10px' }}>{confirmState.confirmLabel}</button>
                         </div>
                     </div>
                 </div>
@@ -735,7 +1648,6 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
     );
 };
 
-// Styles
 const labelStyle: React.CSSProperties = { fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: '4px' };
 const inputStyle: React.CSSProperties = { width: '100%', borderRadius: '10px', border: '1.5px solid #e2e8f0', fontSize: '0.85rem', outline: 'none', background: '#f8fafc', boxSizing: 'border-box' };
 const compactInput: React.CSSProperties = { border: '1.5px solid #e2e8f0', background: 'white', borderRadius: '10px', height: '36px', fontSize: '0.75rem', outline: 'none', padding: '0 10px', transition: 'border-color 0.2s' };
@@ -744,6 +1656,6 @@ const activeTabStyle: React.CSSProperties = { background: 'white', color: 'var(-
 const inactiveTabStyle: React.CSSProperties = { background: 'transparent', color: '#64748b' };
 const btnPrimary: React.CSSProperties = { background: 'var(--primary-color)', color: 'white', border: 'none', fontWeight: 800, borderRadius: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' };
 const btnSecondary: React.CSSProperties = { background: '#f1f5f9', color: '#475569', border: '1px solid #e2e8f0', fontWeight: 800, borderRadius: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' };
-const iconBtn: React.CSSProperties = { width: '32px', height: '32px', borderRadius: '10px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' };
+ 
 
 export default DetailsMilestones;

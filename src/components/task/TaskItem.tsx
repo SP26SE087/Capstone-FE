@@ -13,7 +13,8 @@ import {
     AlertOctagon,
     ChevronUp,
     ChevronDown,
-    Minus
+    Minus,
+    Timer
 } from 'lucide-react';
 
 interface TaskItemProps {
@@ -26,61 +27,67 @@ interface TaskItemProps {
 const TaskItem: React.FC<TaskItemProps> = ({ task, onClick, milestoneName, isCompact }) => {
     const getStatusStyle = (status: TaskStatus) => {
         switch (status) {
-            case TaskStatus.Todo: return { color: '#64748b', bg: '#f1f5f9', label: 'To Do', icon: <Clock size={14} /> };
-            case TaskStatus.InProgress: return { color: '#0ea5e9', bg: '#e0f2fe', label: 'In Progress', icon: <div style={{ width: 8, height: 8, background: '#0ea5e9', borderRadius: '50%', marginRight: 4 }} /> };
-            case TaskStatus.Submitted: return { color: '#7c3aed', bg: '#f5f3ff', label: 'Submitted', icon: <Send size={14} /> };
-            case TaskStatus.Missed: return { color: '#ef4444', bg: '#fef2f2', label: 'Missed', icon: <AlertTriangle size={14} /> };
-            case TaskStatus.Adjusting: return { color: '#f59e0b', bg: '#fffbeb', label: 'Adjusting', icon: <Settings size={14} /> };
-            case TaskStatus.Completed: return { color: '#10b981', bg: '#ecfdf5', label: 'Completed', icon: <CheckCircle2 size={14} /> };
-            default: return { color: '#64748b', bg: '#f1f5f9', label: 'Unknown', icon: <Clock size={14} /> };
+            case TaskStatus.Todo: return { color: 'var(--text-secondary)', bg: 'var(--border-light)', label: 'To Do', icon: <Clock size={12} /> };
+            case TaskStatus.InProgress: return { color: 'var(--info)', bg: 'var(--info-bg)', label: 'In Progress', icon: <Timer size={12} /> };
+            case TaskStatus.Submitted: return { color: '#7c3aed', bg: '#f5f3ff', label: 'Submitted', icon: <Send size={12} /> };
+            case TaskStatus.Missed: return { color: 'var(--danger)', bg: 'var(--danger-bg)', label: 'Missed', icon: <AlertTriangle size={12} /> };
+            case TaskStatus.Adjusting: return { color: 'var(--warning)', bg: 'var(--warning-bg)', label: 'Adjusting', icon: <Settings size={12} /> };
+            case TaskStatus.Completed: return { color: 'var(--success)', bg: 'var(--success-bg)', label: 'Completed', icon: <CheckCircle2 size={12} /> };
+            default: return { color: 'var(--text-muted)', bg: 'var(--border-light)', label: 'Unknown', icon: <Clock size={12} /> };
         }
     };
 
     const getPriorityStyle = (priority: Priority) => {
         switch (priority) {
-            case Priority.Critical: return { color: '#ef4444', label: 'Critical', bg: '#fef2f2', icon: <AlertOctagon size={12} /> };
-            case Priority.High: return { color: '#f59e0b', label: 'High', bg: '#fffbeb', icon: <ChevronUp size={12} /> };
-            case Priority.Medium: return { color: '#3b82f6', label: 'Medium', bg: '#eff6ff', icon: <Minus size={12} /> };
-            case Priority.Low: return { color: '#94a3b8', label: 'Low', bg: '#f8fafc', icon: <ChevronDown size={12} /> };
-            default: return { color: '#94a3b8', label: 'Normal', bg: '#f8fafc', icon: <Minus size={12} /> };
+            case Priority.Critical: return { color: 'var(--danger)', label: 'Critical', bg: 'var(--danger-bg)', icon: <AlertOctagon size={12} /> };
+            case Priority.High: return { color: 'var(--warning)', label: 'High', bg: 'var(--warning-bg)', icon: <ChevronUp size={12} /> };
+            case Priority.Medium: return { color: 'var(--info)', label: 'Medium', bg: 'var(--info-bg)', icon: <Minus size={12} /> };
+            case Priority.Low: return { color: 'var(--text-muted)', label: 'Low', bg: 'var(--border-light)', icon: <ChevronDown size={12} /> };
+            default: return { color: 'var(--text-muted)', label: 'Normal', bg: 'var(--border-light)', icon: <Minus size={12} /> };
         }
     };
 
     const statusStyle = getStatusStyle(task.status);
     const priorityStyle = getPriorityStyle(task.priority);
 
+    // Common card styles
+    const cardBaseStyle: React.CSSProperties = {
+        background: 'white',
+        border: '1px solid var(--border-color)',
+        borderRadius: 'var(--radius-lg)',
+        cursor: onClick ? 'pointer' : 'default',
+        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        boxShadow: 'var(--shadow-xs)',
+        position: 'relative',
+        overflow: 'hidden'
+    };
+
     if (isCompact) {
         return (
             <div
                 onClick={() => onClick?.(task)}
                 style={{
-                    padding: '0.75rem 1rem',
-                    background: 'white',
-                    border: '1px solid var(--border-color)',
-                    borderRadius: '12px',
-                    cursor: onClick ? 'pointer' : 'default',
-                    transition: 'all 0.2s ease',
+                    ...cardBaseStyle,
+                    padding: '0.85rem 1.25rem',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '1.25rem',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
-                    position: 'relative'
+                    gap: '1rem',
                 }}
-                onMouseOver={(e) => e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.06)'}
-                onMouseOut={(e) => e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.02)'}
+                className="task-item-premium"
             >
-                <div style={{ width: '120px', flexShrink: 0 }}>
+                <div style={{ width: '100px', flexShrink: 0 }}>
                     <div style={{
                         fontSize: '0.65rem',
-                        padding: '2px 8px',
-                        borderRadius: '20px',
+                        padding: '2px 10px',
+                        borderRadius: 'var(--radius-full)',
                         background: priorityStyle.bg,
                         color: priorityStyle.color,
-                        fontWeight: 600,
+                        fontWeight: 800,
                         textTransform: 'uppercase',
                         display: 'inline-flex',
                         alignItems: 'center',
-                        gap: '4px'
+                        gap: '4px',
+                        border: `1px solid ${priorityStyle.color}15`
                     }}>
                         {priorityStyle.icon}
                         {priorityStyle.label}
@@ -92,7 +99,7 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onClick, milestoneName, isCom
                         margin: 0,
                         fontSize: '0.9rem',
                         fontWeight: 700,
-                        color: '#1e293b',
+                        color: 'var(--text-primary)',
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis'
@@ -100,7 +107,7 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onClick, milestoneName, isCom
                         {task.name}
                     </h4>
                     {milestoneName && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.65rem', color: 'var(--primary-color)', fontWeight: 700, marginTop: '2px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.65rem', color: 'var(--accent-color)', fontWeight: 800, marginTop: '2px', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
                             <MapPin size={10} />
                             {milestoneName}
                         </div>
@@ -108,34 +115,53 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onClick, milestoneName, isCom
                 </div>
 
                 <div style={{ width: '100px', flexShrink: 0, display: 'flex', justifyContent: 'flex-start' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                        <Calendar size={12} />
-                        {task.dueDate ? new Date(task.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'No date'}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                        <Calendar size={13} style={{ color: 'var(--text-muted)' }} />
+                        {task.dueDate ? new Date(task.dueDate).toLocaleDateString('en-GB', { month: 'short', day: 'numeric' }) : 'No date'}
                     </div>
                 </div>
 
-                <div style={{ width: '80px', flexShrink: 0, display: 'flex', justifyContent: 'center' }}>
+                <div style={{ width: '60px', flexShrink: 0, display: 'flex', justifyContent: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center' }}>
-                        {task.memberId && (
-                            <div title="Assignee" style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'var(--primary-color)', border: '2px solid white', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '0.6rem', fontWeight: 700 }}>
-                                {task.members?.find(m => (m.memberId || m.id) === task.memberId)?.userName?.charAt(0) || <User size={12} />}
+                        {task.memberId ? (
+                            <div title="Assignee" style={{ 
+                                width: '28px', 
+                                height: '28px', 
+                                borderRadius: '50%', 
+                                background: 'linear-gradient(135deg, var(--primary-color), var(--secondary-color))', 
+                                border: '2px solid white', 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                justifyContent: 'center', 
+                                color: 'white', 
+                                fontSize: '0.7rem', 
+                                fontWeight: 800,
+                                boxShadow: 'var(--shadow-sm)'
+                            }}>
+                                {task.members?.find(m => (m.memberId || m.id) === task.memberId)?.userName?.charAt(0).toUpperCase() || <User size={14} />}
+                            </div>
+                        ) : (
+                            <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
+                                <User size={14} />
                             </div>
                         )}
-                        {!task.memberId && <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}><User size={12} /></div>}
                     </div>
                 </div>
 
                 <div style={{ width: '120px', flexShrink: 0, display: 'flex', justifyContent: 'flex-end' }}>
                     <div style={{
-                        fontSize: '0.7rem',
-                        padding: '3px 10px',
-                        borderRadius: '6px',
+                        fontSize: '0.65rem',
+                        padding: '3px 12px',
+                        borderRadius: 'var(--radius-full)',
                         background: statusStyle.bg,
                         color: statusStyle.color,
-                        fontWeight: 600,
+                        fontWeight: 800,
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '4px'
+                        gap: '5px',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.02em',
+                        border: `1px solid ${statusStyle.color}15`
                     }}>
                         {statusStyle.icon}
                         {statusStyle.label}
@@ -149,25 +175,23 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onClick, milestoneName, isCom
         <div
             onClick={() => onClick?.(task)}
             style={{
-                padding: '1rem',
-                background: 'white',
-                border: '1px solid var(--border-color)',
-                borderRadius: '12px',
-                cursor: onClick ? 'pointer' : 'default',
-                transition: 'all 0.2s ease',
+                ...cardBaseStyle,
+                padding: '1.25rem',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '0.75rem',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
-                position: 'relative'
+                gap: '0.85rem',
             }}
-            onMouseOver={(e) => e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.06)'}
-            onMouseOut={(e) => e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.02)'}
+            className="task-item-premium"
         >
             <style>{`
                 @keyframes warningBlink {
                     0%, 100% { opacity: 1; transform: scale(1); }
-                    50% { opacity: 0.5; transform: scale(1.3); }
+                    50% { opacity: 0.7; transform: scale(1.1); }
+                }
+                .task-item-premium:hover {
+                    transform: translateY(-2px);
+                    box-shadow: var(--shadow-md);
+                    border-color: var(--accent-color)44;
                 }
             `}</style>
             
@@ -183,39 +207,41 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onClick, milestoneName, isCom
                     return (
                         <div style={{
                             position: 'absolute',
-                            top: '-4px',
-                            right: '-4px',
-                            width: '12px',
-                            height: '12px',
+                            top: '12px',
+                            right: '12px',
+                            width: '10px',
+                            height: '10px',
                             borderRadius: '50%',
-                            background: '#ef4444',
+                            background: 'var(--danger)',
                             border: '2px solid white',
-                            boxShadow: '0 0 6px #ef4444',
-                            animation: 'warningBlink 1s ease-in-out infinite',
+                            boxShadow: '0 0 8px var(--danger)',
+                            animation: 'warningBlink 1.5s ease-in-out infinite',
                             zIndex: 10
-                        }} title="Deadline is within 3 days or overdue!" />
+                        }} title="Deadline approach" />
                     );
                 }
                 return null;
             })()}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{
-                    fontSize: '0.7rem',
-                    padding: '2px 8px',
-                    borderRadius: '20px',
+                    fontSize: '0.65rem',
+                    padding: '2px 10px',
+                    borderRadius: 'var(--radius-full)',
                     background: priorityStyle.bg,
                     color: priorityStyle.color,
-                    fontWeight: 600,
+                    fontWeight: 800,
                     textTransform: 'uppercase',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '4px'
+                    gap: '4px',
+                    border: `1px solid ${priorityStyle.color}15`
                 }}>
                     {priorityStyle.icon}
                     {priorityStyle.label}
                 </div>
-                <button style={{ border: 'none', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}>
-                    <MoreHorizontal size={16} />
+                <button style={{ border: 'none', background: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', borderRadius: '4px' }} className="hover-bg-light">
+                    <MoreHorizontal size={18} />
                 </button>
             </div>
 
@@ -223,15 +249,14 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onClick, milestoneName, isCom
                 title={task.name}
                 style={{
                     margin: 0,
-                    fontSize: '0.95rem',
+                    fontSize: '1rem',
                     fontWeight: 700,
-                    color: '#1e293b',
+                    color: 'var(--text-primary)',
                     display: '-webkit-box',
                     WebkitLineClamp: 1,
                     WebkitBoxOrient: 'vertical',
                     overflow: 'hidden',
-                    wordBreak: 'break-all',
-                    lineHeight: '1.3'
+                    lineHeight: '1.4'
                 }}
             >
                 {task.name}
@@ -242,13 +267,14 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onClick, milestoneName, isCom
                     display: 'flex',
                     alignItems: 'center',
                     gap: '6px',
-                    fontSize: '0.7rem',
-                    color: 'var(--primary-color)',
-                    fontWeight: 700,
-                    marginBottom: '-4px'
+                    fontSize: '0.65rem',
+                    color: 'var(--accent-color)',
+                    fontWeight: 800,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.03em'
                 }}>
                     <MapPin size={12} />
-                    <span style={{ textTransform: 'uppercase', letterSpacing: '0.02em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {milestoneName}
                     </span>
                 </div>
@@ -257,72 +283,69 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onClick, milestoneName, isCom
             <p style={{
                 margin: 0,
                 fontSize: '0.8rem',
-                color: '#64748b',
+                color: 'var(--text-secondary)',
                 display: '-webkit-box',
                 WebkitLineClamp: 2,
                 WebkitBoxOrient: 'vertical',
                 overflow: 'hidden',
-                lineHeight: '1.5',
-                height: '3em', // Fixes height to exactly 2 lines (1.5 * 2)
-                wordBreak: 'break-word',
-                opacity: task.description ? 1 : 0.5,
+                lineHeight: '1.6',
+                height: '3.2em',
+                opacity: task.description ? 1 : 0.6,
                 fontStyle: task.description ? 'normal' : 'italic'
             }}>
                 {task.description || 'No description provided'}
             </p>
 
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.25rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 'auto', paddingTop: '0.5rem', borderTop: '1px solid var(--border-light)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <div style={{ display: 'flex', alignItems: 'center' }}>
-                        {/* Always show primary assignee if they exist */}
                         {task.memberId && (
                             <div title="Assignee" style={{
-                                width: '24px',
-                                height: '24px',
+                                width: '26px',
+                                height: '26px',
                                 borderRadius: '50%',
-                                background: 'var(--primary-color)',
+                                background: 'linear-gradient(135deg, var(--primary-color), var(--secondary-color))',
                                 border: '2px solid white',
                                 zIndex: 3,
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
                                 color: 'white',
-                                fontSize: '0.6rem',
-                                fontWeight: 700,
-                                boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                                fontSize: '0.65rem',
+                                fontWeight: 800,
+                                boxShadow: 'var(--shadow-sm)'
                             }}>
-                                {/* Try to find assignee name in members array or fallback to User icon */}
-                                {task.members?.find(m => (m.memberId || m.id) === task.memberId)?.userName?.charAt(0) || <User size={12} />}
+                                {task.members?.find(m => (m.memberId || m.id) === task.memberId)?.userName?.charAt(0).toUpperCase() || <User size={14} />}
                             </div>
                         )}
                         
-                        {/* Show support members (Collaborators) */}
                         {task.members && task.members.length > 0 && (
-                            <div style={{ display: 'flex', alignItems: 'center', marginLeft: task.memberId ? '-8px' : 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', marginLeft: task.memberId ? '-10px' : 0 }}>
                                 {task.members
-                                    .filter(m => (m.memberId || m.id) !== task.memberId) // Don't duplicate assignee
+                                    .filter(m => (m.memberId || m.id) !== task.memberId)
                                     .slice(0, 2)
                                     .map((member, i) => (
                                         <div key={member.id || i} style={{
-                                            width: '24px',
-                                            height: '24px',
+                                            width: '26px',
+                                            height: '26px',
                                             borderRadius: '50%',
                                             background: '#7c3aed',
                                             border: '2px solid white',
-                                            marginLeft: i > 0 || task.memberId ? '-8px' : 0,
+                                            marginLeft: i > 0 || task.memberId ? '-10px' : 0,
                                             display: 'flex',
                                             alignItems: 'center',
                                             justifyContent: 'center',
                                             color: 'white',
-                                            fontSize: '0.6rem',
-                                            fontWeight: 600,
-                                            zIndex: 2 - i
+                                            fontSize: '0.65rem',
+                                            fontWeight: 700,
+                                            zIndex: 2 - i,
+                                            boxShadow: 'var(--shadow-sm)'
                                         }}>
-                                            {member.userName?.charAt(0) || '?'}
+                                            {member.userName?.charAt(0).toUpperCase() || '?'}
                                         </div>
                                     ))}
                                 {task.members.filter(m => (m.memberId || m.id) !== task.memberId).length > 2 && (
-                                    <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginLeft: '4px' }}>
+                                    <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginLeft: '6px', fontWeight: 600 }}>
                                         +{task.members.filter(m => (m.memberId || m.id) !== task.memberId).length - 2}
                                     </span>
                                 )}
@@ -330,30 +353,26 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onClick, milestoneName, isCom
                         )}
                         
                         {!task.memberId && (!task.members || task.members.length === 0) && (
-                            <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>
-                                <User size={12} />
+                            <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
+                                <User size={14} />
                             </div>
                         )}
                     </div>
-
-                    {task.dueDate && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                            <Calendar size={12} />
-                            {new Date(task.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                        </div>
-                    )}
                 </div>
 
                 <div style={{
-                    fontSize: '0.75rem',
-                    padding: '3px 10px',
-                    borderRadius: '6px',
+                    fontSize: '0.65rem',
+                    padding: '3px 12px',
+                    borderRadius: 'var(--radius-full)',
                     background: statusStyle.bg,
                     color: statusStyle.color,
-                    fontWeight: 600,
+                    fontWeight: 800,
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '4px'
+                    gap: '5px',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.02em',
+                    border: `1px solid ${statusStyle.color}15`
                 }}>
                     {statusStyle.icon}
                     {statusStyle.label}

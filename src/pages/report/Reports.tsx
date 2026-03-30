@@ -1,17 +1,38 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import MainLayout from '@/layout/MainLayout';
 import { useAuth } from '@/hooks/useAuth';
-import { useNavigate } from 'react-router-dom';
-import { Search, FileText, CheckCircle, Clock, AlertTriangle, FileInput, Plus, Sparkles } from 'lucide-react';
+import { 
+    Search, 
+    FileText, 
+    CheckCircle, 
+    Clock, 
+    AlertTriangle, 
+    FileInput, 
+    Plus, 
+    Sparkles, 
+    Briefcase, 
+    Filter,
+    LayoutGrid,
+    Target,
+    Loader2
+} from 'lucide-react';
 import reportService, { Report } from '@/services/reportService';
-import { projectService, userService, milestoneService } from '@/services';
-import { SystemRoleEnum } from '@/types/enums';
+import { projectService, userService } from '@/services';
+
+// Internal Components
+import ReportList from './components/ReportList';
+import ReportPanel from './components/ReportPanel';
 
 type TabType = 'my_reports' | 'all_reports' | 'my_assignee';
 
 const Reports: React.FC = () => {
     const { user } = useAuth();
-    const navigate = useNavigate();
+    
+    // Layout State
+    const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
+    const [isAdding, setIsAdding] = useState(false);
+    
+    // Data State
     const [activeTab, setActiveTab] = useState<TabType>('my_reports');
     const [searchQuery, setSearchQuery] = useState('');
     const [reports, setReports] = useState<Report[]>([]);
@@ -21,57 +42,29 @@ const Reports: React.FC = () => {
     
     // Search Filters
     const [filterProjectId, setFilterProjectId] = useState<string>('');
-    const [filterMilestoneId, setFilterMilestoneId] = useState<string>('');
     const [filterStatus, setFilterStatus] = useState<string>('');
-    const topK = 5;
-    const [milestones, setMilestones] = useState<any[]>([]);
     const [isSemantic, setIsSemantic] = useState<boolean>(false);
+    const topK = 5;
 
-    // Flexible role check (supports "1", 1, "Admin", etc.)
-    const isLabDirector = useMemo(() => {
-        const role = user?.role;
-        if (!role) return false;
-        
-        const roleNum = Number(role);
-        if (!isNaN(roleNum)) {
-            return roleNum === SystemRoleEnum.Admin || roleNum === SystemRoleEnum.LabDirector;
-        }
-        
-        // String fallbacks for safety
-        const roleStr = String(role).toLowerCase();
-        return roleStr === 'admin' || roleStr === 'lab director' || roleStr === 'labdirector';
-    }, [user?.role]);
-
-    useEffect(() => {
-        if (isLabDirector) {
-            setActiveTab('my_assignee');
-        } else {
-            setActiveTab('my_reports');
-        }
-    }, [isLabDirector]);
-
-    useEffect(() => {
-        fetchReports();
-    }, [activeTab]);
+    const isLabDirector = React.useMemo(() => {
+        const role = Number(user.role);
+        return role === 1 || role === 2;
+    }, [user.role]);
 
     useEffect(() => {
         const fetchMetadata = async () => {
             try {
-                const [projects, users] = await Promise.all([
+                const [pData, uData] = await Promise.all([
                     projectService.getAll(),
                     userService.getAll()
                 ]);
-                const pMap: Record<string, string> = {};
-                if (projects) projects.forEach((p: any) => pMap[p.id] = (p.name || p.projectName || p.title));
-                setProjectsMap(pMap);
                 
+                const pMap: Record<string, string> = {};
+                pData.forEach((p: any) => pMap[p.projectId] = p.projectName || p.name || 'Untitled Project');
+                setProjectsMap(pMap);
+
                 const uMap: Record<string, string> = {};
-                if (users) {
-                    users.forEach((u: any) => {
-                        const id = u.id || u.userId || u.Id;
-                        if (id) uMap[id] = u.fullName || u.username || u.name || u.Email;
-                    });
-                }
+                uData.forEach((u: any) => uMap[u.userId || u.id] = u.fullName);
                 setUsersMap(uMap);
             } catch (e) {
                 console.error("Failed to load metadata", e);
@@ -81,22 +74,9 @@ const Reports: React.FC = () => {
     }, []);
 
     useEffect(() => {
-        const fetchFilteredMilestones = async () => {
-            if (filterProjectId) {
-                try {
-                    const data = await milestoneService.getByProject(filterProjectId);
-                    setMilestones(data || []);
-                } catch (e) {
-                    console.error("Failed to load milestones", e);
-                    setMilestones([]);
-                }
-            } else {
-                setMilestones([]);
-            }
-            setFilterMilestoneId(''); // Reset milestone when project changes
-        };
-        fetchFilteredMilestones();
-    }, [filterProjectId]);
+        fetchReports();
+    }, [activeTab]);
+
 
     const fetchReports = async () => {
         setLoading(true);
@@ -109,12 +89,10 @@ const Reports: React.FC = () => {
             } else if (activeTab === 'my_assignee') {
                 data = await reportService.getAssignedReports();
             }
-            
-            // Ensure data is an array
             setReports(Array.isArray(data) ? data : (data?.data || []));
         } catch (error) {
             console.error('Failed to fetch reports:', error);
-            setReports([]); // handle robustly
+            setReports([]);
         } finally {
             setLoading(false);
         }
@@ -122,39 +100,27 @@ const Reports: React.FC = () => {
 
     const handleSearch = async (e: React.FormEvent) => {
         e.preventDefault();
-        
-        // If query is empty, just reset to original list
         if (!searchQuery.trim()) {
             fetchReports();
             return;
         }
-
-        // If NOT semantic, we don't need to call API (UI handles local filter)
         if (!isSemantic) return;
 
         setLoading(true);
         try {
-            // Semantic AI Search Request
-            const req: any = {
-                query: searchQuery,
-                topK: topK,
-            };
-
+            const req: any = { query: searchQuery, topK: topK };
             if (filterProjectId) req.projectId = filterProjectId;
-            if (filterMilestoneId) req.milestoneId = filterMilestoneId;
             if (filterStatus !== '') req.status = Number(filterStatus);
 
             const data = await reportService.searchReports(req);
             setReports(Array.isArray(data) ? data : (data?.data || []));
         } catch (error) {
-            console.error('Search error:', error);
             setReports([]);
         } finally {
             setLoading(false);
         }
     };
 
-    // Client-side filtering for "Normal Search"
     const displayReports = useMemo(() => {
         if (isSemantic && searchQuery.trim()) return reports;
 
@@ -167,342 +133,193 @@ const Reports: React.FC = () => {
             
             const matchesProject = !filterProjectId || report.projectId === filterProjectId;
             const matchesStatus = filterStatus === '' || report.status === Number(filterStatus);
-            const matchesMilestone = !filterMilestoneId || report.milestoneId === filterMilestoneId;
 
-            return matchesQuery && matchesProject && matchesStatus && matchesMilestone;
+            return matchesQuery && matchesProject && matchesStatus;
         });
-    }, [reports, searchQuery, filterProjectId, filterStatus, filterMilestoneId, isSemantic]);
+    }, [reports, searchQuery, filterProjectId, filterStatus, isSemantic]);
 
     const getStatusLabel = (status: number) => {
         switch (status) {
-            case 0: return { label: 'Draft', color: 'var(--text-secondary)', icon: <FileInput size={14} /> };
-            case 1: return { label: 'Submitted', color: 'var(--info-color)', icon: <Clock size={14} /> };
-            case 2: return { label: 'Approved', color: 'var(--success-color)', icon: <CheckCircle size={14} /> };
-            case 3: return { label: 'Needs Revision', color: 'var(--warning-color)', icon: <AlertTriangle size={14} /> };
-            default: return { label: 'Unknown', color: 'gray', icon: <FileText size={14} /> };
+            case 0: return { label: 'Drafting', color: '#64748b', icon: <FileInput size={14} /> };
+            case 1: return { label: 'Submitted', color: '#0ea5e9', icon: <Clock size={14} /> };
+            case 2: return { label: 'Approved', color: '#10b981', icon: <CheckCircle size={14} /> };
+            case 3: return { label: 'Revision', color: '#f59e0b', icon: <AlertTriangle size={14} /> };
+            default: return { label: 'Unknown', color: '#94a3b8', icon: <AlertTriangle size={14} /> };
         }
     };
 
+    const isSplit = !!selectedReportId || isAdding;
+
     return (
         <MainLayout role={user.role} userName={user.name}>
-            <div className="page-container">
-                {/* Page Header */}
-                <div className="page-header" style={{ marginBottom: '2.5rem' }}>
+            <div className="page-container" style={{ padding: '1.5rem 2rem', maxWidth: '1600px', margin: '0 auto' }}>
+                
+                {/* Header Section */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
                     <div>
-                        <h1>Reports Workspace</h1>
-                        <p>View, search, and manage cross-project reports.</p>
-                    </div>
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: '1px solid var(--border-color)', marginBottom: '1.5rem' }}>
-                    <div className="tabs" style={{ display: 'flex', gap: '0.2rem' }}>
-                        {!isLabDirector && (
-                            <button 
-                                onClick={() => setActiveTab('my_reports')}
-                                style={{ 
-                                    border: 'none', 
-                                    borderBottom: activeTab === 'my_reports' ? '3px solid var(--primary-color)' : '3px solid transparent', 
-                                    padding: '0.75rem 1.25rem', 
-                                    background: 'transparent', 
-                                    cursor: 'pointer', 
-                                    fontWeight: activeTab === 'my_reports' ? 600 : 500,
-                                    color: activeTab === 'my_reports' ? 'var(--primary-color)' : 'var(--text-secondary)',
-                                    transition: 'all 0.2s',
-                                    fontSize: '0.95rem'
-                                }}
-                            >
-                                My Reports
-                            </button>
-                        )}
-                        <button 
-                            onClick={() => setActiveTab('my_assignee')}
-                            style={{ 
-                                border: 'none', 
-                                borderBottom: activeTab === 'my_assignee' ? '3px solid var(--primary-color)' : '3px solid transparent', 
-                                padding: '0.75rem 1.25rem', 
-                                background: 'transparent', 
-                                cursor: 'pointer', 
-                                fontWeight: activeTab === 'my_assignee' ? 600 : 500,
-                                color: activeTab === 'my_assignee' ? 'var(--primary-color)' : 'var(--text-secondary)',
-                                transition: 'all 0.2s',
-                                fontSize: '0.95rem',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '8px'
-                            }}
-                        >
-                            My Assignees
-                        </button>
-                        {isLabDirector && (
-                            <button 
-                                onClick={() => setActiveTab('all_reports')}
-                                style={{ 
-                                    border: 'none', 
-                                    borderBottom: activeTab === 'all_reports' ? '3px solid var(--primary-color)' : '3px solid transparent', 
-                                    padding: '0.75rem 1.25rem', 
-                                    background: 'transparent', 
-                                    cursor: 'pointer', 
-                                    fontWeight: activeTab === 'all_reports' ? 600 : 500,
-                                    color: activeTab === 'all_reports' ? 'var(--primary-color)' : 'var(--text-secondary)',
-                                    transition: 'all 0.2s',
-                                    fontSize: '0.95rem'
-                                }}
-                            >
-                                All Reports
-                            </button>
-                        )}
-                    </div>
-
-                    {!isLabDirector && (
-                        <button 
-                            className="btn btn-primary" 
-                            onClick={() => navigate('/reports/new')} 
-                            style={{ 
-                                display: 'flex', 
-                                alignItems: 'center', 
-                                gap: '8px', 
-                                fontWeight: 600,
-                                marginBottom: '8px' // Slightly up to center with tab text if needed
-                            }}
-                        >
-                            <Plus size={18} />
-                            Create Report
-                        </button>
-                    )}
-                </div>
-
-                {/* Search & Filter Bar - Redesigned for better UX */}
-                <div className="card" style={{ marginBottom: '2rem', padding: '1.5rem', borderRadius: '16px', boxShadow: 'var(--shadow-md)', border: 'none', background: 'white' }}>
-                    <form onSubmit={handleSearch}>
-                        {/* Primary Search Area */}
-                        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>
-                            <div style={{ position: 'relative', flex: 1 }}>
-                                <Search size={20} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                                <input
-                                    type="text"
-                                    placeholder={isSemantic ? "Describe the research topic or findings you want to find..." : "Search by report title, goals, or core content..."}
-                                    className="form-input"
-                                    style={{ 
-                                        paddingLeft: '48px', width: '100%', height: '54px', fontSize: '1.05rem', borderRadius: '14px', 
-                                        border: isSemantic ? '2px solid #0ea5e9' : '1px solid var(--border-color)', 
-                                        backgroundColor: '#f8fafc',
-                                        transition: 'all 0.3s ease',
-                                        boxShadow: isSemantic ? '0 0 20px rgba(14, 165, 233, 0.1)' : 'none'
-                                    }}
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                            <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'var(--primary-color)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 16px rgba(99, 102, 241, 0.2)' }}>
+                                <FileText size={24} />
                             </div>
-
-                            {/* Mode Toggle Swapper */}
-                            <div style={{ display: 'flex', background: '#f1f5f9', padding: '4px', borderRadius: '12px', height: '54px' }}>
+                            <h1 style={{ fontSize: '1.8rem', fontWeight: 900, color: '#1e293b', margin: 0, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+                                Project Reports
                                 <button 
-                                    type="button"
-                                    onClick={() => setIsSemantic(false)}
+                                    className="btn btn-primary" 
+                                    onClick={() => setIsAdding(true)} 
                                     style={{ 
-                                        flex: 1, border: 'none', borderRadius: '8px', padding: '0 16px', cursor: 'pointer',
-                                        background: !isSemantic ? 'white' : 'transparent',
-                                        color: !isSemantic ? 'var(--primary-color)' : 'var(--text-secondary)',
-                                        fontWeight: 700, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px',
-                                        boxShadow: !isSemantic ? '0 2px 4px rgba(0,0,0,0.05)' : 'none', transition: 'all 0.2s'
+                                        display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, padding: '0.6rem 1.25rem', borderRadius: '12px', fontSize: '0.85rem',
+                                        boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)'
                                     }}
                                 >
-                                    <Search size={16} /> Basic
+                                    <Plus size={18} /> Draft New Report
                                 </button>
-                                <button 
-                                    type="button"
-                                    onClick={() => setIsSemantic(true)}
-                                    style={{ 
-                                        flex: 1, border: 'none', borderRadius: '8px', padding: '0 16px', cursor: 'pointer',
-                                        background: isSemantic ? 'var(--primary-color)' : 'transparent',
-                                        color: isSemantic ? 'white' : 'var(--text-secondary)',
-                                        fontWeight: 700, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px',
-                                        boxShadow: isSemantic ? '0 4px 12px rgba(30, 41, 59, 0.2)' : 'none', transition: 'all 0.2s'
-                                    }}
-                                >
-                                    <Sparkles size={16} /> AI Search
-                                </button>
-                            </div>
-
-                            <button type="submit" className="btn btn-primary" style={{ height: '54px', width: '120px', borderRadius: '14px', fontSize: '1rem' }}>
-                                Find
-                            </button>
+                            </h1>
                         </div>
-
-                        {/* Filters Row */}
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.5rem', alignItems: 'flex-end' }}>
-                            <div style={{ flex: '1 1 200px' }}>
-                                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase' }}>Project</label>
-                                <select 
-                                    className="form-input" 
-                                    style={{ height: '42px', width: '100%', borderRadius: '10px' }}
-                                    value={filterProjectId}
-                                    onChange={(e) => setFilterProjectId(e.target.value)}
-                                >
-                                    <option value="">All Projects</option>
-                                    {Object.entries(projectsMap).map(([id, name]) => (
-                                        <option key={id} value={id}>{name}</option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <div style={{ flex: '1 1 200px' }}>
-                                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase' }}>Milestone</label>
-                                <select 
-                                    className="form-input" 
-                                    style={{ height: '42px', width: '100%', borderRadius: '10px' }}
-                                    value={filterMilestoneId}
-                                    onChange={(e) => setFilterMilestoneId(e.target.value)}
-                                    disabled={!filterProjectId}
-                                >
-                                    <option value="">{filterProjectId ? 'All Milestones' : 'Select Project'}</option>
-                                    {milestones.map(m => (
-                                        <option key={m.id} value={m.id}>{m.name}</option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <div style={{ flex: '1 1 150px' }}>
-                                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase' }}>Status</label>
-                                <select 
-                                    className="form-input" 
-                                    style={{ height: '42px', width: '100%', borderRadius: '10px' }}
-                                    value={filterStatus}
-                                    onChange={(e) => setFilterStatus(e.target.value)}
-                                >
-                                    <option value="">All Status</option>
-                                    <option value="0">Draft</option>
-                                    <option value="1">Submitted</option>
-                                    <option value="2">Approved</option>
-                                    <option value="3">Rejected</option>
-                                </select>
-                            </div>
-
-
-                        </div>
-                    </form>
-                </div>
-
-                {/* Reports List */}
-                {loading ? (
-                    <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--text-secondary)' }}>
-                        <div className="spinner" style={{ margin: '0 auto 1.5rem', width: '40px', height: '40px', borderWidth: '3px', borderTopColor: 'var(--primary-color)' }}></div>
-                        Synchronizing research reports...
-                    </div>
-                ) : displayReports.length > 0 ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                        {displayReports.map((report) => {
-                            const statusInfo = getStatusLabel(report.status ?? (report as any).Status ?? 0);
-                            return (
-                                <div key={report.id} onClick={() => navigate(`/reports/${report.id}`)} className="card" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', transition: 'box-shadow 0.2s, transform 0.2s', cursor: 'pointer', borderLeft: `4px solid ${statusInfo.color}` }} onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 16px rgba(0,0,0,0.06)'; }} onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'var(--shadow-sm)'; }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                        <div>
-                                            <h3 style={{ margin: '0 0 4px 0', fontSize: '1.1rem', color: 'var(--text-primary)', fontWeight: 600 }}>
-                                                {report.title || (report as any).Title || 'Untitled Report'}
-                                            </h3>
-                                            <div style={{ display: 'flex', gap: '15px', fontSize: '0.85rem', color: 'var(--text-secondary)', flexWrap: 'wrap' }}>
-                                                {(() => {
-                                                    const pId = report.projectId || (report as any).ProjectId;
-                                                    return pId ? (
-                                                        <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                            <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', background: 'var(--primary-color)' }}></span>
-                                                            Project: <strong style={{ color: 'var(--text-primary)' }}>{projectsMap[pId] || 'Unknown'}</strong>
-                                                        </span>
-                                                    ) : null;
-                                                })()}
-                                                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                    <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', background: 'var(--info-color)' }}></span>
-                                                    Assignees: <strong style={{ color: 'var(--text-primary)' }}>
-                                                        {(() => {
-                                                            // Support multiple property name variations (PascalCase, camelCase, members)
-                                                            const r = report as any;
-                                                            const members = r.assignees || r.Assignees || r.members || r.Members;
-                                                            const ids = r.assigneeIds || r.AssigneeIds || r.memberIds || r.MemberIds;
-                                                            
-                                                            if (members && Array.isArray(members) && members.length > 0) {
-                                                                const getName = (a: any) => a.fullName || a.FullName || a.name || a.Name || a.email || a.Email || 'User';
-                                                                return members.length > 2 
-                                                                    ? members.slice(0, 2).map(getName).join(', ') + ', ...'
-                                                                    : members.map(getName).join(', ');
-                                                            }
-                                                            
-                                                            if (ids && Array.isArray(ids) && ids.length > 0) {
-                                                                return ids.length > 2
-                                                                    ? ids.slice(0, 2).map((id: string) => usersMap[id] || 'User').join(', ') + ', ...'
-                                                                    : ids.map((id: string) => usersMap[id] || 'User').join(', ');
-                                                            }
-                                                            
-                                                            return 'None';
-                                                        })()}
-                                                    </strong>
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                            {(() => {
-                                                // Support various casing from API (hasEmbedding, HasEmbedding, etc.)
-                                                const isIndexed = report.hasEmbedding === true || (report as any).HasEmbedding === true;
-                                                
-                                                return (
-                                                    <div 
-                                                        style={{ 
-                                                            display: 'inline-flex', 
-                                                            alignItems: 'center', 
-                                                            gap: '6px', 
-                                                            padding: '4px 10px', 
-                                                            borderRadius: '6px', 
-                                                            backgroundColor: isIndexed ? '#f0f9ff' : '#f8fafc', 
-                                                            color: isIndexed ? '#0369a1' : '#64748b', 
-                                                            fontSize: '0.75rem', 
-                                                            fontWeight: 700,
-                                                            border: `1px solid ${isIndexed ? '#bae6fd' : '#e2e8f0'}`,
-                                                            boxShadow: isIndexed ? '0 0 8px rgba(14, 165, 233, 0.2)' : 'none'
-                                                        }}
-                                                        title={isIndexed ? "This report has been indexed for AI semantic search" : "This report is not yet indexed"}
-                                                    >
-                                                        <span style={{ 
-                                                            width: '8px', 
-                                                            height: '8px', 
-                                                            borderRadius: '50%', 
-                                                            backgroundColor: isIndexed ? '#0ea5e9' : '#cbd5e1',
-                                                            boxShadow: isIndexed ? '0 0 6px #0ea5e9' : 'none',
-                                                            display: 'inline-block'
-                                                        }}></span>
-                                                        {isIndexed ? 'KNOWLEDGE BASE' : 'PENDING INDEX'}
-                                                    </div>
-                                                );
-                                            })()}
-                                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 10px', borderRadius: '20px', backgroundColor: `${statusInfo.color}15`, color: statusInfo.color, fontSize: '0.8rem', fontWeight: 600 }}>
-                                                {statusInfo.icon}
-                                                {statusInfo.label}
-                                            </div>
-                                        </div>
-                                    </div>
-                                    
-                                    <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.5 }}>
-                                        {report.description || (report as any).Description || report.goals || (report as any).Goals || 'No summary available for this report.'}
-                                    </p>
-
-                                    <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '0.75rem', marginTop: '0.25rem', display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                                        <span>Submitted: {report.submitedAt ? new Date(report.submitedAt).toLocaleDateString() : 'N/A'}</span>
-                                        <span>Updated: {report.updateAt ? new Date(report.updateAt).toLocaleDateString() : 'N/A'}</span>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                ) : (
-                    <div className="empty-state" style={{ padding: '5rem 2rem' }}>
-                        <div className="empty-state-icon" style={{ background: 'var(--primary-color)', color: 'white', opacity: 0.9 }}>
-                            <FileText size={36} />
-                        </div>
-                        <h2 style={{ fontSize: '1.4rem', marginTop: '1.5rem' }}>No research data available</h2>
-                        <p style={{ maxWidth: '400px', margin: '0.5rem auto 0' }}>
-                            Adjust your filters or try describing your search in more detail to find relevant research records.
+                        <p style={{ color: '#64748b', fontSize: '0.9rem', fontWeight: 500, margin: 0 }}>
+                            Intelligent repository for team progress and research summaries.
                         </p>
                     </div>
-                )}
+                </div>
+
+                {/* Search Toolbar */}
+                <div style={{ 
+                    padding: '0.75rem 1.5rem', borderRadius: '14px', background: 'var(--surface-color)', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)', marginBottom: '1.5rem'
+                }}>
+                     <form onSubmit={handleSearch} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                            <div style={{ position: 'relative', flex: 1 }}>
+                                <Search size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                                <input
+                                    type="text" placeholder="Search reports, goals, or descriptions..." className="form-input"
+                                    style={{ paddingLeft: '40px', height: '44px', border: 'none', background: 'var(--surface-hover)', borderRadius: '12px', fontSize: '0.9rem' }}
+                                    value={searchQuery}
+                                    onChange={(e) => {
+                                        setSearchQuery(e.target.value);
+                                        if (isSemantic) setIsSemantic(false);
+                                    }}
+                                />
+                            </div>
+                            <button 
+                                type="submit" onClick={() => setIsSemantic(true)}
+                                className="btn btn-primary" style={{ height: '44px', padding: '0 1.5rem', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem', fontWeight: 600 }}
+                            >
+                                <Sparkles size={16} /> Semantic Search
+                            </button>
+                        </div>
+
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px', paddingTop: '10px', borderTop: '1px solid rgba(0,0,0,0.05)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <Briefcase size={14} color="var(--text-muted)" />
+                                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Project:</span>
+                                <select style={{ height: '32px', border: 'none', background: 'transparent', fontSize: '0.85rem', fontWeight: 700, color: 'var(--primary-color)' }} value={filterProjectId} onChange={e => setFilterProjectId(e.target.value)}>
+                                    <option value="">All Projects</option>
+                                    {Object.entries(projectsMap).map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+                                </select>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <Filter size={14} color="var(--text-muted)" />
+                                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Status:</span>
+                                <select style={{ height: '32px', border: 'none', background: 'transparent', fontSize: '0.85rem', fontWeight: 700, color: 'var(--primary-color)' }} value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+                                    <option value="">Any Status</option>
+                                    <option value="0">Drafting</option>
+                                    <option value="1">Submitted</option>
+                                    <option value="2">Approved</option>
+                                    <option value="3">Revision Required</option>
+                                </select>
+                            </div>
+                        </div>
+                     </form>
+                </div>
+
+                <div style={{ display: 'flex', gap: '2rem', height: 'calc(100vh - 380px)', minHeight: '500px' }}>
+                    
+                    {/* Left Column: List & Filters */}
+                    <div style={{ 
+                        flex: isSplit ? 4 : 10, 
+                        display: 'flex', 
+                        flexDirection: 'column', 
+                        gap: '1.5rem',
+                        transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+                        width: isSplit ? '40%' : '100%',
+                        overflow: 'hidden'
+                    }}>
+
+                        {/* Tabs */}
+                        <div style={{ display: 'flex', gap: '1rem', borderBottom: '1px solid #e2e8f0', overflowX: 'auto', whiteSpace: 'nowrap' }} className="custom-scrollbar">
+                            {[
+                                { id: 'my_reports', label: 'My Reports', icon: <FileText size={16} /> },
+                                { id: 'all_reports', label: 'All Reports', icon: <LayoutGrid size={16} />, hidden: !isLabDirector },
+                                { id: 'my_assignee', label: 'Review Requests', icon: <CheckCircle size={16} /> }
+                            ].map(tab => !tab.hidden && (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id as any)}
+                                    style={{ 
+                                        padding: '12px 10px', display: 'flex', alignItems: 'center', gap: '8px', border: 'none', background: 'none', cursor: 'pointer',
+                                        color: activeTab === tab.id ? 'var(--primary-color)' : '#64748b',
+                                        borderBottom: activeTab === tab.id ? '3px solid var(--primary-color)' : '3px solid transparent',
+                                        fontWeight: activeTab === tab.id ? 800 : 500, transition: 'all 0.2s', fontSize: '0.85rem',
+                                        flex: '0 0 auto', minWidth: '130px', justifyContent: 'center'
+                                    }}
+                                >
+                                    {tab.icon} {tab.label}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* List Content */}
+                        <div style={{ flex: 1, overflowY: 'auto', paddingRight: '0.5rem' }} className="custom-scrollbar">
+                            {loading ? (
+                                <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}><Loader2 className="animate-spin" size={32} /></div>
+                            ) : displayReports.length > 0 ? (
+                                <ReportList 
+                                    reports={displayReports} 
+                                    selectedId={selectedReportId} 
+                                    onSelect={(r) => { setSelectedReportId(r.id); setIsAdding(false); }}
+                                    projectsMap={projectsMap} 
+                                    usersMap={usersMap}
+                                    getStatusLabel={getStatusLabel}
+                                    isSplit={isSplit}
+                                />
+                            ) : (
+                                <div style={{ textAlign: 'center', padding: '4rem 2rem', color: '#94a3b8' }}>
+                                    <Target size={48} style={{ marginBottom: '1.5rem', opacity: 0.3 }} />
+                                    <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1e293b' }}>No Reports</h3>
+                                    <p style={{ fontSize: '0.85rem' }}>Create a new entry.</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Right Column: Panel */}
+                    <div style={{ 
+                        flex: isSplit ? 6 : 0, 
+                        opacity: isSplit ? 1 : 0,
+                        pointerEvents: isSplit ? 'auto' : 'none',
+                        transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+                        width: isSplit ? '60%' : '0',
+                        overflow: 'hidden',
+                        display: isSplit ? 'block' : 'none'
+                    }}>
+                        {isSplit && (
+                            <ReportPanel 
+                                reportId={selectedReportId}
+                                isAdding={isAdding}
+                                onClose={() => { setSelectedReportId(null); setIsAdding(false); }}
+                                onSaved={() => fetchReports()}
+                            />
+                        )}
+                    </div>
+
+                </div>
             </div>
+            
+            <style>{`
+                .btn-secondary { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; font-weight: 700; height: 38px; padding: 0 16px; border-radius: 8px; cursor: pointer; display: flex; alignItems: center; gap: 8px; transition: all 0.2s; }
+                .btn-secondary:hover { background: #e2e8f0; }
+                @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+                .animate-spin { animation: spin 1s linear infinite; }
+            `}</style>
         </MainLayout>
     );
 };
