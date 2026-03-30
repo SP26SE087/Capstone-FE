@@ -173,7 +173,7 @@ const reportService = {
     // Update report status
     updateReportStatus: async (id: string, status: number) => {
         try {
-            const response = await api.patch(`/api/Reports/${id}/status`, status, {
+            const response = await api.patch(`/api/Reports/${id}/status`, JSON.stringify(status), {
                 headers: { 'Content-Type': 'application/json' }
             });
             return response.data;

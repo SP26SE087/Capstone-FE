@@ -183,6 +183,10 @@ const ReportDetail: React.FC = () => {
             return showToast("Please enter a report title.", "error");
         }
 
+        if (editData.assigneeEmails.length === 0) {
+            return showToast("At least one reviewer is required.", "error");
+        }
+
         // Additional validation for submission
         if (isSubmission) {
             if (!editData.projectId) {
@@ -190,9 +194,6 @@ const ReportDetail: React.FC = () => {
             }
             if (!editData.milestoneId) {
                 return showToast("Please select a milestone before submitting.", "error");
-            }
-            if (editData.assigneeEmails.length === 0) {
-                return showToast("At least one reviewer is required for submission.", "error");
             }
             if (!editData.goals?.trim() || !editData.achievements?.trim() || !editData.blockers?.trim() || !editData.nextWeek?.trim()) {
                 return showToast("Content sections are required for submission.", "error");

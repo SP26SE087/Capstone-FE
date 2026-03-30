@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
     X, 
-    Briefcase,
-    Zap,
     Edit3,
     Save,
     Send,
@@ -11,33 +9,40 @@ import {
     RefreshCw,
     Search,
     Plus,
-    Check
+    Check,
+    Clock,
+    MessageSquare,
+    Sparkles
 } from 'lucide-react';
-import reportService, { Report } from '@/services/reportService';
+import reportService, { Report, UpdateReportRequest } from '@/services/reportService';
 import { projectService } from '@/services/projectService';
 import { userService } from '@/services/userService';
 import { milestoneService } from '@/services/milestoneService';
 import Toast, { ToastType } from '@/components/common/Toast';
 import { useAuth } from '@/hooks/useAuth';
+import FeedbackSidebar from './FeedbackSidebar';
 
 interface ReportPanelProps {
     reportId: string | null;
     isAdding: boolean;
+    isAuthorFallback?: boolean;
     onClose: () => void;
-    onSaved: () => void;
+    onSaved: (shouldClose?: boolean) => void;
+    onTitleChange?: (title: string) => void;
 }
 
 const ReportPanel: React.FC<ReportPanelProps> = ({ 
     reportId, 
     isAdding, 
+    isAuthorFallback,
     onClose, 
-    onSaved 
+    onSaved,
+    onTitleChange
 }) => {
     const { user } = useAuth();
     const [report, setReport] = useState<Report | null>(null);
     const [loading, setLoading] = useState(false);
     const [isEditMode, setIsEditMode] = useState(isAdding);
-    const [submitting, setSubmitting] = useState(false);
     const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
 
     // Metadata
@@ -49,7 +54,9 @@ const ReportPanel: React.FC<ReportPanelProps> = ({
     const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
     const [isAssigneeModalOpen, setIsAssigneeModalOpen] = useState(false);
     const [isMilestoneModalOpen, setIsMilestoneModalOpen] = useState(false);
+    const [isFeedbackSidebarOpen, setIsFeedbackSidebarOpen] = useState(false);
     const [userSearchQuery, setUserSearchQuery] = useState('');
+    const [confirmAction, setConfirmAction] = useState<{type: 'delete' | 'submit' | null, event?: React.MouseEvent}>({type: null});
 
     // Form data
     const initialFormData = {
@@ -66,11 +73,46 @@ const ReportPanel: React.FC<ReportPanelProps> = ({
     };
 
     const [formData, setFormData] = useState(initialFormData);
+    const [initialData, setInitialData] = useState<typeof initialFormData | null>(null);
+    const [submitting, setSubmitting] = useState(false);
+    const [isAiLoading, setIsAiLoading] = useState(false);
+    const [feedbackText, setFeedbackText] = useState('');
 
     const isLabDirector = React.useMemo(() => {
         const role = Number(user?.role);
         return role === 1 || role === 2;
     }, [user?.role]);
+
+    const isAuthor = React.useMemo(() => {
+        if (isAdding) return true;
+        if (!report || !user) return false;
+        
+        // If explicitly opened from "My Reports" tab, we trust they are the author
+        if (isAuthorFallback) return true;
+
+        // Otherwise, check for multiple possible author ID property names
+        const authorId = (report as any).userId || (report as any).UserId || (report as any).createdBy || (report as any).createdByUserId || (report as any).reporterId;
+        return authorId?.toString() === user.userId?.toString();
+    }, [report, user, isAdding, isAuthorFallback]);
+
+    const hasRejection = React.useMemo(() => {
+        if (isAdding || !report) return false;
+        const assigneesList = (report as any).assignees || (report as any).Assignees || (report as any).reportReviewers || (report as any).ReportReviewers || [];
+        // Support both lowercase and PascalCase status property
+        return assigneesList.some((a: any) => (a.status === 3 || a.Status === 3));
+    }, [report, isAdding]);
+
+    const hasApprovedAssignee = React.useMemo(() => {
+        if (isAdding || !report) return false;
+        const assigneesList = (report as any).assignees || (report as any).Assignees || (report as any).reportReviewers || (report as any).ReportReviewers || [];
+        return assigneesList.some((a: any) => (a.status === 2 || a.Status === 2));
+    }, [report, isAdding]);
+
+    const isReviewer = React.useMemo(() => {
+        if (isAdding || !report) return false;
+        const assigneesList = (report as any).assignees || (report as any).Assignees || [];
+        return assigneesList.some((a: any) => a.email === user?.email);
+    }, [report, user?.email, isAdding]);
 
     useEffect(() => {
         const fetchMeta = async () => {
@@ -89,12 +131,25 @@ const ReportPanel: React.FC<ReportPanelProps> = ({
     }, []);
 
     useEffect(() => {
-        if (reportId && !isAdding) {
+        if (!isAdding && reportId) {
             fetchReport(reportId);
-        } else if (isAdding) {
-            setReport(null);
-            setFormData(initialFormData);
-            setIsEditMode(true);
+        } else {
+            // New report defaults
+            const defaultData = {
+                title: '',
+                projectId: '',
+                milestoneId: '',
+                goals: '',
+                achievements: '',
+                blockers: '',
+                nextWeek: '',
+                description: '',
+                assigneeEmails: [],
+                status: 0
+            };
+            setFormData(defaultData);
+            setInitialData(defaultData);
+            setLoading(false);
         }
     }, [reportId, isAdding]);
 
@@ -120,28 +175,58 @@ const ReportPanel: React.FC<ReportPanelProps> = ({
     const fetchReport = async (id: string) => {
         setLoading(true);
         try {
-            const data = await reportService.getReportById(id);
-            const reportData = data?.data || data;
-            setReport(reportData);
-            setFormData({
+            // First ensure we have allUsers to map IDs to Emails if needed
+            let currentAllUsers = allUsers;
+            if (currentAllUsers.length === 0) {
+                try {
+                    const uData = await userService.getAll();
+                    currentAllUsers = uData || [];
+                    setAllUsers(currentAllUsers);
+                } catch (e) {
+                    console.error("Meta fetch in fetchReport failed", e);
+                }
+            }
+
+            const r = await reportService.getReportById(id);
+            const reportData = r.data || r;
+            const finalTitle = reportData.title || 'Untitled';
+            
+            const fetched = {
+                title: finalTitle,
                 projectId: reportData.projectId || reportData.ProjectId || '',
                 milestoneId: reportData.milestoneId || reportData.MilestoneId || '',
-                title: reportData.title || reportData.Title || '',
-                description: reportData.description || reportData.Description || '',
                 goals: reportData.goals || reportData.Goals || '',
                 achievements: reportData.achievements || reportData.Achievements || '',
                 blockers: reportData.blockers || reportData.Blockers || '',
                 nextWeek: reportData.nextWeek || reportData.NextWeek || '',
+                description: reportData.description || reportData.Description || '',
                 assigneeEmails: (() => {
-                    const r = reportData as any;
-                    const members = r.assignees || r.Assignees || r.members || r.Members;
-                    if (members && Array.isArray(members)) {
-                        return members.map((a: any) => a.email || a.Email || '').filter(e => e !== '');
+                    const explicitEmails = reportData.assigneeEmails || reportData.AssigneeEmails;
+                    if (explicitEmails && Array.isArray(explicitEmails) && explicitEmails.length > 0) {
+                        return explicitEmails;
                     }
-                    return r.assigneeEmails || r.AssigneeEmails || [];
+                    const members = reportData.assignees || reportData.Assignees || reportData.members || reportData.Members || reportData.ReportReviewers || reportData.Reviewers || reportData.reportReviewers;
+                    if (members && Array.isArray(members)) {
+                        return members.map((a: any) => {
+                            const email = a.email || a.Email || a.userEmail || a.UserEmail;
+                            if (email) return email;
+                            const uId = a.id || a.UserId || a.userId;
+                            if (uId && currentAllUsers.length > 0) {
+                                const found = currentAllUsers.find(u => u.userId === uId || u.id === uId);
+                                if (found?.email) return found.email;
+                            }
+                            return '';
+                        }).filter(e => e !== '');
+                    }
+                    return reportData.assigneeEmails || reportData.AssigneeEmails || [];
                 })(),
                 status: reportData.status ?? reportData.Status ?? 0
-            });
+            };
+            
+            setFormData(fetched);
+            setInitialData(fetched);
+            setReport(reportData);
+            onTitleChange?.(finalTitle);
             setIsEditMode(false);
         } catch (error) {
             console.error('Failed to fetch report:', error);
@@ -155,55 +240,87 @@ const ReportPanel: React.FC<ReportPanelProps> = ({
         setToast({ message, type });
     };
 
-    const handleSave = async (isSubmission: boolean = false) => {
+    const handleSave = async (isSubmission: boolean = false, e?: React.MouseEvent, forceSkipConfirm: boolean = false) => {
+        if (e) e.preventDefault();
         if (!formData.title.trim()) return showToast("Title is required.", "error");
         if (formData.assigneeEmails.length === 0) return showToast("At least one reviewer is required.", "error");
 
         if (isSubmission) {
             if (!formData.projectId) return showToast("Project is required for submission.", "error");
             if (!formData.milestoneId) return showToast("Milestone is required for submission.", "error");
+            if (!formData.goals?.trim() || !formData.achievements?.trim() || !formData.blockers?.trim() || !formData.nextWeek?.trim()) {
+                return showToast("Strategic goals, Achievements, Blockers, and Future plans are required for submission.", "error");
+            }
+            if (!forceSkipConfirm) {
+                setConfirmAction({type: 'submit', event: e});
+                return;
+            }
         }
 
         setSubmitting(true);
         try {
-            const payload = {
-                ...formData,
-                projectId: formData.projectId || null,
+            const isDirty = JSON.stringify(formData) !== JSON.stringify(initialData);
+            let currentId = reportId;
+            const payload: UpdateReportRequest = {
+                projectId: formData.projectId === EMPTY_GUID ? null : formData.projectId,
                 milestoneId: formData.milestoneId || null,
-                userId: user?.userId,
-                status: isSubmission ? 1 : formData.status
+                title: formData.title,
+                description: formData.description || null,
+                goals: formData.goals,
+                achievements: formData.achievements,
+                blockers: formData.blockers,
+                nextWeek: formData.nextWeek,
+                assigneeEmails: formData.assigneeEmails
             };
 
             if (isAdding) {
-                const newReport = await reportService.createReport(payload);
-                if (isSubmission) {
-                    await reportService.updateReportStatus(newReport.id, 1);
-                    showToast('Report submitted correctly.', 'success');
+                const createPayload = { ...payload, userId: user?.userId };
+                console.log("Creating new report...", createPayload);
+                const newReport = await reportService.createReport(createPayload as any);
+                currentId = newReport.id;
+                
+                if (isSubmission && currentId) {
+                    console.log("Submitting new report ID:", currentId);
+                    await reportService.updateReportStatus(currentId, 1);
+                    showToast('Report created and submitted!', 'success');
                 } else {
-                    showToast('Report created successfully!', 'success');
+                    showToast('Report draft created.', 'success');
                 }
-            } else if (reportId) {
-                await reportService.updateReport(reportId, payload);
+            } else if (currentId) {
+                // If the user modified the content, save it before submitting
+                if (isDirty) {
+                    console.log("Saving changes for report ID:", currentId, payload);
+                    await reportService.updateReport(currentId, payload);
+                }
+                
                 if (isSubmission) {
-                    await reportService.updateReportStatus(reportId, 1);
-                    showToast('Report submitted correctly.', 'success');
+                    console.log("Patching status for report ID:", currentId);
+                    await reportService.updateReportStatus(currentId, 1);
+                    showToast('Report submitted successfully.', 'success');
                 } else {
-                    showToast('Report updated successfully!', 'success');
+                    showToast('Changes saved successfully.', 'success');
+                    setIsEditMode(false);
                 }
             }
             
-            onSaved();
-            if (isAdding) onClose();
-            else fetchReport(reportId || '');
+            // Critical: wait for global state to update
+            onSaved(isSubmission);
+            
+            if (isAdding) {
+                onClose();
+            } else if (currentId) {
+                await fetchReport(currentId);
+            }
         } catch (error: any) {
             console.error('Save error:', error);
-            showToast(error.response?.data?.message || 'Failed to save report.', 'error');
+            showToast(error.response?.data?.message || 'Failed to process report.', 'error');
         } finally {
             setSubmitting(false);
         }
     };
 
-    const handleStatusUpdate = async (newStatus: number) => {
+    const handleStatusUpdate = async (newStatus: number, e?: React.MouseEvent) => {
+        if (e) e.preventDefault();
         if (!reportId) return;
         setSubmitting(true);
         try {
@@ -218,8 +335,10 @@ const ReportPanel: React.FC<ReportPanelProps> = ({
         }
     };
 
-    const handleDelete = async () => {
-        if (!reportId || !window.confirm("Are you sure you want to delete this report?")) return;
+    const handleDelete = () => setConfirmAction({type: 'delete'});
+
+    const executeDelete = async () => {
+        if (!reportId) return;
         setSubmitting(true);
         try {
             await reportService.deleteReport(reportId);
@@ -230,6 +349,42 @@ const ReportPanel: React.FC<ReportPanelProps> = ({
             showToast('Failed to delete report.', 'error');
         } finally {
             setSubmitting(false);
+        }
+    };
+
+    const handleFeedbackSubmit = async (status: number) => {
+        if (!reportId) return;
+        setSubmitting(true);
+        try {
+            await reportService.updateAssignee(reportId, { status, feedback: feedbackText });
+            showToast(`Report ${status === 2 ? 'approved' : 'rejected'}.`, 'success');
+            fetchReport(reportId);
+            onSaved();
+        } catch (error) {
+            showToast('Failed to update reviewer status.', 'error');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const handleAiSuggest = async () => {
+        if (!reportId) return;
+        setIsAiLoading(true);
+        try {
+            const response = await reportService.getAiFeedback(reportId);
+            // The API returns { success: true, data: { feedback: "..." } }
+            const suggestion = response?.data?.feedback || response?.feedback || response?.content || (typeof response === 'string' ? response : '');
+            
+            if (suggestion) {
+                setFeedbackText(suggestion);
+                showToast('AI suggestion loaded.', 'success');
+            } else {
+                showToast('AI could not generate feedback for this report.', 'info');
+            }
+        } catch (error) {
+            showToast('Failed to load AI suggestion.', 'error');
+        } finally {
+            setIsAiLoading(false);
         }
     };
 
@@ -256,17 +411,19 @@ const ReportPanel: React.FC<ReportPanelProps> = ({
         );
     }
 
-    const filteredUsers = allUsers.filter(u => 
-        u.fullName?.toLowerCase().includes(userSearchQuery.toLowerCase()) || 
-        u.email?.toLowerCase().includes(userSearchQuery.toLowerCase())
-    );
+    const filteredUsers = allUsers.filter(u => {
+        const matchesSearch = u.fullName?.toLowerCase().includes(userSearchQuery.toLowerCase()) || 
+                             u.email?.toLowerCase().includes(userSearchQuery.toLowerCase());
+        const isNotSelf = u.email !== user?.email;
+        return matchesSearch && isNotSelf;
+    });
 
     const getStatusInfo = (status: number) => {
         switch (status) {
-            case 0: return { label: 'Draft', color: '#64748b', bg: '#f8fafc' };
+            case 0: return { label: 'Drafting', color: '#64748b', bg: '#f8fafc' };
             case 1: return { label: 'Submitted', color: '#0ea5e9', bg: '#f0f9ff' };
-            case 2: return { label: 'Approved', color: '#10b981', bg: '#f0fdf4' };
-            case 3: return { label: 'Revision', color: '#f59e0b', bg: '#fffbeb' };
+            case 2: return { label: 'Approved', color: '#10b981', bg: '#ecfdf5' };
+            case 3: return { label: 'Revision', color: '#ef4444', bg: '#fef2f2' };
             default: return { label: 'Unknown', color: '#94a3b8', bg: '#f1f5f9' };
         }
     };
@@ -279,13 +436,28 @@ const ReportPanel: React.FC<ReportPanelProps> = ({
             
             {/* Header */}
             <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fcfdfe' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'var(--primary-color)15', color: 'var(--primary-color)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <Zap size={20} />
-                    </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <div>
-                        <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: '#1e293b' }}>
+                        <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '10px' }}>
                             {isAdding ? 'Create New Report' : isEditMode ? 'Edit Report' : 'Report Details'}
+                            {!isAdding && report && (
+                                <span style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    padding: '3px 8px',
+                                    borderRadius: '6px',
+                                    background: (report as any)?.hasEmbedding ? 'linear-gradient(135deg, #f0fdf4, #dcfce7)' : '#f1f5f9',
+                                    color: (report as any)?.hasEmbedding ? '#166534' : '#64748b',
+                                    fontSize: '0.65rem',
+                                    fontWeight: 800,
+                                    letterSpacing: '0.02em',
+                                    border: `1px solid ${(report as any)?.hasEmbedding ? '#bbf7d0' : '#e2e8f0'}`,
+                                    marginLeft: '8px'
+                                }}>
+                                    <Sparkles size={12} /> {(report as any)?.hasEmbedding ? 'Can Semantic Search' : 'Cannot Semantic Search'}
+                                </span>
+                            )}
                         </h2>
                         {!isAdding && <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600 }}>ID: {reportId?.substring(0, 8)}</span>}
                     </div>
@@ -301,6 +473,118 @@ const ReportPanel: React.FC<ReportPanelProps> = ({
             <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem' }} className="custom-scrollbar">
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                     
+                    {/* Title */}
+                    <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '8px' }}>
+                            <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 900, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                Report Title <span style={{ color: '#ef4444' }}>*</span>
+                            </label>
+                            {isEditMode && <span style={{ fontSize: '0.6rem', color: formData.title.length >= 200 ? '#ef4444' : '#94a3b8', fontWeight: 700 }}>{formData.title.length}/200</span>}
+                        </div>
+                        
+                        {isEditMode ? (
+                            <input 
+                                className="form-input" 
+                                value={formData.title} 
+                                onChange={e => {
+                                    setFormData({...formData, title: e.target.value});
+                                    onTitleChange?.(e.target.value);
+                                }}
+                                maxLength={200}
+                                placeholder="Enter a concise title..."
+                                style={{ fontSize: '1rem', fontWeight: 700, padding: '12px', borderRadius: '10px' }}
+                            />
+                        ) : (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1.5rem' }}>
+                                <h3 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 800, color: '#1e293b', lineHeight: 1.3, flex: 1 }}>{formData.title}</h3>
+                                
+                                {/* View Feedback Button */}
+                                {!isAdding && !isEditMode && (() => {
+                                    const reviewList = (report as any)?.assignees || (report as any)?.Assignees || [];
+                                    const hasFeedback = reviewList.some((r: any) => r.status > 1 || r.feedback);
+                                    if (!hasFeedback) return null;
+                                    
+                                    return (
+                                        <button 
+                                            type="button" 
+                                            onClick={() => setIsFeedbackSidebarOpen(true)} 
+                                            className="btn" 
+                                            style={{ 
+                                                fontSize: '0.75rem', padding: '8px 14px', gap: '8px', 
+                                                background: '#f1f5f9', color: '#4338ca', fontWeight: 800, 
+                                                borderRadius: '10px', border: '1px solid #e2e8f0', 
+                                                display: 'flex', alignItems: 'center', cursor: 'pointer', 
+                                                transition: 'all 0.2s', whiteSpace: 'nowrap',
+                                                boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                                            }}
+                                            onMouseOver={(e) => { e.currentTarget.style.background = '#e0e7ff'; e.currentTarget.style.borderColor = '#c7d2fe'; }}
+                                            onMouseOut={(e) => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.borderColor = '#e2e8f0'; }}
+                                        >
+                                            <MessageSquare size={14} /> View Feedback List
+                                        </button>
+                                    );
+                                })()}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Content Sections */}
+                    {[
+                        { label: 'Description', key: 'description' as const, required: false },
+                        { label: 'Strategic Goals', key: 'goals' as const, required: true },
+                        { label: 'Key Achievements', key: 'achievements' as const, required: true },
+                        { label: 'Current Blockers', key: 'blockers' as const, required: true },
+                        { label: 'Future Plans', key: 'nextWeek' as const, required: true }
+                    ].map(section => (
+                        <div key={section.key}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '6px' }}>
+                                <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 900, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                    {section.label} {section.required && <span style={{ color: '#ef4444' }}>*</span>}
+                                </label>
+                                {isEditMode && <span style={{ fontSize: '0.55rem', color: formData[section.key].length >= 2000 ? '#ef4444' : '#94a3b8', fontWeight: 800 }}>{formData[section.key].length}/2000</span>}
+                            </div>
+                            {isEditMode ? (
+                                <textarea 
+                                    className="form-input"
+                                    value={formData[section.key]}
+                                    onChange={e => setFormData({...formData, [section.key]: e.target.value})}
+                                    maxLength={2000}
+                                    style={{ minHeight: '80px', fontSize: '0.85rem', padding: '10px', borderRadius: '8px', background: '#fcfdfe', border: '1px solid #e2e8f0' }}
+                                />
+                            ) : (
+                                <p style={{ margin: 0, fontSize: '0.85rem', color: '#334155', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                                    {formData[section.key] || `No ${section.label.toLowerCase()} provided.`}
+                                </p>
+                            )}
+                        </div>
+                    ))}
+
+                    {/* Reviewers List */}
+                    <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                            <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 900, color: '#64748b', textTransform: 'uppercase' }}>
+                                Reviewers <span style={{ color: '#ef4444' }}>*</span>
+                            </label>
+                            {isEditMode && (
+                                <button onClick={() => setIsAssigneeModalOpen(true)} style={{ border: 'none', background: 'none', color: 'var(--primary-color)', fontSize: '0.7rem', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <Plus size={12} /> Add Reviewer
+                                </button>
+                            )}
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                            {formData.assigneeEmails.map(email => {
+                                const u = allUsers.find(user => user.email === email);
+                                return (
+                                    <div key={email} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 10px', borderRadius: '20px', background: '#f1f5f9', border: '1px solid #e2e8f0', fontSize: '0.75rem', fontWeight: 600 }}>
+                                        <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: 'var(--primary-color)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.5rem' }}>{u?.fullName?.[0] || 'U'}</div>
+                                        {u?.fullName || email}
+                                    </div>
+                                );
+                            })}
+                            {formData.assigneeEmails.length === 0 && <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontStyle: 'italic' }}>No reviewers assigned.</span>}
+                        </div>
+                    </div>
+
                     {/* Status, Project & Milestone Context */}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
                         <div style={{ padding: '0.75rem', borderRadius: '12px', background: '#f8fafc', border: '1px solid #f1f5f9' }}>
@@ -318,7 +602,6 @@ const ReportPanel: React.FC<ReportPanelProps> = ({
                                 Project <span style={{ color: '#ef4444' }}>*</span>
                             </label>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
-                                <Briefcase size={14} color="var(--primary-color)" />
                                 <span style={{ fontWeight: 700, fontSize: '0.8rem', color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                     {(() => {
                                         const p = projects.find(proj => proj.projectId === formData.projectId);
@@ -341,7 +624,6 @@ const ReportPanel: React.FC<ReportPanelProps> = ({
                                 Milestone <span style={{ color: '#ef4444' }}>*</span>
                             </label>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
-                                <Zap size={14} color="#f59e0b" />
                                 <span style={{ fontWeight: 700, fontSize: '0.8rem', color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                     {(() => {
                                         const m = milestones.find(ms => (ms.milestoneId || ms.id) === formData.milestoneId);
@@ -352,84 +634,84 @@ const ReportPanel: React.FC<ReportPanelProps> = ({
                         </div>
                     </div>
 
-                    {/* Title */}
-                    <div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '6px' }}>
-                            <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>
-                                Report Title <span style={{ color: '#ef4444' }}>*</span>
-                            </label>
-                            {isEditMode && <span style={{ fontSize: '0.6rem', color: formData.title.length >= 200 ? '#ef4444' : '#94a3b8', fontWeight: 700 }}>{formData.title.length}/200</span>}
-                        </div>
-                        {isEditMode ? (
-                            <input 
-                                className="form-input" 
-                                value={formData.title} 
-                                onChange={e => setFormData({...formData, title: e.target.value})}
-                                maxLength={200}
-                                placeholder="Enter a concise title..."
-                                style={{ fontSize: '1rem', fontWeight: 700, padding: '12px', borderRadius: '10px' }}
-                            />
-                        ) : (
-                            <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#1e293b' }}>{formData.title}</h3>
-                        )}
-                    </div>
-
-                    {/* Content Sections */}
-                    {[
-                        { label: 'Description', key: 'description' as const, required: true },
-                        { label: 'Strategic Goals', key: 'goals' as const, required: true },
-                        { label: 'Key Achievements', key: 'achievements' as const, required: true },
-                        { label: 'Current Blockers', key: 'blockers' as const, required: true },
-                        { label: 'Future Plans', key: 'nextWeek' as const, required: true }
-                    ].map(section => (
-                        <div key={section.key}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '8px' }}>
-                                <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>
-                                    {section.label} {section.required && <span style={{ color: '#ef4444' }}>*</span>}
-                                </label>
-                                {isEditMode && <span style={{ fontSize: '0.6rem', color: formData[section.key].length >= 2000 ? '#ef4444' : '#94a3b8', fontWeight: 700 }}>{formData[section.key].length}/2000</span>}
+                    {/* Reviewer Status Summary */}
+                    {formData.status !== 0 && (
+                        <>
+                            <div style={{ padding: '0.85rem 1rem', borderRadius: '14px', background: '#f8fafc', border: '1px solid #eef2f6', display: 'flex', alignItems: 'center', gap: '1rem', overflowX: 'auto' }} className="custom-scrollbar-thin">
+                                <div style={{ fontSize: '0.65rem', fontWeight: 900, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>Reviewer Status</div>
+                                <div style={{ display: 'flex', gap: '8px', flexWrap: 'nowrap' }}>
+                                    {(() => {
+                                        const reviewList = (report as any)?.assignees || (report as any)?.Assignees || [];
+                                        if (reviewList.length === 0) return <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic' }}>Individual Report</span>;
+                                        
+                                        return reviewList.map((rev: any, idx: number) => {
+                                            const rStatus = rev.status;
+                                            let config = { label: 'Reviewing', color: '#94a3b8', bg: '#f1f5f9', icon: <Clock size={10} /> };
+                                            if (rStatus === 2) config = { label: 'Approved', color: '#10b981', bg: '#ecfdf5', icon: <Check size={10} /> };
+                                            if (rStatus === 3) config = { label: 'Rejected', color: '#ef4444', bg: '#fef2f2', icon: <X size={10} /> };
+                                            
+                                            return (
+                                                <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 10px', borderRadius: '8px', background: config.bg, border: `1px solid ${config.color}20` }}>
+                                                    <div style={{ color: config.color, display: 'flex' }}>{config.icon}</div>
+                                                    <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#334155', whiteSpace: 'nowrap' }}>{rev.fullName || 'Member'}</span>
+                                                    <span style={{ fontSize: '0.65rem', fontWeight: 800, color: config.color, textTransform: 'uppercase', letterSpacing: '0.02em' }}>{config.label}</span>
+                                                </div>
+                                            );
+                                        });
+                                    })()}
+                                </div>
                             </div>
-                            {isEditMode ? (
-                                <textarea 
-                                    className="form-input"
-                                    value={formData[section.key]}
-                                    onChange={e => setFormData({...formData, [section.key]: e.target.value})}
-                                    maxLength={2000}
-                                    style={{ minHeight: '100px', fontSize: '0.9rem', padding: '12px', borderRadius: '10px', background: '#fcfdfe' }}
-                                />
-                            ) : (
-                                <p style={{ margin: 0, fontSize: '0.9rem', color: '#334155', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
-                                    {formData[section.key] || `No ${section.label.toLowerCase()} provided.`}
-                                </p>
-                            )}
-                        </div>
-                    ))}
+                        </>
+                    )}
 
-                    {/* Reviewers List */}
-                    <div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                            <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' }}>
-                                Reviewers <span style={{ color: '#ef4444' }}>*</span>
-                            </label>
-                            {isEditMode && (
-                                <button onClick={() => setIsAssigneeModalOpen(true)} style={{ border: 'none', background: 'none', color: 'var(--primary-color)', fontSize: '0.7rem', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                    <Plus size={12} /> Manage
+                    {/* Reviewer Feedback Section */}
+                    {isReviewer && formData.status === 1 && !isEditMode && (
+                        <div style={{ marginTop: '1.5rem', padding: '1.25rem', borderRadius: '16px', background: '#fff', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                                <label style={{ margin: 0, fontSize: '0.75rem', fontWeight: 800, color: '#1e293b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                    Your Review Feedback
+                                </label>
+                                <button 
+                                    type="button" 
+                                    onClick={handleAiSuggest} 
+                                    disabled={isAiLoading || submitting}
+                                    style={{ padding: '4px 10px', borderRadius: '8px', border: 'none', background: '#fef3c7', color: '#92400e', fontSize: '0.65rem', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                >
+                                    {isAiLoading ? <RefreshCw size={10} className="animate-spin" /> : <RefreshCw size={10} />}
+                                    AI Suggest
                                 </button>
-                            )}
+                            </div>
+                            <textarea 
+                                className="form-input"
+                                value={feedbackText}
+                                onChange={e => setFeedbackText(e.target.value)}
+                                placeholder="Add comments for the author (optional)..."
+                                style={{ minHeight: '100px', fontSize: '0.85rem', marginBottom: '1rem', borderRadius: '12px', border: '1px solid #e2e8f0' }}
+                            />
+                            <div style={{ display: 'flex', gap: '10px' }}>
+                                <button 
+                                    type="button" 
+                                    onClick={() => handleFeedbackSubmit(3)} 
+                                    disabled={submitting} 
+                                    className="btn btn-secondary" 
+                                    style={{ flex: 1, color: '#ef4444', border: '1px solid #f1f5f9' }}
+                                >
+                                    {submitting ? <Loader2 size={16} className="animate-spin" /> : <X size={16} />} 
+                                    Request Revision
+                                </button>
+                                <button 
+                                    type="button" 
+                                    onClick={() => handleFeedbackSubmit(2)} 
+                                    disabled={submitting} 
+                                    className="btn btn-secondary" 
+                                    style={{ flex: 1, color: '#10b981', border: '1px solid #f1f5f9' }}
+                                >
+                                    {submitting ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />} 
+                                    Approve Report
+                                </button>
+                            </div>
                         </div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                            {formData.assigneeEmails.map(email => {
-                                const u = allUsers.find(user => user.email === email);
-                                return (
-                                    <div key={email} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 10px', borderRadius: '20px', background: '#f1f5f9', border: '1px solid #e2e8f0', fontSize: '0.75rem', fontWeight: 600 }}>
-                                        <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: 'var(--primary-color)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.5rem' }}>{u?.fullName?.[0] || 'U'}</div>
-                                        {u?.fullName || email}
-                                    </div>
-                                );
-                            })}
-                            {formData.assigneeEmails.length === 0 && <span style={{ fontSize: '0.8rem', color: '#94a3b8', fontStyle: 'italic' }}>No reviewers assigned.</span>}
-                        </div>
-                    </div>
+                    )}
                 </div>
             </div>
 
@@ -437,19 +719,31 @@ const ReportPanel: React.FC<ReportPanelProps> = ({
             <div style={{ padding: '1.25rem 1.5rem', borderTop: '1px solid #f1f5f9', background: '#fcfdfe', display: 'flex', justifyContent: 'space-between', gap: '1rem' }}>
                 <div style={{ display: 'flex', gap: '8px' }}>
                     {!isAdding && !isEditMode && formData.status === 0 && (
-                        <button onClick={handleDelete} className="btn btn-secondary" style={{ color: '#ef4444', padding: '0 12px' }}>
-                            <Trash2 size={16} />
+                        <button 
+                            type="button" 
+                            onClick={handleDelete} 
+                            disabled={submitting} 
+                            style={{ 
+                                padding: '8px 16px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 700, 
+                                border: '1px solid #fee2e2', background: '#fff5f5', color: '#ef4444',
+                                display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', transition: 'all 0.2s'
+                            }}
+                            onMouseOver={(e) => { e.currentTarget.style.background = '#fef2f2'; e.currentTarget.style.borderColor = '#fca5a5'; }}
+                            onMouseOut={(e) => { e.currentTarget.style.background = '#fff5f5'; e.currentTarget.style.borderColor = '#fee2e2'; }}
+                        >
+                            <Trash2 size={14} /> Delete
                         </button>
                     )}
-                    {!isAdding && !isEditMode && formData.status === 2 && (
+                    {!isAdding && !isEditMode && hasApprovedAssignee && (
                        <button 
+                            type="button"
                             onClick={handleIndexing} 
                             disabled={submitting || (report as any)?.hasEmbedding}
                             className="btn btn-secondary" 
                             style={{ gap: '6px', fontSize: '0.8rem' }}
                         >
                             {(report as any)?.hasEmbedding ? <Check size={14} /> : <RefreshCw size={14} className={submitting ? 'animate-spin' : ''} />}
-                            {(report as any)?.hasEmbedding ? 'AI Indexed' : 'Start Indexing'}
+                            {(report as any)?.hasEmbedding ? 'AI Indexed' : 'Insert to Semantic Search'}
                        </button>
                     )}
                 </div>
@@ -457,38 +751,61 @@ const ReportPanel: React.FC<ReportPanelProps> = ({
                 <div style={{ display: 'flex', gap: '10px' }}>
                     {isEditMode ? (
                         <>
-                            <button onClick={isAdding ? onClose : () => setIsEditMode(false)} className="btn btn-secondary">Cancel</button>
-                            <button onClick={() => handleSave(false)} disabled={submitting} className="btn btn-secondary" style={{ gap: '8px' }}>
-                                <Save size={16} /> {isAdding ? 'Save Draft' : 'Update'}
+                            <button type="button" onClick={isAdding ? onClose : () => setIsEditMode(false)} className="btn btn-secondary" disabled={submitting}>Cancel</button>
+                            <button type="button" onClick={(e) => handleSave(false, e)} disabled={submitting} className="btn btn-secondary" style={{ gap: '8px' }}>
+                                {submitting ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                                {isAdding ? 'Save Draft' : 'Save Changes'}
                             </button>
-                            <button onClick={() => handleSave(true)} disabled={submitting} className="btn btn-primary" style={{ gap: '8px' }}>
-                                <Send size={16} /> Submit
-                            </button>
+                            {/* Only allow Submit directly for NEW reports. Existing reports must Save first. */}
+                            {isAdding && (
+                                <button type="button" onClick={(e) => handleSave(true, e)} disabled={submitting} className="btn btn-primary" style={{ gap: '8px' }}>
+                                    {submitting ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                                    Submit
+                                </button>
+                            )}
                         </>
                     ) : (
                         <>
-                            {!isAdding && formData.status === 0 && (
-                                <button 
-                                    onClick={() => handleSave(true)} 
-                                    className="btn btn-primary" 
-                                    style={{ gap: '8px', fontWeight: 600 }}
-                                >
-                                    <Send size={16} /> Submit
-                                </button>
-                            )}
-                            {!isAdding && formData.status === 0 && (
-                                <button onClick={() => setIsEditMode(true)} className="btn btn-secondary" style={{ gap: '8px' }}>
-                                    <Edit3 size={16} /> Edit
-                                </button>
+                            {/* Actions for Author: Drafting mode OR Rejection mode */}
+                            {!isAdding && isAuthor && (formData.status === 0 || formData.status === 3 || hasRejection) && (
+                                <>
+                                    <button 
+                                        type="button"
+                                        onClick={(e) => handleSave(true, e)} 
+                                        disabled={submitting}
+                                        className="btn btn-primary" 
+                                        style={{ gap: '8px', fontWeight: 600 }}
+                                    >
+                                        {submitting ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                                        {(formData.status === 0) ? "Submit Report" : "Resubmit Report"}
+                                    </button>
+                                    <button 
+                                        type="button" 
+                                        onClick={() => setIsEditMode(true)} 
+                                        className="btn btn-secondary" 
+                                        style={{ gap: '8px' }}
+                                    >
+                                        <Edit3 size={16} /> Edit
+                                    </button>
+                                </>
                             )}
                             {(formData.status === 1) && isLabDirector && (
                                 <>
-                                    <button onClick={() => handleStatusUpdate(3)} disabled={submitting} className="btn btn-secondary" style={{ color: '#f59e0b' }}>Request Revision</button>
-                                    <button onClick={() => handleStatusUpdate(2)} disabled={submitting} className="btn btn-primary" style={{ background: '#10b981' }}>Approve Report</button>
+                                    <button type="button" onClick={(e) => handleStatusUpdate(3, e)} disabled={submitting} className="btn btn-secondary" style={{ color: '#f59e0b', gap: '6px' }}>
+                                        {submitting ? <Loader2 size={14} className="animate-spin" /> : null}
+                                        Request Revision
+                                    </button>
+                                    <button type="button" onClick={(e) => handleStatusUpdate(2, e)} disabled={submitting} className="btn btn-primary" style={{ background: '#10b981', gap: '6px' }}>
+                                        {submitting ? <Loader2 size={14} className="animate-spin" /> : null}
+                                        Approve Report
+                                    </button>
                                 </>
                             )}
                             {formData.status === 2 && isLabDirector && (
-                                <button onClick={() => handleStatusUpdate(0)} disabled={submitting} className="btn btn-secondary">Revert to Draft</button>
+                                <button type="button" onClick={(e) => handleStatusUpdate(0, e)} disabled={submitting} className="btn btn-secondary" style={{ gap: '6px' }}>
+                                    {submitting ? <Loader2 size={14} className="animate-spin" /> : null}
+                                    Revert to Draft
+                                </button>
                             )}
                         </>
                     )}
@@ -627,6 +944,65 @@ const ReportPanel: React.FC<ReportPanelProps> = ({
                     </div>
                 </div>
             )}
+            {/* Component-Level Feedback Sidebar */}
+            <FeedbackSidebar 
+                isOpen={isFeedbackSidebarOpen} 
+                onClose={() => setIsFeedbackSidebarOpen(false)} 
+                report={report} 
+            />
+
+            {/* Custom Confirmation Modal */}
+            {confirmAction.type && (
+                <div 
+                    style={{ position: 'fixed', inset: 0, zIndex: 1200, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', backdropFilter: 'blur(3px)' }}
+                    onClick={() => setConfirmAction({type: null})}
+                >
+                    <div 
+                        style={{ width: '100%', maxWidth: '380px', background: 'white', borderRadius: '24px', padding: '1.75rem', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', display: 'flex', flexDirection: 'column', gap: '1rem', transform: 'scale(1)', animation: 'fadeIn 0.2s ease-out' }}
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800, color: '#1e293b' }}>
+                            {confirmAction.type === 'delete' ? 'Delete Report' : 'Submit Report'}
+                        </h3>
+                        <p style={{ margin: 0, fontSize: '0.9rem', color: '#64748b', lineHeight: 1.5 }}>
+                            {confirmAction.type === 'delete' 
+                                ? 'Are you sure you want to delete this report? This action cannot be undone.' 
+                                : 'Are you sure you want to finalize and submit this report? Reviewers will be notified immediately to evaluate your work.'}
+                        </p>
+                        <div style={{ display: 'flex', gap: '10px', marginTop: '0.75rem' }}>
+                            <button 
+                                onClick={() => setConfirmAction({type: null})} 
+                                className="btn btn-secondary" 
+                                style={{ flex: 1, padding: '10px', fontWeight: 700 }}
+                            >
+                                Cancel
+                            </button>
+                            <button 
+                                onClick={() => {
+                                    if (confirmAction.type === 'delete') {
+                                        executeDelete();
+                                    } else {
+                                        handleSave(true, confirmAction.event, true);
+                                    }
+                                    setConfirmAction({type: null});
+                                }} 
+                                className="btn" 
+                                style={{ 
+                                    flex: 1, 
+                                    padding: '10px',
+                                    fontWeight: 700,
+                                    background: confirmAction.type === 'delete' ? '#ef4444' : 'var(--primary-color)', 
+                                    color: 'white',
+                                    border: 'none'
+                                }}
+                            >
+                                {confirmAction.type === 'delete' ? 'Delete' : 'Submit'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
         </div>
     );
 };
