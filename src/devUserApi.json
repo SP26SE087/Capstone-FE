@@ -36,6 +36,37 @@
                 }
             }
         },
+        "/api/auth/google-code": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ExchangeGoogleCodeRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ExchangeGoogleCodeRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ExchangeGoogleCodeRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
         "/api/auth/refresh": {
             "post": {
                 "tags": [
@@ -72,6 +103,37 @@
                 "tags": [
                     "Auth"
                 ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/api/auth/google-mobile": {
+            "post": {
+                "tags": [
+                    "Auth"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/GoogleLoginRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/GoogleLoginRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/GoogleLoginRequest"
+                            }
+                        }
+                    }
+                },
                 "responses": {
                     "200": {
                         "description": "OK"
@@ -321,19 +383,84 @@
                     }
                 }
             }
+        },
+        "/api/users/me/profile": {
+            "put": {
+                "tags": [
+                    "User"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateProfileRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateProfileRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateProfileRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
         }
     },
     "components": {
         "schemas": {
             "AddUserRequest": {
+                "required": [
+                    "email",
+                    "fullName"
+                ],
                 "type": "object",
                 "properties": {
                     "email": {
+                        "maxLength": 255,
+                        "minLength": 0,
+                        "type": "string",
+                        "format": "email"
+                    },
+                    "fullName": {
+                        "maxLength": 255,
+                        "minLength": 0,
+                        "type": "string"
+                    },
+                    "phoneNumber": {
+                        "maxLength": 20,
+                        "minLength": 0,
                         "type": "string",
                         "nullable": true
                     },
-                    "fullName": {
+                    "orcid": {
+                        "maxLength": 50,
+                        "minLength": 0,
+                        "pattern": "^\\d{4}-\\d{4}-\\d{4}-\\d{3}[0-9X]$",
                         "type": "string",
+                        "nullable": true
+                    },
+                    "googleScholarUrl": {
+                        "maxLength": 255,
+                        "minLength": 0,
+                        "type": "string",
+                        "format": "uri",
+                        "nullable": true
+                    },
+                    "githubUrl": {
+                        "maxLength": 255,
+                        "minLength": 0,
+                        "type": "string",
+                        "format": "uri",
                         "nullable": true
                     },
                     "role": {
@@ -350,6 +477,10 @@
                         "nullable": true
                     },
                     "redirectUri": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "codeVerifier": {
                         "type": "string",
                         "nullable": true
                     }
@@ -406,11 +537,79 @@
                 },
                 "additionalProperties": false
             },
+            "UpdateProfileRequest": {
+                "type": "object",
+                "properties": {
+                    "fullName": {
+                        "maxLength": 255,
+                        "minLength": 0,
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "phoneNumber": {
+                        "maxLength": 20,
+                        "minLength": 0,
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "orcid": {
+                        "maxLength": 50,
+                        "minLength": 0,
+                        "pattern": "^\\d{4}-\\d{4}-\\d{4}-\\d{3}[0-9X]$",
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "googleScholarUrl": {
+                        "maxLength": 255,
+                        "minLength": 0,
+                        "type": "string",
+                        "format": "uri",
+                        "nullable": true
+                    },
+                    "githubUrl": {
+                        "maxLength": 255,
+                        "minLength": 0,
+                        "type": "string",
+                        "format": "uri",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
             "UpdateUserRequest": {
                 "type": "object",
                 "properties": {
                     "fullName": {
+                        "maxLength": 255,
+                        "minLength": 0,
                         "type": "string",
+                        "nullable": true
+                    },
+                    "phoneNumber": {
+                        "maxLength": 20,
+                        "minLength": 0,
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "orcid": {
+                        "maxLength": 50,
+                        "minLength": 0,
+                        "pattern": "^\\d{4}-\\d{4}-\\d{4}-\\d{3}[0-9X]$",
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "googleScholarUrl": {
+                        "maxLength": 255,
+                        "minLength": 0,
+                        "type": "string",
+                        "format": "uri",
+                        "nullable": true
+                    },
+                    "githubUrl": {
+                        "maxLength": 255,
+                        "minLength": 0,
+                        "type": "string",
+                        "format": "uri",
                         "nullable": true
                     },
                     "role": {

@@ -4,6 +4,7 @@ export interface AddUserRequest {
     email: string;
     fullName: string;
     role: number;
+    phoneNumber?: string;
 }
 
 export interface UpdateUserRequest {

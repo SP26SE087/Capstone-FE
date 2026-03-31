@@ -233,9 +233,8 @@ const CreateReport: React.FC = () => {
             
             setIsDirty(false); // Reset dirty flag after successful single action
             
-            if (isSubmission) {
-                // If submitted, maybe remove from batch or just mark? 
-                // For now, let's just stay on page so they can see success.
+            if (isSubmission && reportId) {
+                setTimeout(() => navigate(`/reports/${reportId}`), 1000);
             }
 
         } catch (error: any) {

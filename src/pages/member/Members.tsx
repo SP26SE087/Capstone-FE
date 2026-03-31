@@ -11,7 +11,9 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { userService } from '@/services/userService';
 import UserDetailModal from './UserDetailModal';
-import { SystemRoleMap } from '@/types/enums';
+import InviteMemberForm from './components/InviteMemberForm';
+import { SystemRoleEnum, SystemRoleMap } from '@/types/enums';
+import { useToastStore } from '@/store/slices/toastSlice';
 
 const Members: React.FC = () => {
     const { user } = useAuth();
@@ -21,22 +23,29 @@ const Members: React.FC = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isInviteFormOpen, setIsInviteFormOpen] = useState(false);
+
+    const isLabDirector = user.role === 'Lab Director' || 
+                         user.role === 'LabDirector' || 
+                         Number(user.role) === SystemRoleEnum.LabDirector;
+    
+    const { addToast } = useToastStore();
+
+    const fetchMembers = async () => {
+        try {
+            setLoading(true);
+            const data = await userService.getAll();
+            setMembers(data);
+            setError(null);
+        } catch (err) {
+            console.error('Failed to fetch members:', err);
+            setError('Failed to load lab members. Please try again later.');
+        } finally {
+            setLoading(false);
+        }
+    };
 
     useEffect(() => {
-        const fetchMembers = async () => {
-            try {
-                setLoading(true);
-                const data = await userService.getAll();
-                setMembers(data);
-                setError(null);
-            } catch (err) {
-                console.error('Failed to fetch members:', err);
-                setError('Failed to load lab members. Please try again later.');
-            } finally {
-                setLoading(false);
-            }
-        };
-
         fetchMembers();
     }, []);
 
@@ -65,9 +74,15 @@ const Members: React.FC = () => {
                         <h1>Lab Members</h1>
                         <p>Manage team access, roles and laboratory permissions.</p>
                     </div>
-                    <button className="btn btn-primary" style={{ padding: '0.8rem 1.5rem' }}>
-                        <UserPlus size={18} /> Invite Member
-                    </button>
+                    {isLabDirector && (
+                        <button 
+                            className="btn btn-primary" 
+                            style={{ padding: '0.8rem 1.5rem' }}
+                            onClick={() => setIsInviteFormOpen(!isInviteFormOpen)}
+                        >
+                            <UserPlus size={18} /> {isInviteFormOpen ? 'Close Form' : 'Invite Member'}
+                        </button>
+                    )}
                 </div>
 
                 {/* Search */}
@@ -85,89 +100,130 @@ const Members: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Loading State */}
-                {loading && (
-                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '300px', flexDirection: 'column', gap: '1rem' }}>
-                        <Loader2 className="animate-spin" size={40} style={{ color: 'var(--primary-color)' }} />
-                        <p style={{ color: 'var(--text-secondary)' }}>Loading lab members...</p>
-                    </div>
-                )}
+                {/* Main Content Area: List + Form */}
+                <div style={{ 
+                    display: 'flex', 
+                    gap: isInviteFormOpen ? '2rem' : '0', 
+                    transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                    position: 'relative',
+                    overflow: 'hidden'
+                }}>
+                    {/* Left Column: Members Grid (70% when open) */}
+                    <div style={{ 
+                        flex: isInviteFormOpen ? '0 0 70%' : '0 0 100%', 
+                        maxWidth: isInviteFormOpen ? '70%' : '100%',
+                        transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)'
+                    }}>
+                        {/* Loading State */}
+                        {loading && (
+                            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '300px', flexDirection: 'column', gap: '1rem' }}>
+                                <Loader2 className="animate-spin" size={40} style={{ color: 'var(--primary-color)' }} />
+                                <p style={{ color: 'var(--text-secondary)' }}>Loading lab members...</p>
+                            </div>
+                        )}
 
-                {/* Error State */}
-                {!loading && error && (
-                    <div className="card" style={{ padding: '2rem', textAlign: 'center', color: 'var(--error-color)' }}>
-                        <p>{error}</p>
-                        <button className="btn btn-primary" onClick={() => window.location.reload()} style={{ marginTop: '1rem' }}>
-                            Retry
-                        </button>
-                    </div>
-                )}
+                        {/* Error State */}
+                        {!loading && error && (
+                            <div className="card" style={{ padding: '2rem', textAlign: 'center', color: 'var(--error-color)' }}>
+                                <p>{error}</p>
+                                <button className="btn btn-primary" onClick={() => window.location.reload()} style={{ marginTop: '1rem' }}>
+                                    Retry
+                                </button>
+                            </div>
+                        )}
 
-                {/* Members Grid */}
-                {!loading && !error && (
-                    filteredMembers.length > 0 ? (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
-                            {filteredMembers.map((member: any) => {
-                                const name = member.fullName || member.userName || member.name || 'Unknown User';
-                                return (
-                                    <div 
-                                        key={member.userId || member.id} 
-                                        className="card card-interactive" 
-                                        onClick={() => handleMemberClick(member.userId || member.id)}
-                                    >
-                                        <div className="card-body">
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem' }}>
-                                                <div className="avatar avatar-lg" style={{
-                                                    background: 'var(--accent-bg)',
-                                                    color: 'var(--accent-color)',
-                                                    borderRadius: 'var(--radius-md)',
-                                                    fontWeight: 700
-                                                }}>
-                                                    {name.split(' ').map((n: string) => n[0]).join('')}
+                        {/* Members Grid */}
+                        {!loading && !error && (
+                            filteredMembers.length > 0 ? (
+                                <div style={{ 
+                                    display: 'grid', 
+                                    gridTemplateColumns: isInviteFormOpen ? 'repeat(auto-fill, minmax(280px, 1fr))' : 'repeat(auto-fill, minmax(300px, 1fr))', 
+                                    gap: '1.5rem',
+                                    transition: 'all 0.3s ease'
+                                }}>
+                                    {filteredMembers.map((member: any) => {
+                                        const name = member.fullName || member.userName || member.name || 'Unknown User';
+                                        return (
+                                            <div 
+                                                key={member.userId || member.id} 
+                                                className="card card-interactive" 
+                                                onClick={() => handleMemberClick(member.userId || member.id)}
+                                            >
+                                                <div className="card-body">
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.25rem' }}>
+                                                        <div className="avatar avatar-lg" style={{
+                                                            background: 'var(--accent-bg)',
+                                                            color: 'var(--accent-color)',
+                                                            borderRadius: 'var(--radius-md)',
+                                                            fontWeight: 700
+                                                        }}>
+                                                            {name.split(' ').map((n: string) => n[0]).join('')}
+                                                        </div>
+                                                    </div>
+
+                                                    <div style={{ marginBottom: '1rem' }}>
+                                                        <h3 style={{ margin: '0 0 4px 0', fontSize: '1.05rem' }}>{name}</h3>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                                                            <Mail size={14} />
+                                                            {member.email}
+                                                        </div>
+                                                    </div>
+
+                                                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                                        <span className="badge badge-muted">
+                                                            {SystemRoleMap[member.role] || member.role || 'Member'}
+                                                        </span>
+                                                        {member.status && (
+                                                            <span className="badge badge-muted" style={{ opacity: 0.8 }}>
+                                                                {member.status}
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                            </div>
 
-                                            <div style={{ marginBottom: '1rem' }}>
-                                                <h3 style={{ margin: '0 0 4px 0', fontSize: '1.05rem' }}>{name}</h3>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-                                                    <Mail size={14} />
-                                                    {member.email}
-                                                </div>
-                                            </div>
-
-                                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                                                <span className="badge badge-muted">
-                                                    {SystemRoleMap[member.role] || member.role || 'Member'}
-                                                </span>
-                                                {member.status && (
-                                                    <span className="badge badge-muted" style={{ opacity: 0.8 }}>
-                                                        {member.status}
-                                                    </span>
+                                                {member.department && (
+                                                    <div className="card-footer" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                                                        <div>
+                                                            Department: <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{member.department}</span>
+                                                        </div>
+                                                    </div>
                                                 )}
                                             </div>
-                                        </div>
-
-                                        {member.department && (
-                                            <div className="card-footer" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                                                <div>
-                                                    Department: <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{member.department}</span>
-                                                </div>
-                                            </div>
-                                        )}
+                                        );
+                                    })}
+                                </div>
+                            ) : (
+                                <div className="empty-state">
+                                    <div className="empty-state-icon">
+                                        <Users size={36} />
                                     </div>
-                                );
-                            })}
-                        </div>
-                    ) : (
-                        <div className="empty-state">
-                            <div className="empty-state-icon">
-                                <Users size={36} />
-                            </div>
-                            <h2>No members found</h2>
-                            <p>{searchQuery ? `No members match "${searchQuery}"` : 'Invite researchers to join your laboratory.'}</p>
-                        </div>
-                    )
-                )}
+                                    <h2>No members found</h2>
+                                    <p>{searchQuery ? `No members match "${searchQuery}"` : 'Invite researchers to join your laboratory.'}</p>
+                                </div>
+                            )
+                        )}
+                    </div>
+
+                    {/* Right Column: Invite Form (30%) */}
+                    <div style={{ 
+                        flex: isInviteFormOpen ? '0 0 30%' : '0 0 0',
+                        maxWidth: isInviteFormOpen ? '30%' : '0',
+                        transform: isInviteFormOpen ? 'translateX(0)' : 'translateX(50px)',
+                        opacity: isInviteFormOpen ? 1 : 0,
+                        visibility: isInviteFormOpen ? 'visible' : 'hidden',
+                        transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                        zIndex: 10
+                    }}>
+                        <InviteMemberForm 
+                            onSuccess={() => {
+                                // Now we don't close the form, only refresh the list.
+                                fetchMembers();
+                                addToast('Member invited successfully!', 'success');
+                            }}
+                            onCancel={() => setIsInviteFormOpen(false)}
+                        />
+                    </div>
+                </div>
 
                 <UserDetailModal 
                     isOpen={isModalOpen}

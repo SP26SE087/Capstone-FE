@@ -26,6 +26,16 @@ export default defineConfig({
                 changeOrigin: true,
                 secure: false,
             },
+            '/api/Meetings': {
+                target: 'https://localhost:7276',
+                changeOrigin: true,
+                secure: false,
+            },
+            '/api/Seminars': {
+                target: 'https://localhost:7276',
+                changeOrigin: true,
+                secure: false,
+            },
             '/api/bookings': {
                 target: 'https://localhost:7162',
                 changeOrigin: true,

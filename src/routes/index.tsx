@@ -16,7 +16,8 @@ import CreateReport from '@/pages/report/CreateReport';
 import ReportDetail from '@/pages/report/ReportDetail';
 import ResourceBooking from '@/pages/resource/ResourceBooking';
 import LabResourceAdmin from '@/pages/admin/LabResourceAdmin';
-import ComingSoon from '@/pages/common/ComingSoon';
+import Schedules from '@/pages/schedule/Schedules';
+import Seminars from '@/pages/seminar/Seminars';
 import UserManagement from '@/pages/user-management/UserManagement';
 import PaperSubmissions from '@/pages/paper/PaperSubmissions';
 import PaperReview from '@/pages/paper/PaperReview';
@@ -106,11 +107,11 @@ export const router = createBrowserRouter([
     },
     {
         path: '/schedules',
-        element: <AuthGuard><ComingSoon title="Schedules" /></AuthGuard>,
+        element: <AuthGuard><Schedules /></AuthGuard>,
     },
     {
         path: '/seminars',
-        element: <AuthGuard><ComingSoon title="Seminars" /></AuthGuard>,
+        element: <AuthGuard><Seminars /></AuthGuard>,
     },
     {
         path: '/profile',

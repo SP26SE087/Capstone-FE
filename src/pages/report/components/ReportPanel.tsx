@@ -27,7 +27,7 @@ interface ReportPanelProps {
     isAdding: boolean;
     isAuthorFallback?: boolean;
     onClose: () => void;
-    onSaved: (shouldClose?: boolean) => void;
+    onSaved: (shouldClose?: boolean, message?: string, newReportId?: string) => void;
     onTitleChange?: (title: string) => void;
 }
 
@@ -282,9 +282,6 @@ const ReportPanel: React.FC<ReportPanelProps> = ({
                 if (isSubmission && currentId) {
                     console.log("Submitting new report ID:", currentId);
                     await reportService.updateReportStatus(currentId, 1);
-                    showToast('Report created and submitted!', 'success');
-                } else {
-                    showToast('Report draft created.', 'success');
                 }
             } else if (currentId) {
                 // If the user modified the content, save it before submitting
@@ -296,19 +293,13 @@ const ReportPanel: React.FC<ReportPanelProps> = ({
                 if (isSubmission) {
                     console.log("Patching status for report ID:", currentId);
                     await reportService.updateReportStatus(currentId, 1);
-                    showToast('Report submitted successfully.', 'success');
-                } else {
-                    showToast('Changes saved successfully.', 'success');
-                    setIsEditMode(false);
                 }
             }
             
-            // Critical: wait for global state to update
-            onSaved(isSubmission);
+            // Critical: notify parent of success
+            onSaved(false, isSubmission ? (isAdding ? 'Report created and submitted!' : 'Report submitted successfully.') : (isAdding ? 'Report draft created.' : 'Changes saved successfully.'), currentId || undefined);
             
-            if (isAdding) {
-                onClose();
-            } else if (currentId) {
+            if (!isAdding && currentId) {
                 await fetchReport(currentId);
             }
         } catch (error: any) {
@@ -325,9 +316,10 @@ const ReportPanel: React.FC<ReportPanelProps> = ({
         setSubmitting(true);
         try {
             await reportService.updateReportStatus(reportId, newStatus);
-            showToast(`Status updated successfully.`, 'success');
+            const msg = `Status updated successfully.`;
+            showToast(msg, 'success');
             fetchReport(reportId);
-            onSaved();
+            onSaved(false, msg);
         } catch (error) {
             showToast('Failed to update status.', 'error');
         } finally {
@@ -342,8 +334,9 @@ const ReportPanel: React.FC<ReportPanelProps> = ({
         setSubmitting(true);
         try {
             await reportService.deleteReport(reportId);
-            showToast('Report deleted.', 'success');
-            onSaved();
+            const msg = 'Report deleted successfully.';
+            showToast(msg, 'success');
+            onSaved(true, msg);
             onClose();
         } catch (error) {
             showToast('Failed to delete report.', 'error');
@@ -357,9 +350,10 @@ const ReportPanel: React.FC<ReportPanelProps> = ({
         setSubmitting(true);
         try {
             await reportService.updateAssignee(reportId, { status, feedback: feedbackText });
-            showToast(`Report ${status === 2 ? 'approved' : 'rejected'}.`, 'success');
+            const msg = `Report ${status === 2 ? 'approved' : 'rejected'}.`;
+            showToast(msg, 'success');
             fetchReport(reportId);
-            onSaved();
+            onSaved(false, msg);
         } catch (error) {
             showToast('Failed to update reviewer status.', 'error');
         } finally {
