@@ -14,7 +14,11 @@ import {
     Loader2,
     CheckCircle,
     AlertTriangle,
-    X
+    X,
+    Phone,
+    Link,
+    GraduationCap,
+    Github
 } from 'lucide-react';
 
 const ProfilePage: React.FC = () => {
@@ -28,7 +32,7 @@ const ProfilePage: React.FC = () => {
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
     // Edit state
-    const [editData, setEditData] = useState({ fullName: '' });
+    const [editData, setEditData] = useState({ fullName: '', phoneNumber: '', orcid: '', googleScholarUrl: '', githubUrl: '' });
 
     useEffect(() => {
         fetchProfile();
@@ -47,7 +51,13 @@ const ProfilePage: React.FC = () => {
         try {
             const data = await userService.getProfile();
             setProfile(data);
-            setEditData({ fullName: data.fullName });
+            setEditData({ 
+                fullName: data.fullName || '', 
+                phoneNumber: data.phoneNumber || '', 
+                orcid: data.orcid || '', 
+                googleScholarUrl: data.googleScholarUrl || '', 
+                githubUrl: data.githubUrl || '' 
+            });
         } catch (error) {
             console.error('Failed to load profile:', error);
             setToast({ message: 'Failed to load profile data.', type: 'error' });
@@ -61,13 +71,26 @@ const ProfilePage: React.FC = () => {
             setToast({ message: 'Full name cannot be empty.', type: 'error' });
             return;
         }
-        if (editData.fullName === profile?.fullName) {
+        const hasChanges = 
+            editData.fullName.trim() !== (profile?.fullName || '') ||
+            editData.phoneNumber.trim() !== (profile?.phoneNumber || '') ||
+            editData.orcid.trim() !== (profile?.orcid || '') ||
+            editData.googleScholarUrl.trim() !== (profile?.googleScholarUrl || '') ||
+            editData.githubUrl.trim() !== (profile?.githubUrl || '');
+            
+        if (!hasChanges) {
             setIsEditMode(false);
             return;
         }
         setSubmitting(true);
         try {
-            await userService.updateProfile({ fullName: editData.fullName.trim() });
+            await userService.updateProfile({ 
+                fullName: editData.fullName.trim(),
+                phoneNumber: editData.phoneNumber.trim(),
+                orcid: editData.orcid.trim(),
+                googleScholarUrl: editData.googleScholarUrl.trim(),
+                githubUrl: editData.githubUrl.trim()
+            });
             setToast({ message: 'Profile updated successfully!', type: 'success' });
             setIsEditMode(false);
 
@@ -93,7 +116,13 @@ const ProfilePage: React.FC = () => {
     };
 
     const handleCancel = () => {
-        setEditData({ fullName: profile?.fullName || '' });
+        setEditData({ 
+            fullName: profile?.fullName || '',
+            phoneNumber: profile?.phoneNumber || '',
+            orcid: profile?.orcid || '',
+            googleScholarUrl: profile?.googleScholarUrl || '',
+            githubUrl: profile?.githubUrl || ''
+        });
         setIsEditMode(false);
     };
 
@@ -305,6 +334,42 @@ const ProfilePage: React.FC = () => {
                                 </p>
                             </div>
 
+                            {/* Phone Number */}
+                            <div>
+                                <label style={{
+                                    display: 'flex', alignItems: 'center', gap: '8px',
+                                    fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)',
+                                    textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '8px'
+                                }}>
+                                    <Phone size={14} /> Phone Number
+                                    {isEditMode && <span style={{ color: 'var(--accent-color)', fontSize: '0.65rem', fontWeight: 600, textTransform: 'none' }}>(editable)</span>}
+                                </label>
+                                {isEditMode ? (
+                                    <input
+                                        type="tel"
+                                        value={editData.phoneNumber}
+                                        onChange={(e) => setEditData({ ...editData, phoneNumber: e.target.value })}
+                                        className="form-input"
+                                        style={{
+                                            width: '100%', padding: '10px 14px', fontSize: '0.95rem',
+                                            borderRadius: '10px', border: '1px solid var(--border-color)',
+                                            outline: 'none', fontWeight: 600,
+                                            transition: 'border-color 0.2s',
+                                            background: '#f8fafc'
+                                        }}
+                                        onFocus={(e) => e.target.style.borderColor = 'var(--accent-color)'}
+                                        onBlur={(e) => e.target.style.borderColor = 'var(--border-color)'}
+                                    />
+                                ) : (
+                                    <p style={{
+                                        margin: 0, fontSize: '0.95rem', fontWeight: 600,
+                                        color: 'var(--text-primary)', padding: '10px 0'
+                                    }}>
+                                        {profile?.phoneNumber || '—'}
+                                    </p>
+                                )}
+                            </div>
+
                             {/* Role */}
                             <div>
                                 <label style={{
@@ -343,6 +408,131 @@ const ProfilePage: React.FC = () => {
                                 }}>
                                     {memberSince}
                                 </p>
+                            </div>
+
+                            {/* ORCID */}
+                            <div>
+                                <label style={{
+                                    display: 'flex', alignItems: 'center', gap: '8px',
+                                    fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)',
+                                    textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '8px'
+                                }}>
+                                    <Link size={14} /> ORCID
+                                    {isEditMode && <span style={{ color: 'var(--accent-color)', fontSize: '0.65rem', fontWeight: 600, textTransform: 'none' }}>(editable)</span>}
+                                </label>
+                                {isEditMode ? (
+                                    <input
+                                        type="text"
+                                        value={editData.orcid}
+                                        onChange={(e) => setEditData({ ...editData, orcid: e.target.value })}
+                                        placeholder="xxxx-xxxx-xxxx-xxxx"
+                                        className="form-input"
+                                        style={{
+                                            width: '100%', padding: '10px 14px', fontSize: '0.95rem',
+                                            borderRadius: '10px', border: '1px solid var(--border-color)',
+                                            outline: 'none', fontWeight: 600,
+                                            transition: 'border-color 0.2s',
+                                            background: '#f8fafc'
+                                        }}
+                                        onFocus={(e) => e.target.style.borderColor = 'var(--accent-color)'}
+                                        onBlur={(e) => e.target.style.borderColor = 'var(--border-color)'}
+                                    />
+                                ) : (
+                                    profile?.orcid ? (
+                                        <a href={`https://orcid.org/${profile.orcid}`} target="_blank" rel="noreferrer" style={{
+                                            display: 'inline-block', fontSize: '0.95rem', fontWeight: 600,
+                                            color: 'var(--primary-color)', padding: '10px 0', textDecoration: 'none'
+                                        }}>
+                                            {profile.orcid}
+                                        </a>
+                                    ) : (
+                                        <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)', padding: '10px 0' }}>—</p>
+                                    )
+                                )}
+                            </div>
+
+                            {/* Google Scholar URL */}
+                            <div>
+                                <label style={{
+                                    display: 'flex', alignItems: 'center', gap: '8px',
+                                    fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)',
+                                    textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '8px'
+                                }}>
+                                    <GraduationCap size={14} /> Google Scholar
+                                    {isEditMode && <span style={{ color: 'var(--accent-color)', fontSize: '0.65rem', fontWeight: 600, textTransform: 'none' }}>(editable)</span>}
+                                </label>
+                                {isEditMode ? (
+                                    <input
+                                        type="url"
+                                        value={editData.googleScholarUrl}
+                                        onChange={(e) => setEditData({ ...editData, googleScholarUrl: e.target.value })}
+                                        className="form-input"
+                                        placeholder="https://scholar.google.com/..."
+                                        style={{
+                                            width: '100%', padding: '10px 14px', fontSize: '0.95rem',
+                                            borderRadius: '10px', border: '1px solid var(--border-color)',
+                                            outline: 'none', fontWeight: 600,
+                                            transition: 'border-color 0.2s',
+                                            background: '#f8fafc'
+                                        }}
+                                        onFocus={(e) => e.target.style.borderColor = 'var(--accent-color)'}
+                                        onBlur={(e) => e.target.style.borderColor = 'var(--border-color)'}
+                                    />
+                                ) : (
+                                    profile?.googleScholarUrl ? (
+                                        <a href={profile.googleScholarUrl} target="_blank" rel="noreferrer" style={{
+                                            display: 'block', fontSize: '0.95rem', fontWeight: 600,
+                                            color: 'var(--primary-color)', padding: '10px 0', textDecoration: 'none',
+                                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+                                        }}>
+                                            {profile.googleScholarUrl}
+                                        </a>
+                                    ) : (
+                                        <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)', padding: '10px 0' }}>—</p>
+                                    )
+                                )}
+                            </div>
+
+                            {/* GitHub URL */}
+                            <div>
+                                <label style={{
+                                    display: 'flex', alignItems: 'center', gap: '8px',
+                                    fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)',
+                                    textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '8px'
+                                }}>
+                                    <Github size={14} /> GitHub
+                                    {isEditMode && <span style={{ color: 'var(--accent-color)', fontSize: '0.65rem', fontWeight: 600, textTransform: 'none' }}>(editable)</span>}
+                                </label>
+                                {isEditMode ? (
+                                    <input
+                                        type="url"
+                                        value={editData.githubUrl}
+                                        onChange={(e) => setEditData({ ...editData, githubUrl: e.target.value })}
+                                        className="form-input"
+                                        placeholder="https://github.com/..."
+                                        style={{
+                                            width: '100%', padding: '10px 14px', fontSize: '0.95rem',
+                                            borderRadius: '10px', border: '1px solid var(--border-color)',
+                                            outline: 'none', fontWeight: 600,
+                                            transition: 'border-color 0.2s',
+                                            background: '#f8fafc'
+                                        }}
+                                        onFocus={(e) => e.target.style.borderColor = 'var(--accent-color)'}
+                                        onBlur={(e) => e.target.style.borderColor = 'var(--border-color)'}
+                                    />
+                                ) : (
+                                    profile?.githubUrl ? (
+                                        <a href={profile.githubUrl} target="_blank" rel="noreferrer" style={{
+                                            display: 'block', fontSize: '0.95rem', fontWeight: 600,
+                                            color: 'var(--primary-color)', padding: '10px 0', textDecoration: 'none',
+                                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+                                        }}>
+                                            {profile.githubUrl}
+                                        </a>
+                                    ) : (
+                                        <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)', padding: '10px 0' }}>—</p>
+                                    )
+                                )}
                             </div>
                         </div>
                     </div>

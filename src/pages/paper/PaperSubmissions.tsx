@@ -93,7 +93,7 @@ const PaperSubmissions: React.FC = () => {
         try {
             setLoading(true);
             setError(null);
-            const data = await paperSubmissionService.getAll({ pageIndex: page, pageSize: size });
+            const data = await paperSubmissionService.getAll({ pageIndex: page, pageSize: size }); console.log('PAPER SUBMISSION DATA:', data);
 
             // If current page empty but still has data, go back one page to keep view filled
             if (page > 1 && (data.items?.length ?? 0) === 0 && (data.totalCount ?? 0) > 0) {
@@ -375,7 +375,7 @@ const PaperSubmissions: React.FC = () => {
                                 <div style={{ border: '1px solid var(--border-color)', borderRadius: '8px', padding: '10px', background: 'var(--bg-secondary)' }}>
                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px' }}>
                                         {addMembers.map((m, idx) => {
-                                            const pm = projectMembers.find(p => p.memberId === m.membershipId);
+                                            const pm = projectMembers.find(p => (p.membershipId || p.memberId) === m.membershipId);
                                                 return <div key={idx} style={{ background: 'white', padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border-color)', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                                 {pm?.fullName || 'User'} ({PaperRoleLabel[m.role as PaperRoleEnum]})
                                                 <button type="button" onClick={() => setAddMembers(prev => prev.filter((_, i) => i !== idx))} style={{ color: 'var(--danger)', border: 'none', background: 'none', cursor: 'pointer' }}><X size={14} /></button>
@@ -387,7 +387,10 @@ const PaperSubmissions: React.FC = () => {
                                         setAddMembers([...addMembers, { membershipId: mid, role: PaperRoleEnum.CoAuthor }]); e.target.value = '';
                                     }}>
                                         <option value="">+ Add Author...</option>
-                                        {projectMembers.filter(pm => !addMembers.some(am => am.membershipId === pm.memberId)).map(pm => <option key={pm.memberId} value={pm.memberId}>{pm.fullName}</option>)}
+                                        {projectMembers
+                                            .map(pm => ({ ...pm, _mid: pm.membershipId || pm.memberId }))
+                                            .filter(pm => pm._mid && !addMembers.some(am => am.membershipId === pm._mid))
+                                            .map(pm => <option key={pm._mid} value={pm._mid}>{pm.fullName}</option>)}
                                     </select>
                                 </div>
                             )}
@@ -483,7 +486,7 @@ const PaperSubmissions: React.FC = () => {
                                                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px' }}>
                                                                                     {/* @ts-ignore */}
                                                                                     {editData.members?.map((m: any, idx: number) => {
-                                                                                        const pm = projectMembers.find((p: any) => p.memberId === m.membershipId);
+                                                                                        const pm = projectMembers.find((p: any) => (p.membershipId || p.memberId) === m.membershipId);
                                                                                         return <div key={idx} style={{ background: 'white', padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border-color)', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                                                                             {pm?.fullName || 'User'} ({PaperRoleLabel[m.role as PaperRoleEnum]})
                                                                                             <button type="button" onClick={() => setEditData({ ...editData, members: editData.members?.filter((_: any, i: number) => i !== idx) })} style={{ color: 'var(--danger)', border: 'none', background: 'none', cursor: 'pointer' }}><X size={14} /></button>
@@ -495,7 +498,10 @@ const PaperSubmissions: React.FC = () => {
                                                                             setEditData({ ...editData, members: [...(editData.members || []), { membershipId: mid, role: PaperRoleEnum.CoAuthor }] }); e.target.value = '';
                                                                         }}>
                                                                             <option value="">+ Add Author...</option>
-                                                                            {projectMembers.filter(pm => !editData.members?.some((am: any) => am.membershipId === pm.memberId)).map(pm => <option key={pm.memberId} value={pm.memberId}>{pm.fullName}</option>)}
+                                                                            {projectMembers
+                                                                                .map(pm => ({ ...pm, _mid: pm.membershipId || pm.memberId }))
+                                                                                .filter(pm => pm._mid && !editData.members?.some((am: any) => am.membershipId === pm._mid))
+                                                                                .map(pm => <option key={pm._mid} value={pm._mid}>{pm.fullName}</option>)}
                                                                         </select>
                                                                     </div>
                                                                 </div>

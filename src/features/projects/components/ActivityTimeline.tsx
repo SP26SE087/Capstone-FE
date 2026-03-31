@@ -35,7 +35,7 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
     projectMembers,
     currentMember,
     isSpecialRole,
-    viewMode,
+    // viewMode,
     setViewMode
 }) => {
     const [timelineMode, setTimelineMode] = useState<'milestone' | 'member'>('milestone');

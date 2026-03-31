@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-    Search, Plus, X, LayoutGrid, User, Users, UserPlus, Calendar, Loader2, Play, Send,
+    Search, Plus, X, LayoutGrid, User, Users, Calendar, Loader2, Play, Send,
     Upload, Paperclip, Target, Filter, ChevronDown, Check, RotateCw, CheckCircle2, Clock
 } from 'lucide-react';
 import { Project, Task, TaskStatus, Milestone, MilestoneStatus } from '@/types';

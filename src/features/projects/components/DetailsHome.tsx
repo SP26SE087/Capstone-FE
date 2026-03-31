@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-    Activity, Clock, Calendar, User, Users, UserPlus,
+    Activity, Clock, Calendar, User, Users,
     Play, Send, AlertTriangle,
     Layout, CheckCircle2, Target, ChevronRight, ChevronDown, Loader2
 } from 'lucide-react';

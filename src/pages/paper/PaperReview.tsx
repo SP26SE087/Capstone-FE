@@ -43,7 +43,7 @@ const PaperReview: React.FC = () => {
             setLoading(true);
             setError(null);
             const data = await paperSubmissionService.getAll();
-            setPapers(data);
+            setPapers(data.items);
         } catch (err: any) {
             console.error('Error loading papers for review:', err);
             if (!err.response) {
@@ -208,7 +208,7 @@ const PaperReview: React.FC = () => {
                                                 </td>
                                                 <td>
                                                     <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                                                        {new Date(paper.submissionDeadline).toLocaleDateString()}
+                                                        {paper.submissionDeadline ? new Date(paper.submissionDeadline).toLocaleDateString() : '—'}
                                                     </span>
                                                 </td>
                                                 <td>
@@ -257,7 +257,7 @@ const PaperReview: React.FC = () => {
                                                                     </div>
                                                                     <div className="um-detail-item">
                                                                         <span className="um-detail-label">Deadline</span>
-                                                                        <span>{new Date(paper.submissionDeadline).toLocaleDateString()}</span>
+                                                                        <span>{paper.submissionDeadline ? new Date(paper.submissionDeadline).toLocaleDateString() : '—'}</span>
                                                                     </div>
                                                                     <div className="um-detail-item">
                                                                         <span className="um-detail-label">Project</span>

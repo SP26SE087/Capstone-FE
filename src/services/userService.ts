@@ -28,10 +28,18 @@ export interface ProfileResponse {
     role: number;
     createdAt: string;
     avatarUrl?: string;
+    phoneNumber?: string;
+    orcid?: string;
+    googleScholarUrl?: string;
+    githubUrl?: string;
 }
 
 export interface UpdateProfileRequest {
     fullName?: string;
+    phoneNumber?: string;
+    orcid?: string;
+    googleScholarUrl?: string;
+    githubUrl?: string;
 }
 
 export const userService = {
@@ -105,6 +113,10 @@ export const userService = {
                 role: data.role ?? data.Role ?? 4,
                 createdAt: data.createdAt || data.CreatedAt || '',
                 avatarUrl: data.avatarUrl || data.AvatarUrl || data.pictureUrl || data.PictureUrl || '',
+                phoneNumber: data.phoneNumber || data.PhoneNumber || '',
+                orcid: data.orcid || data.Orcid || '',
+                googleScholarUrl: data.googleScholarUrl || data.GoogleScholarUrl || '',
+                githubUrl: data.githubUrl || data.GithubUrl || ''
             };
         } catch (error) {
             console.error('Error loading profile:', error);
