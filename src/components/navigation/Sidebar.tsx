@@ -18,13 +18,15 @@ import { useAuth } from '@/hooks/useAuth';
 
 const Sidebar: React.FC = () => {
     const { user } = useAuth();
-    const isAdmin = user && (Number(user.role) === 1 || Number(user.role) === 2 || user.role === 'Admin' || user.role === 'LabDirector');
+    const isAdmin = user && (Number(user.role) === 1 || user.role === 'Admin');
+    const isLabDirector = user && (Number(user.role) === 2 || user.role === 'LabDirector');
+    const isMemberOrSenior = user && (Number(user.role) === 3 || Number(user.role) === 4 || user.role === 'Member' || user.role === 'Senior');
 
     const navItems = [
         { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/dashboard' },
         { icon: <Briefcase size={20} />, label: 'My Projects', path: '/projects' },
         { icon: <CheckSquare size={20} />, label: 'Tasks', path: '/tasks' },
-        { icon: <FileText size={20} />, label: 'Papers', path: '/papers' },
+        ...(isMemberOrSenior ? [{ icon: <FileText size={20} />, label: 'PaperSubmissions', path: '/papers' }] : []),
         { icon: <Users size={20} />, label: 'Members', path: '/members' },
         { icon: <BarChart2 size={20} />, label: 'Reports', path: '/reports' },
         { icon: <Box size={20} />, label: 'Booking Resource', path: '/bookings' },
@@ -61,27 +63,31 @@ const Sidebar: React.FC = () => {
                     </NavLink>
                 ))}
 
-                {isAdmin && (
+                {(isAdmin || isLabDirector) && (
                     <>
                         <div className="sidebar-section-label" style={{ marginTop: '0.5rem' }}>ADMINISTRATION</div>
-                        <NavLink
-                            to="/user-management"
-                            className={({ isActive }) =>
-                                `sidebar-link ${isActive ? 'active' : ''}`
-                            }
-                        >
-                            <span className="sidebar-link-icon"><UserCog size={20} /></span>
-                            <span className="sidebar-link-label">User Management</span>
-                        </NavLink>
-                        <NavLink
-                            to="/paper-review"
-                            className={({ isActive }) =>
-                                `sidebar-link ${isActive ? 'active' : ''}`
-                            }
-                        >
-                            <span className="sidebar-link-icon"><FileSearch size={20} /></span>
-                            <span className="sidebar-link-label">Paper Review</span>
-                        </NavLink>
+                        {isAdmin && (
+                            <NavLink
+                                to="/user-management"
+                                className={({ isActive }) =>
+                                    `sidebar-link ${isActive ? 'active' : ''}`
+                                }
+                            >
+                                <span className="sidebar-link-icon"><UserCog size={20} /></span>
+                                <span className="sidebar-link-label">User Management</span>
+                            </NavLink>
+                        )}
+                        {isLabDirector && (
+                            <NavLink
+                                to="/paper-review"
+                                className={({ isActive }) =>
+                                    `sidebar-link ${isActive ? 'active' : ''}`
+                                }
+                            >
+                                <span className="sidebar-link-icon"><FileSearch size={20} /></span>
+                                <span className="sidebar-link-label">Paper Review</span>
+                            </NavLink>
+                        )}
                     </>
                 )}
             </nav>

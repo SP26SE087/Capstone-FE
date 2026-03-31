@@ -43,6 +43,12 @@ const PaperSubmissions: React.FC = () => {
     const [_error, setError] = useState<string | null>(null);
     const [search, setSearch] = useState('');
 
+    // Pagination
+    const [pageIndex, setPageIndex] = useState(1);
+    const [pageSize, setPageSize] = useState(10);
+    const [totalCount, setTotalCount] = useState(0);
+    const [totalPages, setTotalPages] = useState(0);
+
     // Form states
     const [showAddForm, setShowAddForm] = useState(false);
     const [addTitle, setAddTitle] = useState('');
@@ -83,16 +89,31 @@ const PaperSubmissions: React.FC = () => {
         loadProjects();
     }, []);
 
-    const loadPapers = async () => {
+    const loadPapers = async (page = pageIndex, size = pageSize) => {
         try {
             setLoading(true);
             setError(null);
-            const data = await paperSubmissionService.getAll();
-            setPapers(data);
+            const data = await paperSubmissionService.getAll({ pageIndex: page, pageSize: size });
+
+            // If current page empty but still has data, go back one page to keep view filled
+            if (page > 1 && (data.items?.length ?? 0) === 0 && (data.totalCount ?? 0) > 0) {
+                const prevPage = page - 1;
+                setPageIndex(prevPage);
+                await loadPapers(prevPage, size);
+                return;
+            }
+
+            setPapers(data.items || []);
+            setTotalCount(data.totalCount ?? 0);
+            setPageIndex(data.pageIndex ?? page);
+            setPageSize(data.pageSize ?? size);
+            const totalPg = data.totalPages ?? Math.ceil((data.totalCount ?? 0) / ((data.pageSize ?? size) || 1));
+            setTotalPages(totalPg);
         } catch (err: any) {
             console.error('Error loading papers:', err);
             setError(!err.response ? 'Cannot connect to Paper Submission server.' : 'Failed to load papers list.');
             setPapers([]);
+            setTotalCount(0);
         } finally {
             setLoading(false);
         }
@@ -162,13 +183,13 @@ const PaperSubmissions: React.FC = () => {
                 abstract: addAbstract,
                 conferenceName: addConference,
                 paperUrl: addPaperUrl,
-                submissionDeadline: '',
-                members: addMembers,
+                submissionDeadline: null,
+                members: addMembers.map(m => ({ membershipId: m.membershipId, role: Number(m.role) })),
                 // @ts-ignore
-                createdByMembershipId: myMembershipId
+                createdByMembershipId: myMembershipId || null
             };
             const newPaper = await paperSubmissionService.create(payload);
-            setPapers((prev) => [newPaper, ...prev]);
+            await loadPapers(1, pageSize); // refresh to include newest and update totals
             setAddTitle(''); setAddAbstract(''); setAddConference(''); setAddPaperUrl(''); setAddProjectId(''); setAddMembers([]);
             setAddSuccess(`Paper "${newPaper.title}" created successfully!`);
             setTimeout(() => { setAddSuccess(null); setShowAddForm(false); }, 2000);
@@ -198,10 +219,10 @@ const PaperSubmissions: React.FC = () => {
                 abstract: editData.abstract || '',
                 paperUrl: editData.paperUrl || '',
                 conferenceName: editData.conferenceName || '',
-                submissionDeadline: editData.submissionDeadline || '',
-                members: editData.members?.map((m: any) => ({ membershipId: m.membershipId, role: m.role })) || [],
+                submissionDeadline: editData.submissionDeadline ? editData.submissionDeadline : null,
+                members: editData.members?.map((m: any) => ({ membershipId: m.membershipId, role: Number(m.role) })) || [],
                 // @ts-ignore
-                lastUpdatedByMembershipId: myMembershipId
+                lastUpdatedByMembershipId: myMembershipId || null
             };
             const updated = await paperSubmissionService.update(editingPaperId, payload);
             setPapers((prev) => prev.map((p) => (p.paperSubmissionId === updated.paperSubmissionId ? updated : p)));
@@ -218,7 +239,7 @@ const PaperSubmissions: React.FC = () => {
         setDeleteLoading(true);
         try {
             await paperSubmissionService.delete(id);
-            setPapers((prev) => prev.filter((p) => p.paperSubmissionId !== id));
+            await loadPapers(pageIndex, pageSize);
             setDeleteConfirmId(null);
         } catch (err: any) {
             alert(err.response?.data?.message || 'Failed to delete paper.');
@@ -282,6 +303,18 @@ const PaperSubmissions: React.FC = () => {
             p.title.toLowerCase().includes(search.toLowerCase()) ||
             p.conferenceName.toLowerCase().includes(search.toLowerCase()),
     );
+
+    const handlePageChange = (nextPage: number) => {
+        if (nextPage < 1 || (totalPages && nextPage > totalPages)) return;
+        loadPapers(nextPage, pageSize);
+    };
+
+    const handlePageSizeChange = (size: number) => {
+        loadPapers(1, size);
+    };
+
+    const showingFrom = totalCount === 0 ? 0 : (pageIndex - 1) * pageSize + 1;
+    const showingTo = totalCount === 0 ? 0 : Math.min(totalCount, showingFrom + papers.length - 1);
 
     const getProjectName = (id?: string | null) => {
         if (!id) return 'N/A';
@@ -388,137 +421,161 @@ const PaperSubmissions: React.FC = () => {
                 {loading ? <div style={{ textAlign: 'center', padding: '3rem' }}><Loader2 className="animate-spin" size={40} /></div> : filtered.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>No papers found.</div>
                 ) : (
-                    <div className="um-table-wrapper card" style={{ padding: 0 }}>
-                        <table className="um-table">
-                            <thead>
-                                <tr>
-                                    <th style={{ textAlign: 'left', paddingLeft: '1.5rem' }}>Title & Conference</th>
-                                    <th style={{ textAlign: 'left' }}>Project</th>
-                                    <th style={{ textAlign: 'left' }}>Status</th>
-                                    <th style={{ width: '150px', textAlign: 'center' }}>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filtered.map((paper) => {
-                                    const isExpanded = expandedPaperId === paper.paperSubmissionId;
-                                    const isEditing = editingPaperId === paper.paperSubmissionId;
-                                    const isDeleting = deleteConfirmId === paper.paperSubmissionId;
-                                    const isSubmitting = submitReviewLoading === paper.paperSubmissionId;
+                    <>
+                        <div className="um-table-wrapper card" style={{ padding: 0 }}>
+                            <table className="um-table">
+                                <thead>
+                                    <tr>
+                                        <th style={{ textAlign: 'left', paddingLeft: '1.5rem' }}>Title & Conference</th>
+                                        <th style={{ textAlign: 'left' }}>Project</th>
+                                        <th style={{ textAlign: 'left' }}>Status</th>
+                                        <th style={{ width: '150px', textAlign: 'center' }}>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {filtered.map((paper) => {
+                                        const isExpanded = expandedPaperId === paper.paperSubmissionId;
+                                        const isEditing = editingPaperId === paper.paperSubmissionId;
+                                        const isDeleting = deleteConfirmId === paper.paperSubmissionId;
+                                        const isSubmitting = submitReviewLoading === paper.paperSubmissionId;
 
-                                    return (
-                                        <React.Fragment key={paper.paperSubmissionId}>
-                                            <tr className={`um-row ${isExpanded ? 'um-row-expanded' : ''}`} onClick={() => toggleRow(paper.paperSubmissionId)}>
-                                                <td style={{ paddingLeft: '1.5rem' }}>
-                                                    <div style={{ fontWeight: 600 }}>{paper.title}</div>
-                                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{paper.conferenceName}</div>
-                                                </td>
-                                                <td><span style={{ fontSize: '0.85rem' }}>{getProjectName(paper.projectId)}</span></td>
-                                                <td>
-                                                    <span className="badge" style={{ color: statusColor[paper.status], background: `${statusColor[paper.status]}18` }}>
-                                                        {SubmissionStatusLabel[paper.status]}
-                                                    </span>
-                                                </td>
-                                                <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
-                                                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                                                        {paper.status === SubmissionStatus.Approved && <button onClick={() => { setShowVenueModal(paper.paperSubmissionId); setVenueUrl(paper.paperUrl); }} className="btn btn-ghost" style={{ color: '#8b5cf6' }}><ExternalLink size={18} /></button>}
-                                                        {(paper.status === SubmissionStatus.Draft || paper.status === SubmissionStatus.Revision) && <button onClick={e => handleSubmitForReview(paper.paperSubmissionId, e)} className="btn btn-ghost" style={{ color: '#3b82f6' }}>{isSubmitting ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}</button>}
-                                                        {(paper.status === SubmissionStatus.Draft || paper.status === SubmissionStatus.Revision) && <button onClick={e => startEditing(paper, e)} className="btn btn-ghost" style={{ color: 'var(--accent-color)' }}><Edit2 size={18} /></button>}
-                                                        {paper.status === SubmissionStatus.Draft && <button onClick={() => setDeleteConfirmId(isDeleting ? null : paper.paperSubmissionId)} className="btn btn-ghost" style={{ color: 'var(--danger)' }}><Trash2 size={18} /></button>}
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                            {isDeleting && (
-                                                <tr className="um-confirm-row"><td colSpan={4}><div className="um-confirm-bar" style={{ display: 'flex', gap: '1rem', padding: '10px 1.5rem', background: '#ef444408', borderLeft: '3px solid #ef4444' }}>
-                                                    <span style={{ flex: 1 }}>Delete this paper? <strong>{paper.title}</strong></span>
-                                                    <button className="btn btn-secondary" onClick={() => setDeleteConfirmId(null)}>Cancel</button>
-                                                    <button className="btn btn-primary" style={{ background: 'var(--danger)' }} onClick={() => handleDelete(paper.paperSubmissionId)}>Confirm</button>
-                                                </div></td></tr>
-                                            )}
-                                            {isExpanded && (
-                                                <tr className="um-detail-row"><td colSpan={4} style={{ padding: 0 }}><div className="um-detail-panel" style={{ padding: '1.5rem', background: 'var(--bg-secondary)' }}>
-                                                    {isEditing ? (
-                                                        <div className="um-edit-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                                                            <div className="um-form-field" style={{ gridColumn: '1 / -1' }}><label>Title *</label><input className="form-input" value={editData.title} onChange={e => setEditData({...editData, title: e.target.value})} /></div>
-                                                            <div className="um-form-field"><label>Conference *</label><input className="form-input" value={editData.conferenceName} onChange={e => setEditData({...editData, conferenceName: e.target.value})} /></div>
-                                                            <div className="um-form-field"><label>Project</label><select className="form-input" value={editData.projectId || ''} onChange={e => handleProjectChange(e.target.value, true)}>
-                                                                <option value="">{projects.length > 0 ? '-- Select a project --' : '-- No project available --'}</option>
-                                                                {projects.map((proj: any) => <option key={proj.projectId || proj.id} value={proj.projectId || proj.id}>{proj.projectName || proj.name || proj.title}</option>)}
-                                                            </select></div>
-                                                            <div className="um-form-field" style={{ gridColumn: '1 / -1' }}><label>Authors</label>
-                                                                <div style={{ border: '1px solid var(--border-color)', borderRadius: '8px', padding: '10px', background: 'var(--bg-secondary)' }}>
-                                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px' }}>
-                                                                                {/* @ts-ignore */}
-                                                                                {editData.members?.map((m: any, idx: number) => {
-                                                                                    const pm = projectMembers.find((p: any) => p.memberId === m.membershipId);
-                                                                                    return <div key={idx} style={{ background: 'white', padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border-color)', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                                                        {pm?.fullName || 'User'} ({PaperRoleLabel[m.role as PaperRoleEnum]})
-                                                                                        <button type="button" onClick={() => setEditData({ ...editData, members: editData.members?.filter((_: any, i: number) => i !== idx) })} style={{ color: 'var(--danger)', border: 'none', background: 'none', cursor: 'pointer' }}><X size={14} /></button>
-                                                                                    </div>
-                                                                                })}
-                                                                    </div>
-                                                                    <select className="form-input" onChange={(e) => {
-                                                                        const mid = e.target.value; if (!mid || editData.members?.some((am: any) => am.membershipId === mid)) return;
-                                                                        setEditData({ ...editData, members: [...(editData.members || []), { membershipId: mid, role: PaperRoleEnum.CoAuthor }] }); e.target.value = '';
-                                                                    }}>
-                                                                        <option value="">+ Add Author...</option>
-                                                                        {projectMembers.filter(pm => !editData.members?.some((am: any) => am.membershipId === pm.memberId)).map(pm => <option key={pm.memberId} value={pm.memberId}>{pm.fullName}</option>)}
-                                                                    </select>
-                                                                </div>
-                                                            </div>
-                                                            <div className="um-form-field" style={{ gridColumn: '1 / -1' }}><label>URL</label>
-                                                                <div style={{ display: 'flex', gap: '8px' }}>
-                                                                    <input className="form-input" style={{ flex: 1 }} value={editData.paperUrl} onChange={e => setEditData({...editData, paperUrl: e.target.value})} />
-                                                                    {editData.paperUrl && (
-                                                                        <a href={editData.paperUrl} target="_blank" rel="noreferrer" className="btn btn-ghost" style={{ padding: '8px', border: '1px solid var(--border-color)' }}>
-                                                                            <ExternalLink size={18} />
-                                                                        </a>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                            <div className="um-form-field" style={{ gridColumn: '1 / -1' }}><label>Abstract</label><textarea className="form-input" rows={4} value={editData.abstract} onChange={e => setEditData({...editData, abstract: e.target.value})} /></div>
-                                                            <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-                                                                <button className="btn btn-secondary" onClick={() => setEditingPaperId(null)}>Cancel</button>
-                                                                <button className="btn btn-primary" onClick={handleUpdatePaper}>{editLoading ? 'Saving...' : 'Save'}</button>
-                                                            </div>
+                                        return (
+                                            <React.Fragment key={paper.paperSubmissionId}>
+                                                <tr className={`um-row ${isExpanded ? 'um-row-expanded' : ''}`} onClick={() => toggleRow(paper.paperSubmissionId)}>
+                                                    <td style={{ paddingLeft: '1.5rem' }}>
+                                                        <div style={{ fontWeight: 600 }}>{paper.title}</div>
+                                                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{paper.conferenceName}</div>
+                                                    </td>
+                                                    <td><span style={{ fontSize: '0.85rem' }}>{getProjectName(paper.projectId)}</span></td>
+                                                    <td>
+                                                        <span className="badge" style={{ color: statusColor[paper.status], background: `${statusColor[paper.status]}18` }}>
+                                                            {SubmissionStatusLabel[paper.status]}
+                                                        </span>
+                                                    </td>
+                                                    <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+                                                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                                                            {paper.status === SubmissionStatus.Approved && <button onClick={() => { setShowVenueModal(paper.paperSubmissionId); setVenueUrl(paper.paperUrl); }} className="btn btn-ghost" style={{ color: '#8b5cf6' }}><ExternalLink size={18} /></button>}
+                                                            {(paper.status === SubmissionStatus.Draft || paper.status === SubmissionStatus.Revision) && <button onClick={e => handleSubmitForReview(paper.paperSubmissionId, e)} className="btn btn-ghost" style={{ color: '#3b82f6' }}>{isSubmitting ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}</button>}
+                                                            {(paper.status === SubmissionStatus.Draft || paper.status === SubmissionStatus.Revision) && <button onClick={e => startEditing(paper, e)} className="btn btn-ghost" style={{ color: 'var(--accent-color)' }}><Edit2 size={18} /></button>}
+                                                            {paper.status === SubmissionStatus.Draft && <button onClick={() => setDeleteConfirmId(isDeleting ? null : paper.paperSubmissionId)} className="btn btn-ghost" style={{ color: 'var(--danger)' }}><Trash2 size={18} /></button>}
                                                         </div>
-                                                    ) : (
-                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                                                <h3 style={{ margin: 0 }}>{paper.title}</h3>
-                                                            </div>
-                                                            <div className="um-detail-grid">
-                                                                <div className="um-detail-item"><span className="um-detail-label">Status</span><span>{SubmissionStatusLabel[paper.status]}</span></div>
-                                                                <div className="um-detail-item"><span className="um-detail-label">Conference</span><span>{paper.conferenceName}</span></div>
-                                                                <div className="um-detail-item"><span className="um-detail-label">Project</span><span>{getProjectName(paper.projectId)}</span></div>
-                                                                <div className="um-detail-item" style={{ gridColumn: '1 / -1' }}><span className="um-detail-label">URL</span>
-                                                                    {paper.paperUrl ? (
-                                                                        <div style={{ marginTop: '4px' }}>
-                                                                            <a href={paper.paperUrl} target="_blank" rel="noreferrer" 
-                                                                               style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'white', padding: '10px 16px', borderRadius: '8px', border: '1px solid var(--border-color)', color: 'var(--accent-color)', textDecoration: 'none', fontSize: '0.9rem', fontWeight: 500, transition: 'all 0.2s', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}
-                                                                               onMouseOver={e => e.currentTarget.style.borderColor = 'var(--accent-color)'}
-                                                                               onMouseOut={e => e.currentTarget.style.borderColor = 'var(--border-color)'}
-                                                                            >
-                                                                                <LinkIcon size={16} />
-                                                                                <span style={{ maxWidth: '400px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{paper.paperUrl}</span>
-                                                                            </a>
+                                                    </td>
+                                                </tr>
+                                                {isDeleting && (
+                                                    <tr className="um-confirm-row"><td colSpan={4}><div className="um-confirm-bar" style={{ display: 'flex', gap: '1rem', padding: '10px 1.5rem', background: '#ef444408', borderLeft: '3px solid #ef4444' }}>
+                                                        <span style={{ flex: 1 }}>Delete this paper? <strong>{paper.title}</strong></span>
+                                                        <button className="btn btn-secondary" onClick={() => setDeleteConfirmId(null)}>Cancel</button>
+                                                        <button className="btn btn-primary" style={{ background: 'var(--danger)' }} onClick={() => handleDelete(paper.paperSubmissionId)}>Confirm</button>
+                                                    </div></td></tr>
+                                                )}
+                                                {isExpanded && (
+                                                    <tr className="um-detail-row"><td colSpan={4} style={{ padding: 0 }}><div className="um-detail-panel" style={{ padding: '1.5rem', background: 'var(--bg-secondary)' }}>
+                                                        {isEditing ? (
+                                                            <div className="um-edit-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                                                <div className="um-form-field" style={{ gridColumn: '1 / -1' }}><label>Title *</label><input className="form-input" value={editData.title} onChange={e => setEditData({...editData, title: e.target.value})} /></div>
+                                                                <div className="um-form-field"><label>Conference *</label><input className="form-input" value={editData.conferenceName} onChange={e => setEditData({...editData, conferenceName: e.target.value})} /></div>
+                                                                <div className="um-form-field"><label>Project</label><select className="form-input" value={editData.projectId || ''} onChange={e => handleProjectChange(e.target.value, true)}>
+                                                                    <option value="">{projects.length > 0 ? '-- Select a project --' : '-- No project available --'}</option>
+                                                                    {projects.map((proj: any) => <option key={proj.projectId || proj.id} value={proj.projectId || proj.id}>{proj.projectName || proj.name || proj.title}</option>)}
+                                                                </select></div>
+                                                                <div className="um-form-field" style={{ gridColumn: '1 / -1' }}><label>Authors</label>
+                                                                    <div style={{ border: '1px solid var(--border-color)', borderRadius: '8px', padding: '10px', background: 'var(--bg-secondary)' }}>
+                                                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px' }}>
+                                                                                    {/* @ts-ignore */}
+                                                                                    {editData.members?.map((m: any, idx: number) => {
+                                                                                        const pm = projectMembers.find((p: any) => p.memberId === m.membershipId);
+                                                                                        return <div key={idx} style={{ background: 'white', padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border-color)', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                                                            {pm?.fullName || 'User'} ({PaperRoleLabel[m.role as PaperRoleEnum]})
+                                                                                            <button type="button" onClick={() => setEditData({ ...editData, members: editData.members?.filter((_: any, i: number) => i !== idx) })} style={{ color: 'var(--danger)', border: 'none', background: 'none', cursor: 'pointer' }}><X size={14} /></button>
+                                                                                        </div>
+                                                                                    })}
                                                                         </div>
-                                                                    ) : <span style={{ color: 'var(--text-muted)' }}>N/A</span>}
+                                                                        <select className="form-input" onChange={(e) => {
+                                                                            const mid = e.target.value; if (!mid || editData.members?.some((am: any) => am.membershipId === mid)) return;
+                                                                            setEditData({ ...editData, members: [...(editData.members || []), { membershipId: mid, role: PaperRoleEnum.CoAuthor }] }); e.target.value = '';
+                                                                        }}>
+                                                                            <option value="">+ Add Author...</option>
+                                                                            {projectMembers.filter(pm => !editData.members?.some((am: any) => am.membershipId === pm.memberId)).map(pm => <option key={pm.memberId} value={pm.memberId}>{pm.fullName}</option>)}
+                                                                        </select>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="um-form-field" style={{ gridColumn: '1 / -1' }}><label>URL</label>
+                                                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                                                        <input className="form-input" style={{ flex: 1 }} value={editData.paperUrl} onChange={e => setEditData({...editData, paperUrl: e.target.value})} />
+                                                                        {editData.paperUrl && (
+                                                                            <a href={editData.paperUrl} target="_blank" rel="noreferrer" className="btn btn-ghost" style={{ padding: '8px', border: '1px solid var(--border-color)' }}>
+                                                                                <ExternalLink size={18} />
+                                                                            </a>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                                <div className="um-form-field" style={{ gridColumn: '1 / -1' }}><label>Abstract</label><textarea className="form-input" rows={4} value={editData.abstract} onChange={e => setEditData({...editData, abstract: e.target.value})} /></div>
+                                                                <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                                                                    <button className="btn btn-secondary" onClick={() => setEditingPaperId(null)}>Cancel</button>
+                                                                    <button className="btn btn-primary" onClick={handleUpdatePaper}>{editLoading ? 'Saving...' : 'Save'}</button>
                                                                 </div>
                                                             </div>
-                                                            <div style={{ background: 'var(--bg-primary)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
-                                                                <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Abstract</h4>
-                                                                <div style={{ whiteSpace: 'pre-wrap', fontSize: '0.9rem' }}>{paper.abstract || 'No abstract.'}</div>
+                                                        ) : (
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                                                    <h3 style={{ margin: 0 }}>{paper.title}</h3>
+                                                                </div>
+                                                                <div className="um-detail-grid">
+                                                                    <div className="um-detail-item"><span className="um-detail-label">Status</span><span>{SubmissionStatusLabel[paper.status]}</span></div>
+                                                                    <div className="um-detail-item"><span className="um-detail-label">Conference</span><span>{paper.conferenceName}</span></div>
+                                                                    <div className="um-detail-item"><span className="um-detail-label">Project</span><span>{getProjectName(paper.projectId)}</span></div>
+                                                                    <div className="um-detail-item" style={{ gridColumn: '1 / -1' }}><span className="um-detail-label">URL</span>
+                                                                        {paper.paperUrl ? (
+                                                                            <div style={{ marginTop: '4px' }}>
+                                                                                <a href={paper.paperUrl} target="_blank" rel="noreferrer" 
+                                                                                   style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'white', padding: '10px 16px', borderRadius: '8px', border: '1px solid var(--border-color)', color: 'var(--accent-color)', textDecoration: 'none', fontSize: '0.9rem', fontWeight: 500, transition: 'all 0.2s', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}
+                                                                                   onMouseOver={e => e.currentTarget.style.borderColor = 'var(--accent-color)'}
+                                                                                   onMouseOut={e => e.currentTarget.style.borderColor = 'var(--border-color)'}
+                                                                                >
+                                                                                    <LinkIcon size={16} />
+                                                                                    <span style={{ maxWidth: '400px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{paper.paperUrl}</span>
+                                                                                </a>
+                                                                            </div>
+                                                                        ) : <span style={{ color: 'var(--text-muted)' }}>N/A</span>}
+                                                                    </div>
+                                                                </div>
+                                                                <div style={{ background: 'var(--bg-primary)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                                                                    <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Abstract</h4>
+                                                                    <div style={{ whiteSpace: 'pre-wrap', fontSize: '0.9rem' }}>{paper.abstract || 'No abstract.'}</div>
+                                                                </div>
                                                             </div>
-                                                        </div>
-                                                    )}
-                                                </div></td></tr>
-                                            )}
-                                        </React.Fragment>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
+                                                        )}
+                                                    </div></td></tr>
+                                                )}
+                                            </React.Fragment>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {!loading && totalCount > 0 && (
+                            <div className="card" style={{ marginTop: '1rem', padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+                                <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                                    Hiển thị {showingFrom}-{showingTo} / {totalCount}
+                                    {search ? ` · Lọc trong trang: ${filtered.length}/${papers.length}` : ''}
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                        <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Page size</span>
+                                        <select className="form-input" style={{ width: '90px' }} value={pageSize} onChange={(e) => handlePageSizeChange(Number(e.target.value))}>
+                                            {[10, 20, 50, 100].map((size) => <option key={size} value={size}>{size}</option>)}
+                                        </select>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                        <button className="btn btn-secondary" disabled={pageIndex <= 1 || loading || totalPages <= 0} onClick={() => handlePageChange(pageIndex - 1)}>Prev</button>
+                                        <span style={{ minWidth: '120px', textAlign: 'center', fontSize: '0.9rem' }}>Page {pageIndex} / {Math.max(totalPages, 1)}</span>
+                                        <button className="btn btn-secondary" disabled={loading || totalPages <= 0 || pageIndex >= totalPages} onClick={() => handlePageChange(pageIndex + 1)}>Next</button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </>
                 )}
             </div>
 

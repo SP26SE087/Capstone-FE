@@ -4,18 +4,40 @@ import { Project } from '@/types';
 // Mock data to return if API fails or for initial development
 const mockProjects: Project[] = [];
 
+const mapProjects = (raw: any): Project[] => {
+    const payload = raw?.data ?? raw ?? [];
+    const list = payload?.items ?? payload?.Items ?? payload?.value ?? payload;
+    if (!Array.isArray(list)) return [];
+    return list.map((p: any) => ({
+        ...p,
+        projectId: p.projectId || p.id || p.ProjectID || p.ProjectId,
+    }));
+};
+
 
 export const projectService = {
     getAll: async (): Promise<Project[]> => {
         try {
             const response = await api.get('/api/projects');
-            const projects = response.data.data || response.data || [];
-            return Array.isArray(projects) ? projects.map(p => ({
-                ...p,
-                projectId: p.projectId || p.id || p.ProjectID || p.ProjectId
-            })) : [];
+            const mapped = mapProjects(response.data);
+            if (mapped.length === 0) {
+                console.warn('Projects response empty or unmapped. Raw:', response.data);
+            }
+            if (mapped.length > 0) return mapped;
         } catch (error) {
             console.error('Error fetching projects:', error);
+        }
+
+        // fallback to public if auth/role chặn
+        try {
+            const fallback = await api.get('/api/projects/public');
+            const mapped = mapProjects(fallback.data);
+            if (mapped.length === 0) {
+                console.warn('Public projects response empty or unmapped. Raw:', fallback.data);
+            }
+            return mapped;
+        } catch (fallbackErr) {
+            console.error('Fallback public projects failed:', fallbackErr);
             return mockProjects;
         }
     },
@@ -23,11 +45,7 @@ export const projectService = {
     getPublic: async (): Promise<Project[]> => {
         try {
             const response = await api.get('/api/projects/public');
-            const projects = response.data.data || response.data || [];
-            return Array.isArray(projects) ? projects.map(p => ({
-                ...p,
-                projectId: p.projectId || p.id || p.ProjectID || p.ProjectId
-            })) : [];
+            return mapProjects(response.data);
         } catch (error) {
             console.error('Error fetching public projects:', error);
             return mockProjects;

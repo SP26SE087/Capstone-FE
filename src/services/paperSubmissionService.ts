@@ -5,15 +5,22 @@ import type {
     UpdatePaperRequest,
     SubmissionStatus,
 } from '@/types/paperSubmission';
+import type { PagedResult } from '@/types/pagination';
 
 const BASE = '/api/papersubmissions';
 
 export const paperSubmissionService = {
-    /** Get all papers — optionally filter by projectId */
-    getAll: async (projectId?: string): Promise<PaperSubmissionResponse[]> => {
-        const params = projectId ? { projectId } : {};
+    /** Get paged papers — optionally filter by projectId */
+    getAll: async (params?: { projectId?: string; pageIndex?: number; pageSize?: number }): Promise<PagedResult<PaperSubmissionResponse>> => {
         const response = await api.get(BASE, { params });
-        return response.data.data || response.data;
+        const data = response.data.data || response.data;
+        return {
+            items: data.items ?? data.Items ?? [],
+            totalCount: data.totalCount ?? data.TotalCount ?? 0,
+            pageIndex: data.pageIndex ?? data.PageIndex ?? params?.pageIndex ?? 1,
+            pageSize: data.pageSize ?? data.PageSize ?? params?.pageSize ?? 10,
+            totalPages: data.totalPages ?? data.TotalPages
+        };
     },
 
     /** Get paper detail by ID */
@@ -30,8 +37,13 @@ export const paperSubmissionService = {
 
     /** Update an existing paper */
     update: async (id: string, data: UpdatePaperRequest): Promise<PaperSubmissionResponse> => {
-        const response = await api.put(`${BASE}/${id}`, data);
-        return response.data.data || response.data;
+        try {
+            const response = await api.put(`${BASE}/${id}`, data);
+            return response.data.data || response.data;
+        } catch (error: any) {
+            console.error('Update paper failed with:', error.response?.data);
+            throw error;
+        }
     },
 
     /** Delete a paper */

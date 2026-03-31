@@ -12,9 +12,7 @@ import {
     MapPin,
     Plus,
     File,
-    Eye,
-    Clock,
-    CheckSquare
+    Eye
 } from 'lucide-react';
 import { Task, TaskStatus, Priority, ProjectRoleEnum, ProjectMember, TaskEvidence } from '@/types';
 import { taskService, projectService, milestoneService, membershipService } from '@/services';
@@ -1385,7 +1383,6 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                     key={s}
                                     type="button"
                                     onClick={() => handleStatusTransition(s)}
-                                    disabled={loading}
                                     style={{
                                         padding: '0.75rem 2rem',
                                         borderRadius: '12px',
@@ -1393,18 +1390,16 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                         background: s === TaskStatus.Completed ? '#16a34a' : '#ea580c',
                                         color: 'white',
                                         fontWeight: 800,
-                                        cursor: loading ? 'not-allowed' : 'pointer',
+                                        cursor: 'pointer',
                                         display: 'flex',
                                         alignItems: 'center',
                                         gap: '10px',
                                         transition: 'all 0.2s',
-                                        opacity: loading ? 0.7 : 1,
                                         boxShadow: s === TaskStatus.Completed
                                             ? '0 4px 12px rgba(22, 163, 74, 0.2)'
                                             : '0 4px 12px rgba(234, 88, 12, 0.2)'
                                     }}
                                     onMouseEnter={(e) => {
-                                        if (loading) return;
                                         e.currentTarget.style.transform = 'translateY(-2px)';
                                         e.currentTarget.style.boxShadow = s === TaskStatus.Completed
                                             ? '0 6px 16px rgba(22, 163, 74, 0.3)'
@@ -1417,26 +1412,16 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                                             : '0 4px 12px rgba(234, 88, 12, 0.2)';
                                     }}
                                 >
-                                    {loading ? <Clock className="animate-spin-slow" size={18} /> : <CheckSquare size={18} />}
-                                    {loading ? 'Updating...' : getStatusActionLabel(s)}
+                                    <Activity size={18} />
+                                    {getStatusActionLabel(s)}
                                 </button>
                             ))}
                         </div>
                     )}
                     {(isEditMode || (!error && evidenceFiles.length > 0)) && (
-                        <button 
-                            type="submit" 
-                            onClick={handleSave} 
-                            disabled={loading}
-                            className="btn btn-primary" 
-                            style={{ 
-                                padding: '0.75rem 3rem', borderRadius: '12px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '10px',
-                                opacity: loading ? 0.7 : 1,
-                                cursor: loading ? 'not-allowed' : 'pointer'
-                            }}
-                        >
-                            {loading ? <Clock className="animate-spin-slow" size={18} /> : (isEditMode ? <Save size={18} /> : null)}
-                            {loading ? 'Saving...' : (isEditMode ? 'Save Changes' : 'Upload Evidence')}
+                        <button type="submit" onClick={handleSave} className="btn btn-primary" style={{ padding: '0.75rem 3rem', borderRadius: '12px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            {isEditMode ? <Save size={18} /> : null}
+                            {isEditMode ? 'Save Changes' : 'Upload Evidence'}
                         </button>
                     )}
                 </div>
