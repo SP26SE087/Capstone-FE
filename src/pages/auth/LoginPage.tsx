@@ -32,7 +32,7 @@ const LoginPage: React.FC = () => {
                 navigate('/dashboard', { replace: true });
             } catch (err: any) {
                 console.error('Lỗi đăng nhập:', err);
-                const serverMessage = err?.response?.data?.message || 'Đăng nhập thất bại. Vui lòng thử lại.';
+                const serverMessage = err?.response?.data?.message || err?.message || 'Đăng nhập thất bại. Vui lòng thử lại.';
                 setError(serverMessage);
                 setLoading(false);
             }

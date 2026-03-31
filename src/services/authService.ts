@@ -10,6 +10,7 @@ export interface AuthResponse {
     fullName: string;
     role: string | number;
     avatarUrl?: string;
+    isActive?: boolean;
 }
 
 const AUTH_KEYS = {
@@ -31,12 +32,14 @@ export const authService = {
                 return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
             }).join('')));
             authData.userId = payload.sub || payload.nameid || payload['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'];
+            authData.jwtToken = token;
         } catch (err) {
             console.error('Lỗi khi lấy userId từ token:', err);
         }
 
-        this.saveAuthData(authData);
-        return authData;
+        const hydrated = await this.hydrateProfile(authData);
+        this.saveAuthData(hydrated);
+        return hydrated;
     },
 
     async loginWithCode(code: string, redirectUri: string): Promise<AuthResponse> {
@@ -66,8 +69,9 @@ export const authService = {
             console.error('Lỗi khi lấy userId từ token sau loginWithCode:', err);
         }
 
-        this.saveAuthData(authData);
-        return authData;
+        const hydrated = await this.hydrateProfile(authData);
+        this.saveAuthData(hydrated);
+        return hydrated;
     },
 
     async refreshToken(refreshToken: string): Promise<AuthResponse> {
@@ -85,8 +89,9 @@ export const authService = {
             console.error('Lỗi khi lấy userId trong lúc refresh token:', err);
         }
 
-        this.saveAuthData(authData);
-        return authData;
+        const hydrated = await this.hydrateProfile(authData);
+        this.saveAuthData(hydrated);
+        return hydrated;
     },
 
     async logout(): Promise<void> {
@@ -107,6 +112,7 @@ export const authService = {
             fullName: data.fullName,
             role: data.role,
             avatarUrl: data.avatarUrl || (data as any).AvatarUrl,
+            isActive: data.isActive,
         }));
     },
 
@@ -132,5 +138,32 @@ export const authService = {
 
     isAuthenticated(): boolean {
         return !!this.getAccessToken() && !!this.getAuthUser();
+    },
+
+    async hydrateProfile(authData: AuthResponse): Promise<AuthResponse> {
+        try {
+            const res = await api.get('/api/users/me', {
+                headers: { Authorization: `Bearer ${authData.jwtToken}` }
+            });
+            const data = res.data.data || res.data;
+            const isActive = data.isActive ?? data.status !== false;
+
+            if (isActive === false) {
+                this.clearAuthData();
+                throw new Error('Tài khoản đã bị vô hiệu hóa. Vui lòng liên hệ quản trị viên.');
+            }
+
+            return {
+                ...authData,
+                fullName: data.fullName || data.FullName || authData.fullName,
+                role: data.role ?? data.Role ?? authData.role,
+                avatarUrl: data.avatarUrl || data.AvatarUrl || data.pictureUrl || data.PictureUrl || authData.avatarUrl,
+                isActive,
+            };
+        } catch (err) {
+            // Nếu lấy profile thất bại, trả lại authData hiện có
+            console.warn('Không thể đồng bộ profile sau đăng nhập:', err);
+            return authData;
+        }
     },
 };
