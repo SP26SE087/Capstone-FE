@@ -1,20 +1,23 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import MainLayout from '@/layout/MainLayout';
 import { useAuth } from '@/hooks/useAuth';
-import { 
-    Search, 
-    FileText, 
-    CheckCircle, 
-    Clock, 
-    AlertTriangle, 
-    FileInput, 
-    Plus, 
-    Sparkles, 
-    Briefcase, 
+import {
+    Search,
+    FileText,
+    CheckCircle,
+    Clock,
+    AlertTriangle,
+    FileInput,
+    Plus,
+    Sparkles,
+    Briefcase,
     Filter,
     LayoutGrid,
     Target,
-    Loader2
+    Loader2,
+    X,
+    Edit3,
+    ChevronRight
 } from 'lucide-react';
 import reportService, { Report } from '@/services/reportService';
 import { projectService, userService } from '@/services';
@@ -27,11 +30,7 @@ type TabType = 'my_reports' | 'all_reports' | 'my_assignee';
 
 const Reports: React.FC = () => {
     const { user } = useAuth();
-    
-    // Layout State
-    const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
-    const [isAdding, setIsAdding] = useState(false);
-    
+
     // Data State
     const [activeTab, setActiveTab] = useState<TabType>('my_reports');
     const [searchQuery, setSearchQuery] = useState('');
@@ -39,17 +38,47 @@ const Reports: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [projectsMap, setProjectsMap] = useState<Record<string, string>>({});
     const [usersMap, setUsersMap] = useState<Record<string, string>>({});
-    
+
     // Search Filters
     const [filterProjectId, setFilterProjectId] = useState<string>('');
     const [filterStatus, setFilterStatus] = useState<string>('');
-    const [isSemantic, setIsSemantic] = useState<boolean>(false);
-    const topK = 5;
+
+    // Multi-tab State
+    interface ReportTab {
+        id: string;
+        type: 'create' | 'update';
+        reportId?: string;
+        title: string;
+        isAuthor?: boolean;
+    }
+    const [openTabs, setOpenTabs] = useState<ReportTab[]>([]);
+    const [activeTabId, setActiveTabId] = useState<string | null>(null);
+    const [isCreateDropdownOpen, setIsCreateDropdownOpen] = useState(false);
+    const [isUpdateDropdownOpen, setIsUpdateDropdownOpen] = useState(false);
+    const createDropdownRef = React.useRef<HTMLDivElement>(null);
+    const updateDropdownRef = React.useRef<HTMLDivElement>(null);
+
+    // Close dropdowns on outside click
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (createDropdownRef.current && !createDropdownRef.current.contains(event.target as Node)) {
+                setIsCreateDropdownOpen(false);
+            }
+            if (updateDropdownRef.current && !updateDropdownRef.current.contains(event.target as Node)) {
+                setIsUpdateDropdownOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const activeTabObj = openTabs.find(t => t.id === activeTabId);
 
     const isLabDirector = React.useMemo(() => {
+        if (!user) return false;
         const role = Number(user.role);
         return role === 1 || role === 2;
-    }, [user.role]);
+    }, [user?.role]);
 
     useEffect(() => {
         const fetchMetadata = async () => {
@@ -58,7 +87,7 @@ const Reports: React.FC = () => {
                     projectService.getAll(),
                     userService.getAll()
                 ]);
-                
+
                 const pMap: Record<string, string> = {};
                 pData.forEach((p: any) => pMap[p.projectId] = p.projectName || p.name || 'Untitled Project');
                 setProjectsMap(pMap);
@@ -76,7 +105,6 @@ const Reports: React.FC = () => {
     useEffect(() => {
         fetchReports();
     }, [activeTab]);
-
 
     const fetchReports = async () => {
         setLoading(true);
@@ -98,62 +126,124 @@ const Reports: React.FC = () => {
         }
     };
 
-    const handleSearch = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!searchQuery.trim()) {
-            fetchReports();
+    const handleAddCreateTab = () => {
+        const createTabs = openTabs.filter(t => t.type === 'create');
+        if (createTabs.length >= 5) {
+            alert("Maximum 5 'Create' tabs allowed.");
             return;
         }
-        if (!isSemantic) return;
+        if (openTabs.length >= 10) {
+            alert("Maximum 10 total tabs allowed.");
+            return;
+        }
+        const newId = `create-${Date.now()}`;
+        const newTab: ReportTab = { id: newId, type: 'create', title: 'New Report' };
+        setOpenTabs([...openTabs, newTab]);
+        setActiveTabId(newId);
+    };
 
-        setLoading(true);
-        try {
-            const req: any = { query: searchQuery, topK: topK };
-            if (filterProjectId) req.projectId = filterProjectId;
-            if (filterStatus !== '') req.status = Number(filterStatus);
+    const handleOpenUpdateTab = (report: Report) => {
+        const existing = openTabs.find(t => t.reportId === report.id);
+        if (existing) {
+            setActiveTabId(existing.id);
+            return;
+        }
 
-            const data = await reportService.searchReports(req);
-            setReports(Array.isArray(data) ? data : (data?.data || []));
-        } catch (error) {
-            setReports([]);
-        } finally {
-            setLoading(false);
+        const updateTabs = openTabs.filter(t => t.type === 'update');
+        if (updateTabs.length >= 5) {
+            alert("Maximum 5 'Update' tabs allowed. Please close some to open more.");
+            return;
+        }
+        if (openTabs.length >= 10) {
+            alert("Maximum 10 total tabs allowed.");
+            return;
+        }
+
+        const newId = `update-${report.id}`;
+        const newTab: ReportTab = { 
+            id: newId, 
+            type: 'update', 
+            reportId: report.id, 
+            title: report.title || 'Untitled',
+            isAuthor: activeTab === 'my_reports'
+        };
+        setOpenTabs([...openTabs, newTab]);
+        setActiveTabId(newId);
+    };
+
+    const handleCloseTab = (id: string, e?: React.MouseEvent) => {
+        e?.stopPropagation();
+        const newTabs = openTabs.filter(t => t.id !== id);
+        setOpenTabs(newTabs);
+        if (activeTabId === id) {
+            setActiveTabId(newTabs.length > 0 ? newTabs[newTabs.length - 1].id : null);
         }
     };
 
-    const displayReports = useMemo(() => {
-        if (isSemantic && searchQuery.trim()) return reports;
+    const handleTitleChange = (id: string, newTitle: string) => {
+        setOpenTabs(prev => prev.map(t => t.id === id ? { ...t, title: newTitle } : t));
+    };
 
-        return reports.filter(report => {
-            const query = searchQuery.toLowerCase();
-            const matchesQuery = !query || 
-                (report.title?.toLowerCase().includes(query)) ||
-                (report.description?.toLowerCase().includes(query)) ||
-                (report.goals?.toLowerCase().includes(query));
-            
-            const matchesProject = !filterProjectId || report.projectId === filterProjectId;
-            const matchesStatus = filterStatus === '' || report.status === Number(filterStatus);
-
-            return matchesQuery && matchesProject && matchesStatus;
-        });
-    }, [reports, searchQuery, filterProjectId, filterStatus, isSemantic]);
+    const handleSearch = (e: React.FormEvent) => {
+        e.preventDefault();
+        fetchReports();
+    };
 
     const getStatusLabel = (status: number) => {
         switch (status) {
             case 0: return { label: 'Drafting', color: '#64748b', icon: <FileInput size={14} /> };
             case 1: return { label: 'Submitted', color: '#0ea5e9', icon: <Clock size={14} /> };
             case 2: return { label: 'Approved', color: '#10b981', icon: <CheckCircle size={14} /> };
-            case 3: return { label: 'Revision', color: '#f59e0b', icon: <AlertTriangle size={14} /> };
-            default: return { label: 'Unknown', color: '#94a3b8', icon: <AlertTriangle size={14} /> };
+            case 3: return { label: 'Revision', color: '#ef4444', icon: <AlertTriangle size={14} /> };
+            default: return { label: 'Draft', color: '#64748b', icon: <FileInput size={14} /> };
         }
     };
 
-    const isSplit = !!selectedReportId || isAdding;
+    const getSmartStatus = (report: Report) => {
+        const base = getStatusLabel(report.status);
+        if (report.status === 0) return base; // Draft remains Draft
+
+        const reviewList = (report as any).assignees || (report as any).Assignees || [];
+        if (reviewList.length === 0) return base;
+
+        const total = reviewList.length;
+        const approved = reviewList.filter((r: any) => r.status === 2).length;
+        const rejected = reviewList.filter((r: any) => r.status === 3).length;
+
+        if (rejected > 0) {
+            return { label: `Revision (${rejected} Rejected)`, color: '#ef4444', icon: <AlertTriangle size={14} /> };
+        }
+        if (report.status === 2) {
+            return { label: 'Fully Approved', color: '#10b981', icon: <CheckCircle size={14} /> };
+        }
+        if (approved > 0) {
+            return { label: `Reviewing (${approved}/${total} Approved)`, color: '#6366f1', icon: <Clock size={14} /> };
+        }
+
+        return base;
+    };
+
+    const displayReports = useMemo(() => {
+        if (!reports) return [];
+
+        return reports.filter(report => {
+            const query = searchQuery.toLowerCase();
+            const matchesQuery = !query ||
+                (report.title?.toLowerCase().includes(query)) ||
+                (report.description?.toLowerCase().includes(query)) ||
+                (report.goals?.toLowerCase().includes(query));
+
+            const matchesProject = !filterProjectId || report.projectId === filterProjectId;
+            const matchesStatus = filterStatus === '' || report.status === Number(filterStatus);
+
+            return matchesQuery && matchesProject && matchesStatus;
+        });
+    }, [reports, searchQuery, filterProjectId, filterStatus]);
 
     return (
-        <MainLayout role={user.role} userName={user.name}>
+        <MainLayout role={user?.role} userName={user?.name}>
             <div className="page-container" style={{ padding: '1.5rem 2rem', maxWidth: '1600px', margin: '0 auto' }}>
-                
+
                 {/* Header Section */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
                     <div>
@@ -161,19 +251,7 @@ const Reports: React.FC = () => {
                             <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'var(--primary-color)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 16px rgba(99, 102, 241, 0.2)' }}>
                                 <FileText size={24} />
                             </div>
-                            <h1 style={{ fontSize: '1.8rem', fontWeight: 900, color: '#1e293b', margin: 0, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-                                Project Reports
-                                <button 
-                                    className="btn btn-primary" 
-                                    onClick={() => setIsAdding(true)} 
-                                    style={{ 
-                                        display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, padding: '0.6rem 1.25rem', borderRadius: '12px', fontSize: '0.85rem',
-                                        boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)'
-                                    }}
-                                >
-                                    <Plus size={18} /> Draft New Report
-                                </button>
-                            </h1>
+                            <h1 style={{ fontSize: '1.8rem', fontWeight: 900, color: '#1e293b', margin: 0, letterSpacing: '-0.02em' }}>Project Reports</h1>
                         </div>
                         <p style={{ color: '#64748b', fontSize: '0.9rem', fontWeight: 500, margin: 0 }}>
                             Intelligent repository for team progress and research summaries.
@@ -182,10 +260,10 @@ const Reports: React.FC = () => {
                 </div>
 
                 {/* Search Toolbar */}
-                <div style={{ 
+                <div style={{
                     padding: '0.75rem 1.5rem', borderRadius: '14px', background: 'var(--surface-color)', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)', marginBottom: '1.5rem'
                 }}>
-                     <form onSubmit={handleSearch} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <form onSubmit={handleSearch} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                         <div style={{ display: 'flex', gap: '10px' }}>
                             <div style={{ position: 'relative', flex: 1 }}>
                                 <Search size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
@@ -193,17 +271,14 @@ const Reports: React.FC = () => {
                                     type="text" placeholder="Search reports, goals, or descriptions..." className="form-input"
                                     style={{ paddingLeft: '40px', height: '44px', border: 'none', background: 'var(--surface-hover)', borderRadius: '12px', fontSize: '0.9rem' }}
                                     value={searchQuery}
-                                    onChange={(e) => {
-                                        setSearchQuery(e.target.value);
-                                        if (isSemantic) setIsSemantic(false);
-                                    }}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
                                 />
                             </div>
-                            <button 
-                                type="submit" onClick={() => setIsSemantic(true)}
+                            <button
+                                type="submit"
                                 className="btn btn-primary" style={{ height: '44px', padding: '0 1.5rem', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem', fontWeight: 600 }}
                             >
-                                <Sparkles size={16} /> Semantic Search
+                                <Sparkles size={16} /> Search
                             </button>
                         </div>
 
@@ -228,24 +303,13 @@ const Reports: React.FC = () => {
                                 </select>
                             </div>
                         </div>
-                     </form>
+                    </form>
                 </div>
 
-                <div style={{ display: 'flex', gap: '2rem', height: 'calc(100vh - 380px)', minHeight: '500px' }}>
-                    
-                    {/* Left Column: List & Filters */}
-                    <div style={{ 
-                        flex: isSplit ? 4 : 10, 
-                        display: 'flex', 
-                        flexDirection: 'column', 
-                        gap: '1.5rem',
-                        transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
-                        width: isSplit ? '40%' : '100%',
-                        overflow: 'hidden'
-                    }}>
-
-                        {/* Tabs */}
-                        <div style={{ display: 'flex', gap: '1rem', borderBottom: '1px solid #e2e8f0', overflowX: 'auto', whiteSpace: 'nowrap' }} className="custom-scrollbar">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1.5rem', gap: '2rem' }}>
+                    {/* Left: Tabs */}
+                    <div style={{ flex: 1, borderBottom: '1px solid #e2e8f0', overflowX: 'auto', whiteSpace: 'nowrap' }} className="custom-scrollbar">
+                        <div style={{ display: 'flex', gap: '1rem' }}>
                             {[
                                 { id: 'my_reports', label: 'My Reports', icon: <FileText size={16} /> },
                                 { id: 'all_reports', label: 'All Reports', icon: <LayoutGrid size={16} />, hidden: !isLabDirector },
@@ -254,7 +318,7 @@ const Reports: React.FC = () => {
                                 <button
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id as any)}
-                                    style={{ 
+                                    style={{
                                         padding: '12px 10px', display: 'flex', alignItems: 'center', gap: '8px', border: 'none', background: 'none', cursor: 'pointer',
                                         color: activeTab === tab.id ? 'var(--primary-color)' : '#64748b',
                                         borderBottom: activeTab === tab.id ? '3px solid var(--primary-color)' : '3px solid transparent',
@@ -266,54 +330,166 @@ const Reports: React.FC = () => {
                                 </button>
                             ))}
                         </div>
+                    </div>
+                    {/* Right: Actions */}
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-end', paddingBottom: '4px' }}>
+                        <button
+                            className="btn btn-primary"
+                            onClick={handleAddCreateTab}
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, padding: '10px 20px', borderRadius: '12px', fontSize: '0.85rem',
+                                boxShadow: '0 4px 12px rgba(99, 102, 241, 0.2)', whiteSpace: 'nowrap'
+                            }}
+                        >
+                            <Plus size={18} /> New Report
+                        </button>
+                    </div>
+                </div>
 
-                        {/* List Content */}
+                <div style={{ display: 'flex', gap: '2rem', height: 'calc(100vh - 250px)', minHeight: '650px', marginTop: '1rem' }}>
+
+                    {/* Left Column: List content */}
+                    <div style={{
+                        flex: openTabs.length > 0 ? 4 : 10,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '1.5rem',
+                        transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+                        width: openTabs.length > 0 ? '40%' : '100%',
+                        overflow: 'hidden'
+                    }}>
                         <div style={{ flex: 1, overflowY: 'auto', paddingRight: '0.5rem' }} className="custom-scrollbar">
                             {loading ? (
                                 <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}><Loader2 className="animate-spin" size={32} /></div>
                             ) : displayReports.length > 0 ? (
-                                <ReportList 
-                                    reports={displayReports} 
-                                    selectedId={selectedReportId} 
-                                    onSelect={(r) => { setSelectedReportId(r.id); setIsAdding(false); }}
-                                    projectsMap={projectsMap} 
+                                <ReportList
+                                    reports={displayReports}
+                                    selectedId={activeTabObj?.reportId || null}
+                                    onSelect={(r) => handleOpenUpdateTab(r)}
+                                    projectsMap={projectsMap}
                                     usersMap={usersMap}
-                                    getStatusLabel={getStatusLabel}
-                                    isSplit={isSplit}
+                                    getStatusLabel={getSmartStatus}
+                                    isSplit={openTabs.length > 0}
                                 />
                             ) : (
                                 <div style={{ textAlign: 'center', padding: '4rem 2rem', color: '#94a3b8' }}>
                                     <Target size={48} style={{ marginBottom: '1.5rem', opacity: 0.3 }} />
                                     <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1e293b' }}>No Reports</h3>
-                                    <p style={{ fontSize: '0.85rem' }}>Create a new entry.</p>
+                                    <p style={{ fontSize: '0.85rem' }}>There may be no reports available, or the server may be busy. Please wait a moment or contact technical support.</p>
                                 </div>
                             )}
                         </div>
                     </div>
 
-                    {/* Right Column: Panel */}
-                    <div style={{ 
-                        flex: isSplit ? 6 : 0, 
-                        opacity: isSplit ? 1 : 0,
-                        pointerEvents: isSplit ? 'auto' : 'none',
+                    {/* Right Column: Multi-tab Dropdown System & Panel content */}
+                    <div style={{
+                        flex: openTabs.length > 0 ? 6 : 0,
+                        opacity: openTabs.length > 0 ? 1 : 0,
+                        pointerEvents: openTabs.length > 0 ? 'auto' : 'none',
                         transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
-                        width: isSplit ? '60%' : '0',
+                        width: openTabs.length > 0 ? '60%' : '0',
                         overflow: 'hidden',
-                        display: isSplit ? 'block' : 'none'
+                        display: openTabs.length > 0 ? 'flex' : 'none',
+                        flexDirection: 'column',
+                        background: 'var(--surface-color)',
+                        borderRadius: '16px',
+                        border: '1px solid var(--border-color)',
+                        padding: '1rem'
                     }}>
-                        {isSplit && (
-                            <ReportPanel 
-                                reportId={selectedReportId}
-                                isAdding={isAdding}
-                                onClose={() => { setSelectedReportId(null); setIsAdding(false); }}
-                                onSaved={() => fetchReports()}
-                            />
-                        )}
+                        {/* Dropdown-based Tab System */}
+                        <div style={{ display: 'flex', gap: '12px', marginBottom: '1rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.75rem' }}>
+                            {/* Create Dropdown */}
+                            <div style={{ position: 'relative' }} ref={createDropdownRef}>
+                                <button
+                                    onClick={() => { setIsCreateDropdownOpen(!isCreateDropdownOpen); setIsUpdateDropdownOpen(false); }}
+                                    style={{
+                                        padding: '8px 16px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 800, border: '1px solid #e2e8f0',
+                                        background: openTabs.some(t => t.id === activeTabId && t.type === 'create') ? 'var(--primary-color)' : '#fff',
+                                        color: openTabs.some(t => t.id === activeTabId && t.type === 'create') ? '#fff' : '#64748b',
+                                        display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', transition: 'all 0.2s',
+                                        boxShadow: isCreateDropdownOpen ? '0 0 0 2px var(--primary-color)22' : 'none'
+                                    }}
+                                >
+                                    <Plus size={14} /> New Report ({openTabs.filter(t => t.type === 'create').length}/5) <ChevronRight size={14} style={{ transform: isCreateDropdownOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }} />
+                                </button>
+                                {isCreateDropdownOpen && (
+                                    <div style={{ position: 'absolute', top: '110%', left: 0, width: '250px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', zIndex: 100, padding: '8px' }}>
+                                        {openTabs.filter(t => t.type === 'create').length === 0 ? (
+                                            <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8', fontSize: '0.75rem' }}>No new reports open.</div>
+                                        ) : openTabs.filter(t => t.type === 'create').map(tab => (
+                                            <div
+                                                key={tab.id}
+                                                onClick={() => { setActiveTabId(tab.id); setIsCreateDropdownOpen(false); }}
+                                                style={{ padding: '8px 12px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', background: activeTabId === tab.id ? '#f1f5f9' : 'transparent', marginBottom: '2px' }}
+                                            >
+                                                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: activeTabId === tab.id ? 'var(--primary-color)' : '#334155', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                    {tab.title}
+                                                </div>
+                                                <X size={14} onClick={(e) => handleCloseTab(tab.id, e)} style={{ color: '#94a3b8' }} />
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Update Dropdown */}
+                            <div style={{ position: 'relative' }} ref={updateDropdownRef}>
+                                <button
+                                    onClick={() => { setIsUpdateDropdownOpen(!isUpdateDropdownOpen); setIsCreateDropdownOpen(false); }}
+                                    style={{
+                                        padding: '8px 16px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 800, border: '1px solid #e2e8f0',
+                                        background: openTabs.some(t => t.id === activeTabId && t.type === 'update') ? 'var(--primary-color)' : '#fff',
+                                        color: openTabs.some(t => t.id === activeTabId && t.type === 'update') ? '#fff' : '#64748b',
+                                        display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', transition: 'all 0.2s',
+                                        boxShadow: isUpdateDropdownOpen ? '0 0 0 2px var(--primary-color)22' : 'none'
+                                    }}
+                                >
+                                    <Edit3 size={14} /> View/Edit ({openTabs.filter(t => t.type === 'update').length}/5) <ChevronRight size={14} style={{ transform: isUpdateDropdownOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }} />
+                                </button>
+                                {isUpdateDropdownOpen && (
+                                    <div style={{ position: 'absolute', top: '110%', left: 0, width: '250px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', zIndex: 100, padding: '8px' }}>
+                                        {openTabs.filter(t => t.type === 'update').length === 0 ? (
+                                            <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8', fontSize: '0.75rem' }}>No active reports being viewed.</div>
+                                        ) : openTabs.filter(t => t.type === 'update').map(tab => (
+                                            <div
+                                                key={tab.id}
+                                                onClick={() => { setActiveTabId(tab.id); setIsUpdateDropdownOpen(false); }}
+                                                style={{ padding: '8px 12px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', background: activeTabId === tab.id ? '#f1f5f9' : 'transparent', marginBottom: '2px' }}
+                                            >
+                                                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: activeTabId === tab.id ? 'var(--primary-color)' : '#334155', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                    {tab.title}
+                                                </div>
+                                                <X size={14} onClick={(e) => handleCloseTab(tab.id, e)} style={{ color: '#94a3b8' }} />
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Mounted Panels (one for each tab, to preserve state) */}
+                        <div style={{ flex: 1, position: 'relative', overflowY: 'auto' }} className="custom-scrollbar">
+                            {openTabs.map(tab => (
+                                <div key={tab.id} style={{ display: activeTabId === tab.id ? 'block' : 'none', height: '100%' }}>
+                                    <ReportPanel
+                                        reportId={tab.type === 'update' ? tab.reportId! : null}
+                                        isAdding={tab.type === 'create'}
+                                        isAuthorFallback={tab.isAuthor}
+                                        onClose={() => handleCloseTab(tab.id)}
+                                        onSaved={(shouldClose: boolean = false) => {
+                                            fetchReports();
+                                            if (shouldClose || tab.type === 'create') handleCloseTab(tab.id);
+                                        }}
+                                        onTitleChange={(title) => handleTitleChange(tab.id, title)}
+                                    />
+                                </div>
+                            ))}
+                        </div>
                     </div>
 
                 </div>
             </div>
-            
+
             <style>{`
                 .btn-secondary { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; font-weight: 700; height: 38px; padding: 0 16px; border-radius: 8px; cursor: pointer; display: flex; alignItems: center; gap: 8px; transition: all 0.2s; }
                 .btn-secondary:hover { background: #e2e8f0; }
