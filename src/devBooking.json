@@ -66,6 +66,38 @@
                 }
             }
         },
+        "/api/bookings/today": {
+            "get": {
+                "tags": [
+                    "Bookings"
+                ],
+                "parameters": [
+                    {
+                        "name": "pageIndex",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "pageSize",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 10
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
         "/api/bookings/{bookingId}": {
             "get": {
                 "tags": [
@@ -441,7 +473,8 @@
                     "200": {
                         "description": "OK"
                     }
-                }
+                },
+                "deprecated": true
             }
         },
         "/api/resources": {
@@ -508,6 +541,35 @@
                         }
                     }
                 },
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/api/resources/by-name": {
+            "get": {
+                "tags": [
+                    "Resources"
+                ],
+                "parameters": [
+                    {
+                        "name": "name",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "bookingDate",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time"
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK"
@@ -646,24 +708,16 @@
         "schemas": {
             "AddEquipmentLogRequest": {
                 "required": [
-                    "action",
-                    "resourceId"
+                    "bookingId"
                 ],
                 "type": "object",
                 "properties": {
-                    "resourceId": {
+                    "bookingId": {
                         "type": "string",
                         "format": "uuid"
                     },
-                    "bookingId": {
-                        "type": "string",
-                        "format": "uuid",
-                        "nullable": true
-                    },
                     "action": {
-                        "maxLength": 100,
-                        "minLength": 1,
-                        "type": "string"
+                        "$ref": "#/components/schemas/EquipmentLogAction"
                     },
                     "note": {
                         "maxLength": 1000,
@@ -674,9 +728,6 @@
                 "additionalProperties": false
             },
             "ApproveBookingRequest": {
-                "required": [
-                    "bookingId"
-                ],
                 "type": "object",
                 "properties": {
                     "bookingId": {
@@ -705,9 +756,6 @@
                 "additionalProperties": false
             },
             "CancelBookingRequest": {
-                "required": [
-                    "bookingId"
-                ],
                 "type": "object",
                 "properties": {
                     "bookingId": {
@@ -726,16 +774,19 @@
                 "required": [
                     "endTime",
                     "purpose",
-                    "quantity",
-                    "resourceId",
+                    "resourceIds",
                     "startTime",
                     "title"
                 ],
                 "type": "object",
                 "properties": {
-                    "resourceId": {
-                        "type": "string",
-                        "format": "uuid"
+                    "resourceIds": {
+                        "minItems": 1,
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
                     },
                     "title": {
                         "maxLength": 300,
@@ -754,20 +805,14 @@
                     "endTime": {
                         "type": "string",
                         "format": "date-time"
-                    },
-                    "quantity": {
-                        "maximum": 2147483647,
-                        "minimum": 1,
-                        "type": "integer",
-                        "format": "int32"
                     }
                 },
                 "additionalProperties": false
             },
             "CreateResourceRequest": {
                 "required": [
+                    "modelSeriesList",
                     "name",
-                    "totalQuantity",
                     "type"
                 ],
                 "type": "object",
@@ -790,24 +835,26 @@
                         "type": "string",
                         "nullable": true
                     },
-                    "totalQuantity": {
-                        "maximum": 2147483647,
-                        "minimum": 1,
-                        "type": "integer",
-                        "format": "int32"
-                    },
-                    "damagedQuantity": {
-                        "maximum": 2147483647,
-                        "minimum": 0,
-                        "type": "integer",
-                        "format": "int32"
+                    "modelSeriesList": {
+                        "minItems": 1,
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
                     }
                 },
                 "additionalProperties": false
             },
+            "EquipmentLogAction": {
+                "enum": [
+                    1,
+                    2
+                ],
+                "type": "integer",
+                "format": "int32"
+            },
             "RejectBookingRequest": {
                 "required": [
-                    "bookingId",
                     "rejectReason"
                 ],
                 "type": "object",
@@ -835,9 +882,6 @@
                 "format": "int32"
             },
             "UpdateBookingRequest": {
-                "required": [
-                    "bookingId"
-                ],
                 "type": "object",
                 "properties": {
                     "bookingId": {
@@ -864,11 +908,12 @@
                         "format": "date-time",
                         "nullable": true
                     },
-                    "quantity": {
-                        "maximum": 2147483647,
-                        "minimum": 1,
-                        "type": "integer",
-                        "format": "int32",
+                    "resourceIds": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "format": "uuid"
+                        },
                         "nullable": true
                     }
                 },
@@ -891,9 +936,7 @@
                         "nullable": true
                     },
                     "action": {
-                        "maxLength": 100,
-                        "minLength": 1,
-                        "type": "string"
+                        "$ref": "#/components/schemas/EquipmentLogAction"
                     },
                     "note": {
                         "maxLength": 1000,
@@ -921,18 +964,17 @@
                         "type": "string",
                         "nullable": true
                     },
-                    "totalQuantity": {
-                        "maximum": 2147483647,
-                        "minimum": 1,
-                        "type": "integer",
-                        "format": "int32",
+                    "modelSeries": {
+                        "maxLength": 100,
+                        "type": "string",
                         "nullable": true
                     },
-                    "damagedQuantity": {
-                        "maximum": 2147483647,
-                        "minimum": 0,
-                        "type": "integer",
-                        "format": "int32",
+                    "isDamaged": {
+                        "type": "boolean",
+                        "nullable": true
+                    },
+                    "isInUse": {
+                        "type": "boolean",
                         "nullable": true
                     }
                 },

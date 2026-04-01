@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { SeminarMeetingResponse, UpdateSeminarMeetingRequest } from '@/types/seminar';
 import seminarService from '@/services/seminarService';
+import { useAuth } from '@/hooks/useAuth';
 import {
     Save,
     Loader2,
@@ -10,7 +11,8 @@ import {
     Play,
     Calendar,
     MapPin,
-    FileText
+    FileText,
+    Lock
 } from 'lucide-react';
 
 interface SeminarPanelProps {
@@ -19,6 +21,7 @@ interface SeminarPanelProps {
     onSaved: (shouldClose?: boolean, message?: string) => void;
     onTitleChange?: (title: string) => void;
     usersMap: Record<string, string>;
+    emailsMap: Record<string, string>;
 }
 
 const inputStyle: React.CSSProperties = {
@@ -82,8 +85,10 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
     onClose,
     onSaved,
     onTitleChange,
-    usersMap
+    usersMap,
+    emailsMap
 }) => {
+    const { user } = useAuth();
     const [meeting, setMeeting] = useState<SeminarMeetingResponse | null>(null);
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -165,6 +170,8 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
 
     const presenterName = usersMap[meeting.presenterId] || 'Unknown Presenter';
     const isUpcoming = new Date(meeting.meetingDate).getTime() > Date.now();
+    const presenterEmail = emailsMap[meeting.presenterId];
+    const canEdit = !!user?.email && !!presenterEmail && user.email.toLowerCase() === presenterEmail.toLowerCase();
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -327,21 +334,42 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
                     </div>
                 </div>
 
-                {/* Editable Fields */}
+                {/* Editable Details / Readonly Notice */}
+                {!canEdit && (
+                    <div style={{
+                        ...sectionStyle,
+                        background: 'linear-gradient(135deg, #fffbeb, #fef3c7)',
+                        border: '1px solid #fde68a',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px'
+                    }}>
+                        <Lock size={16} color="#d97706" />
+                        <div>
+                            <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#92400e' }}>Read Only</div>
+                            <div style={{ fontSize: '0.72rem', fontWeight: 500, color: '#a16207' }}>
+                                Only the presenter can edit this seminar session.
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 <div style={sectionStyle}>
-                    <div style={labelStyle}><FileText size={12} /> Editable Details</div>
+                    <div style={labelStyle}><FileText size={12} /> {canEdit ? 'Editable Details' : 'Details'}</div>
 
                     <div style={{ marginBottom: '14px' }}>
                         <label style={{ ...labelStyle, fontSize: '0.68rem' }}>Title</label>
                         <input
-                            style={inputStyle}
+                            style={{ ...inputStyle, ...(canEdit ? {} : { background: '#f8fafc', color: 'var(--text-secondary)', cursor: 'default' }) }}
                             value={title}
                             onChange={e => {
+                                if (!canEdit) return;
                                 setTitle(e.target.value);
                                 onTitleChange?.(e.target.value || 'Seminar');
                             }}
+                            readOnly={!canEdit}
                             placeholder="Seminar title..."
-                            onFocus={e => { e.currentTarget.style.borderColor = 'var(--accent-color)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,114,12,0.08)'; }}
+                            onFocus={e => { if (canEdit) { e.currentTarget.style.borderColor = 'var(--accent-color)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,114,12,0.08)'; } }}
                             onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.boxShadow = 'none'; }}
                         />
                     </div>
@@ -349,11 +377,12 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
                     <div style={{ marginBottom: '14px' }}>
                         <label style={{ ...labelStyle, fontSize: '0.68rem' }}>Description</label>
                         <textarea
-                            style={{ ...inputStyle, minHeight: '80px', resize: 'vertical' as const }}
+                            style={{ ...inputStyle, minHeight: '80px', resize: canEdit ? ('vertical' as const) : ('none' as const), ...(canEdit ? {} : { background: '#f8fafc', color: 'var(--text-secondary)', cursor: 'default' }) }}
                             value={description}
-                            onChange={e => setDescription(e.target.value)}
+                            onChange={e => { if (canEdit) setDescription(e.target.value); }}
+                            readOnly={!canEdit}
                             placeholder="Seminar description, topics to cover..."
-                            onFocus={e => { e.currentTarget.style.borderColor = 'var(--accent-color)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,114,12,0.08)'; }}
+                            onFocus={e => { if (canEdit) { e.currentTarget.style.borderColor = 'var(--accent-color)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,114,12,0.08)'; } }}
                             onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.boxShadow = 'none'; }}
                         />
                     </div>
@@ -363,11 +392,12 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
                             <Link2 size={12} /> Slide URL
                         </label>
                         <input
-                            style={inputStyle}
+                            style={{ ...inputStyle, ...(canEdit ? {} : { background: '#f8fafc', color: 'var(--text-secondary)', cursor: 'default' }) }}
                             value={slideUrl}
-                            onChange={e => setSlideUrl(e.target.value)}
+                            onChange={e => { if (canEdit) setSlideUrl(e.target.value); }}
+                            readOnly={!canEdit}
                             placeholder="https://docs.google.com/presentation/..."
-                            onFocus={e => { e.currentTarget.style.borderColor = 'var(--accent-color)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,114,12,0.08)'; }}
+                            onFocus={e => { if (canEdit) { e.currentTarget.style.borderColor = 'var(--accent-color)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,114,12,0.08)'; } }}
                             onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.boxShadow = 'none'; }}
                         />
                         {slideUrl && (
@@ -383,7 +413,7 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
                                     color: '#6366f1',
                                     fontWeight: 700,
                                     marginTop: '6px',
-                                    textDecoration: 'none'
+                                    textDecoration: 'underline'
                                 }}
                             >
                                 <ExternalLink size={12} /> Open Slides
@@ -394,7 +424,7 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
 
                 {/* Meta */}
                 <div style={sectionStyle}>
-                    <div style={labelStyle}><FileText size={12} /> Metadata</div>
+                    <div style={labelStyle}><FileText size={12} /> Record Information</div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                         <div style={{ padding: '8px 12px', background: '#fff', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
                             <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '2px' }}>Created At</div>
@@ -435,28 +465,30 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
                 >
                     Close
                 </button>
-                <button
-                    onClick={handleSave}
-                    disabled={saving}
-                    style={{
-                        padding: '8px 24px',
-                        borderRadius: '10px',
-                        border: 'none',
-                        background: saving ? '#94a3b8' : 'var(--accent-color)',
-                        color: '#fff',
-                        cursor: saving ? 'not-allowed' : 'pointer',
-                        fontSize: '0.8rem',
-                        fontWeight: 700,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        transition: 'all 0.2s',
-                        boxShadow: saving ? 'none' : '0 4px 12px rgba(232,114,12,0.25)'
-                    }}
-                >
-                    {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                    Save Changes
-                </button>
+                {canEdit && (
+                    <button
+                        onClick={handleSave}
+                        disabled={saving}
+                        style={{
+                            padding: '8px 24px',
+                            borderRadius: '10px',
+                            border: 'none',
+                            background: saving ? '#94a3b8' : 'var(--accent-color)',
+                            color: '#fff',
+                            cursor: saving ? 'not-allowed' : 'pointer',
+                            fontSize: '0.8rem',
+                            fontWeight: 700,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            transition: 'all 0.2s',
+                            boxShadow: saving ? 'none' : '0 4px 12px rgba(232,114,12,0.25)'
+                        }}
+                    >
+                        {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                        Save Changes
+                    </button>
+                )}
             </div>
         </div>
     );

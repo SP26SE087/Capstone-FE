@@ -106,3 +106,24 @@ export interface SeminarSwapRequestResponse {
     responseNote: string | null;
     expiresAtUtc: string | null;
 }
+
+export interface SeminarAttendee {
+    attendeeId: string;
+    userId: string;
+    seminarMeetingId: string;
+    isPresent: boolean;
+}
+
+export interface Seminar {
+    seminarId: string;
+    title: string | null;
+    description: string | null;
+    dayOfWeek: DateOfWeek;
+    duration: number;
+    totalWeek: number;
+    startDate: string;
+    endDate: string;
+    createdAt: string;
+    createdBy: string;
+    attendees: SeminarAttendee[] | null;
+}

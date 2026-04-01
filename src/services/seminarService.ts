@@ -2,6 +2,7 @@ import api from './api';
 import {
     RecurringSeminarResponse,
     CreateRecurringSeminarRequest,
+    Seminar,
     SeminarMeetingResponse,
     UpdateSeminarMeetingRequest,
     SeminarSwapRequestResponse,
@@ -43,6 +44,28 @@ const seminarService = {
             return response.data;
         } catch (error) {
             console.error('Error fetching my seminar meetings:', error);
+            throw error;
+        }
+    },
+
+    // Get seminars I'm invited to
+    getMyInvitedSeminars: async (): Promise<Seminar[]> => {
+        try {
+            const response = await api.get('/api/Seminars/me/invited');
+            return response.data;
+        } catch (error) {
+            console.error('Error fetching my invited seminars:', error);
+            throw error;
+        }
+    },
+
+    // Get seminar meetings I'm invited to
+    getInvitedSeminarMeetings: async (): Promise<SeminarMeetingResponse[]> => {
+        try {
+            const response = await api.get('/api/Seminars/meetings/invited');
+            return response.data;
+        } catch (error) {
+            console.error('Error fetching invited seminar meetings:', error);
             throw error;
         }
     },

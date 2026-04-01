@@ -4,21 +4,20 @@ import { useAuth } from '@/hooks/useAuth';
 import {
     Search,
     Presentation,
-    Plus,
     Loader2,
-    X,
-    Edit3,
+    Calendar,
+    Plus,
     ChevronRight,
     Clock,
     Filter,
     Target,
-    Calendar,
     ArrowLeftRight,
     List,
     LayoutGrid,
     AlertTriangle,
     CheckCircle2,
-    FileText
+    FileText,
+    Users
 } from 'lucide-react';
 import seminarService from '@/services/seminarService';
 import { SeminarMeetingResponse } from '@/types/seminar';
@@ -31,7 +30,7 @@ import CreateSeminarForm from './components/CreateSeminarForm';
 import SwapRequests from './components/SwapRequests';
 import WeeklyTimetable, { TimetableEvent } from '@/components/common/WeeklyTimetable';
 
-type TabType = 'my_seminars' | 'all_seminars' | 'swap_requests';
+type TabType = 'my_seminars' | 'all_seminars' | 'invited_seminars' | 'swap_requests';
 
 interface SeminarTab {
     id: string;
@@ -51,39 +50,19 @@ const Seminars: React.FC = () => {
     const [filterTimeframe, setFilterTimeframe] = useState<string>('');
     const [projectsMap, setProjectsMap] = useState<Record<string, string>>({});
     const [usersMap, setUsersMap] = useState<Record<string, string>>({});
+    const [emailsMap, setEmailsMap] = useState<Record<string, string>>({});
     const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
     const [viewMode, setViewMode] = useState<'list' | 'timetable'>('list');
     const [filterSeason, setFilterSeason] = useState<string>('');
 
-    // Tab system
-    const [openTabs, setOpenTabs] = useState<SeminarTab[]>([]);
-    const [activeTabId, setActiveTabId] = useState<string | null>(null);
-    const [isCreateDropdownOpen, setIsCreateDropdownOpen] = useState(false);
-    const [isViewDropdownOpen, setIsViewDropdownOpen] = useState(false);
-    const createDropdownRef = React.useRef<HTMLDivElement>(null);
-    const viewDropdownRef = React.useRef<HTMLDivElement>(null);
-
-    const activeTabObj = openTabs.find(t => t.id === activeTabId);
+    // Panel system
+    const [activePanel, setActivePanel] = useState<SeminarTab | null>(null);
 
     const isLabDirector = React.useMemo(() => {
         if (!user) return false;
         const role = Number(user.role);
         return role === 1 || role === 2;
     }, [user?.role]);
-
-    // Close dropdowns on outside click
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (createDropdownRef.current && !createDropdownRef.current.contains(event.target as Node)) {
-                setIsCreateDropdownOpen(false);
-            }
-            if (viewDropdownRef.current && !viewDropdownRef.current.contains(event.target as Node)) {
-                setIsViewDropdownOpen(false);
-            }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
 
     // Fetch metadata
     useEffect(() => {
@@ -98,8 +77,14 @@ const Seminars: React.FC = () => {
                 setProjectsMap(pMap);
 
                 const uMap: Record<string, string> = {};
-                uData.forEach((u: any) => uMap[u.userId || u.id] = u.fullName);
+                const eMap: Record<string, string> = {};
+                uData.forEach((u: any) => {
+                    const id = u.userId || u.id;
+                    uMap[id] = u.fullName;
+                    if (u.email) eMap[id] = u.email;
+                });
                 setUsersMap(uMap);
+                setEmailsMap(eMap);
             } catch (e) {
                 console.error('Failed to load metadata', e);
             }
@@ -120,6 +105,8 @@ const Seminars: React.FC = () => {
             let data;
             if (activeTab === 'all_seminars') {
                 data = await seminarService.getAllSeminarMeetings();
+            } else if (activeTab === 'invited_seminars') {
+                data = await seminarService.getInvitedSeminarMeetings();
             } else {
                 data = await seminarService.getMySeminarMeetings();
             }
@@ -136,55 +123,27 @@ const Seminars: React.FC = () => {
         setToast({ message, type });
     };
 
-    // Tab handlers
+    // Panel handlers
     const handleAddCreateTab = () => {
-        const createTabs = openTabs.filter(t => t.type === 'create');
-        if (createTabs.length >= 2) {
-            alert("Maximum 2 'Create' tabs allowed.");
-            return;
-        }
-        if (openTabs.length >= 5) {
-            alert("Maximum 5 total tabs allowed.");
-            return;
-        }
         const newId = `create-${Date.now()}`;
-        const newTab: SeminarTab = { id: newId, type: 'create', title: 'New Seminar' };
-        setOpenTabs([...openTabs, newTab]);
-        setActiveTabId(newId);
+        setActivePanel({ id: newId, type: 'create', title: 'New Seminar' });
     };
 
     const handleOpenViewTab = (meeting: SeminarMeetingResponse) => {
-        const existing = openTabs.find(t => t.meetingId === meeting.seminarMeetingId);
-        if (existing) {
-            setActiveTabId(existing.id);
-            return;
-        }
-        const viewTabs = openTabs.filter(t => t.type === 'view');
-        if (viewTabs.length >= 3) {
-            alert("Maximum 3 'View' tabs allowed.");
-            return;
-        }
-        if (openTabs.length >= 5) {
-            alert("Maximum 5 total tabs allowed.");
-            return;
-        }
-        const newId = `view-${meeting.seminarMeetingId}`;
-        const newTab: SeminarTab = { id: newId, type: 'view', meetingId: meeting.seminarMeetingId, title: meeting.title || 'Seminar' };
-        setOpenTabs([...openTabs, newTab]);
-        setActiveTabId(newId);
+        setActivePanel({ 
+            id: `view-${meeting.seminarMeetingId}`, 
+            type: 'view', 
+            meetingId: meeting.seminarMeetingId, 
+            title: meeting.title || 'Seminar' 
+        });
     };
 
-    const handleCloseTab = (id: string, e?: React.MouseEvent) => {
-        e?.stopPropagation();
-        const newTabs = openTabs.filter(t => t.id !== id);
-        setOpenTabs(newTabs);
-        if (activeTabId === id) {
-            setActiveTabId(newTabs.length > 0 ? newTabs[newTabs.length - 1].id : null);
-        }
+    const handleClosePanel = () => {
+        setActivePanel(null);
     };
 
-    const handleTitleChange = (id: string, newTitle: string) => {
-        setOpenTabs(prev => prev.map(t => t.id === id ? { ...t, title: newTitle } : t));
+    const handleTitleChange = (newTitle: string) => {
+        if (activePanel) setActivePanel({ ...activePanel, title: newTitle });
     };
 
     // Derive seasons from meetings (since there's no GET recurring API)
@@ -285,35 +244,6 @@ const Seminars: React.FC = () => {
                     </div>
                 </div>
 
-                {/* View Toggle */}
-                {activeTab !== 'swap_requests' && (
-                    <div style={{ display: 'flex', gap: '4px', marginBottom: '1.5rem' }}>
-                        <button
-                            onClick={() => setViewMode('list')}
-                            style={{
-                                padding: '8px 16px', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 700,
-                                border: viewMode === 'list' ? '1.5px solid var(--accent-color)' : '1px solid var(--border-color)',
-                                background: viewMode === 'list' ? 'var(--accent-bg)' : '#fff',
-                                color: viewMode === 'list' ? 'var(--accent-color)' : 'var(--text-secondary)',
-                                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s'
-                            }}
-                        >
-                            <List size={16} /> List View
-                        </button>
-                        <button
-                            onClick={() => setViewMode('timetable')}
-                            style={{
-                                padding: '8px 16px', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 700,
-                                border: viewMode === 'timetable' ? '1.5px solid var(--accent-color)' : '1px solid var(--border-color)',
-                                background: viewMode === 'timetable' ? 'var(--accent-bg)' : '#fff',
-                                color: viewMode === 'timetable' ? 'var(--accent-color)' : 'var(--text-secondary)',
-                                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s'
-                            }}
-                        >
-                            <LayoutGrid size={16} /> Timetable
-                        </button>
-                    </div>
-                )}
 
                 {/* UNIFIED STATUS BOARD */}
                 <div style={{
@@ -420,6 +350,36 @@ const Seminars: React.FC = () => {
                     </div>
                 </div>
 
+                {/* View Toggle */}
+                {activeTab !== 'swap_requests' && (
+                    <div style={{ display: 'flex', gap: '4px', marginBottom: '1.5rem' }}>
+                        <button
+                            onClick={() => setViewMode('list')}
+                            style={{
+                                padding: '8px 16px', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 700,
+                                border: viewMode === 'list' ? '1.5px solid var(--accent-color)' : '1px solid var(--border-color)',
+                                background: viewMode === 'list' ? 'var(--accent-bg)' : '#fff',
+                                color: viewMode === 'list' ? 'var(--accent-color)' : 'var(--text-secondary)',
+                                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s'
+                            }}
+                        >
+                            <List size={16} /> List View
+                        </button>
+                        <button
+                            onClick={() => setViewMode('timetable')}
+                            style={{
+                                padding: '8px 16px', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 700,
+                                border: viewMode === 'timetable' ? '1.5px solid var(--accent-color)' : '1px solid var(--border-color)',
+                                background: viewMode === 'timetable' ? 'var(--accent-bg)' : '#fff',
+                                color: viewMode === 'timetable' ? 'var(--accent-color)' : 'var(--text-secondary)',
+                                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s'
+                            }}
+                        >
+                            <LayoutGrid size={16} /> Timetable
+                        </button>
+                    </div>
+                )}
+
                 {/* Tabs */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1.5rem' }}>
                     <div style={{ flex: 1, borderBottom: '1px solid #e2e8f0', overflowX: 'auto', whiteSpace: 'nowrap' as const }} className="custom-scrollbar">
@@ -427,6 +387,7 @@ const Seminars: React.FC = () => {
                             {[
                                 { id: 'my_seminars', label: 'My Seminars', icon: <Presentation size={16} /> },
                                 { id: 'all_seminars', label: 'All Seminars', icon: <Calendar size={16} /> },
+                                { id: 'invited_seminars', label: 'Invited', icon: <Users size={16} /> },
                                 { id: 'swap_requests', label: 'Swap Requests', icon: <ArrowLeftRight size={16} /> }
                             ].map(tab => (
                                 <button
@@ -483,11 +444,11 @@ const Seminars: React.FC = () => {
                 <div style={{ display: 'flex', gap: '2rem', height: 'calc(100vh - 340px)', minHeight: '650px' }}>
                     {/* Left: List or Swap Requests */}
                     <div style={{
-                        flex: openTabs.length > 0 ? 4 : 10,
+                        flex: activePanel ? 4 : 10,
                         display: 'flex',
                         flexDirection: 'column',
                         transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
-                        width: openTabs.length > 0 ? '40%' : '100%',
+                        width: activePanel ? '40%' : '100%',
                         overflow: 'hidden'
                     }}>
                         <div style={{ flex: 1, overflowY: 'auto', paddingRight: '0.5rem' }} className="custom-scrollbar">
@@ -516,9 +477,10 @@ const Seminars: React.FC = () => {
                             ) : displayMeetings.length > 0 ? (
                                 <SeminarList
                                     meetings={displayMeetings}
-                                    selectedId={activeTabObj?.meetingId || null}
+                                    selectedId={activePanel?.meetingId || null}
                                     onSelect={handleOpenViewTab}
                                     usersMap={usersMap}
+                                    isSplit={!!activePanel}
                                 />
                             ) : (
                                 <div style={{ textAlign: 'center', padding: '4rem 2rem', color: '#94a3b8' }}>
@@ -535,121 +497,48 @@ const Seminars: React.FC = () => {
                     </div>
 
                     {/* Right: Panel */}
-                    <div style={{
-                        flex: openTabs.length > 0 ? 6 : 0,
-                        opacity: openTabs.length > 0 ? 1 : 0,
-                        pointerEvents: openTabs.length > 0 ? 'auto' : 'none',
-                        transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
-                        width: openTabs.length > 0 ? '60%' : '0',
-                        overflow: 'hidden',
-                        display: openTabs.length > 0 ? 'flex' : 'none',
-                        flexDirection: 'column',
-                        background: '#fff',
-                        borderRadius: '16px',
-                        border: '1px solid var(--border-color)',
-                        padding: '1rem'
-                    }}>
-                        {/* Tab Dropdowns */}
-                        <div style={{ display: 'flex', gap: '12px', marginBottom: '1rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.75rem' }}>
-                            {/* Create Dropdown */}
-                            {isLabDirector && (
-                                <div style={{ position: 'relative' }} ref={createDropdownRef}>
-                                    <button
-                                        onClick={() => { setIsCreateDropdownOpen(!isCreateDropdownOpen); setIsViewDropdownOpen(false); }}
-                                        style={{
-                                            padding: '8px 16px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 800, border: '1px solid #e2e8f0',
-                                            background: openTabs.some(t => t.id === activeTabId && t.type === 'create') ? 'var(--accent-color)' : '#fff',
-                                            color: openTabs.some(t => t.id === activeTabId && t.type === 'create') ? '#fff' : '#64748b',
-                                            display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', transition: 'all 0.2s'
-                                        }}
-                                    >
-                                        <Plus size={14} /> New ({openTabs.filter(t => t.type === 'create').length}/2)
-                                        <ChevronRight size={14} style={{ transform: isCreateDropdownOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }} />
-                                    </button>
-                                    {isCreateDropdownOpen && (
-                                        <div style={{ position: 'absolute', top: '110%', left: 0, width: '240px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', zIndex: 100, padding: '8px' }}>
-                                            {openTabs.filter(t => t.type === 'create').length === 0 ? (
-                                                <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8', fontSize: '0.75rem' }}>No new seminars open.</div>
-                                            ) : openTabs.filter(t => t.type === 'create').map(tab => (
-                                                <div
-                                                    key={tab.id}
-                                                    onClick={() => { setActiveTabId(tab.id); setIsCreateDropdownOpen(false); }}
-                                                    style={{ padding: '8px 12px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', background: activeTabId === tab.id ? '#f1f5f9' : 'transparent', marginBottom: '2px' }}
-                                                >
-                                                    <div style={{ fontSize: '0.8rem', fontWeight: 700, color: activeTabId === tab.id ? 'var(--accent-color)' : '#334155', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{tab.title}</div>
-                                                    <X size={14} onClick={(e) => handleCloseTab(tab.id, e)} style={{ color: '#94a3b8', cursor: 'pointer' }} />
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-
-                            {/* View Dropdown */}
-                            <div style={{ position: 'relative' }} ref={viewDropdownRef}>
-                                <button
-                                    onClick={() => { setIsViewDropdownOpen(!isViewDropdownOpen); setIsCreateDropdownOpen(false); }}
-                                    style={{
-                                        padding: '8px 16px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 800, border: '1px solid #e2e8f0',
-                                        background: openTabs.some(t => t.id === activeTabId && t.type === 'view') ? 'var(--accent-color)' : '#fff',
-                                        color: openTabs.some(t => t.id === activeTabId && t.type === 'view') ? '#fff' : '#64748b',
-                                        display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', transition: 'all 0.2s'
+                    {activePanel && (
+                        <div style={{
+                            flex: 6,
+                            opacity: 1,
+                            pointerEvents: 'auto',
+                            transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+                            width: '60%',
+                            overflow: 'hidden',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            background: '#fff',
+                            borderRadius: '16px',
+                            border: '1px solid var(--border-color)',
+                            padding: '1.5rem'
+                        }}>
+                            {activePanel.type === 'create' ? (
+                                <CreateSeminarForm
+                                    onClose={handleClosePanel}
+                                    onSaved={(shouldClose = false, message?: string) => {
+                                        fetchSeminars();
+                                        if (message) showToast(message, 'success');
+                                        if (shouldClose) handleClosePanel();
                                     }}
-                                >
-                                    <Edit3 size={14} /> View/Edit ({openTabs.filter(t => t.type === 'view').length}/3)
-                                    <ChevronRight size={14} style={{ transform: isViewDropdownOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }} />
-                                </button>
-                                {isViewDropdownOpen && (
-                                    <div style={{ position: 'absolute', top: '110%', left: 0, width: '240px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', zIndex: 100, padding: '8px' }}>
-                                        {openTabs.filter(t => t.type === 'view').length === 0 ? (
-                                            <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8', fontSize: '0.75rem' }}>No seminars being viewed.</div>
-                                        ) : openTabs.filter(t => t.type === 'view').map(tab => (
-                                            <div
-                                                key={tab.id}
-                                                onClick={() => { setActiveTabId(tab.id); setIsViewDropdownOpen(false); }}
-                                                style={{ padding: '8px 12px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', background: activeTabId === tab.id ? '#f1f5f9' : 'transparent', marginBottom: '2px' }}
-                                            >
-                                                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: activeTabId === tab.id ? 'var(--accent-color)' : '#334155', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{tab.title}</div>
-                                                <X size={14} onClick={(e) => handleCloseTab(tab.id, e)} style={{ color: '#94a3b8', cursor: 'pointer' }} />
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
+                                    onTitleChange={handleTitleChange}
+                                    projectsMap={projectsMap}
+                                />
+                            ) : (
+                                <SeminarPanel
+                                    meetingId={activePanel.meetingId!}
+                                    onClose={handleClosePanel}
+                                    onSaved={(shouldClose = false, message?: string) => {
+                                        fetchSeminars();
+                                        if (message) showToast(message, 'success');
+                                        if (shouldClose) handleClosePanel();
+                                    }}
+                                    onTitleChange={handleTitleChange}
+                                    usersMap={usersMap}
+                                    emailsMap={emailsMap}
+                                />
+                            )}
                         </div>
-
-                        {/* Panel Content */}
-                        <div style={{ flex: 1, position: 'relative', overflowY: 'auto' }} className="custom-scrollbar">
-                            {openTabs.map(tab => (
-                                <div key={tab.id} style={{ display: activeTabId === tab.id ? 'block' : 'none', height: '100%' }}>
-                                    {tab.type === 'create' ? (
-                                        <CreateSeminarForm
-                                            onClose={() => handleCloseTab(tab.id)}
-                                            onSaved={(shouldClose = false, message?: string) => {
-                                                fetchSeminars();
-                                                if (message) showToast(message, 'success');
-                                                if (shouldClose) handleCloseTab(tab.id);
-                                            }}
-                                            onTitleChange={(title) => handleTitleChange(tab.id, title)}
-                                            projectsMap={projectsMap}
-                                        />
-                                    ) : (
-                                        <SeminarPanel
-                                            meetingId={tab.meetingId!}
-                                            onClose={() => handleCloseTab(tab.id)}
-                                            onSaved={(shouldClose = false, message?: string) => {
-                                                fetchSeminars();
-                                                if (message) showToast(message, 'success');
-                                                if (shouldClose) handleCloseTab(tab.id);
-                                            }}
-                                            onTitleChange={(title) => handleTitleChange(tab.id, title)}
-                                            usersMap={usersMap}
-                                        />
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    </div>
+                    )}
                 </div>
             </div>
 

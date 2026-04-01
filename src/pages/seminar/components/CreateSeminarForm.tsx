@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { CreateRecurringSeminarRequest, DateOfWeek } from '@/types/seminar';
 import { PresenterInfo } from '@/types/meeting';
 import seminarService from '@/services/seminarService';
+import { userService } from '@/services';
 import {
     Save,
     Loader2,
@@ -14,7 +15,10 @@ import {
     X,
     Presentation,
     Hash,
-    Repeat
+    Repeat,
+    Search,
+    Check,
+    AlertCircle
 } from 'lucide-react';
 import AttendeeSelector, { SelectedAttendee } from '@/components/common/AttendeeSelector';
 
@@ -51,14 +55,21 @@ const labelStyle: React.CSSProperties = {
 };
 
 const sectionStyle: React.CSSProperties = {
-    padding: '16px',
+    padding: '20px',
     background: 'var(--background-color)',
     borderRadius: '12px',
     border: '1px solid var(--border-light)',
-    marginBottom: '16px'
+    marginBottom: '20px'
 };
 
 const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+// Get current datetime string for min attribute
+const getMinDatetime = () => {
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    return now.toISOString().slice(0, 16);
+};
 
 const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
     onClose,
@@ -67,6 +78,7 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
     projectsMap
 }) => {
     const [saving, setSaving] = useState(false);
+    const [dateError, setDateError] = useState('');
 
     // Core
     const [title, setTitle] = useState('');
@@ -79,34 +91,69 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
     const [location, setLocation] = useState('');
     const [selectedAttendees, setSelectedAttendees] = useState<SelectedAttendee[]>([]);
 
-    // Presenters
+    // Presenters - now using user picker
     const [presenters, setPresenters] = useState<PresenterInfo[]>([]);
-    const [newPresenterEmail, setNewPresenterEmail] = useState('');
-    const [newPresenterName, setNewPresenterName] = useState('');
-    const [newPresenterTopic, setNewPresenterTopic] = useState('');
+    const [allUsers, setAllUsers] = useState<any[]>([]);
+    const [usersLoading, setUsersLoading] = useState(false);
+    const [presenterSearch, setPresenterSearch] = useState('');
 
     // Weekly topics
     const [weeklyTopics, setWeeklyTopics] = useState<string[]>([]);
     const [newTopic, setNewTopic] = useState('');
 
-    const addPresenter = () => {
-        if (!newPresenterEmail.trim()) return;
-        setPresenters([...presenters, {
-            email: newPresenterEmail.trim(),
-            name: newPresenterName.trim() || null,
-            topic: newPresenterTopic.trim() || null
-        }]);
-        setNewPresenterEmail('');
-        setNewPresenterName('');
-        setNewPresenterTopic('');
+    // Load all users for presenter picker
+    useEffect(() => {
+        const loadUsers = async () => {
+            setUsersLoading(true);
+            try {
+                const data = await userService.getAll();
+                setAllUsers(Array.isArray(data) ? data : []);
+            } catch (e) {
+                console.error('Failed to load users:', e);
+            } finally {
+                setUsersLoading(false);
+            }
+        };
+        loadUsers();
+    }, []);
+
+    const filteredPresenterUsers = useMemo(() => {
+        if (!presenterSearch.trim()) return allUsers;
+        const q = presenterSearch.toLowerCase();
+        return allUsers.filter(u =>
+            (u.fullName || '').toLowerCase().includes(q) ||
+            (u.email || '').toLowerCase().includes(q)
+        );
+    }, [allUsers, presenterSearch]);
+
+    const isPresenterSelected = (email: string) =>
+        presenters.some(p => p.email?.toLowerCase() === email.toLowerCase());
+
+    const togglePresenter = (email: string, name: string) => {
+        if (isPresenterSelected(email)) {
+            setPresenters(presenters.filter(p => p.email?.toLowerCase() !== email.toLowerCase()));
+        } else {
+            setPresenters([...presenters, { email, name, topic: null }]);
+        }
     };
 
-    const removePresenter = (idx: number) => {
-        setPresenters(presenters.filter((_, i) => i !== idx));
+    const updatePresenterTopic = (email: string, topic: string) => {
+        setPresenters(prev => prev.map(p =>
+            p.email?.toLowerCase() === email.toLowerCase()
+                ? { ...p, topic: topic || null }
+                : p
+        ));
+    };
+
+    const removePresenter = (email: string) => {
+        setPresenters(presenters.filter(p => p.email?.toLowerCase() !== email.toLowerCase()));
     };
 
     const addTopic = () => {
         if (!newTopic.trim()) return;
+        if (weeklyTopics.length >= numberOfWeeks) {
+            return;
+        }
         setWeeklyTopics([...weeklyTopics, newTopic.trim()]);
         setNewTopic('');
     };
@@ -115,8 +162,33 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
         setWeeklyTopics(weeklyTopics.filter((_, i) => i !== idx));
     };
 
+    // Validate date is not in the past
+    const validateDate = (dateStr: string) => {
+        if (!dateStr) {
+            setDateError('');
+            return true;
+        }
+        const selected = new Date(dateStr);
+        const now = new Date();
+        if (selected < now) {
+            setDateError('Cannot select a date in the past');
+            return false;
+        }
+        setDateError('');
+        return true;
+    };
+
+    const handleDateChange = (value: string) => {
+        setFirstSessionStartTime(value);
+        validateDate(value);
+    };
+
     const handleSave = async () => {
         if (!title.trim() || !firstSessionStartTime) return;
+
+        // Validate date before saving
+        if (!validateDate(firstSessionStartTime)) return;
+
         setSaving(true);
         try {
             const req: CreateRecurringSeminarRequest = {
@@ -172,7 +244,7 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
                 <div style={sectionStyle}>
                     <div style={labelStyle}><FileText size={12} /> Basic Information</div>
 
-                    <div style={{ marginBottom: '14px' }}>
+                    <div style={{ marginBottom: '18px' }}>
                         <label style={{ ...labelStyle, fontSize: '0.68rem' }}>Title *</label>
                         <input
                             style={inputStyle}
@@ -187,10 +259,10 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
                         />
                     </div>
 
-                    <div style={{ marginBottom: '14px' }}>
+                    <div style={{ marginBottom: '18px' }}>
                         <label style={{ ...labelStyle, fontSize: '0.68rem' }}>Description</label>
                         <textarea
-                            style={{ ...inputStyle, minHeight: '70px', resize: 'vertical' as const }}
+                            style={{ ...inputStyle, minHeight: '80px', resize: 'vertical' as const }}
                             value={description}
                             onChange={e => setDescription(e.target.value)}
                             placeholder="Seminar description..."
@@ -199,7 +271,7 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
                         />
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                         <div>
                             <label style={{ ...labelStyle, fontSize: '0.68rem' }}><MapPin size={12} /> Location</label>
                             <input
@@ -227,17 +299,30 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
                 <div style={sectionStyle}>
                     <div style={labelStyle}><Repeat size={12} /> Recurring Schedule</div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '18px' }}>
                         <div>
                             <label style={{ ...labelStyle, fontSize: '0.68rem' }}><Calendar size={12} /> First Session *</label>
                             <input
                                 type="datetime-local"
-                                style={inputStyle}
+                                style={{
+                                    ...inputStyle,
+                                    borderColor: dateError ? '#ef4444' : undefined
+                                }}
                                 value={firstSessionStartTime}
-                                onChange={e => setFirstSessionStartTime(e.target.value)}
-                                onFocus={e => { e.currentTarget.style.borderColor = 'var(--accent-color)'; }}
-                                onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; }}
+                                onChange={e => handleDateChange(e.target.value)}
+                                min={getMinDatetime()}
+                                onFocus={e => { e.currentTarget.style.borderColor = dateError ? '#ef4444' : 'var(--accent-color)'; }}
+                                onBlur={e => { e.currentTarget.style.borderColor = dateError ? '#ef4444' : 'var(--border-color)'; }}
                             />
+                            {dateError && (
+                                <div style={{
+                                    display: 'flex', alignItems: 'center', gap: '4px',
+                                    color: '#ef4444', fontSize: '0.72rem', fontWeight: 600,
+                                    marginTop: '4px'
+                                }}>
+                                    <AlertCircle size={12} /> {dateError}
+                                </div>
+                            )}
                         </div>
                         <div>
                             <label style={{ ...labelStyle, fontSize: '0.68rem' }}><Calendar size={12} /> Day of Week</label>
@@ -249,7 +334,7 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
                         </div>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                         <div>
                             <label style={{ ...labelStyle, fontSize: '0.68rem' }}><Clock size={12} /> Duration (minutes)</label>
                             <input
@@ -279,89 +364,167 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
                     </div>
                 </div>
 
-                {/* Presenters */}
+                {/* Presenters - Now with user picker */}
                 <div style={sectionStyle}>
-                    <div style={labelStyle}><Presentation size={12} /> Presenter Rotation</div>
+                    <div style={{ ...labelStyle, marginBottom: '12px' }}><Presentation size={12} /> Presenter Rotation</div>
 
-                    {presenters.map((p, idx) => (
-                        <div key={idx} style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            padding: '8px 12px',
-                            borderRadius: '8px',
-                            background: '#fff',
-                            border: '1px solid var(--border-light)',
-                            marginBottom: '6px'
+                    {/* Selected presenters */}
+                    {presenters.length > 0 && (
+                        <div style={{
+                            display: 'flex', flexDirection: 'column', gap: '8px',
+                            marginBottom: '14px', padding: '12px', background: '#fff',
+                            borderRadius: '10px', border: '1px solid var(--border-light)'
                         }}>
-                            <div>
-                                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)' }}>{p.name || p.email}</div>
-                                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{p.email}{p.topic ? ` • ${p.topic}` : ''}</div>
+                            {presenters.map((p, idx) => (
+                                <div key={idx} style={{
+                                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                    padding: '10px 12px', borderRadius: '8px',
+                                    background: 'var(--surface-hover)', border: '1px solid var(--border-light)'
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1 }}>
+                                        <div style={{
+                                            width: '30px', height: '30px', borderRadius: '50%',
+                                            background: 'linear-gradient(135deg, #6366f1, #818cf8)',
+                                            color: '#fff', display: 'flex', alignItems: 'center',
+                                            justifyContent: 'center', fontSize: '0.7rem', fontWeight: 700,
+                                            flexShrink: 0
+                                        }}>
+                                            {(p.name || p.email || 'P')[0].toUpperCase()}
+                                        </div>
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                                {p.name || p.email}
+                                            </div>
+                                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{p.email}</div>
+                                        </div>
+                                        <input
+                                            style={{
+                                                ...inputStyle,
+                                                width: '140px',
+                                                padding: '6px 10px',
+                                                fontSize: '0.78rem'
+                                            }}
+                                            placeholder="Topic (optional)"
+                                            value={p.topic || ''}
+                                            onChange={e => updatePresenterTopic(p.email!, e.target.value)}
+                                            onClick={e => e.stopPropagation()}
+                                        />
+                                    </div>
+                                    <button
+                                        onClick={() => removePresenter(p.email!)}
+                                        style={{
+                                            background: 'none', border: 'none', cursor: 'pointer',
+                                            color: '#ef4444', padding: '4px', marginLeft: '8px'
+                                        }}
+                                    >
+                                        <X size={14} />
+                                    </button>
+                                </div>
+                            ))}
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, textAlign: 'right' }}>
+                                {presenters.length} presenter{presenters.length !== 1 ? 's' : ''} selected
                             </div>
-                            <button onClick={() => removePresenter(idx)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: '4px' }}>
-                                <X size={14} />
-                            </button>
                         </div>
-                    ))}
+                    )}
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
-                        <input
-                            style={{ ...inputStyle, fontSize: '0.8rem', padding: '8px 12px' }}
-                            value={newPresenterEmail}
-                            onChange={e => setNewPresenterEmail(e.target.value)}
-                            placeholder="Email *"
-                        />
-                        <input
-                            style={{ ...inputStyle, fontSize: '0.8rem', padding: '8px 12px' }}
-                            value={newPresenterName}
-                            onChange={e => setNewPresenterName(e.target.value)}
-                            placeholder="Name"
-                        />
-                    </div>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                        <input
-                            style={{ ...inputStyle, fontSize: '0.8rem', padding: '8px 12px', flex: 1 }}
-                            value={newPresenterTopic}
-                            onChange={e => setNewPresenterTopic(e.target.value)}
-                            placeholder="Topic (optional)"
-                        />
-                        <button
-                            onClick={addPresenter}
-                            disabled={!newPresenterEmail.trim()}
-                            style={{
-                                padding: '8px 14px',
-                                borderRadius: '8px',
-                                border: 'none',
-                                background: newPresenterEmail.trim() ? 'var(--accent-color)' : '#94a3b8',
-                                color: '#fff',
-                                cursor: newPresenterEmail.trim() ? 'pointer' : 'not-allowed',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                fontSize: '0.75rem',
-                                fontWeight: 700,
-                                flexShrink: 0
-                            }}
-                        >
-                            <Plus size={14} /> Add
-                        </button>
+                    {/* User Picker for Presenters */}
+                    <div style={{
+                        background: '#fff', borderRadius: '10px',
+                        border: '1px solid var(--border-light)', padding: '12px'
+                    }}>
+                        <div style={{ position: 'relative', marginBottom: '8px' }}>
+                            <Search size={14} style={{
+                                position: 'absolute', left: '10px', top: '50%',
+                                transform: 'translateY(-50%)', color: 'var(--text-muted)'
+                            }} />
+                            <input
+                                style={{
+                                    width: '100%',
+                                    padding: '8px 10px 8px 30px',
+                                    borderRadius: '8px',
+                                    border: '1.5px solid var(--border-color)',
+                                    fontSize: '0.82rem',
+                                    fontFamily: 'inherit',
+                                    outline: 'none'
+                                }}
+                                placeholder="Search users by name or email..."
+                                value={presenterSearch}
+                                onChange={e => setPresenterSearch(e.target.value)}
+                                onFocus={e => { e.currentTarget.style.borderColor = 'var(--accent-color)'; }}
+                                onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; }}
+                            />
+                        </div>
+                        <div style={{
+                            maxHeight: '220px', overflowY: 'auto',
+                            display: 'flex', flexDirection: 'column', gap: '4px'
+                        }} className="custom-scrollbar">
+                            {usersLoading ? (
+                                <div style={{ textAlign: 'center', padding: '1rem' }}>
+                                    <Loader2 size={20} className="animate-spin" style={{ color: 'var(--accent-color)' }} />
+                                </div>
+                            ) : filteredPresenterUsers.length === 0 ? (
+                                <div style={{ textAlign: 'center', padding: '1rem', color: 'var(--text-muted)', fontSize: '0.78rem' }}>No users found</div>
+                            ) : filteredPresenterUsers.map(u => {
+                                const email = u.email || '';
+                                const name = u.fullName || '';
+                                const selected = isPresenterSelected(email);
+                                return (
+                                    <div
+                                        key={u.userId || email}
+                                        onClick={() => togglePresenter(email, name)}
+                                        style={{
+                                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                            padding: '8px 10px', borderRadius: '8px', cursor: 'pointer',
+                                            background: selected ? '#f5f3ff' : '#fff',
+                                            border: selected ? '1px solid #c7d2fe' : '1px solid var(--border-light)',
+                                            transition: 'all 0.15s'
+                                        }}
+                                        onMouseEnter={e => { if (!selected) e.currentTarget.style.background = 'var(--surface-hover)'; }}
+                                        onMouseLeave={e => { if (!selected) e.currentTarget.style.background = '#fff'; }}
+                                    >
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <div style={{
+                                                width: '26px', height: '26px', borderRadius: '50%',
+                                                background: selected ? '#6366f1' : 'var(--primary-color)',
+                                                color: '#fff', display: 'flex', alignItems: 'center',
+                                                justifyContent: 'center', fontSize: '0.65rem', fontWeight: 700
+                                            }}>
+                                                {name[0]?.toUpperCase() || '?'}
+                                            </div>
+                                            <div>
+                                                <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)' }}>{name}</div>
+                                                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{email}</div>
+                                            </div>
+                                        </div>
+                                        {selected && <Check size={16} color="#6366f1" />}
+                                    </div>
+                                );
+                            })}
+                        </div>
                     </div>
                 </div>
 
                 {/* Weekly Topics */}
                 <div style={sectionStyle}>
-                    <div style={labelStyle}><FileText size={12} /> Weekly Topics</div>
+                    <div style={{ ...labelStyle, justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <FileText size={12} /> Weekly Topics
+                        </div>
+                        <span style={{ fontSize: '0.65rem', fontWeight: 700, color: weeklyTopics.length >= numberOfWeeks ? '#ef4444' : 'var(--text-muted)' }}>
+                            {weeklyTopics.length} / {numberOfWeeks} max
+                        </span>
+                    </div>
 
                     {weeklyTopics.map((topic, idx) => (
                         <div key={idx} style={{
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'space-between',
-                            padding: '8px 12px',
+                            padding: '10px 14px',
                             borderRadius: '8px',
                             background: '#fff',
                             border: '1px solid var(--border-light)',
-                            marginBottom: '4px'
+                            marginBottom: '6px'
                         }}>
                             <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-primary)' }}>
                                 Week {idx + 1}: {topic}
@@ -374,22 +537,30 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
 
                     <div style={{ display: 'flex', gap: '8px' }}>
                         <input
-                            style={{ ...inputStyle, fontSize: '0.8rem', padding: '8px 12px', flex: 1 }}
+                            style={{ 
+                                ...inputStyle, 
+                                fontSize: '0.8rem', 
+                                padding: '8px 12px', 
+                                flex: 1,
+                                background: weeklyTopics.length >= numberOfWeeks ? '#f8fafc' : '#fff',
+                                cursor: weeklyTopics.length >= numberOfWeeks ? 'not-allowed' : 'text'
+                            }}
                             value={newTopic}
-                            onChange={e => setNewTopic(e.target.value)}
-                            placeholder={`Week ${weeklyTopics.length + 1} topic...`}
+                            onChange={e => { if (weeklyTopics.length < numberOfWeeks) setNewTopic(e.target.value); }}
+                            placeholder={weeklyTopics.length >= numberOfWeeks ? "Limit reached" : `Week ${weeklyTopics.length + 1} topic...`}
                             onKeyDown={e => e.key === 'Enter' && addTopic()}
+                            readOnly={weeklyTopics.length >= numberOfWeeks}
                         />
                         <button
                             onClick={addTopic}
-                            disabled={!newTopic.trim()}
+                            disabled={!newTopic.trim() || weeklyTopics.length >= numberOfWeeks}
                             style={{
                                 padding: '8px 14px',
                                 borderRadius: '8px',
                                 border: 'none',
-                                background: newTopic.trim() ? 'var(--accent-color)' : '#94a3b8',
+                                background: (newTopic.trim() && weeklyTopics.length < numberOfWeeks) ? 'var(--accent-color)' : '#94a3b8',
                                 color: '#fff',
-                                cursor: newTopic.trim() ? 'pointer' : 'not-allowed',
+                                cursor: (newTopic.trim() && weeklyTopics.length < numberOfWeeks) ? 'pointer' : 'not-allowed',
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '4px',
@@ -440,20 +611,20 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
                 </button>
                 <button
                     onClick={handleSave}
-                    disabled={saving || !title.trim() || !firstSessionStartTime}
+                    disabled={saving || !title.trim() || !firstSessionStartTime || !!dateError}
                     style={{
                         padding: '8px 24px',
                         borderRadius: '10px',
                         border: 'none',
-                        background: (!title.trim() || !firstSessionStartTime || saving) ? '#94a3b8' : 'var(--accent-color)',
+                        background: (!title.trim() || !firstSessionStartTime || saving || !!dateError) ? '#94a3b8' : 'var(--accent-color)',
                         color: '#fff',
-                        cursor: (!title.trim() || !firstSessionStartTime || saving) ? 'not-allowed' : 'pointer',
+                        cursor: (!title.trim() || !firstSessionStartTime || saving || !!dateError) ? 'not-allowed' : 'pointer',
                         fontSize: '0.8rem',
                         fontWeight: 700,
                         display: 'flex',
                         alignItems: 'center',
                         gap: '6px',
-                        boxShadow: (!title.trim() || !firstSessionStartTime || saving) ? 'none' : '0 4px 12px rgba(232,114,12,0.25)'
+                        boxShadow: (!title.trim() || !firstSessionStartTime || saving || !!dateError) ? 'none' : '0 4px 12px rgba(232,114,12,0.25)'
                     }}
                 >
                     {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}

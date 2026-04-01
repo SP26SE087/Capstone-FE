@@ -17,7 +17,8 @@ import {
     Loader2,
     X,
     Edit3,
-    ChevronRight
+    ChevronRight,
+    Zap
 } from 'lucide-react';
 import reportService, { Report } from '@/services/reportService';
 import { projectService, userService } from '@/services';
@@ -45,6 +46,10 @@ const Reports: React.FC = () => {
     // Search Filters
     const [filterProjectId, setFilterProjectId] = useState<string>('');
     const [filterStatus, setFilterStatus] = useState<string>('');
+
+    // Semantic Search State
+    const [semanticResults, setSemanticResults] = useState<Report[] | null>(null);
+    const [isSemanticLoading, setIsSemanticLoading] = useState(false);
 
     // Multi-tab State
     interface ReportTab {
@@ -193,7 +198,25 @@ const Reports: React.FC = () => {
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
-        fetchReports();
+        setSemanticResults(null);
+    };
+
+    const handleSemanticSearch = async () => {
+        if (!searchQuery.trim()) return;
+        setIsSemanticLoading(true);
+        try {
+            const results = await reportService.searchReports({
+                query: searchQuery,
+                topK: 20,
+                projectId: filterProjectId || undefined,
+                status: filterStatus !== '' ? Number(filterStatus) : undefined,
+            });
+            setSemanticResults(Array.isArray(results) ? results : (results?.data || []));
+        } catch {
+            showToast('Semantic search failed.', 'error');
+        } finally {
+            setIsSemanticLoading(false);
+        }
     };
 
     const getStatusLabel = (status: number) => {
@@ -231,6 +254,8 @@ const Reports: React.FC = () => {
     };
 
     const displayReports = useMemo(() => {
+        if (semanticResults !== null) return semanticResults;
+
         if (!reports) return [];
 
         return reports.filter(report => {
@@ -245,7 +270,7 @@ const Reports: React.FC = () => {
 
             return matchesQuery && matchesProject && matchesStatus;
         });
-    }, [reports, searchQuery, filterProjectId, filterStatus]);
+    }, [reports, semanticResults, searchQuery, filterProjectId, filterStatus]);
 
     return (
         <MainLayout role={user?.role} userName={user?.name}>
@@ -279,16 +304,47 @@ const Reports: React.FC = () => {
                                     type="text" placeholder="Search reports, goals, or descriptions..." className="form-input"
                                     style={{ paddingLeft: '40px', height: '44px', border: 'none', background: 'var(--surface-hover)', borderRadius: '12px', fontSize: '0.9rem' }}
                                     value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    onChange={(e) => { setSearchQuery(e.target.value); setSemanticResults(null); }}
                                 />
                             </div>
                             <button
                                 type="submit"
-                                className="btn btn-primary" style={{ height: '44px', padding: '0 1.5rem', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem', fontWeight: 600 }}
+                                className="btn btn-secondary" style={{ height: '44px', padding: '0 1.25rem', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem', fontWeight: 600 }}
                             >
-                                <Sparkles size={16} /> Search
+                                <Search size={16} /> Search
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleSemanticSearch}
+                                disabled={isSemanticLoading || !searchQuery.trim()}
+                                style={{
+                                    height: '44px', padding: '0 1.25rem', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '8px',
+                                    fontSize: '0.9rem', fontWeight: 600, cursor: isSemanticLoading || !searchQuery.trim() ? 'not-allowed' : 'pointer',
+                                    background: semanticResults !== null ? 'var(--primary-color)' : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                                    color: '#fff', border: 'none', opacity: !searchQuery.trim() ? 0.5 : 1,
+                                    boxShadow: '0 4px 12px rgba(99,102,241,0.25)'
+                                }}
+                            >
+                                {isSemanticLoading ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                                AI Search
                             </button>
                         </div>
+
+                        {semanticResults !== null && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 14px', borderRadius: '10px', background: 'linear-gradient(135deg, #eef2ff, #f5f3ff)', border: '1px solid #c7d2fe' }}>
+                                <Zap size={14} color="#6366f1" />
+                                <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#4f46e5' }}>
+                                    AI Search results — {semanticResults.length} report{semanticResults.length !== 1 ? 's' : ''} found
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={() => setSemanticResults(null)}
+                                    style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', fontWeight: 700, color: '#6366f1', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 8px', borderRadius: '6px' }}
+                                >
+                                    <X size={12} /> Clear
+                                </button>
+                            </div>
+                        )}
 
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px', paddingTop: '10px', borderTop: '1px solid rgba(0,0,0,0.05)' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

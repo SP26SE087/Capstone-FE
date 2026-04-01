@@ -59,14 +59,16 @@ const WeeklyTimetable: React.FC<WeeklyTimetableProps> = ({ events, onEventClick 
     const [currentMonday, setCurrentMonday] = useState<Date>(() => getMonday(new Date()));
     const [activePopover, setActivePopover] = useState<{ event: TimetableEvent, x: number, y: number } | null>(null);
 
-    // Close popover when clicking outside or scrolling
+    // Close popover when clicking outside
     useEffect(() => {
-        const handleClose = () => setActivePopover(null);
+        const handleClose = (e: MouseEvent) => {
+            const popover = document.getElementById('timetable-popover');
+            if (popover && popover.contains(e.target as Node)) return;
+            setActivePopover(null);
+        };
         document.addEventListener('mousedown', handleClose);
-        document.addEventListener('wheel', handleClose, { passive: true });
         return () => {
             document.removeEventListener('mousedown', handleClose);
-            document.removeEventListener('wheel', handleClose);
         };
     }, []);
 
@@ -422,7 +424,8 @@ const WeeklyTimetable: React.FC<WeeklyTimetableProps> = ({ events, onEventClick 
                                                     display: 'flex',
                                                     alignItems: 'center',
                                                     gap: '3px',
-                                                    marginTop: '1px'
+                                                    marginTop: '1px',
+                                                    textDecoration: 'underline'
                                                 }}>
                                                     <Video size={9} /> Meet
                                                 </div>
@@ -463,18 +466,20 @@ const WeeklyTimetable: React.FC<WeeklyTimetableProps> = ({ events, onEventClick 
             {/* Event Popover */}
             {activePopover && (
                 <div
+                    id="timetable-popover"
                     onMouseDown={(e) => e.stopPropagation()}
                     style={{
                         position: 'fixed',
-                        top: Math.min(activePopover.y, window.innerHeight - 200),
+                        top: Math.min(activePopover.y, window.innerHeight - 450),
                         left: Math.min(activePopover.x, window.innerWidth - 300),
-                        width: '280px',
+                        width: '300px',
+                        maxHeight: '400px',
+                        overflowY: 'auto',
                         background: '#fff',
                         borderRadius: '12px',
                         border: '1px solid var(--border-color)',
                         boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
                         zIndex: 9999,
-                        overflow: 'hidden',
                         animation: 'popoverIn 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
                     }}
                 >
@@ -498,14 +503,6 @@ const WeeklyTimetable: React.FC<WeeklyTimetableProps> = ({ events, onEventClick 
                                 <Clock size={14} color="var(--text-muted)" />
                                 {formatTime(new Date(activePopover.event.startTime))} - {formatTime(new Date(activePopover.event.endTime))}
                             </div>
-
-                            {activePopover.event.creator && (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary)', fontSize: '0.82rem', fontWeight: 600 }}>
-                                    <User size={14} color="var(--text-muted)" />
-                                    <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Created by:</span>
-                                    {activePopover.event.creator}
-                                </div>
-                            )}
 
                             {activePopover.event.presenter && (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary)', fontSize: '0.82rem', fontWeight: 600 }}>

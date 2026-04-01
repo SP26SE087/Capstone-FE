@@ -231,7 +231,7 @@ const BookingModal: React.FC<BookingModalProps> = ({ resource, onClose, onSubmit
       let occ = 0;
       existingBookings.forEach(b => {
         if (new Date(b.startTime).getTime() <= midpoint && new Date(b.endTime).getTime() > midpoint) {
-          occ += (b.quantity || 1);
+          occ += ((b as any).quantity || 1);
         }
       });
       peakOccupancy = Math.max(peakOccupancy, occ);
@@ -305,7 +305,7 @@ const BookingModal: React.FC<BookingModalProps> = ({ resource, onClose, onSubmit
     for (let d = new Date(sDate); d <= eDate; d.setDate(d.getDate() + 1)) {
       const p = new Date(d); p.setHours(h, m, 0, 0);
       const occ = existingBookings.reduce((t, b) =>
-        (new Date(b.startTime) <= p && new Date(b.endTime) > p) ? t + (b.quantity || 1) : t, 0);
+        (new Date(b.startTime) <= p && new Date(b.endTime) > p) ? t + ((b as any).quantity || 1) : t, 0);
       peak = Math.max(peak, occ);
     }
     return peak;
@@ -347,13 +347,12 @@ const BookingModal: React.FC<BookingModalProps> = ({ resource, onClose, onSubmit
       return;
     }
     onSubmit({
-      resourceId: resource.id,
+      resourceIds: [resource.id],
       title,
       purpose,
       startTime: new Date(startTime).toISOString(),
-      endTime: new Date(endTime).toISOString(),
-      quantity
-    });
+      endTime: new Date(endTime).toISOString()
+    } as any);
   };
 
   // ─── Render ──────────────────────────────────────────

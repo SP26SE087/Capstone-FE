@@ -23,7 +23,9 @@ import {
     FileText,
     Plus,
     ChevronDown,
-    ChevronUp
+    ChevronUp,
+    AlertCircle,
+    Lock
 } from 'lucide-react';
 
 interface SchedulePanelProps {
@@ -33,7 +35,6 @@ interface SchedulePanelProps {
     onSaved: (shouldClose?: boolean, message?: string, newEventId?: string) => void;
     onTitleChange?: (title: string) => void;
     projectsMap: Record<string, string>;
-    usersMap: Record<string, string>;
 }
 
 const getStatusInfo = (status: MeetingStatus) => {
@@ -61,6 +62,13 @@ const formatDisplayDate = (dateStr: string) => {
     const hours = d.getHours().toString().padStart(2, '0');
     const minutes = d.getMinutes().toString().padStart(2, '0');
     return `${day}/${month}/${year} ${hours}:${minutes}`;
+};
+
+// Get current datetime string for min attribute
+const getMinDatetime = () => {
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    return now.toISOString().slice(0, 16);
 };
 
 const inputStyle: React.CSSProperties = {
@@ -102,8 +110,7 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
     onClose,
     onSaved,
     onTitleChange,
-    projectsMap,
-    usersMap
+    projectsMap
 }) => {
     const { user } = useAuth();
     const [meeting, setMeeting] = useState<MeetingResponse | null>(null);
@@ -121,6 +128,7 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
 
     // Detail sections collapse
     const [showAttendees, setShowAttendees] = useState(true);
+    const [dateError, setDateError] = useState('');
 
     // Load meeting details
     useEffect(() => {
@@ -163,8 +171,40 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
         onTitleChange?.(val || 'New Schedule');
     };
 
+    // Validate dates not in past (only for create mode)
+    const validateDates = (): boolean => {
+        if (!isCreating) return true;
+        const now = new Date();
+        if (startTime && new Date(startTime) < now) {
+            setDateError('Start time cannot be in the past');
+            return false;
+        }
+        if (endTime && new Date(endTime) < now) {
+            setDateError('End time cannot be in the past');
+            return false;
+        }
+        if (startTime && endTime && new Date(endTime) <= new Date(startTime)) {
+            setDateError('End time must be after start time');
+            return false;
+        }
+        setDateError('');
+        return true;
+    };
+
+    const handleStartTimeChange = (val: string) => {
+        setStartTime(val);
+        if (dateError) setDateError('');
+    };
+
+    const handleEndTimeChange = (val: string) => {
+        setEndTime(val);
+        if (dateError) setDateError('');
+    };
+
     const handleSave = async () => {
         if (!title.trim()) return;
+        if (!validateDates()) return;
+
         setSaving(true);
         try {
             if (isCreating) {
@@ -224,6 +264,7 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
 
     const statusInfo = meeting ? getStatusInfo(meeting.status) : null;
     const isOwner = meeting?.createdBy === user?.userId;
+    const canEdit = isCreating || isOwner;
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -320,7 +361,7 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '6px',
-                                textDecoration: 'none',
+                                textDecoration: 'underline',
                                 transition: 'all 0.2s',
                                 boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)'
                             }}
@@ -359,11 +400,31 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '4px',
-                                textDecoration: 'none'
+                                textDecoration: 'underline'
                             }}
                         >
                             <ExternalLink size={12} /> Watch
                         </a>
+                    </div>
+                )}
+
+                {/* Read Only Notice */}
+                {!isCreating && !canEdit && (
+                    <div style={{
+                        ...sectionStyle,
+                        background: 'linear-gradient(135deg, #fffbeb, #fef3c7)',
+                        border: '1px solid #fde68a',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px'
+                    }}>
+                        <Lock size={16} color="#d97706" />
+                        <div>
+                            <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#92400e' }}>Read Only</div>
+                            <div style={{ fontSize: '0.72rem', fontWeight: 500, color: '#a16207' }}>
+                                Only the meeting creator can edit this schedule.
+                            </div>
+                        </div>
                     </div>
                 )}
 
@@ -372,11 +433,12 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                     <div style={{ marginBottom: '14px' }}>
                         <label style={labelStyle}><FileText size={12} /> Title</label>
                         <input
-                            style={inputStyle}
+                            style={{ ...inputStyle, ...(canEdit ? {} : { background: '#f8fafc', color: 'var(--text-secondary)', cursor: 'default' }) }}
                             value={title}
-                            onChange={e => handleTitleInputChange(e.target.value)}
+                            onChange={e => { if (canEdit) handleTitleInputChange(e.target.value); }}
+                            readOnly={!canEdit}
                             placeholder="Meeting title..."
-                            onFocus={e => { e.currentTarget.style.borderColor = 'var(--accent-color)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,114,12,0.08)'; }}
+                            onFocus={e => { if (canEdit) { e.currentTarget.style.borderColor = 'var(--accent-color)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,114,12,0.08)'; } }}
                             onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.boxShadow = 'none'; }}
                         />
                     </div>
@@ -384,11 +446,12 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                     <div style={{ marginBottom: '14px' }}>
                         <label style={labelStyle}><FileText size={12} /> Description</label>
                         <textarea
-                            style={{ ...inputStyle, minHeight: '80px', resize: 'vertical' as const }}
+                            style={{ ...inputStyle, minHeight: '80px', resize: canEdit ? ('vertical' as const) : ('none' as const), ...(canEdit ? {} : { background: '#f8fafc', color: 'var(--text-secondary)', cursor: 'default' }) }}
                             value={description}
-                            onChange={e => setDescription(e.target.value)}
+                            onChange={e => { if (canEdit) setDescription(e.target.value); }}
+                            readOnly={!canEdit}
                             placeholder="Meeting description, agenda overview..."
-                            onFocus={e => { e.currentTarget.style.borderColor = 'var(--accent-color)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,114,12,0.08)'; }}
+                            onFocus={e => { if (canEdit) { e.currentTarget.style.borderColor = 'var(--accent-color)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,114,12,0.08)'; } }}
                             onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.boxShadow = 'none'; }}
                         />
                     </div>
@@ -398,25 +461,44 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                             <label style={labelStyle}><Calendar size={12} /> Start Time</label>
                             <input
                                 type="datetime-local"
-                                style={inputStyle}
+                                style={{
+                                    ...inputStyle,
+                                    borderColor: dateError && dateError.includes('Start') ? '#ef4444' : undefined
+                                }}
                                 value={startTime}
-                                onChange={e => setStartTime(e.target.value)}
+                                onChange={e => handleStartTimeChange(e.target.value)}
+                                min={isCreating ? getMinDatetime() : undefined}
                                 onFocus={e => { e.currentTarget.style.borderColor = 'var(--accent-color)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,114,12,0.08)'; }}
-                                onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.boxShadow = 'none'; }}
+                                onBlur={e => { e.currentTarget.style.borderColor = dateError && dateError.includes('Start') ? '#ef4444' : 'var(--border-color)'; e.currentTarget.style.boxShadow = 'none'; }}
                             />
                         </div>
                         <div>
                             <label style={labelStyle}><Clock size={12} /> End Time</label>
                             <input
                                 type="datetime-local"
-                                style={inputStyle}
+                                style={{
+                                    ...inputStyle,
+                                    borderColor: dateError && dateError.includes('End') ? '#ef4444' : undefined
+                                }}
                                 value={endTime}
-                                onChange={e => setEndTime(e.target.value)}
+                                onChange={e => handleEndTimeChange(e.target.value)}
+                                min={isCreating ? getMinDatetime() : undefined}
                                 onFocus={e => { e.currentTarget.style.borderColor = 'var(--accent-color)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,114,12,0.08)'; }}
-                                onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.boxShadow = 'none'; }}
+                                onBlur={e => { e.currentTarget.style.borderColor = dateError && dateError.includes('End') ? '#ef4444' : 'var(--border-color)'; e.currentTarget.style.boxShadow = 'none'; }}
                             />
                         </div>
                     </div>
+                    {dateError && (
+                        <div style={{
+                            display: 'flex', alignItems: 'center', gap: '6px',
+                            color: '#ef4444', fontSize: '0.75rem', fontWeight: 600,
+                            marginBottom: '14px', padding: '8px 12px',
+                            background: '#fef2f2', borderRadius: '8px',
+                            border: '1px solid #fecaca'
+                        }}>
+                            <AlertCircle size={14} /> {dateError}
+                        </div>
+                    )}
 
                     {isCreating && (
                         <div style={{ marginBottom: '14px' }}>
@@ -435,7 +517,7 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                     )}
 
                     <div>
-                        <label style={labelStyle}><Users size={12} /> Attendees</label>
+                        <label style={labelStyle}><Users size={12} /> Invite Attendees</label>
                         <AttendeeSelector
                             selectedAttendees={selectedAttendees}
                             onChange={setSelectedAttendees}
@@ -461,7 +543,7 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                                 marginBottom: showAttendees ? '12px' : 0
                             }}
                         >
-                            <span style={labelStyle}><Users size={12} /> Attendees ({meeting.attendees.length})</span>
+                            <span style={labelStyle}><Users size={12} /> Invitation Status ({meeting.attendees.length})</span>
                             {showAttendees ? <ChevronUp size={14} color="var(--text-muted)" /> : <ChevronDown size={14} color="var(--text-muted)" />}
                         </button>
 
@@ -578,13 +660,7 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                     <div style={sectionStyle}>
                         <div style={labelStyle}><FileText size={12} /> Meeting Info</div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                            <div style={{ padding: '8px 12px', background: '#fff', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
-                                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '2px' }}>Created By</div>
-                                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                                    {usersMap[meeting.createdBy] || 'Unknown'}
-                                </div>
-                            </div>
-                            <div style={{ padding: '8px 12px', background: '#fff', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
+                            <div style={{ padding: '8px 12px', background: '#fff', borderRadius: '8px', border: '1px solid var(--border-light)', gridColumn: '1 / -1' }}>
                                 <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '2px' }}>Created At</div>
                                 <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                                     {formatDisplayDate(meeting.createdAt)}
@@ -628,28 +704,30 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                 >
                     Close
                 </button>
-                <button
-                    onClick={handleSave}
-                    disabled={saving || !title.trim()}
-                    style={{
-                        padding: '8px 24px',
-                        borderRadius: '10px',
-                        border: 'none',
-                        background: (!title.trim() || saving) ? '#94a3b8' : 'var(--accent-color)',
-                        color: '#fff',
-                        cursor: (!title.trim() || saving) ? 'not-allowed' : 'pointer',
-                        fontSize: '0.8rem',
-                        fontWeight: 700,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        transition: 'all 0.2s',
-                        boxShadow: (!title.trim() || saving) ? 'none' : '0 4px 12px rgba(232,114,12,0.25)'
-                    }}
-                >
-                    {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                    {isCreating ? 'Create' : 'Save Changes'}
-                </button>
+                {canEdit && (
+                    <button
+                        onClick={handleSave}
+                        disabled={saving || !title.trim() || !!dateError}
+                        style={{
+                            padding: '8px 24px',
+                            borderRadius: '10px',
+                            border: 'none',
+                            background: (!title.trim() || saving || !!dateError) ? '#94a3b8' : 'var(--accent-color)',
+                            color: '#fff',
+                            cursor: (!title.trim() || saving || !!dateError) ? 'not-allowed' : 'pointer',
+                            fontSize: '0.8rem',
+                            fontWeight: 700,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            transition: 'all 0.2s',
+                            boxShadow: (!title.trim() || saving) ? 'none' : '0 4px 12px rgba(232,114,12,0.25)'
+                        }}
+                    >
+                        {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                        {isCreating ? 'Create' : 'Save Changes'}
+                    </button>
+                )}
             </div>
         </div>
     );

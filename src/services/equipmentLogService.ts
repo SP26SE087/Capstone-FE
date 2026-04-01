@@ -1,44 +1,39 @@
 import api from './api';
-import { EquipmentLog } from '@/types/booking';
+import { EquipmentLog, AddEquipmentLogRequest, UpdateEquipmentLogRequest, PaginatedResponse } from '@/types/booking';
 
-export interface AddEquipmentLogRequest {
-  resourceId: string;
-  bookingId?: string | null;
-  action: string;
-  note?: string | null;
-}
-
-export interface EquipmentLogResponse extends EquipmentLog {
-  userId: string;
-  userName: string;
-  createdAt: string;
-}
+// Re-export for backward compatibility
+export type { AddEquipmentLogRequest, UpdateEquipmentLogRequest } from '@/types/booking';
 
 const BASE_URL = '/api/equipment-logs';
 
 export const equipmentLogService = {
-  getAll: async (pageIndex: number = 1, pageSize: number = 50): Promise<EquipmentLogResponse[]> => {
+  getAll: async (pageIndex = 1, pageSize = 50): Promise<PaginatedResponse<EquipmentLog>> => {
     const response = await api.get(BASE_URL, {
       params: { pageIndex, pageSize }
     });
-    // Support common .NET wrappers
-    const data = response.data;
-    return data.items || data.data || data.value || data.result || (Array.isArray(data) ? data : []);
+    const data = response.data.data || response.data;
+    if (Array.isArray(data)) {
+      return { items: data, totalCount: data.length, pageIndex: 1, pageSize: data.length, totalPages: 1 };
+    }
+    // Handle .NET wrappers
+    if (data.items) return data;
+    const items = data.value || data.result || [];
+    return { items, totalCount: items.length, pageIndex: 1, pageSize: items.length, totalPages: 1 };
   },
 
-  getById: async (id: string): Promise<EquipmentLogResponse> => {
+  getById: async (id: string): Promise<EquipmentLog> => {
     const response = await api.get(`${BASE_URL}/${id}`);
-    return response.data;
+    return response.data.data || response.data;
   },
 
-  create: async (request: AddEquipmentLogRequest): Promise<EquipmentLogResponse> => {
+  create: async (request: AddEquipmentLogRequest): Promise<EquipmentLog> => {
     const response = await api.post(BASE_URL, request);
-    return response.data;
+    return response.data.data || response.data;
   },
 
-  update: async (id: string, request: Partial<AddEquipmentLogRequest>): Promise<EquipmentLogResponse> => {
+  update: async (id: string, request: UpdateEquipmentLogRequest): Promise<EquipmentLog> => {
     const response = await api.put(`${BASE_URL}/${id}`, request);
-    return response.data;
+    return response.data.data || response.data;
   },
 
   delete: async (id: string): Promise<void> => {

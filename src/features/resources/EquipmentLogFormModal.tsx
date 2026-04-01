@@ -12,7 +12,7 @@ interface EquipmentLogFormModalProps {
 const EquipmentLogFormModal: React.FC<EquipmentLogFormModalProps> = ({ resources, log, onClose, onSubmit }) => {
   const isEditing = !!log;
   const [resourceId, setResourceId] = useState(log?.resourceId || resources[0]?.id || '');
-  const [action, setAction] = useState(log?.action || 'Maintenance Check');
+  const [action, setAction] = useState<any>(log?.action || 'Maintenance Check');
   const [note, setNote] = useState(log?.note || '');
 
   const handleSubmit = (e: React.FormEvent) => {

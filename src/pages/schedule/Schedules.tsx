@@ -6,9 +6,6 @@ import {
     Calendar,
     Plus,
     Loader2,
-    X,
-    Edit3,
-    ChevronRight,
     Clock,
     Filter,
     Target,
@@ -54,29 +51,8 @@ const Schedules: React.FC = () => {
     const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
     const [viewMode, setViewMode] = useState<'list' | 'timetable'>('list');
 
-    // Tab system
-    const [openTabs, setOpenTabs] = useState<ScheduleTab[]>([]);
-    const [activeTabId, setActiveTabId] = useState<string | null>(null);
-    const [isCreateDropdownOpen, setIsCreateDropdownOpen] = useState(false);
-    const [isViewDropdownOpen, setIsViewDropdownOpen] = useState(false);
-    const createDropdownRef = React.useRef<HTMLDivElement>(null);
-    const viewDropdownRef = React.useRef<HTMLDivElement>(null);
-
-    const activeTabObj = openTabs.find(t => t.id === activeTabId);
-
-    // Close dropdowns on outside click
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (createDropdownRef.current && !createDropdownRef.current.contains(event.target as Node)) {
-                setIsCreateDropdownOpen(false);
-            }
-            if (viewDropdownRef.current && !viewDropdownRef.current.contains(event.target as Node)) {
-                setIsViewDropdownOpen(false);
-            }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
+    // Panel system
+    const [activePanel, setActivePanel] = useState<ScheduleTab | null>(null);
 
     // Fetch metadata
     useEffect(() => {
@@ -108,8 +84,12 @@ const Schedules: React.FC = () => {
     const fetchMeetings = async () => {
         setLoading(true);
         try {
-            // Both tabs use Meetings/me; My Invited Meetings will use its own API when available
-            const data = await meetingService.getMyMeetings();
+            let data;
+            if (activeListTab === 'my_invited_meetings') {
+                data = await meetingService.getMyInvitedMeetings();
+            } else {
+                data = await meetingService.getMyMeetings();
+            }
             setMeetings(Array.isArray(data) ? data : []);
         } catch (error) {
             console.error('Failed to fetch meetings:', error);
@@ -123,56 +103,23 @@ const Schedules: React.FC = () => {
         setToast({ message, type });
     };
 
-    // Tab handlers
+    // Panel handlers
     const handleAddCreateTab = () => {
-        const createTabs = openTabs.filter(t => t.type === 'create');
-        if (createTabs.length >= 3) {
-            alert("Maximum 3 'Create' tabs allowed.");
-            return;
-        }
-        if (openTabs.length >= 6) {
-            alert("Maximum 6 total tabs allowed.");
-            return;
-        }
         const newId = `create-${Date.now()}`;
-        const newTab: ScheduleTab = { id: newId, type: 'create', title: 'New Schedule' };
-        setOpenTabs([...openTabs, newTab]);
-        setActiveTabId(newId);
+        setActivePanel({ id: newId, type: 'create', title: 'New Schedule' });
     };
 
     const handleOpenViewTab = (meeting: MeetingResponse) => {
         const eventId = meeting.googleCalendarEventId || meeting.id;
-        const existing = openTabs.find(t => t.meetingId === eventId);
-        if (existing) {
-            setActiveTabId(existing.id);
-            return;
-        }
-        const viewTabs = openTabs.filter(t => t.type === 'view');
-        if (viewTabs.length >= 3) {
-            alert("Maximum 3 'View' tabs allowed. Close some first.");
-            return;
-        }
-        if (openTabs.length >= 6) {
-            alert("Maximum 6 total tabs allowed.");
-            return;
-        }
-        const newId = `view-${eventId}`;
-        const newTab: ScheduleTab = { id: newId, type: 'view', meetingId: eventId, title: meeting.title || 'Schedule' };
-        setOpenTabs([...openTabs, newTab]);
-        setActiveTabId(newId);
+        setActivePanel({ id: `view-${eventId}`, type: 'view', meetingId: eventId, title: meeting.title || 'Schedule' });
     };
 
-    const handleCloseTab = (id: string, e?: React.MouseEvent) => {
-        e?.stopPropagation();
-        const newTabs = openTabs.filter(t => t.id !== id);
-        setOpenTabs(newTabs);
-        if (activeTabId === id) {
-            setActiveTabId(newTabs.length > 0 ? newTabs[newTabs.length - 1].id : null);
-        }
+    const handleClosePanel = () => {
+        setActivePanel(null);
     };
 
-    const handleTitleChange = (id: string, newTitle: string) => {
-        setOpenTabs(prev => prev.map(t => t.id === id ? { ...t, title: newTitle } : t));
+    const handleTitleChange = (newTitle: string) => {
+        if (activePanel) setActivePanel({ ...activePanel, title: newTitle });
     };
 
     // Filtered meetings
@@ -240,33 +187,6 @@ const Schedules: React.FC = () => {
                     </div>
                 </div>
 
-                {/* View Toggle */}
-                <div style={{ display: 'flex', gap: '4px', marginBottom: '1.5rem' }}>
-                    <button
-                        onClick={() => setViewMode('list')}
-                        style={{
-                            padding: '8px 16px', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 700,
-                            border: viewMode === 'list' ? '1.5px solid var(--accent-color)' : '1px solid var(--border-color)',
-                            background: viewMode === 'list' ? 'var(--accent-bg)' : '#fff',
-                            color: viewMode === 'list' ? 'var(--accent-color)' : 'var(--text-secondary)',
-                            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s'
-                        }}
-                    >
-                        <List size={16} /> List View
-                    </button>
-                    <button
-                        onClick={() => setViewMode('timetable')}
-                        style={{
-                            padding: '8px 16px', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 700,
-                            border: viewMode === 'timetable' ? '1.5px solid var(--accent-color)' : '1px solid var(--border-color)',
-                            background: viewMode === 'timetable' ? 'var(--accent-bg)' : '#fff',
-                            color: viewMode === 'timetable' ? 'var(--accent-color)' : 'var(--text-secondary)',
-                            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s'
-                        }}
-                    >
-                        <LayoutGrid size={16} /> Timetable
-                    </button>
-                </div>
 
                 {/* UNIFIED STATUS BOARD */}
                 <div style={{
@@ -373,6 +293,34 @@ const Schedules: React.FC = () => {
                     </div>
                 </div>
 
+                {/* View Toggle */}
+                <div style={{ display: 'flex', gap: '4px', marginBottom: '1.5rem' }}>
+                    <button
+                        onClick={() => setViewMode('list')}
+                        style={{
+                            padding: '8px 16px', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 700,
+                            border: viewMode === 'list' ? '1.5px solid var(--accent-color)' : '1px solid var(--border-color)',
+                            background: viewMode === 'list' ? 'var(--accent-bg)' : '#fff',
+                            color: viewMode === 'list' ? 'var(--accent-color)' : 'var(--text-secondary)',
+                            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s'
+                        }}
+                    >
+                        <List size={16} /> List View
+                    </button>
+                    <button
+                        onClick={() => setViewMode('timetable')}
+                        style={{
+                            padding: '8px 16px', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 700,
+                            border: viewMode === 'timetable' ? '1.5px solid var(--accent-color)' : '1px solid var(--border-color)',
+                            background: viewMode === 'timetable' ? 'var(--accent-bg)' : '#fff',
+                            color: viewMode === 'timetable' ? 'var(--accent-color)' : 'var(--text-secondary)',
+                            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s'
+                        }}
+                    >
+                        <LayoutGrid size={16} /> Timetable
+                    </button>
+                </div>
+
                 {/* List Tabs + New Schedule Button */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1.5rem' }}>
                     <div style={{ flex: 1, borderBottom: '1px solid #e2e8f0', overflowX: 'auto', whiteSpace: 'nowrap' as const }} className="custom-scrollbar">
@@ -441,156 +389,80 @@ const Schedules: React.FC = () => {
                         />
                     </div>
                 ) : (
-                <div style={{ display: 'flex', gap: '2rem', height: 'calc(100vh - 340px)', minHeight: '650px' }}>
-                    {/* Left: List */}
-                    <div style={{
-                        flex: openTabs.length > 0 ? 4 : 10,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
-                        width: openTabs.length > 0 ? '40%' : '100%',
-                        overflow: 'hidden'
-                    }}>
-                        <div style={{ flex: 1, overflowY: 'auto', paddingRight: '0.5rem' }} className="custom-scrollbar">
-                            {loading ? (
-                                <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
-                                    <Loader2 className="animate-spin" size={32} style={{ color: 'var(--accent-color)' }} />
-                                </div>
-                            ) : displayMeetings.length > 0 ? (
-                                <ScheduleList
-                                    meetings={displayMeetings}
-                                    selectedId={activeTabObj?.meetingId || null}
-                                    onSelect={handleOpenViewTab}
-                                    projectsMap={projectsMap}
-                                    usersMap={usersMap}
-                                    isSplit={openTabs.length > 0}
-                                />
-                            ) : (
-                                <div style={{ textAlign: 'center', padding: '4rem 2rem', color: '#94a3b8' }}>
-                                    <Target size={48} style={{ marginBottom: '1.5rem', opacity: 0.3 }} />
-                                    <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1e293b' }}>No Schedules</h3>
-                                    <p style={{ fontSize: '0.85rem' }}>Create your first schedule to get started with team meetings.</p>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Right: Panel */}
-                    <div style={{
-                        flex: openTabs.length > 0 ? 6 : 0,
-                        opacity: openTabs.length > 0 ? 1 : 0,
-                        pointerEvents: openTabs.length > 0 ? 'auto' : 'none',
-                        transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
-                        width: openTabs.length > 0 ? '60%' : '0',
-                        overflow: 'hidden',
-                        display: openTabs.length > 0 ? 'flex' : 'none',
-                        flexDirection: 'column',
-                        background: '#fff',
-                        borderRadius: '16px',
-                        border: '1px solid var(--border-color)',
-                        padding: '1rem'
-                    }}>
-                        {/* Tab Dropdowns */}
-                        <div style={{ display: 'flex', gap: '12px', marginBottom: '1rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.75rem' }}>
-                            {/* Create Dropdown */}
-                            <div style={{ position: 'relative' }} ref={createDropdownRef}>
-                                <button
-                                    onClick={() => { setIsCreateDropdownOpen(!isCreateDropdownOpen); setIsViewDropdownOpen(false); }}
-                                    style={{
-                                        padding: '8px 16px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 800, border: '1px solid #e2e8f0',
-                                        background: openTabs.some(t => t.id === activeTabId && t.type === 'create') ? 'var(--accent-color)' : '#fff',
-                                        color: openTabs.some(t => t.id === activeTabId && t.type === 'create') ? '#fff' : '#64748b',
-                                        display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', transition: 'all 0.2s'
-                                    }}
-                                >
-                                    <Plus size={14} /> New ({openTabs.filter(t => t.type === 'create').length}/3)
-                                    <ChevronRight size={14} style={{ transform: isCreateDropdownOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }} />
-                                </button>
-                                {isCreateDropdownOpen && (
-                                    <div style={{ position: 'absolute', top: '110%', left: 0, width: '240px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', zIndex: 100, padding: '8px' }}>
-                                        {openTabs.filter(t => t.type === 'create').length === 0 ? (
-                                            <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8', fontSize: '0.75rem' }}>No new schedules open.</div>
-                                        ) : openTabs.filter(t => t.type === 'create').map(tab => (
-                                            <div
-                                                key={tab.id}
-                                                onClick={() => { setActiveTabId(tab.id); setIsCreateDropdownOpen(false); }}
-                                                style={{ padding: '8px 12px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', background: activeTabId === tab.id ? '#f1f5f9' : 'transparent', marginBottom: '2px' }}
-                                            >
-                                                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: activeTabId === tab.id ? 'var(--accent-color)' : '#334155', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{tab.title}</div>
-                                                <X size={14} onClick={(e) => handleCloseTab(tab.id, e)} style={{ color: '#94a3b8', cursor: 'pointer' }} />
-                                            </div>
-                                        ))}
+                    <div style={{ display: 'flex', gap: '2rem', height: 'calc(100vh - 340px)', minHeight: '650px' }}>
+                        {/* Left: List */}
+                        <div style={{
+                            flex: activePanel ? 4 : 10,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+                            width: activePanel ? '40%' : '100%',
+                            overflow: 'hidden'
+                        }}>
+                            <div style={{ flex: 1, overflowY: 'auto', paddingRight: '0.5rem' }} className="custom-scrollbar">
+                                {loading ? (
+                                    <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
+                                        <Loader2 className="animate-spin" size={32} style={{ color: 'var(--accent-color)' }} />
                                     </div>
-                                )}
-                            </div>
-
-                            {/* View Dropdown */}
-                            <div style={{ position: 'relative' }} ref={viewDropdownRef}>
-                                <button
-                                    onClick={() => { setIsViewDropdownOpen(!isViewDropdownOpen); setIsCreateDropdownOpen(false); }}
-                                    style={{
-                                        padding: '8px 16px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 800, border: '1px solid #e2e8f0',
-                                        background: openTabs.some(t => t.id === activeTabId && t.type === 'view') ? 'var(--accent-color)' : '#fff',
-                                        color: openTabs.some(t => t.id === activeTabId && t.type === 'view') ? '#fff' : '#64748b',
-                                        display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', transition: 'all 0.2s'
-                                    }}
-                                >
-                                    <Edit3 size={14} /> View/Edit ({openTabs.filter(t => t.type === 'view').length}/3)
-                                    <ChevronRight size={14} style={{ transform: isViewDropdownOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }} />
-                                </button>
-                                {isViewDropdownOpen && (
-                                    <div style={{ position: 'absolute', top: '110%', left: 0, width: '240px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', zIndex: 100, padding: '8px' }}>
-                                        {openTabs.filter(t => t.type === 'view').length === 0 ? (
-                                            <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8', fontSize: '0.75rem' }}>No active schedules being viewed.</div>
-                                        ) : openTabs.filter(t => t.type === 'view').map(tab => (
-                                            <div
-                                                key={tab.id}
-                                                onClick={() => { setActiveTabId(tab.id); setIsViewDropdownOpen(false); }}
-                                                style={{ padding: '8px 12px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', background: activeTabId === tab.id ? '#f1f5f9' : 'transparent', marginBottom: '2px' }}
-                                            >
-                                                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: activeTabId === tab.id ? 'var(--accent-color)' : '#334155', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{tab.title}</div>
-                                                <X size={14} onClick={(e) => handleCloseTab(tab.id, e)} style={{ color: '#94a3b8', cursor: 'pointer' }} />
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Panel Content */}
-                        <div style={{ flex: 1, position: 'relative', overflowY: 'auto' }} className="custom-scrollbar">
-                            {openTabs.map(tab => (
-                                <div key={tab.id} style={{ display: activeTabId === tab.id ? 'block' : 'none', height: '100%' }}>
-                                    <SchedulePanel
-                                        meetingId={tab.type === 'view' ? tab.meetingId! : null}
-                                        isCreating={tab.type === 'create'}
-                                        onClose={() => handleCloseTab(tab.id)}
-                                        onSaved={(shouldClose = false, message?: string, newEventId?: string) => {
-                                            fetchMeetings();
-                                            if (message) showToast(message, 'success');
-                                            if (tab.type === 'create' && newEventId) {
-                                                const updatedId = `view-${newEventId}`;
-                                                setOpenTabs(prev => prev.map(t => t.id === tab.id ? {
-                                                    ...t,
-                                                    id: updatedId,
-                                                    type: 'view' as const,
-                                                    meetingId: newEventId,
-                                                    title: t.title || 'Schedule Saved'
-                                                } : t));
-                                                setActiveTabId(updatedId);
-                                            } else if (shouldClose) {
-                                                handleCloseTab(tab.id);
-                                            }
-                                        }}
-                                        onTitleChange={(title) => handleTitleChange(tab.id, title)}
+                                ) : displayMeetings.length > 0 ? (
+                                    <ScheduleList
+                                        meetings={displayMeetings}
+                                        selectedId={activePanel?.type === 'view' ? activePanel.meetingId! : null}
+                                        onSelect={handleOpenViewTab}
                                         projectsMap={projectsMap}
                                         usersMap={usersMap}
+                                        isSplit={!!activePanel}
                                     />
-                                </div>
-                            ))}
+                                ) : (
+                                    <div style={{ textAlign: 'center', padding: '4rem 2rem', color: '#94a3b8' }}>
+                                        <Target size={48} style={{ marginBottom: '1.5rem', opacity: 0.3 }} />
+                                        <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1e293b' }}>No Schedules</h3>
+                                        <p style={{ fontSize: '0.85rem' }}>Create your first schedule to get started with team meetings.</p>
+                                    </div>
+                                )}
+                            </div>
                         </div>
+
+                        {/* Right: Panel */}
+                        {activePanel && (
+                            <div style={{
+                                flex: 6,
+                                opacity: 1,
+                                pointerEvents: 'auto',
+                                transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+                                width: '60%',
+                                overflow: 'hidden',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                background: '#fff',
+                                borderRadius: '16px',
+                                border: '1px solid var(--border-color)',
+                                padding: '1.5rem'
+                            }}>
+                                <SchedulePanel
+                                    meetingId={activePanel.type === 'view' ? activePanel.meetingId! : null}
+                                    isCreating={activePanel.type === 'create'}
+                                    onClose={handleClosePanel}
+                                    onSaved={(shouldClose = false, message?: string, newEventId?: string) => {
+                                        fetchMeetings();
+                                        if (message) showToast(message, 'success');
+                                        if (activePanel.type === 'create' && newEventId) {
+                                            setActivePanel({
+                                                id: `view-${newEventId}`,
+                                                type: 'view',
+                                                meetingId: newEventId,
+                                                title: 'Schedule Detail'
+                                            });
+                                        } else if (shouldClose) {
+                                            handleClosePanel();
+                                        }
+                                    }}
+                                    onTitleChange={handleTitleChange}
+                                    projectsMap={projectsMap}
+                                />
+                            </div>
+                        )}
                     </div>
-                </div>
                 )}
             </div>
 

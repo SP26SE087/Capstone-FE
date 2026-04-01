@@ -61,6 +61,17 @@ const meetingService = {
         }
     },
 
+    // Get meetings I'm invited to
+    getMyInvitedMeetings: async (): Promise<MeetingResponse[]> => {
+        try {
+            const response = await api.get('/api/Meetings/me/invited');
+            return response.data;
+        } catch (error) {
+            console.error('Error fetching my invited meetings:', error);
+            throw error;
+        }
+    },
+
     // Update meeting details (agenda, notes, action items, etc.)
     updateMeetingDetails: async (eventId: string, data: UpdateMeetingDetailsRequest): Promise<MeetingResponse> => {
         try {
