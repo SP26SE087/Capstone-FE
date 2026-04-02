@@ -5,9 +5,9 @@ import path from 'path';
 export default defineConfig(function (_a) {
     var mode = _a.mode;
     var env = loadEnv(mode, process.cwd(), '');
-    var isServerMode = false;
+    var isServerMode = true;
     var serverUrl = env.VITE_SERVER_URL;
-    var getTarget = function (localUrl) { return isServerMode ? serverUrl : localUrl; };
+    var getTarget = function (localUrl) { return (isServerMode ? serverUrl : localUrl); };
     return {
         plugins: [react()],
         resolve: {

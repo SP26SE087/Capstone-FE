@@ -4,11 +4,12 @@ import path from 'path'
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
-    const env = loadEnv(mode, process.cwd(), '');
-    const isServerMode = false;
-    const serverUrl = env.VITE_SERVER_URL;
+    const env = loadEnv(mode, process.cwd(), '')
 
-    const getTarget = (localUrl: string) => isServerMode ? serverUrl : localUrl;
+    const isServerMode = true
+    const serverUrl = env.VITE_SERVER_URL
+
+    const getTarget = (localUrl: string) => (isServerMode ? serverUrl : localUrl)
 
     return {
         plugins: [react()],

@@ -31,3 +31,6 @@ devBooking.json
 
 #env files
 .env
+
+# TypeScript incremental build cache
+*.tsbuildinfo
