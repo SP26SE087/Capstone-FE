@@ -201,7 +201,7 @@ const TaskDetailModal: React.FC<TaskDetailModalProps> = ({
                 }
             } catch (err) {
                 console.error("Failed to load task details:", err);
-                setError("Failed to load task details.");
+                setError((err as any).message || "Failed to load task details.");
             } finally {
                 setLoading(false);
             }

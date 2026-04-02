@@ -452,7 +452,7 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
                 </div>
             </div>
 
-            <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', maxHeight: '450px' }} className="custom-scrollbar">
+            <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', maxHeight: '700px' }} className="custom-scrollbar">
                 {loading ? (
                     <div style={{ display: 'flex', height: '100%', minHeight: '300px', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '1rem' }}>
                         <Loader2 className="animate-spin" size={32} style={{ color: 'var(--primary-color)' }} />

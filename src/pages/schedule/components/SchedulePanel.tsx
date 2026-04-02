@@ -248,7 +248,7 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
             onSaved(true, 'Schedule deleted successfully.');
         } catch (err) {
             console.error('Delete failed:', err);
-            alert('Failed to delete schedule.');
+            alert((err as any).message || 'Failed to delete schedule.');
         } finally {
             setDeleting(false);
         }

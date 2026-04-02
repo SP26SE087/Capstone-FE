@@ -165,9 +165,9 @@ const ReportDetail: React.FC = () => {
                 })(),
                 status: reportData.status ?? (reportData as any).Status ?? 0
             });
-        } catch (error) {
+        } catch (error: any) {
             console.error('Failed to fetch report:', error);
-            showToast('Failed to load report details.', 'error');
+            showToast(error.message || 'Failed to load report details.', 'error');
         } finally {
             setLoading(false);
         }
@@ -296,7 +296,7 @@ const ReportDetail: React.FC = () => {
             fetchReport();
         } catch (error: any) {
             console.error('Failed to revert report:', error);
-            showToast('Failed to revert status.', 'error');
+            showToast(error.message || 'Failed to revert status.', 'error');
         } finally {
             setSubmitting(false);
         }

@@ -40,7 +40,7 @@ const Members: React.FC = () => {
             setError(null);
         } catch (err) {
             console.error('Failed to fetch members:', err);
-            setError('Failed to load lab members. Please try again later.');
+            setError((err as any).message || 'Failed to load lab members.');
         } finally {
             setLoading(false);
         }

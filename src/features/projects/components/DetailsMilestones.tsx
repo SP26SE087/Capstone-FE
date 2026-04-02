@@ -254,9 +254,9 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
             setDraftTasks(prev => prev.filter(d => d.id !== draft.id));
             if (mId) fetchMilestoneTasks(mId);
             if (refreshTasks) refreshTasks();
-        } catch (error) {
+        } catch (error: any) {
             console.error("Failed to save task:", error);
-            showToast('Failed to save task', 'error');
+            showToast(error.message || 'Failed to save task.', 'error');
             setDraftTasks(prev => prev.map(d => d.id === draft.id ? { ...d, isSaving: false } : d));
         }
     };
@@ -289,9 +289,9 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
             setDraftTasks([]);
             if (mId) fetchMilestoneTasks(mId);
             if (refreshTasks) refreshTasks();
-        } catch (error) {
+        } catch (error: any) {
             console.error("Failed to save bulk tasks:", error);
-            showToast('Failed to save bulk tasks', 'error');
+            showToast(error.message || 'Failed to save bulk tasks.', 'error');
             setDraftTasks(prev => prev.map(d => ({ ...d, isSaving: false })));
         } finally {
             setIsBulkSaving(false);
@@ -331,7 +331,7 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
             if (refreshTasks) refreshTasks();
         } catch (error) {
             console.error('Failed to save task changes:', error);
-            showToast('Failed to save changes', 'error');
+            showToast((error as any).message || 'Failed to save changes.', 'error');
         } finally {
             setSavingTaskId(null);
         }
@@ -358,7 +358,7 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                     if (refreshTasks) refreshTasks();
                 } catch (error) {
                     console.error('Failed to delete task:', error);
-                    showToast('Failed to delete task', 'error');
+                    showToast((error as any).message || 'Failed to delete task.', 'error');
                 }
             }
         });
@@ -530,7 +530,7 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                     }
                 } catch (error) {
                     console.error('Failed to delete milestone:', error);
-                    showToast('Failed to delete milestone', 'error');
+                    showToast((error as any).message || 'Failed to delete milestone.', 'error');
                 }
             }
         });
@@ -568,7 +568,7 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
             setShowMoreOptions(false);
         } catch (error) {
             console.error('Failed to update milestone status:', error);
-            showToast('Failed to update status', 'error');
+            showToast((error as any).message || 'Failed to update status.', 'error');
         }
     };
 
@@ -1136,26 +1136,6 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                             <div style={{ display: 'flex', gap: '8px' }}>
                                 {canManageProject && activeMilestone?.status !== MilestoneStatus.Completed && activeMilestone?.status !== MilestoneStatus.Cancelled && (
                                     <React.Fragment>
-                                        {draftTasks.length > 0 && (
-                                            <button
-                                                onClick={handleBulkTaskSave}
-                                                disabled={isBulkSaving}
-                                                style={{ 
-                                                    ...btnPrimary, 
-                                                    background: '#10b981', 
-                                                    padding: '7px 15px', 
-                                                    fontSize: '0.75rem', 
-                                                    borderRadius: '10px',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    gap: '6px',
-                                                    opacity: isBulkSaving ? 0.7 : 1
-                                                }}
-                                            >
-                                                {isBulkSaving ? <Clock className="animate-spin-slow" size={14} /> : <Save size={14} />}
-                                                {isBulkSaving ? 'Saving...' : `Save All (${draftTasks.length})`}
-                                            </button>
-                                        )}
                                         <button
                                             onClick={addDraftSlot}
                                             style={{ ...btnPrimary, padding: '7px 15px', fontSize: '0.75rem', borderRadius: '10px' }}

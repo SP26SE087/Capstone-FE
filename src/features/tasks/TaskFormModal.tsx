@@ -356,7 +356,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                 setServerEvidences(prev => prev.filter(e => e.id !== evidenceId));
             } catch (err) {
                 console.error("Failed to delete evidence:", err);
-                alert("Failed to remove evidence. Please check if the file still exists on server.");
+                alert((err as any).message || "Failed to remove evidence.");
             }
         }
     };
@@ -851,11 +851,16 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                                                 placeholder="Assign to..."
                                                 options={[
                                                     { id: '', name: 'Unassigned', info: 'Clear assignee' },
-                                                    ...selectableMembers.map(m => ({
-                                                        id: (m.memberId || m.id || '').toString(),
-                                                        name: m.fullName || m.userName || 'Unknown Member',
-                                                        info: m.projectRoleName || m.roleName || ''
-                                                    }))
+                                                    ...selectableMembers.map(m => {
+                                                        const mObj = m as any;
+                                                        const pIds = [mObj.membershipId, mObj.membershipID, m.id, m.userId, m.memberId];
+                                                        const mId = pIds.find(id => id && typeof id === 'string' && !id.includes('@')) || m.email || '';
+                                                        return {
+                                                            id: mId.toString(),
+                                                            name: m.fullName || m.userName || 'Unknown Member',
+                                                            info: m.projectRoleName || m.roleName || m.email || ''
+                                                        };
+                                                    })
                                                 ]}
                                                 value={row.memberId}
                                                 onChange={(val) => {
@@ -874,11 +879,16 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                                             <SearchableSelect
                                                 multiple
                                                 placeholder="Add collaborators..."
-                                                options={selectableMembers.map(m => ({
-                                                    id: (m.memberId || m.id || '').toString(),
-                                                    name: m.fullName || m.userName || 'Unknown Member',
-                                                    info: m.projectRoleName || m.roleName || ''
-                                                }))}
+                                                options={selectableMembers.map(m => {
+                                                    const mObj = m as any;
+                                                    const pIds = [mObj.membershipId, mObj.membershipID, m.id, m.userId, m.memberId];
+                                                    const mId = pIds.find(id => id && typeof id === 'string' && !id.includes('@')) || m.email || '';
+                                                    return {
+                                                        id: mId.toString(),
+                                                        name: m.fullName || m.userName || 'Unknown Member',
+                                                        info: m.projectRoleName || m.roleName || m.email || ''
+                                                    };
+                                                })}
                                                 value={row.supportMemberIds}
                                                 onChange={(val) => {
                                                     const newSupportIds = val as string[];
@@ -1365,7 +1375,9 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                                 <p style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8', fontSize: '0.85rem' }}>No members found.</p>
                             ) : (
                                 filteredMembers.map((m) => {
-                                    const mId = m.userId || m.memberId || '';
+                                    const mObj = (m as any);
+                                    const pIds = [mObj.membershipId, mObj.membershipID, m.id, m.userId, m.memberId];
+                                    const mId = pIds.find(id => id && typeof id === 'string' && !id.includes('@')) || m.email || '';
                                     const isAssignee = memberId === mId;
                                     const isCollaborator = supportMemberIds.includes(mId);
 

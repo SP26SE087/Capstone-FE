@@ -201,7 +201,7 @@ const EditProject: React.FC = () => {
             setTimeout(() => navigate(`/projects/${id}`), 1500);
         } catch (error: any) {
             console.error('Failed to update project:', error);
-            showToast('Failed to update project details.', 'error');
+            showToast(error.message || 'Failed to update project details.', 'error');
         } finally {
             setSubmitting(false);
         }
@@ -213,9 +213,9 @@ const EditProject: React.FC = () => {
             await projectService.delete(id);
             showToast('Project deleted successfully.', 'info');
             navigate('/projects');
-        } catch (error) {
+        } catch (error: any) {
             console.error('Failed to delete project:', error);
-            showToast('Failed to delete project.', 'error');
+            showToast(error.message || 'Failed to delete project.', 'error');
         } finally {
             setIsDeleteConfirmOpen(false);
             setDeleteInput('');

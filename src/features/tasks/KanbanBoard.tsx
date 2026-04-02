@@ -167,7 +167,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
             setIsModalOpen(false);
         } catch (error) {
             console.error('Failed to save task:', error);
-            alert('Failed to save research activity. Please check console for details.');
+            alert((error as any).message || 'Failed to save research activity.');
         }
     };
 

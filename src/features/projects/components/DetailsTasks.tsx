@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
     Search, Plus, X, LayoutGrid, User, Users, Calendar, Loader2, Play, Send,
-    Upload, Paperclip, Target, Filter, ChevronDown, Check, RotateCw, CheckCircle2, Clock
+    Upload, Paperclip, Target, Filter, ChevronDown, Check, RotateCw, CheckCircle2, Clock, Pencil, Save
 } from 'lucide-react';
-import { Project, Task, TaskStatus, Milestone, MilestoneStatus } from '@/types';
+import { Project, Task, TaskStatus, Priority, Milestone, MilestoneStatus } from '@/types';
 import ActivityTimeline from './ActivityTimeline';
 import { taskService } from '@/services/taskService';
 
@@ -34,6 +34,7 @@ interface DetailsTasksProps {
     currentUser?: any;
     currentMember: any;
     refreshTasks: () => void;
+    onEditTask?: (task: Task) => void;
 }
 
 const getStatusColor = (status: TaskStatus) => {
@@ -56,11 +57,10 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
     taskMilestoneFilter, setTaskMilestoneFilter, viewMode, setViewMode,
     canManageTasks, isArchived,
     newTasks, handleAddTaskForm, handleRemoveTaskForm, handleNewTaskChange, handleSaveNewTask,
-    milestones, projectMembers, project, formatProjectDate, currentMember, refreshTasks
+    milestones, projectMembers, project, formatProjectDate, currentMember, refreshTasks, onEditTask
 }) => {
     const [personalTasks, setPersonalTasks] = useState<Task[]>([]);
     const [loadingTasks, setLoadingTasks] = useState(false);
-    const myMembershipId = currentMember?.membershipId || currentMember?.id || (currentMember as any)?.memberId;
     const isSpecialRole = currentMember?.projectRole === 1 || currentMember?.projectRole === 4;
     const [viewContext, setViewContext] = useState<'personal' | 'all'>(isSpecialRole ? 'all' : 'personal');
     const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -75,6 +75,14 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
     const [isEvidenceModalOpen, setIsEvidenceModalOpen] = useState(false);
     const [previewEvidence, setPreviewEvidence] = useState<any>(null);
     const [pendingDelete, setPendingDelete] = useState<{ taskId: string, evidenceId: number } | null>(null);
+
+    const [isEditMode, setIsEditMode] = useState(false);
+    const [editForm, setEditForm] = useState({
+        name: '', description: '', priority: Priority.Medium as number,
+        startDate: '', dueDate: '', milestoneId: '', memberId: '', supportMemberIds: [] as string[]
+    });
+    const [editError, setEditError] = useState<string | null>(null);
+    const [editSaving, setEditSaving] = useState(false);
 
     const fetchPersonalTasks = useCallback(async () => {
         setLoadingTasks(true);
@@ -123,6 +131,101 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
     });
 
     const activeTask = (viewContext === 'all' ? tasks : personalTasks).find((t: Task) => (t.taskId || (t as any).id) === selectedTaskId);
+
+    const normalizeId = (value: any): string => value === undefined || value === null ? '' : String(value);
+    const toDateInput = (value: any): string => {
+        if (!value) return '';
+        const d = new Date(value);
+        if (Number.isNaN(d.getTime())) return '';
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+    };
+    const resolveMilestone = (rawId: any): Milestone | undefined => {
+        const target = normalizeId(rawId).toLowerCase();
+        if (!target) return undefined;
+        return milestones.find((m: any) => {
+            const identifiers = [m.milestoneId, m.id, m.ID, m.name, m.milestoneName].map(v => normalizeId(v).toLowerCase()).filter(Boolean);
+            return identifiers.includes(target);
+        });
+    };
+
+    const findMemberId = (rawIdOrEmail: any): string => {
+        const target = normalizeId(rawIdOrEmail).toLowerCase();
+        if (!target) return '';
+        const matched = projectMembers.find((m: any) => {
+            const identifiers = [
+                m.email, m.userId, m.userID, m.memberId, m.memberID, 
+                m.membershipId, m.membershipID, m.id, m.idUser, m.idMember,
+                m.fullName, m.userName, m.name
+            ].map(v => normalizeId(v).toLowerCase()).filter(Boolean);
+            return identifiers.includes(target);
+        });
+        if (matched) {
+            const m = matched as any;
+            const possibleIds = [
+                m.membershipId, m.membershipID, m.id, m.idUser, m.userId, m.userID, m.idMember, m.memberId
+            ];
+            // Find the first ID that isn't null and doesn't look like an email
+            const guid = possibleIds.find(id => id && typeof id === 'string' && !id.includes('@'));
+            if (guid) return guid;
+            
+            // If we only have an email in the ID fields, we'll return '' to signify no GUID found
+            return '';
+        }
+        // If the input itself is a GUID, use it
+        return (target.includes('-') && target.length > 30) ? target : '';
+    };
+
+    const getMemberOptionId = (member: any): string => {
+        if (!member) return '';
+        const m = member as any;
+        const possibleIds = [
+            m.membershipId, m.membershipID, m.id, m.idUser, m.userId, m.userID, m.idMember, m.memberId
+        ];
+        const guid = possibleIds.find(id => id && typeof id === 'string' && !id.includes('@'));
+        if (guid) return guid;
+
+        return normalizeId(member.email).toLowerCase();
+    };
+
+    const today = toDateInput(new Date());
+
+    const selectedEditMilestone = resolveMilestone(editForm.milestoneId);
+    const editMilestoneGuid = selectedEditMilestone?.milestoneId || '';
+    const editMilestoneStart = toDateInput(selectedEditMilestone?.startDate);
+    const editMilestoneEnd = toDateInput(selectedEditMilestone?.dueDate);
+
+    // Initial values to check for changes
+    const originalStart = toDateInput(activeTask?.startDate);
+    const originalDue = toDateInput(activeTask?.dueDate);
+    const rawActiveMilestoneId =
+        (activeTask as any)?.milestoneId ||
+        (activeTask as any)?.milestoneID ||
+        (activeTask as any)?.milestone_id ||
+        (activeTask as any)?.milestone?.milestoneId ||
+        (activeTask as any)?.milestone?.id ||
+        (activeTask as any)?.milestone?.name ||
+        (activeTask as any)?.milestoneName ||
+        (typeof (activeTask as any)?.milestone === 'string' ? (activeTask as any).milestone : '') ||
+        '';
+    const originalMilestoneId = resolveMilestone(rawActiveMilestoneId)?.milestoneId || '';
+
+    // Only validate if a field was actually modified by the user
+    const isStartDirty = editForm.startDate !== originalStart;
+    const isDueDirty = editForm.dueDate !== originalDue;
+    const isMilestoneDirty = editForm.milestoneId !== originalMilestoneId;
+
+    const invalidEditStartInPast = isStartDirty && !!editForm.startDate && editForm.startDate < today;
+    const invalidEditDueInPast = isDueDirty && !!editForm.dueDate && editForm.dueDate < today;
+    const invalidEditStartAfterDue = (isStartDirty || isDueDirty) && !!editForm.startDate && !!editForm.dueDate && editForm.startDate > editForm.dueDate;
+    const invalidEditStartBeforeMilestone = (isStartDirty || isMilestoneDirty) && !!selectedEditMilestone && !!editForm.startDate && !!editMilestoneStart && editForm.startDate < editMilestoneStart;
+    const invalidEditDueAfterMilestone = (isDueDirty || isMilestoneDirty) && !!selectedEditMilestone && !!editForm.dueDate && !!editMilestoneEnd && editForm.dueDate > editMilestoneEnd;
+
+    const editStartDateHasError = invalidEditStartInPast || invalidEditStartAfterDue || invalidEditStartBeforeMilestone;
+    const editDueDateHasError = invalidEditDueInPast || invalidEditStartAfterDue || invalidEditDueAfterMilestone;
+    const editMilestoneHasError = invalidEditStartBeforeMilestone || invalidEditDueAfterMilestone;
 
     const handleFileChange = (taskId: string, e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
@@ -173,9 +276,9 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
             if (previewEvidence?.id === evidenceId) {
                 setPreviewEvidence(null);
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('Failed to delete evidence:', error);
-            setErrorMessages(prev => ({ ...prev, [taskId]: 'Failed to delete file. Please reload the page if the issue persists.' }));
+            setErrorMessages(prev => ({ ...prev, [taskId]: error.message || 'Failed to delete file.' }));
         } finally {
             setPendingDelete(null);
         }
@@ -209,9 +312,9 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
             await taskService.updateStatus(taskId, TaskStatus.Submitted);
             refreshTasks();
             if (viewContext === 'personal') fetchPersonalTasks();
-        } catch (error) {
+        } catch (error: any) {
             console.error('Failed to submit for review:', error);
-            setErrorMessages(prev => ({ ...prev, [taskId]: 'Failed to submit. Please reload the page if the issue persists.' }));
+            setErrorMessages(prev => ({ ...prev, [taskId]: error.message || 'Failed to submit.' }));
         } finally {
             setSubmittingId(null);
         }
@@ -223,9 +326,9 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
             await taskService.updateStatus(taskId, TaskStatus.Completed);
             refreshTasks();
             if (viewContext === 'personal') fetchPersonalTasks();
-        } catch (error) {
+        } catch (error: any) {
             console.error('Failed to approve task:', error);
-            setErrorMessages(prev => ({ ...prev, [taskId]: 'Failed to approve task. Please reload the page if the issue persists.' }));
+            setErrorMessages(prev => ({ ...prev, [taskId]: error.message || 'Failed to approve task.' }));
         } finally {
             setSubmittingId(null);
         }
@@ -237,15 +340,69 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
             await taskService.updateStatus(taskId, TaskStatus.Adjusting);
             refreshTasks();
             if (viewContext === 'personal') fetchPersonalTasks();
-        } catch (error) {
+        } catch (error: any) {
             console.error('Failed to request adjusting:', error);
-            setErrorMessages(prev => ({ ...prev, [taskId]: 'Failed to request adjusting. Please reload the page if the issue persists.' }));
+            setErrorMessages(prev => ({ ...prev, [taskId]: error.message || 'Failed to request adjusting.' }));
         } finally {
             setSubmittingId(null);
         }
     };
 
+    const handleEditSave = async () => {
+        if (!activeTask) return;
+        const tId = activeTask.taskId || (activeTask as any).id;
+
+        if (!editForm.name.trim()) {
+            setEditError('Task name is required.');
+            return;
+        }
+
+        if (editStartDateHasError || editDueDateHasError || editMilestoneHasError) {
+            setEditError('Please fix the highlighted errors (dates cannot be in the past, and must be within the milestone range).');
+            return;
+        }
+
+        setEditError(null);
+        setEditSaving(true);
+        try {
+            await taskService.update(tId, {
+                name: editForm.name,
+                description: editForm.description,
+                priority: editForm.priority,
+                status: activeTask.status,
+                milestoneId: editMilestoneGuid || null,
+                memberId: editForm.memberId || null,
+                startDate: editForm.startDate ? new Date(editForm.startDate).toISOString() : null,
+                dueDate: editForm.dueDate ? new Date(editForm.dueDate).toISOString() : null,
+                supportMembers: editForm.supportMemberIds,
+                projectId: (activeTask as any).projectId || project.projectId || (project as any).id,
+            });
+            setIsEditMode(false);
+            refreshTasks();
+            if (viewContext === 'personal') fetchPersonalTasks();
+        } catch (err: any) {
+            setEditError(err.message || 'Failed to save changes.');
+        } finally {
+            setEditSaving(false);
+        }
+    };
+
     const handleStartTask = async (taskId: string) => {
+        const task = (viewContext === 'all' ? tasks : personalTasks).find((t: Task) => (t.taskId || (t as any).id) === taskId);
+        if (task?.milestoneId) {
+            const milestone = milestones.find(m => m.milestoneId === task.milestoneId);
+            if (milestone && milestone.status !== MilestoneStatus.InProgress) {
+                const statusLabels: Record<number, string> = {
+                    [MilestoneStatus.NotStarted]: 'has not started yet',
+                    [MilestoneStatus.Completed]: 'is already completed',
+                    [MilestoneStatus.OnHold]: 'is on hold',
+                    [MilestoneStatus.Cancelled]: 'has been cancelled',
+                };
+                const label = statusLabels[milestone.status] ?? 'is not active';
+                setErrorMessages(prev => ({ ...prev, [taskId]: `Cannot start task: milestone "${milestone.name}" ${label}.` }));
+                return;
+            }
+        }
         setSubmittingId(taskId);
         try {
             await taskService.updateStatus(taskId, TaskStatus.InProgress);
@@ -253,9 +410,9 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
             if (viewContext === 'personal') {
                 fetchPersonalTasks();
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('Failed to start task:', error);
-            setErrorMessages(prev => ({ ...prev, [taskId]: 'Failed to start task. Please reload the page if the issue persists.' }));
+            setErrorMessages(prev => ({ ...prev, [taskId]: error.message || 'Failed to start task.' }));
         } finally {
             setSubmittingId(null);
         }
@@ -291,6 +448,8 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
         setIsAddingNew(false);
         const tId = task.taskId || (task as any).id;
         setSelectedTaskId(tId);
+        setIsEditMode(false);
+        setEditError(null);
     };
 
     const labelStyle = {
@@ -575,27 +734,47 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
 
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                                         {(() => {
-                                            const selMilestone = milestones.find(m => m.milestoneId === form.milestoneId);
-                                            const today = new Date().toLocaleDateString('en-CA');
+                                            const selMilestone = resolveMilestone(form.milestoneId);
+                                            const mStart = toDateInput(selMilestone?.startDate);
+                                            const mEnd = toDateInput(selMilestone?.dueDate);
 
-                                            // minDate is the later of (milestone start OR project start) AND today
-                                            let baseMin = selMilestone?.startDate
-                                                ? new Date(selMilestone.startDate).toLocaleDateString('en-CA')
-                                                : (project.startDate ? new Date(project.startDate).toLocaleDateString('en-CA') : '');
+                                            const isStartInPast = !!form.startDate && form.startDate < today;
+                                            const isDueInPast = !!form.endDate && form.endDate < today;
+                                            const isStartAfterDue = !!form.startDate && !!form.endDate && form.startDate > form.endDate;
+                                            const isStartBeforeMilestone = !!selMilestone && !!form.startDate && !!mStart && form.startDate < mStart;
+                                            const isDueAfterMilestone = !!selMilestone && !!form.endDate && !!mEnd && form.endDate > mEnd;
 
-                                            const minDate = (baseMin && baseMin > today) ? baseMin : today;
-                                            const maxDate = selMilestone?.dueDate ? new Date(selMilestone.dueDate).toLocaleDateString('en-CA') : (project.endDate ? new Date(project.endDate).toLocaleDateString('en-CA') : '');
+                                            const startHasError = isStartInPast || isStartAfterDue || isStartBeforeMilestone;
+                                            const dueHasError = isDueInPast || isStartAfterDue || isDueAfterMilestone;
+                                            const milestoneHasError = isStartBeforeMilestone || isDueAfterMilestone;
+
+                                            const minDateForCreate = (mStart && mStart > today) ? mStart : today;
+                                            const maxDateForCreate = mEnd || '';
 
                                             return (
                                                 <>
+                                                    <div style={{ gridColumn: 'span 2' }}>
+                                                        <label style={labelStyle}>Milestone</label>
+                                                        <select
+                                                            style={{ ...inputStyle, border: milestoneHasError ? '1.5px solid #ef4444' : '1.5px solid #e2e8f0' }}
+                                                            value={form.milestoneId}
+                                                            onChange={(e) => handleNewTaskChange(form.tempId, 'milestoneId', e.target.value)}
+                                                        >
+                                                            <option value="">Select Milestone</option>
+                                                            {milestones
+                                                                .filter(m => m.status !== MilestoneStatus.Completed && m.status !== MilestoneStatus.Cancelled)
+                                                                .map(m => <option key={m.milestoneId} value={m.milestoneId}>{m.name}</option>)
+                                                            }
+                                                        </select>
+                                                    </div>
                                                     <div>
                                                         <label style={labelStyle}>Start Date <span style={{ color: '#ef4444' }}>*</span></label>
                                                         <input
                                                             type="date"
-                                                            style={{ ...inputStyle, border: (form.startDate && form.endDate && new Date(form.startDate) > new Date(form.endDate)) ? '1.5px solid #ef4444' : '1.5px solid #e2e8f0' }}
+                                                            style={{ ...inputStyle, border: startHasError ? '1.5px solid #ef4444' : '1.5px solid #e2e8f0' }}
                                                             value={form.startDate}
-                                                            min={minDate}
-                                                            max={form.endDate || maxDate}
+                                                            min={minDateForCreate}
+                                                            max={form.endDate || maxDateForCreate}
                                                             onChange={(e) => handleNewTaskChange(form.tempId, 'startDate', e.target.value)}
                                                         />
                                                     </div>
@@ -603,10 +782,10 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                                                         <label style={labelStyle}>Due Date <span style={{ color: '#ef4444' }}>*</span></label>
                                                         <input
                                                             type="date"
-                                                            style={{ ...inputStyle, border: (form.startDate && form.endDate && new Date(form.startDate) > new Date(form.endDate)) ? '1.5px solid #ef4444' : '1.5px solid #e2e8f0' }}
+                                                            style={{ ...inputStyle, border: dueHasError ? '1.5px solid #ef4444' : '1.5px solid #e2e8f0' }}
                                                             value={form.endDate}
-                                                            min={form.startDate || minDate}
-                                                            max={maxDate}
+                                                            min={form.startDate || minDateForCreate}
+                                                            max={maxDateForCreate}
                                                             onChange={(e) => handleNewTaskChange(form.tempId, 'endDate', e.target.value)}
                                                         />
                                                     </div>
@@ -615,7 +794,7 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                                         })()}
                                     </div>
 
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '12px' }}>
                                         <div>
                                             <label style={labelStyle}>Priority</label>
                                             <select style={inputStyle} value={form.priority || 2} onChange={(e) => handleNewTaskChange(form.tempId, 'priority', parseInt(e.target.value))}>
@@ -625,27 +804,20 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                                                 <option value={4}>Critical</option>
                                             </select>
                                         </div>
-                                        <div>
-                                            <label style={labelStyle}>Milestone</label>
-                                            <select style={inputStyle} value={form.milestoneId} onChange={(e) => handleNewTaskChange(form.tempId, 'milestoneId', e.target.value)}>
-                                                <option value="">Select Milestone</option>
-                                                {milestones
-                                                    .filter(m => m.status !== MilestoneStatus.Completed && m.status !== MilestoneStatus.Cancelled)
-                                                    .map(m => <option key={m.milestoneId} value={m.milestoneId}>{m.name}</option>)
-                                                }
-                                            </select>
-                                        </div>
                                     </div>
 
                                     <div>
                                         <label style={labelStyle}>Assignee</label>
                                         <select style={inputStyle} value={form.assigneeId} onChange={(e) => handleNewTaskChange(form.tempId, 'assigneeId', e.target.value)}>
                                             <option value="">Unassigned</option>
-                                            {projectMembers.filter(m => m.projectRole !== 1).map(m => (
-                                                <option key={m.userId || m.membershipId || m.id} value={m.userId || m.membershipId || m.id}>
-                                                    {m.fullName || m.userName}
-                                                </option>
-                                            ))}
+                                            {projectMembers.filter(m => m.projectRole !== 1).map(m => {
+                                                const mId = getMemberOptionId(m);
+                                                return (
+                                                    <option key={mId} value={mId}>
+                                                        {m.fullName || m.userName}
+                                                    </option>
+                                                );
+                                            })}
                                         </select>
                                     </div>
 
@@ -665,8 +837,8 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                                             style={inputStyle}
                                         >
                                             <option value="">Select Collaborators ({form.supportMemberIds?.length || 0})</option>
-                                            {projectMembers.filter(m => m.projectRole !== 1 && (m.userId || m.membershipId || m.id) !== form.assigneeId).map(m => {
-                                                const mId = m.userId || m.membershipId || m.id;
+                                            {projectMembers.filter(m => m.projectRole !== 1 && getMemberOptionId(m) !== form.assigneeId).map(m => {
+                                                const mId = getMemberOptionId(m);
                                                 const isSelected = (form.supportMemberIds || []).includes(mId);
                                                 return (
                                                     <option key={mId} value={mId}>
@@ -680,7 +852,7 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                                     <div style={{ marginTop: '0.5rem' }}>
                                         <button
                                             onClick={() => onSaveTask(form.tempId)}
-                                            disabled={submittingId === form.tempId || !form.name || !form.description || !form.startDate || !form.endDate || (new Date(form.startDate) > new Date(form.endDate))}
+                                            disabled={submittingId === form.tempId || !form.name || !form.description || !form.startDate || !form.endDate || (new Date(form.startDate) > new Date(form.endDate)) || form.startDate < today || form.endDate < today}
                                             style={{
                                                 width: '100%',
                                                 padding: '0.75rem',
@@ -698,7 +870,7 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                                                 justifyContent: 'center',
                                                 gap: '8px',
                                                 transition: 'all 0.2s',
-                                                opacity: (submittingId === form.tempId || !form.name || !form.description || !form.startDate || !form.endDate || (new Date(form.startDate) > new Date(form.endDate))) ? 0.6 : 1
+                                                opacity: (submittingId === form.tempId || !form.name || !form.description || !form.startDate || !form.endDate || (new Date(form.startDate) > new Date(form.endDate)) || form.startDate < today || form.endDate < today) ? 0.6 : 1
                                             }}
                                         >
                                             {submittingId === form.tempId ? (
@@ -712,15 +884,18 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                         </div>
                     ) : activeTask ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                            {/* Header row with title/status and edit toggle */}
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
                                 <div style={{ flex: 1 }}>
-                                    <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#1e293b', marginBottom: '4px' }}>{activeTask.name}</div>
+                                    <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#1e293b', marginBottom: '4px' }}>
+                                        {isEditMode ? editForm.name || '(untitled)' : activeTask.name}
+                                    </div>
                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                                         {(() => {
                                             const s = getStatusColor(activeTask.status);
                                             return <span style={{ fontSize: '0.6rem', fontWeight: 800, padding: '2px 8px', borderRadius: '5px', background: s.bg, color: s.text, textTransform: 'uppercase' }}>{s.label}</span>;
                                         })()}
-                                        {(() => {
+                                        {!isEditMode && (() => {
                                             const p = parseInt(activeTask.priority?.toString() || '1');
                                             const labels = ['Low', 'Medium', 'High', 'Critical'];
                                             const colors = ['#f1f5f9', '#eff6ff', '#fff7ed', '#fef2f2'];
@@ -729,8 +904,237 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                                         })()}
                                     </div>
                                 </div>
+                                {/* Edit toggle — Lab Director & Leader only */}
+                                {isSpecialRole && !isEditMode && (
+                                    <button
+                                        onClick={() => {
+                                            const rawMilestoneId =
+                                                (activeTask as any).milestoneId ||
+                                                (activeTask as any).milestoneID ||
+                                                (activeTask as any).milestone_id ||
+                                                (activeTask as any).milestone?.milestoneId ||
+                                                (activeTask as any).milestone?.id ||
+                                                (activeTask as any).milestone?.name ||
+                                                (activeTask as any).milestoneName ||
+                                                (typeof (activeTask as any).milestone === 'string' ? (activeTask as any).milestone : '') ||
+                                                '';
+                                            const normalizedMilestoneId = resolveMilestone(rawMilestoneId)?.milestoneId || '';
+
+                                            const rawAssignee =
+                                                (activeTask as any).member?.email ||
+                                                (activeTask as any).assignee?.email ||
+                                                (activeTask as any).memberEmail ||
+                                                (activeTask as any).assigneeEmail ||
+                                                (activeTask as any).memberId ||
+                                                (activeTask as any).assigneeId ||
+                                                (activeTask as any).assigneeName ||
+                                                (activeTask as any).assignedToName ||
+                                                '';
+                                            const normalizedAssigneeId = findMemberId(rawAssignee);
+
+                                            const collaboratorRows =
+                                                (activeTask as any).members ||
+                                                (activeTask as any).supportMembers ||
+                                                (activeTask as any).collaborators ||
+                                                (activeTask as any).supportMemberIds ||
+                                                (activeTask as any).collaboratorIds ||
+                                                (activeTask as any).collaboratorNames ||
+                                                [];
+
+                                            const normalizedCollaborators = Array.from(new Set(
+                                                (Array.isArray(collaboratorRows) ? collaboratorRows : []).map((item: any) => {
+                                                    const idToFind = item?.email || item?.userId || item?.memberId || item?.membershipId || item?.id || (typeof item === 'string' ? item : '');
+                                                    return findMemberId(idToFind);
+                                                }).filter((id: string) => !!id && id !== normalizedAssigneeId)
+                                            ));
+
+                                            setEditForm({
+                                                name: activeTask.name || '',
+                                                description: activeTask.description || '',
+                                                priority: activeTask.priority || Priority.Medium,
+                                                startDate: toDateInput(activeTask.startDate),
+                                                dueDate: toDateInput(activeTask.dueDate),
+                                                milestoneId: normalizedMilestoneId,
+                                                memberId: normalizedAssigneeId,
+                                                supportMemberIds: normalizedCollaborators,
+                                            });
+                                            setEditError(null);
+                                            setIsEditMode(true);
+                                        }}
+                                        style={{
+                                            background: 'none', border: '1.5px solid #e2e8f0',
+                                            borderRadius: '8px', padding: '5px 10px',
+                                            cursor: 'pointer', color: '#64748b',
+                                            display: 'flex', alignItems: 'center', gap: '5px',
+                                            fontSize: '0.72rem', fontWeight: 600,
+                                            transition: 'all 0.15s', flexShrink: 0,
+                                        }}
+                                        onMouseOver={e => { e.currentTarget.style.borderColor = 'var(--primary-color)'; e.currentTarget.style.color = 'var(--primary-color)'; }}
+                                        onMouseOut={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.color = '#64748b'; }}
+                                    >
+                                        <Pencil size={13} /> Edit
+                                    </button>
+                                )}
+                                {isSpecialRole && isEditMode && (
+                                    <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                                        <button
+                                            onClick={() => { setIsEditMode(false); setEditError(null); }}
+                                            style={{ background: '#f1f5f9', border: 'none', borderRadius: '8px', padding: '5px 10px', cursor: 'pointer', color: '#64748b', fontSize: '0.72rem', fontWeight: 600 }}
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            onClick={handleEditSave}
+                                            disabled={editSaving}
+                                            style={{ background: 'var(--primary-color)', border: 'none', borderRadius: '8px', padding: '5px 10px', cursor: editSaving ? 'not-allowed' : 'pointer', color: 'white', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.72rem', fontWeight: 700, opacity: editSaving ? 0.7 : 1 }}
+                                        >
+                                            {editSaving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                                            {editSaving ? 'Saving...' : 'Save'}
+                                        </button>
+                                    </div>
+                                )}
                             </div>
 
+                            {/* Inline Edit Form */}
+                            {isEditMode && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', background: '#f8fafc', padding: '1rem', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                                    {editError && (
+                                        <div style={{ color: '#ef4444', fontSize: '0.72rem', fontWeight: 700, padding: '8px 12px', background: '#fef2f2', borderRadius: '8px', border: '1px solid #fecaca' }}>
+                                            {editError}
+                                        </div>
+                                    )}
+                                    <div>
+                                        <label style={{ ...labelStyle, marginBottom: '4px' }}>Task Name <span style={{ color: '#ef4444' }}>*</span></label>
+                                        <input
+                                            type="text"
+                                            value={editForm.name}
+                                            onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
+                                            style={{ ...inputStyle }}
+                                            placeholder="Task name"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label style={{ ...labelStyle, marginBottom: '4px' }}>Description</label>
+                                        <textarea
+                                            value={editForm.description}
+                                            onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))}
+                                            style={{ ...inputStyle, minHeight: '72px', resize: 'vertical', fontFamily: 'inherit' }}
+                                            placeholder="Description"
+                                        />
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                        <div>
+                                            <label style={{ ...labelStyle, marginBottom: '4px' }}>Priority</label>
+                                            <select value={editForm.priority} onChange={e => setEditForm(f => ({ ...f, priority: parseInt(e.target.value) }))} style={inputStyle}>
+                                                <option value={Priority.Low}>Low</option>
+                                                <option value={Priority.Medium}>Medium</option>
+                                                <option value={Priority.High}>High</option>
+                                                <option value={Priority.Critical}>Critical</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label style={{ ...labelStyle, marginBottom: '4px' }}>Milestone</label>
+                                            <select
+                                                value={editForm.milestoneId}
+                                                onChange={e => setEditForm(f => ({ ...f, milestoneId: e.target.value }))}
+                                                style={{ ...inputStyle, border: editMilestoneHasError ? '1.5px solid #ef4444' : '1.5px solid #e2e8f0' }}
+                                            >
+                                                <option value="">No Milestone</option>
+                                                {milestones.filter(m => m.status !== MilestoneStatus.Cancelled).map(m => (
+                                                    <option key={m.milestoneId} value={m.milestoneId}>{m.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                        {(() => {
+                                            const minD = (editMilestoneStart && editMilestoneStart > today) ? editMilestoneStart : today;
+                                            const maxD = editMilestoneEnd || '';
+                                            return (
+                                                <>
+                                                    <div>
+                                                        <label style={{ ...labelStyle, marginBottom: '4px' }}>Start Date</label>
+                                                        <input
+                                                            type="date"
+                                                            value={editForm.startDate}
+                                                            min={minD}
+                                                            max={editForm.dueDate || maxD}
+                                                            onChange={e => setEditForm(f => ({ ...f, startDate: e.target.value }))}
+                                                            style={{ ...inputStyle, border: editStartDateHasError ? '1.5px solid #ef4444' : '1.5px solid #e2e8f0' }}
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label style={{ ...labelStyle, marginBottom: '4px' }}>Due Date</label>
+                                                        <input
+                                                            type="date"
+                                                            value={editForm.dueDate}
+                                                            min={editForm.startDate || minD}
+                                                            max={maxD}
+                                                            onChange={e => setEditForm(f => ({ ...f, dueDate: e.target.value }))}
+                                                            style={{ ...inputStyle, border: editDueDateHasError ? '1.5px solid #ef4444' : '1.5px solid #e2e8f0' }}
+                                                        />
+                                                    </div>
+                                                </>
+                                            );
+                                        })()}
+                                    </div>
+                                    <div>
+                                        <label style={{ ...labelStyle, marginBottom: '4px' }}>Assignee</label>
+                                        <select value={editForm.memberId} onChange={e => setEditForm(f => ({ ...f, memberId: e.target.value }))} style={inputStyle}>
+                                            <option value="">Unassigned</option>
+                                            {projectMembers.filter(m => m.projectRole !== 1).map(m => {
+                                                const id = getMemberOptionId(m);
+                                                return <option key={id} value={id}>{m.fullName || m.userName}</option>;
+                                            })}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label style={{ ...labelStyle, marginBottom: '4px' }}>Collaborators</label>
+                                        <select
+                                            value=""
+                                            onChange={e => {
+                                                const val = e.target.value;
+                                                if (!val) return;
+                                                setEditForm(f => ({
+                                                    ...f,
+                                                    supportMemberIds: f.supportMemberIds.includes(val)
+                                                        ? f.supportMemberIds.filter(id => id !== val)
+                                                        : [...f.supportMemberIds, val]
+                                                }));
+                                            }}
+                                            style={inputStyle}
+                                        >
+                                            <option value="">Select Collaborators ({editForm.supportMemberIds.length})</option>
+                                            {projectMembers.filter(m => m.projectRole !== 1 && getMemberOptionId(m) !== editForm.memberId).map(m => {
+                                                const id = getMemberOptionId(m);
+                                                return (
+                                                    <option key={id} value={id}>
+                                                        {editForm.supportMemberIds.includes(id) ? '✓ ' : ''}{m.fullName || m.userName}
+                                                    </option>
+                                                );
+                                            })}
+                                        </select>
+                                        {editForm.supportMemberIds.length > 0 && (
+                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
+                                                {editForm.supportMemberIds.map(id => {
+                                                    const m = projectMembers.find(pm => getMemberOptionId(pm) === id);
+                                                    return m ? (
+                                                        <span key={id} style={{ fontSize: '0.65rem', padding: '2px 8px', background: '#e0f2fe', color: '#0369a1', borderRadius: '20px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                            {m.fullName || m.userName}
+                                                            <button onClick={() => setEditForm(f => ({ ...f, supportMemberIds: f.supportMemberIds.filter(i => i !== id) }))}
+                                                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#0369a1', display: 'flex' }}>
+                                                                <X size={10} />
+                                                            </button>
+                                                        </span>
+                                                    ) : null;
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {!isEditMode && (
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', background: '#f8fafc', padding: '1rem', borderRadius: '12px', border: '1px solid #f1f5f9' }}>
                                 <div>
                                     <label style={{ ...labelStyle, marginBottom: '4px' }}>Timeline</label>
@@ -743,12 +1147,37 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                                 </div>
                                 <div>
                                     <label style={{ ...labelStyle, marginBottom: '4px' }}>Milestone</label>
-                                    <div style={{ fontSize: '0.75rem', color: '#1e293b', fontWeight: 600 }}>
-                                        {milestones.find(m => m.milestoneId === activeTask.milestoneId)?.name || 'Ungrouped'}
-                                    </div>
+                                    {(() => {
+                                        const m = resolveMilestone((activeTask as any).milestoneId || (activeTask as any).milestoneID || (activeTask as any).milestone_id || (activeTask as any).milestone?.milestoneId || (activeTask as any).milestone?.id || (activeTask as any).milestone?.name);
+                                        if (!m) return <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic' }}>No Milestone</div>;
+                                        return (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                <div style={{ 
+                                                    fontSize: '0.75rem', 
+                                                    fontWeight: 800, 
+                                                    color: 'var(--primary-color)',
+                                                    background: '#f0f9ff',
+                                                    padding: '2px 8px',
+                                                    borderRadius: '6px',
+                                                    display: 'inline-block',
+                                                    width: 'fit-content',
+                                                    border: '1px solid #bae6fd'
+                                                }}>
+                                                    {m.name}
+                                                </div>
+                                                {m.startDate && m.dueDate && (
+                                                    <div style={{ fontSize: '0.65rem', color: '#64748b' }}>
+                                                        {formatProjectDate(m.startDate)} – {formatProjectDate(m.dueDate)}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                             </div>
+                            )}
 
+                            {!isEditMode && (
                             <div>
                                 <label style={labelStyle}>Assignee</label>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -810,18 +1239,22 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                                     })()}
                                 </div>
                             </div>
+                            )}
 
+                            {!isEditMode && (
                             <div>
                                 <label style={labelStyle}>Task Description</label>
                                 <div style={{ fontSize: '0.85rem', color: '#445469', lineHeight: 1.6, background: 'white', padding: '1rem', borderRadius: '12px', border: '1px solid #e2e8f0' }}>{activeTask.description || 'No description provided.'}</div>
                             </div>
+                            )}
 
+                            {!isEditMode && (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                 {/* Evidence Section - Management approach */}
                                 {(() => {
                                     const taskId = activeTask.taskId || (activeTask as any).id;
                                     const canUpload = [TaskStatus.Todo, TaskStatus.InProgress, TaskStatus.Adjusting, TaskStatus.Missed].includes(activeTask.status) &&
-                                        (viewContext === 'personal' || (activeTask.memberId || (activeTask as any).assignedToId) === myMembershipId);
+                                        ((activeTask as any).isAssignee === true || viewContext === 'personal');
                                     const drafts = evidenceFiles[taskId] || [];
                                     const uploaded = uploadedEvidences[taskId] || [];
                                     const hasRecords = uploaded.length > 0 || drafts.length > 0;
@@ -942,8 +1375,8 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                                     );
                                 })()}
 
-                                {/* Primary Action: Start Working (Only for Todo) */}
-                                {activeTask.status === TaskStatus.Todo && (viewContext === 'personal' || (activeTask.memberId || (activeTask as any).assignedToId) === myMembershipId) && (
+                                {/* Primary Action: Start Working (Only for Todo, only for assignee) */}
+                                {activeTask.status === TaskStatus.Todo && ((activeTask as any).isAssignee === true || viewContext === 'personal') && (
                                     <button
                                         onClick={() => handleStartTask(activeTask.taskId || (activeTask as any).id)}
                                         disabled={submittingId === (activeTask.taskId || (activeTask as any).id)}
@@ -971,7 +1404,7 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                                     </button>
                                 )}
 
-                                {isSpecialRole && activeTask.status === TaskStatus.Submitted && (
+                                {isSpecialRole && !(activeTask as any).isAssignee && activeTask.status === TaskStatus.Submitted && (
                                     <div style={{ display: 'flex', gap: '10px', width: '100%', marginBottom: '1rem' }}>
                                         <button
                                             onClick={() => handleRequestAdjusting(activeTask.taskId || (activeTask as any).id)}
@@ -995,13 +1428,14 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                                 )}
 
                                 {/* Restricted View Notice */}
-                                {!(viewContext === 'personal' || (activeTask.memberId || (activeTask as any).assignedToId) === myMembershipId) && (
+                                {!(activeTask as any).isAssignee && viewContext !== 'personal' && !isSpecialRole && (
                                     <div style={{ textAlign: 'center', padding: '1.5rem', color: '#94a3b8', fontSize: '0.75rem', background: '#f8fafc', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
                                         <User size={24} style={{ opacity: 0.2, marginBottom: '8px' }} />
-                                        <div>Viewing as {isSpecialRole ? 'Admin' : 'Observer'}. Actions restricted to the assignee.</div>
+                                        <div>Viewing as Observer. Actions restricted to the assignee.</div>
                                     </div>
                                 )}
                             </div>
+                            )}
                         </div>
                     ) : (
                         <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#cbd5e1' }}>

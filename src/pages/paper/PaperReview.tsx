@@ -49,7 +49,7 @@ const PaperReview: React.FC = () => {
             if (!err.response) {
                 setError('Cannot connect to Paper Submission server. Please ensure the Backend is running.');
             } else {
-                setError('Failed to load papers. Please try again.');
+                setError(err.message || 'Failed to load papers.');
             }
             setPapers([]);
         } finally {

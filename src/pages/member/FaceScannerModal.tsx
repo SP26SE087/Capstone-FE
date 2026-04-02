@@ -63,7 +63,7 @@ const FaceScannerModal: React.FC<FaceScannerModalProps> = ({ isOpen, onClose, in
             console.error('Start scan failed:', err);
             setStatus('Connection failed. Is the Biometric BE running?');
             setIsScanning(false);
-            alert('Failed to start biometric registration.');
+            alert((err as any).message || 'Failed to start biometric registration.');
         }
     };
 

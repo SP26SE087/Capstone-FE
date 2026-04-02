@@ -142,9 +142,9 @@ const MilestoneDetailModal: React.FC<MilestoneDetailModalProps> = ({
             await fetchMilestoneDetails();
             setIsEditMode(false);
             onMilestoneUpdated();
-        } catch (error) {
+        } catch (error: any) {
             console.error("Failed to update milestone:", error);
-            alert("Failed to update milestone. Please try again.");
+            alert(error.message || "Failed to update milestone.");
         } finally {
             setLoading(false);
         }
@@ -210,9 +210,9 @@ const MilestoneDetailModal: React.FC<MilestoneDetailModalProps> = ({
                     await milestoneService.delete(milestoneId);
                     onMilestoneUpdated();
                     onClose();
-                } catch (error) {
+                } catch (error: any) {
                     console.error("Failed to delete milestone:", error);
-                    alert("Failed to delete milestone. Please try again.");
+                    alert(error.message || "Failed to delete milestone.");
                 }
             }
         });
