@@ -7,6 +7,7 @@ const api = axios.create({
     headers: {
         'Content-Type': 'application/json',
     },
+    timeout: 30000, // 30 second timeout
 });
 
 export const setupInterceptors = (axiosInstance: any) => {
@@ -19,6 +20,7 @@ export const setupInterceptors = (axiosInstance: any) => {
         headers: {
             'Content-Type': 'application/json',
         },
+        timeout: 30000, // 30 second timeout
     });
 
     // Request interceptor to add the auth token to headers
@@ -96,14 +98,36 @@ export const setupInterceptors = (axiosInstance: any) => {
                     localStorage.setItem('token', newToken);
                     localStorage.setItem('refreshToken', newRefreshToken || currentRefreshToken);
                     
-                    // Optional: Update user info if returned
+                    // Update user info from refresh response (include avatar, role, fullName)
                     if (data.email || data.userId) {
-                        localStorage.setItem('auth_user', JSON.stringify({
+                        const userData = {
                             userId: data.userId || data.UserId,
                             email: data.email || data.Email,
                             fullName: data.fullName || data.FullName,
-                            role: data.role || data.Role,
-                        }));
+                            role: data.role ?? data.Role,
+                            avatarUrl:
+                                data.avatarUrl ||
+                                data.AvatarUrl ||
+                                data.avatar ||
+                                data.Avatar ||
+                                data.pictureUrl ||
+                                data.PictureUrl ||
+                                data.pictureURL ||
+                                data.picture ||
+                                data.photoUrl ||
+                                data.PhotoUrl ||
+                                data.photoURL ||
+                                data.imageUrl ||
+                                data.ImageUrl ||
+                                data.googleAvatarUrl ||
+                                data.GoogleAvatarUrl ||
+                                data.profilePictureUrl ||
+                                data.ProfilePictureUrl ||
+                                data.profileImageUrl ||
+                                data.ProfileImageUrl,
+                        };
+                        localStorage.setItem('auth_user', JSON.stringify(userData));
+                        window.dispatchEvent(new Event('auth_user_updated'));
                     }
 
                     // Process queuing and retry

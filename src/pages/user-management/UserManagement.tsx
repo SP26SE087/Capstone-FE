@@ -48,7 +48,6 @@ const UserManagement: React.FC = () => {
     const [addFullName, setAddFullName] = useState('');
     const [addRole, setAddRole] = useState<number>(4);
     const [addLoading, setAddLoading] = useState(false);
-    const [addError, setAddError] = useState<string | null>(null);
 
     // Detail / Edit panel
     const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
@@ -58,11 +57,9 @@ const UserManagement: React.FC = () => {
     const [editIsActive, setEditIsActive] = useState(true);
     const [editLoading, setEditLoading] = useState(false);
     const [editError, setEditError] = useState<string | null>(null);
-    const [editSuccess, setEditSuccess] = useState<string | null>(null);
 
-    // Delete confirmation
-    const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-    const [deleteLoading, setDeleteLoading] = useState(false);
+    // Quick status update
+    const [statusLoadingId, setStatusLoadingId] = useState<string | null>(null);
 
     // Pagination
     const [pageIndex, setPageIndex] = useState(1);
@@ -140,59 +137,194 @@ const UserManagement: React.FC = () => {
 
     const getAvatarSources = (member: any, name: string) => {
         const fallback = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=ef7e25&color=fff&bold=true`;
-        const primary = member?.avatarUrl || member?.pictureUrl || member?.picture || member?.photoUrl;
+        const primary =
+            member?.avatarUrl ||
+            member?.AvatarUrl ||
+            member?.avatar ||
+            member?.Avatar ||
+            member?.pictureUrl ||
+            member?.PictureUrl ||
+            member?.pictureURL ||
+            member?.picture ||
+            member?.photoUrl ||
+            member?.PhotoUrl ||
+            member?.photoURL ||
+            member?.imageUrl ||
+            member?.ImageUrl ||
+            member?.googleAvatarUrl ||
+            member?.GoogleAvatarUrl ||
+            member?.profilePictureUrl ||
+            member?.ProfilePictureUrl ||
+            member?.profileImageUrl ||
+            member?.ProfileImageUrl;
         return { src: primary || fallback, fallback };
+    };
+
+    // ---- VALIDATION HELPERS ----
+    const validateEmail = (email: string): string | null => {
+        if (!email?.trim()) return 'Email is required.';
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) return 'Email format is invalid.';
+        return null;
+    };
+
+    const validateFullName = (name: string): string | null => {
+        if (!name?.trim()) return 'Full name is required.';
+        if (name.trim().length < 2) return 'Full name must be at least 2 characters.';
+        if (name.trim().length > 100) return 'Full name cannot exceed 100 characters.';
+        return null;
+    };
+
+    const validateRole = (role: number): string | null => {
+        if (![1, 2, 3, 4].includes(role)) return 'Role is invalid.';
+        if (role === 2 && !isAdmin) return 'Only Admin can assign the Lab Director role.';
+        return null;
+    };
+
+    const validateAddFormInputs = (): boolean => {
+        const emailErr = validateEmail(addEmail);
+        if (emailErr) {
+            showToast(emailErr, 'error');
+            return false;
+        }
+        const nameErr = validateFullName(addFullName);
+        if (nameErr) {
+            showToast(nameErr, 'error');
+            return false;
+        }
+        const roleErr = validateRole(addRole);
+        if (roleErr) {
+            showToast(roleErr, 'error');
+            return false;
+        }
+        return true;
+    };
+
+    const validateEditFormInputs = (): boolean => {
+        const nameErr = validateFullName(editFullName);
+        if (nameErr) {
+            setEditError(nameErr);
+            return false;
+        }
+        const roleErr = validateRole(editRole);
+        if (roleErr) {
+            setEditError(roleErr);
+            return false;
+        }
+        return true;
+    };
+
+    const getDetailedErrorMessage = (err: any): string => {
+        const status = err?.response?.status;
+        const data = err?.response?.data;
+        const serverMessage = data?.message || data || err?.message || '';
+        const messageText = String(serverMessage);
+        const isDuplicateEmail = /email/i.test(messageText) && /(already exists|đã tồn tại|exists in the system|already registered)/i.test(messageText);
+        const normalizedMessage = String(serverMessage)
+            .replace(/\u0027/g, "'")
+            .replace(/\u0111\u00e3 t\u1ed3n t\u1ea1i trong h\u1ec7 th\u1ed1ng\.?/i, 'already exists in the system.')
+            .replace(/đã tồn tại trong hệ thống\.?/gi, 'already exists in the system.')
+            .replace(/Lỗi server\.?/gi, 'Server error.')
+            .replace(/Vui lòng thử lại sau\.?/gi, 'Please try again later.');
+
+        switch (status) {
+            case 400:
+                return `Invalid data: ${normalizedMessage || 'Please check the input.'}`;
+            case 401:
+                return 'Your session has expired. Please sign in again.';
+            case 403:
+                return 'You do not have permission to perform this action.';
+            case 404:
+                return 'The user does not exist or has already been deleted.';
+            case 409:
+                return 'This email is already registered. Please use a different email.';
+            case 500:
+                if (isDuplicateEmail) {
+                    return 'This email is already registered. Please use a different email.';
+                }
+                return normalizedMessage ? `Server error: ${normalizedMessage}` : 'Server error. Please try again later.';
+            default:
+                if (isDuplicateEmail) {
+                    return 'This email is already registered. Please use a different email.';
+                }
+                return normalizedMessage || 'Something went wrong. Please try again.';
+        }
     };
 
     // ---- ADD USER ----
     const handleAddUser = async (e: React.FormEvent) => {
         e.preventDefault();
-        setAddError(null);
+
+        if (!validateAddFormInputs()) return;
+
         setAddLoading(true);
 
         try {
             const newUser = await userService.addUser({ email: addEmail, fullName: addFullName, role: addRole } as AddUserRequest);
+            
+            if (!newUser?.userId || !newUser?.email) {
+                throw new Error('Invalid server response: missing userId or email.');
+            }
+
             setMembers(prev => [...prev, newUser]);
             setAddEmail('');
             setAddFullName('');
             setAddRole(4);
             setShowAddForm(false);
-            showToast('Đã thêm người dùng mới.', 'success');
+            showToast('User added successfully.', 'success');
         } catch (err: any) {
-            const data = err.response?.data;
-            let errorMessage = 'Failed to add user. Please try again.';
-            if (data?.message) errorMessage = data.message;
-            else if (typeof data === 'string') errorMessage = data;
-            else if (!err.response) errorMessage = 'Cannot connect to server. Please ensure Backend is running.';
-            setAddError(errorMessage);
+            const errorMessage = !err.response
+                ? 'Cannot reach the server. Please check that the backend is running.'
+                : getDetailedErrorMessage(err);
             showToast(errorMessage, 'error');
         } finally {
             setAddLoading(false);
         }
     };
 
-    // ---- DELETE USER ----
-    const handleDeleteUser = async (userId: string) => {
-        if (String(userId) === currentUserId) {
-            showToast('Bạn không thể xóa chính bạn.', 'error');
-            setDeleteConfirmId(null);
+    const handleToggleUserStatus = async (member: any) => {
+        const userId = String(member.userId || member.id || '');
+        if (!userId) return;
+
+        if (userId === currentUserId) {
+            showToast('You cannot change your own account status.', 'error');
             return;
         }
-        setDeleteLoading(true);
+
+        const currentIsActive = member.isActive !== false;
+        const nextIsActive = !currentIsActive;
+        const actionLabel = nextIsActive ? 'activate' : 'deactivate';
+        const confirmed = window.confirm(`Are you sure you want to ${actionLabel} this user?`);
+        if (!confirmed) return;
+
+        setStatusLoadingId(userId);
         try {
-            await userService.deleteUser(userId);
-            setMembers(prev => prev.filter(m => (m.userId || m.id) !== userId));
-            setDeleteConfirmId(null);
-            if (expandedUserId === userId) setExpandedUserId(null);
-            if (editingUserId === userId) setEditingUserId(null);
-            showToast('Đã xóa người dùng.', 'success');
+            const updatedUser = await userService.updateUser(userId, { isActive: nextIsActive });
+            setMembers(prev => prev.map(m => {
+                const uid = m.userId || m.id;
+                if (String(uid) === userId) {
+                    return {
+                        ...m,
+                        ...updatedUser,
+                        userId: uid,
+                        isActive: updatedUser?.isActive ?? nextIsActive,
+                    };
+                }
+                return m;
+            }));
+
+            if (editingUserId === userId) {
+                setEditIsActive(nextIsActive);
+            }
+
+            showToast(nextIsActive ? 'User activated successfully.' : 'User deactivated successfully.', 'success');
         } catch (err: any) {
-            console.error('Failed to delete user:', err);
-            const msg = err.response?.data?.message || 'Failed to delete user. The user may have related data preventing deletion.';
-            setDeleteConfirmId(null);
-            showToast(msg, 'error');
+            const errorMessage = !err.response
+                ? 'Cannot reach the server.'
+                : getDetailedErrorMessage(err);
+            showToast(errorMessage, 'error');
         } finally {
-            setDeleteLoading(false);
+            setStatusLoadingId(null);
         }
     };
 
@@ -204,7 +336,6 @@ const UserManagement: React.FC = () => {
         setEditRole(typeof member.role === 'number' ? member.role : 4);
         setEditIsActive(member.isActive !== false);
         setEditError(null);
-        setEditSuccess(null);
         // Make sure detail panel is open
         setExpandedUserId(userId);
     };
@@ -212,15 +343,16 @@ const UserManagement: React.FC = () => {
     const cancelEditing = () => {
         setEditingUserId(null);
         setEditError(null);
-        setEditSuccess(null);
     };
 
     const handleUpdateUser = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!editingUserId) return;
+
+        if (!validateEditFormInputs()) return;
+
         setEditLoading(true);
         setEditError(null);
-        setEditSuccess(null);
 
         try {
             const updateData: UpdateUserRequest = {
@@ -229,6 +361,11 @@ const UserManagement: React.FC = () => {
                 isActive: editIsActive,
             };
             const updatedUser = await userService.updateUser(editingUserId, updateData);
+            
+            if (!updatedUser?.userId) {
+                throw new Error('Invalid server response: missing userId.');
+            }
+
             setMembers(prev => prev.map(m => {
                 const uid = m.userId || m.id;
                 if (uid === editingUserId) {
@@ -236,14 +373,14 @@ const UserManagement: React.FC = () => {
                 }
                 return m;
             }));
-            setEditSuccess('User updated successfully!');
-            setTimeout(() => { setEditSuccess(null); setEditingUserId(null); }, 2000);
+            showToast('User information updated successfully.', 'success');
+            setEditingUserId(null);
         } catch (err: any) {
-            const data = err.response?.data;
-            let errorMessage = 'Failed to update user.';
-            if (data?.message) errorMessage = data.message;
-            else if (typeof data === 'string') errorMessage = data;
+            const errorMessage = !err.response
+                ? 'Cannot reach the server. Please check that the backend is running.'
+                : getDetailedErrorMessage(err);
             setEditError(errorMessage);
+            showToast(errorMessage, 'error');
         } finally {
             setEditLoading(false);
         }
@@ -257,7 +394,6 @@ const UserManagement: React.FC = () => {
             setExpandedUserId(userId);
             setEditingUserId(null);
             setEditError(null);
-            setEditSuccess(null);
         }
     };
 
@@ -287,7 +423,7 @@ const UserManagement: React.FC = () => {
                         <button
                             className={`btn ${showAddForm ? 'btn-secondary' : 'btn-primary'}`}
                             style={{ padding: '0.75rem 1.5rem', borderRadius: '12px', fontWeight: 700 }}
-                            onClick={() => { setShowAddForm(!showAddForm); setAddError(null); }}
+                            onClick={() => { setShowAddForm(!showAddForm); }}
                         >
                             {showAddForm ? 'Close form' : 'Add member'}
                         </button>
@@ -297,12 +433,6 @@ const UserManagement: React.FC = () => {
                 {showAddForm && (
                     <div className="um-add-form card">
                         <h3 style={{ margin: '0 0 1rem', fontSize: '1.05rem', fontWeight: 700 }}>Add New Member</h3>
-
-                        {addError && (
-                            <div className="um-alert um-alert-error">
-                                {addError}
-                            </div>
-                        )}
 
                         <form onSubmit={handleAddUser} className="um-form-grid">
                             <div className="um-form-field">
@@ -341,7 +471,6 @@ const UserManagement: React.FC = () => {
                                     {canAssignLabDirector && <option value={2}>Lab Director</option>}
                                     <option value={3}>Senior Researcher</option>
                                     <option value={4}>Member</option>
-                                    <option value={5}>Guest</option>
                                 </select>
                             </div>
                             <div className="um-form-actions">
@@ -398,9 +527,10 @@ const UserManagement: React.FC = () => {
                                             const userId = member.userId || member.id;
                                             const name = member.fullName || member.userName || member.name || 'Unknown';
                                             const isExpanded = expandedUserId === userId;
-                                            const isDeleting = deleteConfirmId === userId;
                                             const isEditing = editingUserId === userId;
-                                            const isSelf = currentUserId && String(userId) === currentUserId;
+                                            const isSelf = Boolean(currentUserId) && String(userId) === currentUserId;
+                                            const isStatusLoading = statusLoadingId === String(userId);
+                                            const avatar = getAvatarSources(member, name);
 
                                             return (
                                                 <React.Fragment key={userId}>
@@ -436,50 +566,27 @@ const UserManagement: React.FC = () => {
                                                                 </button>
                                                                 <button
                                                                     className="btn btn-ghost"
-                                                                    style={{ color: isSelf ? 'var(--text-muted)' : 'var(--danger)', padding: '4px 10px' }}
-                                                                    disabled={isSelf}
-                                                                    onClick={() => {
-                                                                        if (isSelf) {
-                                                                            showToast('Bạn không thể xóa chính bạn.', 'error');
-                                                                            return;
-                                                                        }
-                                                                        setDeleteConfirmId(isDeleting ? null : userId);
+                                                                    style={{
+                                                                        color: isSelf
+                                                                            ? 'var(--text-muted)'
+                                                                            : (member.isActive !== false ? 'var(--danger)' : 'var(--success)'),
+                                                                        padding: '4px 10px'
                                                                     }}
-                                                                    title={isSelf ? 'You cannot delete yourself' : 'Delete'}
+                                                                    disabled={isSelf || isStatusLoading}
+                                                                    onClick={() => handleToggleUserStatus(member)}
+                                                                    title={
+                                                                        isSelf
+                                                                            ? 'You cannot change your own status'
+                                                                            : (member.isActive !== false ? 'Deactivate user' : 'Activate user')
+                                                                    }
                                                                 >
-                                                                    Delete
+                                                                    {isStatusLoading
+                                                                        ? 'Updating...'
+                                                                        : (member.isActive !== false ? 'Deactivate' : 'Activate')}
                                                                 </button>
                                                             </div>
                                                         </td>
                                                     </tr>
-
-                                                    {isDeleting && (
-                                                        <tr className="um-confirm-row">
-                                                            <td colSpan={6}>
-                                                                <div className="um-confirm-bar">
-                                                                    <span>Delete <strong>{name}</strong>? This action cannot be undone.</span>
-                                                                    <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', flexShrink: 0 }}>
-                                                                        <button
-                                                                            className="btn btn-secondary"
-                                                                            style={{ padding: '4px 14px', fontSize: '0.8rem' }}
-                                                                            onClick={() => setDeleteConfirmId(null)}
-                                                                            disabled={deleteLoading}
-                                                                        >
-                                                                            Cancel
-                                                                        </button>
-                                                                        <button
-                                                                            className="btn"
-                                                                            style={{ padding: '4px 14px', fontSize: '0.8rem', background: 'var(--danger)', color: 'white', border: 'none' }}
-                                                                            onClick={() => handleDeleteUser(userId)}
-                                                                            disabled={deleteLoading}
-                                                                        >
-                                                                            {deleteLoading ? 'Deleting...' : 'Confirm Delete'}
-                                                                        </button>
-                                                                    </div>
-                                                                </div>
-                                                            </td>
-                                                        </tr>
-                                                    )}
 
                                                     {isExpanded && (
                                                         <tr className="um-detail-row">
@@ -507,12 +614,6 @@ const UserManagement: React.FC = () => {
                                                                                     {editError}
                                                                                 </div>
                                                                             )}
-                                                                            {editSuccess && (
-                                                                                <div className="um-alert um-alert-success" style={{ marginTop: 0 }}>
-                                                                                    {editSuccess}
-                                                                                </div>
-                                                                            )}
-
                                                                             <div className="um-edit-grid">
                                                                                 <div className="um-form-field">
                                                                                     <label>Full Name</label>
@@ -537,7 +638,6 @@ const UserManagement: React.FC = () => {
                                                                                         {canAssignLabDirector && <option value={2}>Lab Director</option>}
                                                                                         <option value={3}>Senior Researcher</option>
                                                                                         <option value={4}>Member</option>
-                                                                                        <option value={5}>Guest</option>
                                                                                     </select>
                                                                                 </div>
                                                                                 <div className="um-form-field">
@@ -605,12 +705,12 @@ const UserManagement: React.FC = () => {
                                                                                 </div>
                                                                                 <div className="um-detail-item">
                                                                                     <span className="um-detail-label">Email</span>
-                                                                                    <span>{member.email}</span>
+                                                                                    <span className="um-detail-value">{member.email}</span>
                                                                                 </div>
                                                                                 {member.createdAt && (
                                                                                     <div className="um-detail-item">
                                                                                         <span className="um-detail-label">Created</span>
-                                                                                        <span>{new Date(member.createdAt).toLocaleDateString('vi-VN')}</span>
+                                                                                        <span className="um-detail-value">{new Date(member.createdAt).toLocaleDateString('en-US')}</span>
                                                                                     </div>
                                                                                 )}
                                                                             </div>
