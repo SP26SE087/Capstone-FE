@@ -29,9 +29,6 @@ import DetailsSettings from '@/features/projects/components/DetailsSettings';
 
 // Import Modals & Other Components
 import TaskFormModal from '@/features/tasks/TaskFormModal';
-import TaskDetailModal from '@/features/tasks/TaskDetailModal';
-import AddMemberModal from '@/features/projects/AddMemberModal';
-import MemberDetailModal from '@/features/projects/MemberDetailModal';
 import ProjectTimeline from '@/features/projects/ProjectTimeline';
 
 type ActiveTab = 'home' | 'timeline' | 'milestones' | 'members' | 'tasks' | 'settings';
@@ -55,15 +52,10 @@ const ProjectDetails: React.FC = () => {
 
     // Modals visibility
     const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
-    const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
     const [editingTask, setEditingTask] = useState<Task | null>(null);
-    const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
     const [editingMilestoneId, setEditingMilestoneId] = useState<string | null>(null);
     const [milestoneViewMode, setMilestoneViewMode] = useState<'roadmap' | 'detail'>('roadmap');
     const [activeMilestoneForTasks, setActiveMilestoneForTasks] = useState<Milestone | null>(null);
-    const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
-    const [isMemberDetailModalOpen, setIsMemberDetailModalOpen] = useState(false);
-    const [selectedMember, setSelectedMember] = useState<any>(null);
 
     // Filters
     const [taskSearchQuery, setTaskSearchQuery] = useState('');
@@ -89,7 +81,6 @@ const ProjectDetails: React.FC = () => {
     const [isStatusConfirmOpen, setIsStatusConfirmOpen] = useState(false);
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
     const [pendingStatus, setPendingStatus] = useState<ProjectStatus | null>(null);
-    const [deleteConfirmationInput, setDeleteConfirmationInput] = useState('');
     const [toast, setToast] = useState<{ message: string; type: ToastType; duration?: number } | null>(null);
 
     // Quick creation state
@@ -235,8 +226,8 @@ const ProjectDetails: React.FC = () => {
 
     // Handlers for Modals
     const handleTaskClick = (task: Task) => {
-        setSelectedTaskId(task.taskId);
-        setIsDetailModalOpen(true);
+        setEditingTask(task);
+        setIsTaskModalOpen(true);
     };
 
     const handleMilestoneClick = (milestone: Milestone | null) => {
@@ -286,9 +277,9 @@ const ProjectDetails: React.FC = () => {
             await refetchTasks();
             setIsTaskModalOpen(false);
             setEditingTask(null);
-        } catch (error) {
+        } catch (error: any) {
             console.error('Failed to save task:', error);
-            showToast('Failed to save task.', 'error');
+            showToast(error.message || 'Failed to save task.', 'error');
         } finally {
             setSubmitting(false);
         }
@@ -399,7 +390,7 @@ const ProjectDetails: React.FC = () => {
                 name: t.name,
                 description: t.description || null,
                 priority: t.priority || 2,
-                milestoneId: t.milestoneId || null,
+                milestoneId: milestones.find(m => m.milestoneId === t.milestoneId || m.name === t.milestoneId)?.milestoneId || t.milestoneId || null,
                 memberId: t.assigneeId || null,
                 startDate: t.startDate ? new Date(t.startDate).toISOString() : null,
                 dueDate: new Date(t.endDate).toISOString(),
@@ -411,7 +402,7 @@ const ProjectDetails: React.FC = () => {
             await refetchTasks();
         } catch (error) {
             console.error('Failed to create task:', error);
-            showToast('Failed to create task. Please check date constraints.', 'error');
+            showToast((error as any).message || 'Failed to create task.', 'error');
         } finally {
             setSubmitting(false);
         }
@@ -441,8 +432,8 @@ const ProjectDetails: React.FC = () => {
             });
             showToast('Project updated successfully!', 'success');
             await fetchData();
-        } catch (error) {
-            showToast('Failed to update project.', 'error');
+        } catch (error: any) {
+            showToast(error.message || 'Failed to update project.', 'error');
         } finally {
             setSubmitting(false);
         }
@@ -455,8 +446,8 @@ const ProjectDetails: React.FC = () => {
                 setIsStatusConfirmOpen(false);
                 showToast(`Status updated to ${ProjectStatus[pendingStatus]}`, 'success');
                 await fetchData();
-            } catch (error) {
-                showToast('Failed to update status.', 'error');
+            } catch (error: any) {
+                showToast(error.message || 'Failed to update status.', 'error');
             }
         }
     };
@@ -466,8 +457,8 @@ const ProjectDetails: React.FC = () => {
         try {
             await projectService.delete(id);
             navigate('/projects');
-        } catch (error) {
-            showToast('Failed to delete project.', 'error');
+        } catch (error: any) {
+            showToast(error.message || 'Failed to delete project.', 'error');
         }
     };
 
@@ -662,7 +653,7 @@ const ProjectDetails: React.FC = () => {
                 `}</style>
 
                 {/* Main Content Area */}
-                <div style={{ display: 'flex', gap: '2.5rem', alignItems: 'flex-start' }}>
+                <div style={{ display: 'flex', gap: '2.5rem', alignItems: 'stretch', minHeight: 'calc(100vh - 200px)' }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                         {activeTab === 'home' && (
                             <DetailsHome
@@ -726,9 +717,13 @@ const ProjectDetails: React.FC = () => {
                                 memberSearchQuery={memberSearchQuery}
                                 setMemberSearchQuery={setMemberSearchQuery}
                                 canManageProject={canManageProject}
-                                setIsAddMemberModalOpen={setIsAddMemberModalOpen}
-                                setSelectedMember={setSelectedMember}
-                                setIsMemberDetailModalOpen={setIsMemberDetailModalOpen}
+                                projectId={id || ''}
+                                hasLeader={members.some(m => Number(m.projectRole) === ProjectRoleEnum.Leader)}
+                                existingMemberIds={members.map(m => m.email).filter(Boolean)}
+                                currentProjectRole={Number(projectRoleValue)}
+                                currentUser={currentUser}
+                                onMemberAdded={refetchMembers}
+                                onMemberUpdated={() => { refetchMembers(); showToast('Team updated.'); }}
                             />
                         )}
 
@@ -760,6 +755,7 @@ const ProjectDetails: React.FC = () => {
                                 currentUser={currentUser}
                                 currentMember={currentMember}
                                 refreshTasks={refetchTasks}
+                                onEditTask={(task) => { setEditingTask(task); setIsTaskModalOpen(true); }}
                             />
                         )}
 
@@ -800,40 +796,10 @@ const ProjectDetails: React.FC = () => {
                 submitting={submitting}
             />
 
-            <TaskDetailModal
-                isOpen={isDetailModalOpen}
-                onClose={() => setIsDetailModalOpen(false)}
-                taskId={selectedTaskId}
-                projectMembers={members}
-                milestones={milestones}
-                onTaskUpdated={refetchTasks}
-                projectStartDate={project?.startDate || undefined}
-                projectEndDate={project?.endDate || undefined}
-            />
 
 
-            <AddMemberModal
-                isOpen={isAddMemberModalOpen}
-                onClose={() => setIsAddMemberModalOpen(false)}
-                projectId={id || ''}
-                existingMemberIds={members.map(m => m.userId || m.id)}
-                onSuccess={() => { refetchMembers(); }}
-                hasLeader={members.some(m => Number(m.projectRole) === ProjectRoleEnum.Leader)}
-                currentProjectRole={Number(projectRoleValue)}
-            />
 
-            <MemberDetailModal
-                isOpen={isMemberDetailModalOpen}
-                onClose={() => { setIsMemberDetailModalOpen(false); setSelectedMember(null); }}
-                member={selectedMember}
-                projectId={id || ''}
-                currentUser={currentUser}
-                currentUserProjectRole={Number(projectRoleValue)}
-                canManage={canManageProject}
-                onSuccess={() => { refetchMembers(); showToast('Team updated.'); }}
-            />
-
-            <Modal
+<Modal
                 isOpen={isStatusConfirmOpen}
                 onClose={() => setIsStatusConfirmOpen(false)}
                 title="Update Status"
@@ -850,40 +816,19 @@ const ProjectDetails: React.FC = () => {
 
             <Modal
                 isOpen={isDeleteConfirmOpen}
-                onClose={() => { setIsDeleteConfirmOpen(false); setDeleteConfirmationInput(''); }}
+                onClose={() => setIsDeleteConfirmOpen(false)}
                 title="Delete Project"
                 variant="danger"
                 footer={(
                     <>
-                        <button className="btn btn-secondary" onClick={() => { setIsDeleteConfirmOpen(false); setDeleteConfirmationInput(''); }}>Cancel</button>
-                        <button
-                            className="btn btn-danger"
-                            onClick={handleDelete}
-                            disabled={deleteConfirmationInput !== `${project?.projectName}/${members.find(m => m.userId === project?.createdBy)?.email || 'owner@labsync.com'}`}
-                        >
-                            Confirm Deletion
-                        </button>
+                        <button className="btn btn-secondary" onClick={() => setIsDeleteConfirmOpen(false)}>Cancel</button>
+                        <button className="btn btn-danger" onClick={handleDelete}>Delete Project</button>
                     </>
                 )}
             >
-                <div style={{ padding: '0.5rem 0' }}>
-                    <p style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>
-                        This action is <strong>irreversible</strong>. To confirm, please type the project name and the owner's email separated by a slash:
-                    </p>
-                    <div style={{ background: 'var(--background-light)', padding: '12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)', marginBottom: '1rem' }}>
-                        <code style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
-                            {project?.projectName}/{members.find(m => m.userId === project?.createdBy)?.email || '[owner_email]'}
-                        </code>
-                    </div>
-                    <input
-                        className="form-input"
-                        type="text"
-                        placeholder="Type the confirmation string here"
-                        value={deleteConfirmationInput}
-                        onChange={(e) => setDeleteConfirmationInput(e.target.value)}
-                        style={{ borderColor: deleteConfirmationInput.length > 0 && deleteConfirmationInput !== `${project?.projectName}/${members.find(m => m.userId === project?.createdBy)?.email || 'owner@labsync.com'}` ? 'var(--error)' : '' }}
-                    />
-                </div>
+                <p style={{ margin: 0, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                    Are you sure you want to delete <strong style={{ color: 'var(--text-primary)' }}>{project?.projectName}</strong>? This will permanently remove the project along with all its tasks, milestones, and member data. This action cannot be undone.
+                </p>
             </Modal>
         </MainLayout>
     );

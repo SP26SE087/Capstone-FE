@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { 
+import {
     Clock, Loader2, Info, List
 } from 'lucide-react';
 import { Milestone, Task } from '@/types';
@@ -23,7 +23,7 @@ interface ActivityTimelineProps {
     milestones: Milestone[];
     projectMembers: any[];
     currentMember: any;
-    projectId: string; 
+    projectId: string;
     isSpecialRole: boolean;
     viewMode: 'list' | 'timeline';
     setViewMode: (mode: 'list' | 'timeline') => void;
@@ -44,7 +44,7 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
     const [activities, setActivities] = useState<TaskWithActivities[]>([]);
     const [loading, setLoading] = useState(false);
     const [localMembers, setLocalMembers] = useState<any[]>(projectMembers || []);
-    
+
     // Modal State
     const [selectedDetailTask, setSelectedDetailTask] = useState<{ details: any, activities: any[] } | null>(null);
     const [detailLoading, setDetailLoading] = useState(false);
@@ -58,13 +58,13 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
         const id = m.membershipId || m.id || m.memberId;
         return (id && isUUID(id)) ? id : '';
     };
-    
+
     const findMemberRecord = (idValue: string, list: any[]) => {
         if (!idValue) return null;
-        return list.find(m => 
-            m.membershipId === idValue || 
-            m.userId === idValue || 
-            m.id === idValue || 
+        return list.find(m =>
+            m.membershipId === idValue ||
+            m.userId === idValue ||
+            m.id === idValue ||
             m.memberId === idValue
         );
     };
@@ -95,7 +95,7 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
 
             const myId = currentMember?.membershipId || currentMember?.id || currentMember?.userId;
             const myRecord = findMemberRecord(myId, localMembers);
-            
+
             if (myRecord) {
                 const validId = resolveMemberId(myRecord);
                 if (validId) setSelectedMemberId(validId);
@@ -107,7 +107,7 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
             initializedForProject.current = projectId;
         }
     }, [localMembers, milestones, projectId, currentMember, selectedMilestoneId]);
-    
+
     const fetchData = React.useCallback(async () => {
         if (timelineMode === 'milestone') {
             if (!selectedMilestoneId) return;
@@ -143,12 +143,12 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
                 taskService.getById(taskId),
                 taskService.getActivitiesByTask(taskId)
             ]);
-            
+
             // Extract activities: handle direct array or object with statusActivities property
-            const activities = Array.isArray(activityResponse) 
-                ? activityResponse 
+            const activities = Array.isArray(activityResponse)
+                ? activityResponse
                 : (activityResponse?.statusActivities || activityResponse?.data?.statusActivities || []);
-                
+
             setSelectedDetailTask({ details, activities });
         } catch (error) {
             console.error('Failed to fetch task detail:', error);
@@ -207,7 +207,7 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
         const startTime = timelineRange.start.getTime();
         const endTime = timelineRange.end.getTime();
         const dateTime = date.getTime();
-        
+
         const diff = dateTime - startTime;
         const total = endTime - startTime;
         const percent = (diff / total) * 100;
@@ -217,16 +217,16 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
     const renderRuler = () => {
         if (!timelineRange) return null;
         const days = [];
-        
+
         for (let i = 0; i < 7; i++) {
             const date = new Date(timelineRange.start);
             date.setDate(date.getDate() + i);
             const isToday = date.toDateString() === new Date().toDateString();
 
             days.push(
-                <div key={`day-${i}`} style={{ 
-                    flex: 1, 
-                    height: '45px', 
+                <div key={`day-${i}`} style={{
+                    flex: 1,
+                    height: '45px',
                     borderLeft: i === 0 ? 'none' : '1px solid #f1f5f9',
                     display: 'flex',
                     flexDirection: 'column',
@@ -264,13 +264,13 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
                     {days}
                 </div>
                 {new Date() >= timelineRange.start && new Date() <= timelineRange.end && (
-                    <div style={{ 
-                        position: 'absolute', 
-                        left: `${getPositionPercent(new Date().toISOString())}%`, 
-                        top: 0, 
-                        bottom: -2000, 
-                        width: '2px', 
-                        background: '#f59e0b', 
+                    <div style={{
+                        position: 'absolute',
+                        left: `${getPositionPercent(new Date().toISOString())}%`,
+                        top: 0,
+                        bottom: -2000,
+                        width: '2px',
+                        background: '#f59e0b',
                         zIndex: 25,
                         opacity: 0.4,
                         pointerEvents: 'none'
@@ -283,8 +283,8 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
     const TaskRow = ({ task }: { task: TaskWithActivities }) => {
         const [isHovered, setIsHovered] = useState(false);
         if (!timelineRange) return null;
-        
-        const sortedLogs = [...(task.statusActivities || [])].sort((a, b) => 
+
+        const sortedLogs = [...(task.statusActivities || [])].sort((a, b) =>
             new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
         );
 
@@ -304,7 +304,7 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
 
         const transitions: { from: Date, to: Date, status: number }[] = [];
         let currentPos = new Date(task.startDate || (sortedLogs.length > 0 ? sortedLogs[0].createdAt : task.updatedDate || now));
-        let currentStatus = 1; 
+        let currentStatus = 1;
 
         sortedLogs.forEach((log) => {
             const logTime = new Date(log.createdAt);
@@ -326,14 +326,14 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
             <div style={{ display: 'flex', minHeight: '65px', alignItems: 'center', position: 'relative', width: '100%', borderBottom: '1px solid #f8fafc' }}>
                 <div style={{ position: 'relative', height: '100%', flex: 1, width: '100%' }}>
                     {task.startDate && (
-                        <button 
+                        <button
                             onClick={() => handleTaskClick(task.taskId || (task as any).id)}
                             onMouseEnter={() => setIsHovered(true)}
                             onMouseLeave={() => setIsHovered(false)}
-                            style={{ 
-                                position: 'absolute', 
-                                left: `${getPositionPercent(task.startDate)}%`, 
-                                top: '8px', 
+                            style={{
+                                position: 'absolute',
+                                left: `${getPositionPercent(task.startDate)}%`,
+                                top: '8px',
                                 padding: '3px 10px',
                                 background: 'white',
                                 border: '1px solid #e2e8f0',
@@ -359,7 +359,7 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
                         </button>
                     )}
 
-                    <div 
+                    <div
                         onMouseEnter={() => setIsHovered(true)}
                         onMouseLeave={() => setIsHovered(false)}
                         style={{ position: 'absolute', left: `${getPositionPercent(transitions[0]?.from.toISOString())}%`, width: `${getPositionPercent(cappedEnd.toISOString()) - getPositionPercent(transitions[0]?.from.toISOString())}%`, top: '34px', height: '22px', zIndex: 1, cursor: 'pointer' }}
@@ -432,12 +432,12 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
                                     <button onClick={() => setTimelineMode('member')} style={{ padding: '4px 10px', borderRadius: '6px', border: 'none', fontSize: '0.65rem', fontWeight: 700, cursor: 'pointer', background: timelineMode === 'member' ? 'white' : 'transparent', color: timelineMode === 'member' ? 'var(--primary-color)' : '#64748b' }}>By Member</button>
                                 </div>
                             )}
-                            <select 
-                                value={timelineMode === 'milestone' ? selectedMilestoneId : selectedMemberId} 
-                                onChange={(e) => timelineMode === 'milestone' ? setSelectedMilestoneId(e.target.value) : setSelectedMemberId(e.target.value)} 
+                            <select
+                                value={timelineMode === 'milestone' ? selectedMilestoneId : selectedMemberId}
+                                onChange={(e) => timelineMode === 'milestone' ? setSelectedMilestoneId(e.target.value) : setSelectedMemberId(e.target.value)}
                                 style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.7rem', fontWeight: 700, background: 'white', minWidth: '180px' }}
                             >
-                                {timelineMode === 'milestone' 
+                                {timelineMode === 'milestone'
                                     ? milestones.map(m => (<option key={resolveMilestoneId(m)} value={resolveMilestoneId(m)}>{m.name || (m as any).title}</option>))
                                     : localMembers.map(m => (<option key={resolveMemberId(m)} value={resolveMemberId(m)}>{m.fullName || m.userName}</option>))
                                 }
@@ -452,7 +452,7 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
                 </div>
             </div>
 
-            <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', maxHeight: '450px' }} className="custom-scrollbar">
+            <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', minHeight: '100px' }} className="custom-scrollbar">
                 {loading ? (
                     <div style={{ display: 'flex', height: '100%', minHeight: '300px', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '1rem' }}>
                         <Loader2 className="animate-spin" size={32} style={{ color: 'var(--primary-color)' }} />

@@ -228,9 +228,9 @@ const ReportPanel: React.FC<ReportPanelProps> = ({
             setReport(reportData);
             onTitleChange?.(finalTitle);
             setIsEditMode(false);
-        } catch (error) {
+        } catch (error: any) {
             console.error('Failed to fetch report:', error);
-            showToast('Failed to load report details.', 'error');
+            showToast(error.message || 'Failed to load report details.', 'error');
         } finally {
             setLoading(false);
         }
@@ -320,8 +320,8 @@ const ReportPanel: React.FC<ReportPanelProps> = ({
             showToast(msg, 'success');
             fetchReport(reportId);
             onSaved(false, msg);
-        } catch (error) {
-            showToast('Failed to update status.', 'error');
+        } catch (error: any) {
+            showToast(error.message || 'Failed to update status.', 'error');
         } finally {
             setSubmitting(false);
         }
@@ -338,8 +338,8 @@ const ReportPanel: React.FC<ReportPanelProps> = ({
             showToast(msg, 'success');
             onSaved(true, msg);
             onClose();
-        } catch (error) {
-            showToast('Failed to delete report.', 'error');
+        } catch (error: any) {
+            showToast(error.message || 'Failed to delete report.', 'error');
         } finally {
             setSubmitting(false);
         }
@@ -354,8 +354,8 @@ const ReportPanel: React.FC<ReportPanelProps> = ({
             showToast(msg, 'success');
             fetchReport(reportId);
             onSaved(false, msg);
-        } catch (error) {
-            showToast('Failed to update reviewer status.', 'error');
+        } catch (error: any) {
+            showToast(error.message || 'Failed to update reviewer status.', 'error');
         } finally {
             setSubmitting(false);
         }
@@ -375,8 +375,8 @@ const ReportPanel: React.FC<ReportPanelProps> = ({
             } else {
                 showToast('AI could not generate feedback for this report.', 'info');
             }
-        } catch (error) {
-            showToast('Failed to load AI suggestion.', 'error');
+        } catch (error: any) {
+            showToast(error.message || 'Failed to load AI suggestion.', 'error');
         } finally {
             setIsAiLoading(false);
         }

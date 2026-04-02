@@ -77,7 +77,7 @@ const SwapRequests: React.FC<SwapRequestsProps> = ({ usersMap, onActionComplete 
             onActionComplete();
         } catch (err) {
             console.error('Failed to respond to swap:', err);
-            alert('Failed to respond to swap request.');
+            alert((err as any).message || 'Failed to respond to swap request.');
         }
     };
 

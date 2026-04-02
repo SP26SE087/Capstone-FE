@@ -52,6 +52,14 @@
                             "type": "string",
                             "format": "uuid"
                         }
+                    },
+                    {
+                        "name": "milestoneId",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
                     }
                 ],
                 "responses": {
@@ -1454,6 +1462,18 @@
                             "default": 1
                         }
                     }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/test": {
+            "get": {
+                "tags": [
+                    "TestToken"
                 ],
                 "responses": {
                     "200": {

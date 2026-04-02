@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Bell, LogIn, LogOut, Settings, UserCircle, FlaskConical } from 'lucide-react';
+import { Bell, LogIn, LogOut, UserCircle, FlaskConical, Cog } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { SystemRoleEnum, SystemRoleMap } from '@/types/enums';
 
@@ -105,12 +105,12 @@ const Header: React.FC = () => {
                                     </Link>
 
                                     {isLabDirector && (
-                                        <Link to="/admin/resources" className="dropdown-link" style={{ 
-                                            display: 'flex', alignItems: 'center', gap: '10px', 
+                                        <Link to="/configuration" className="dropdown-link" style={{
+                                            display: 'flex', alignItems: 'center', gap: '10px',
                                             padding: '10px 12px', borderRadius: '4px', fontSize: '0.875rem', color: 'var(--text-primary)'
                                         }}>
-                                            <Settings size={18} style={{ color: 'var(--text-muted)' }} />
-                                            <span>Resource Management</span>
+                                            <Cog size={18} style={{ color: 'var(--text-muted)' }} />
+                                            <span>Configuration</span>
                                         </Link>
                                     )}
 

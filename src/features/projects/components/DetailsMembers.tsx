@@ -1,15 +1,21 @@
-import React from 'react';
-import { UserPlus, Search, User, AlertCircle } from 'lucide-react';
+import React, { useState } from 'react';
+import { UserPlus, Search, User, AlertCircle, X } from 'lucide-react';
 import { ProjectMember, ProjectRoleEnum } from '@/types';
+import AddMemberPanel from './AddMemberPanel';
+import MemberProfilePanel from './MemberProfilePanel';
 
 interface DetailsMembersProps {
     filteredMembers: ProjectMember[];
     memberSearchQuery: string;
     setMemberSearchQuery: (query: string) => void;
     canManageProject: boolean;
-    setIsAddMemberModalOpen: (open: boolean) => void;
-    setSelectedMember: (member: ProjectMember) => void;
-    setIsMemberDetailModalOpen: (open: boolean) => void;
+    projectId: string;
+    hasLeader: boolean;
+    existingMemberIds: string[];
+    currentProjectRole?: number;
+    currentUser: any;
+    onMemberAdded: () => void;
+    onMemberUpdated: () => void;
 }
 
 const DetailsMembers: React.FC<DetailsMembersProps> = ({
@@ -17,27 +23,65 @@ const DetailsMembers: React.FC<DetailsMembersProps> = ({
     memberSearchQuery,
     setMemberSearchQuery,
     canManageProject,
-    setIsAddMemberModalOpen,
-    setSelectedMember,
-    setIsMemberDetailModalOpen
+    projectId,
+    hasLeader,
+    existingMemberIds,
+    currentProjectRole,
+    currentUser,
+    onMemberAdded,
+    onMemberUpdated,
 }) => {
-    // Check if only the Lab Director is present
-    const isSoloDirector = filteredMembers.length === 1 && 
-        (Number(filteredMembers[0].projectRole) === ProjectRoleEnum.LabDirector || 
-         filteredMembers[0].projectRoleName === 'Lab Director');
+    const [isAddingMember, setIsAddingMember] = useState(false);
+    const [selectedMember, setSelectedMember] = useState<any>(null);
+
+    const isSoloDirector =
+        filteredMembers.length === 1 &&
+        (Number(filteredMembers[0].projectRole) === ProjectRoleEnum.LabDirector ||
+            filteredMembers[0].projectRoleName === 'Lab Director');
+
+    const openProfile = (member: ProjectMember) => {
+        setIsAddingMember(false);
+        setSelectedMember(member);
+    };
+
+    const openAddPanel = () => {
+        setSelectedMember(null);
+        setIsAddingMember(true);
+    };
+
+    const closePanel = () => {
+        setIsAddingMember(false);
+        setSelectedMember(null);
+    };
+
+    const isPanelOpen = isAddingMember || !!selectedMember;
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <div style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>Research Team</h3>
                 {canManageProject && (
-                    <button
-                        className="btn btn-primary"
-                        style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
-                        onClick={() => setIsAddMemberModalOpen(true)}
-                    >
-                        <UserPlus size={18} /> Add Member
-                    </button>
+                    isPanelOpen ? (
+                        <button
+                            className="btn btn-text"
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: '6px',
+                                color: '#64748b', fontSize: '0.85rem',
+                            }}
+                            onClick={closePanel}
+                        >
+                            <X size={16} /> Close Panel
+                        </button>
+                    ) : (
+                        <button
+                            className="btn btn-primary"
+                            style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                            onClick={openAddPanel}
+                        >
+                            <UserPlus size={18} /> Add Member
+                        </button>
+                    )
                 )}
             </div>
 
@@ -51,44 +95,42 @@ const DetailsMembers: React.FC<DetailsMembersProps> = ({
                     display: 'flex',
                     alignItems: 'center',
                     gap: '12px',
-                    marginBottom: '1rem',
-                    boxShadow: '0 4px 6px -1px rgba(251, 146, 60, 0.05)'
+                    boxShadow: '0 4px 6px -1px rgba(251, 146, 60, 0.05)',
                 }}>
                     <div style={{
-                        width: '40px',
-                        height: '40px',
-                        borderRadius: '12px',
-                        background: '#ffedd5',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: '#c2410c'
+                        width: '40px', height: '40px', borderRadius: '12px',
+                        background: '#ffedd5', display: 'flex',
+                        alignItems: 'center', justifyContent: 'center', color: '#c2410c',
                     }}>
                         <AlertCircle size={20} />
                     </div>
                     <div>
-                        <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 700, color: '#9a3412' }}>Solitary Lab Director</h4>
-                        <p style={{ margin: 0, fontSize: '0.8rem', color: '#c2410c', opacity: 0.9 }}>This project is currently managed only by you. Consider adding a Project Leader to coordinate research tasks.</p>
+                        <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 700, color: '#9a3412' }}>
+                            Solitary Lab Director
+                        </h4>
+                        <p style={{ margin: 0, fontSize: '0.8rem', color: '#c2410c', opacity: 0.9 }}>
+                            This project is currently managed only by you. Consider adding a Project Leader to coordinate research tasks.
+                        </p>
                     </div>
                 </div>
             )}
 
+            {/* Search bar */}
             <div style={{
-                display: 'flex',
-                gap: '12px',
-                background: '#f8fafc',
-                padding: '1rem',
-                borderRadius: '12px',
-                border: '1px solid #e2e8f0',
-                marginBottom: '0.5rem'
+                display: 'flex', gap: '12px',
+                background: '#f8fafc', padding: '1rem',
+                borderRadius: '12px', border: '1px solid #e2e8f0',
             }}>
                 <div style={{ position: 'relative', flex: 1 }}>
-                    <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                    <Search size={18} style={{
+                        position: 'absolute', left: '12px', top: '50%',
+                        transform: 'translateY(-50%)', color: '#94a3b8',
+                    }} />
                     <input
                         type="text"
                         placeholder="Search members by name, email or role..."
                         value={memberSearchQuery}
-                        onChange={(e) => setMemberSearchQuery(e.target.value)}
+                        onChange={e => setMemberSearchQuery(e.target.value)}
                         style={{
                             width: '100%',
                             padding: '0.6rem 1rem 0.6rem 2.5rem',
@@ -96,59 +138,120 @@ const DetailsMembers: React.FC<DetailsMembersProps> = ({
                             border: '1.5px solid #e2e8f0',
                             fontSize: '0.9rem',
                             outline: 'none',
-                            background: 'white'
+                            background: 'white',
                         }}
                     />
                 </div>
                 {memberSearchQuery && (
                     <button
                         onClick={() => setMemberSearchQuery('')}
-                        style={{ background: 'none', border: 'none', color: 'var(--primary-color)', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}
+                        style={{
+                            background: 'none', border: 'none',
+                            color: 'var(--primary-color)', fontSize: '0.85rem',
+                            fontWeight: 600, cursor: 'pointer',
+                        }}
                     >
                         Clear
                     </button>
                 )}
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem' }}>
-                {filteredMembers.length > 0 ? filteredMembers.map((member, index) => (
-                    <div
-                        key={member.id || member.memberId || index}
-                        className="card member-card"
-                        onClick={() => {
-                            setSelectedMember(member);
-                            setIsMemberDetailModalOpen(true);
+            {/* Main content: member grid + side panel */}
+            <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
+                {/* Member grid */}
+                <div style={{
+                    flex: 1,
+                    display: 'grid',
+                    gridTemplateColumns: isPanelOpen
+                        ? 'repeat(auto-fill, minmax(200px, 1fr))'
+                        : 'repeat(auto-fill, minmax(280px, 1fr))',
+                    gap: '1.25rem',
+                    alignContent: 'start',
+                }}>
+                    {filteredMembers.length > 0
+                        ? filteredMembers.map((member, index) => {
+                            const mid = member.id || member.memberId;
+                            const isActive = selectedMember && (selectedMember.id === mid || selectedMember.memberId === mid);
+                            return (
+                                <div
+                                    key={mid || index}
+                                    className="card member-card"
+                                    onClick={() => openProfile(member)}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '12px',
+                                        padding: '1rem 1.25rem',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s',
+                                        border: `1.5px solid ${isActive ? 'var(--primary-color)' : 'transparent'}`,
+                                        background: isActive ? 'rgba(99,102,241,0.03)' : undefined,
+                                    }}
+                                >
+                                    <div style={{
+                                        width: '42px', height: '42px', borderRadius: '50%',
+                                        background: isActive ? 'var(--primary-color)' : '#f1f5f9',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        color: isActive ? 'white' : '#64748b',
+                                        fontWeight: 700, fontSize: '1rem', flexShrink: 0,
+                                        transition: 'all 0.2s',
+                                    }}>
+                                        {isPanelOpen
+                                            ? (member.fullName || member.userName || 'U')[0].toUpperCase()
+                                            : <User size={22} />
+                                        }
+                                    </div>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <h4 style={{
+                                            margin: 0, fontSize: '0.92rem', fontWeight: 700, color: '#1e293b',
+                                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                        }}>
+                                            {member.fullName || member.userName || 'Research Member'}
+                                        </h4>
+                                        <p style={{ margin: 0, fontSize: '0.78rem', color: '#64748b', fontWeight: 600 }}>
+                                            {member.projectRoleName || member.roleName || 'Member'}
+                                        </p>
+                                    </div>
+                                </div>
+                            );
+                        })
+                        : (
+                            <div className="card" style={{ gridColumn: '1/-1', textAlign: 'center', padding: '3rem' }}>
+                                <p style={{ color: 'var(--text-secondary)' }}>
+                                    No research members match your current search.
+                                </p>
+                            </div>
+                        )
+                    }
+                </div>
+
+                {/* Side panel — Add Member or Member Profile */}
+                {isAddingMember && (
+                    <AddMemberPanel
+                        projectId={projectId}
+                        hasLeader={hasLeader}
+                        existingMemberIds={existingMemberIds}
+                        currentProjectRole={currentProjectRole}
+                        onSuccess={() => {
+                            onMemberAdded();
                         }}
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '15px',
-                            padding: '1.25rem',
-                            cursor: 'pointer',
-                            transition: 'all 0.2s',
-                            border: '1.5px solid transparent'
+                        onClose={closePanel}
+                    />
+                )}
+
+                {selectedMember && !isAddingMember && (
+                    <MemberProfilePanel
+                        member={selectedMember}
+                        projectId={projectId}
+                        currentUser={currentUser}
+                        currentUserProjectRole={currentProjectRole}
+                        canManage={canManageProject}
+                        onSuccess={() => {
+                            onMemberUpdated();
+                            setSelectedMember(null);
                         }}
-                    >
-                        <div style={{
-                            width: '48px', height: '48px', borderRadius: '50%',
-                            background: '#f1f5f9', display: 'flex', alignItems: 'center',
-                            justifyContent: 'center', color: '#64748b'
-                        }}>
-                            <User size={24} />
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                            <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {member.fullName || member.userName || 'Research Member'}
-                            </h4>
-                            <p style={{ margin: 0, fontSize: '0.8rem', color: '#64748b', fontWeight: 600 }}>
-                                {member.projectRoleName || member.roleName || 'Member'}
-                            </p>
-                        </div>
-                    </div>
-                )) : (
-                    <div className="card" style={{ gridColumn: '1/-1', textAlign: 'center', padding: '3rem' }}>
-                        <p style={{ color: 'var(--text-secondary)' }}>No research members match your current search.</p>
-                    </div>
+                        onClose={closePanel}
+                    />
                 )}
             </div>
         </div>

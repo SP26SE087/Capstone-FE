@@ -80,9 +80,9 @@ const LabResourceAdmin: React.FC = () => {
         userName: userMap.get(b.userId) || b.userName || 'Unknown'
       })).sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime()));
 
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      addToast('Error synchronizing admin data.', 'error');
+      addToast(error.message || 'Error synchronizing admin data.', 'error');
     } finally {
       setLoading(false);
     }
@@ -110,8 +110,8 @@ const LabResourceAdmin: React.FC = () => {
         data: b,
         title: 'Review Request'
       });
-    } catch {
-      addToast('Failed to load booking details.', 'error');
+    } catch (error: any) {
+      addToast(error.message || 'Failed to load booking details.', 'error');
     }
   };
 

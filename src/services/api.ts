@@ -120,6 +120,12 @@ export const setupInterceptors = (axiosInstance: any) => {
                 }
             }
 
+            // Normalize error message from API response shape:
+            // { success: false, message: "...", errorCode: ..., details: "..." }
+            if (error.response?.data?.message) {
+                error.message = error.response.data.message;
+            }
+
             return Promise.reject(error);
         }
     );

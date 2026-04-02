@@ -132,6 +132,11 @@ body {
 }
 
 /* Custom Scrollbar Utility */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #e2e8f0 transparent;
+}
+
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
 }

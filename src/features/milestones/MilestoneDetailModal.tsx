@@ -18,7 +18,6 @@ import {
 } from 'lucide-react';
 import { Milestone, MilestoneStatus, Task, TaskStatus, ProjectMember } from '@/types';
 import { milestoneService, taskService } from '@/services';
-import TaskDetailModal from '../tasks/TaskDetailModal';
 import TaskFormModal from '../tasks/TaskFormModal';
 import MilestoneRoadmapPreview from './MilestoneRoadmapPreview';
 import Toast, { ToastType } from '@/components/common/Toast';
@@ -53,8 +52,6 @@ const MilestoneDetailModal: React.FC<MilestoneDetailModalProps> = ({
     const [loading, setLoading] = useState(false);
     const [isEditMode, setIsEditMode] = useState(false);
     const [taskSearchTerm, setTaskSearchTerm] = useState('');
-    const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-    const [isTaskDetailOpen, setIsTaskDetailOpen] = useState(false);
     const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
     const [toast, setToast] = useState<{ message: string, type: ToastType, duration?: number } | null>(null);
     const showToast = (message: string, type: ToastType, duration: number = 3000) => {
@@ -142,9 +139,9 @@ const MilestoneDetailModal: React.FC<MilestoneDetailModalProps> = ({
             await fetchMilestoneDetails();
             setIsEditMode(false);
             onMilestoneUpdated();
-        } catch (error) {
+        } catch (error: any) {
             console.error("Failed to update milestone:", error);
-            alert("Failed to update milestone. Please try again.");
+            alert(error.message || "Failed to update milestone.");
         } finally {
             setLoading(false);
         }
@@ -210,9 +207,9 @@ const MilestoneDetailModal: React.FC<MilestoneDetailModalProps> = ({
                     await milestoneService.delete(milestoneId);
                     onMilestoneUpdated();
                     onClose();
-                } catch (error) {
+                } catch (error: any) {
                     console.error("Failed to delete milestone:", error);
-                    alert("Failed to delete milestone. Please try again.");
+                    alert(error.message || "Failed to delete milestone.");
                 }
             }
         });
@@ -223,9 +220,8 @@ const MilestoneDetailModal: React.FC<MilestoneDetailModalProps> = ({
         task.name?.toLowerCase().includes(taskSearchTerm.toLowerCase())
     );
 
-    const handleTaskClick = (taskId: string) => {
-        setSelectedTaskId(taskId);
-        setIsTaskDetailOpen(true);
+    const handleTaskClick = (_taskId: string) => {
+        // Task detail panel removed; clicks are no-op for now
     };
 
     const handleTaskSubmit = async (taskData: any) => {
@@ -758,15 +754,6 @@ const MilestoneDetailModal: React.FC<MilestoneDetailModalProps> = ({
                 </div>
             </div>
 
-            {/* Nested Task Details */}
-            <TaskDetailModal
-                isOpen={isTaskDetailOpen}
-                onClose={() => setIsTaskDetailOpen(false)}
-                taskId={selectedTaskId}
-                onTaskUpdated={fetchMilestoneDetails}
-                projectMembers={projectMembers}
-                milestones={milestones}
-            />
 
             <TaskFormModal
                 isOpen={isTaskModalOpen}

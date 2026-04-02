@@ -1,15 +1,13 @@
-import { defineConfig, loadEnv } from 'vite'
-import react from '@vitejs/plugin-react'
-import path from 'path'
-
+import { defineConfig, loadEnv } from 'vite';
+import react from '@vitejs/plugin-react';
+import path from 'path';
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => {
-    const env = loadEnv(mode, process.cwd(), '');
-    const isServerMode = false;
-    const serverUrl = env.VITE_SERVER_URL;
-
-    const getTarget = (localUrl: string) => isServerMode ? serverUrl : localUrl;
-
+export default defineConfig(function (_a) {
+    var mode = _a.mode;
+    var env = loadEnv(mode, process.cwd(), '');
+    var isServerMode = false;
+    var serverUrl = env.VITE_SERVER_URL;
+    var getTarget = function (localUrl) { return isServerMode ? serverUrl : localUrl; };
     return {
         plugins: [react()],
         resolve: {
@@ -75,5 +73,5 @@ export default defineConfig(({ mode }) => {
                 },
             },
         },
-    }
-})
+    };
+});

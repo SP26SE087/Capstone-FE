@@ -92,7 +92,7 @@ const UserManagement: React.FC = () => {
             setError(null);
         } catch (err) {
             console.error('Error loading members:', err);
-            setError('Failed to load user list. Please try again.');
+            setError((err as any).message || 'Failed to load user list.');
         } finally {
             setLoading(false);
         }
