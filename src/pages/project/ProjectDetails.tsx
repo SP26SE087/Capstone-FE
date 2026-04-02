@@ -29,7 +29,6 @@ import DetailsSettings from '@/features/projects/components/DetailsSettings';
 
 // Import Modals & Other Components
 import TaskFormModal from '@/features/tasks/TaskFormModal';
-import TaskDetailModal from '@/features/tasks/TaskDetailModal';
 import ProjectTimeline from '@/features/projects/ProjectTimeline';
 
 type ActiveTab = 'home' | 'timeline' | 'milestones' | 'members' | 'tasks' | 'settings';
@@ -53,9 +52,7 @@ const ProjectDetails: React.FC = () => {
 
     // Modals visibility
     const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
-    const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
     const [editingTask, setEditingTask] = useState<Task | null>(null);
-    const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
     const [editingMilestoneId, setEditingMilestoneId] = useState<string | null>(null);
     const [milestoneViewMode, setMilestoneViewMode] = useState<'roadmap' | 'detail'>('roadmap');
     const [activeMilestoneForTasks, setActiveMilestoneForTasks] = useState<Milestone | null>(null);
@@ -229,8 +226,8 @@ const ProjectDetails: React.FC = () => {
 
     // Handlers for Modals
     const handleTaskClick = (task: Task) => {
-        setSelectedTaskId(task.taskId);
-        setIsDetailModalOpen(true);
+        setEditingTask(task);
+        setIsTaskModalOpen(true);
     };
 
     const handleMilestoneClick = (milestone: Milestone | null) => {
@@ -393,7 +390,7 @@ const ProjectDetails: React.FC = () => {
                 name: t.name,
                 description: t.description || null,
                 priority: t.priority || 2,
-                milestoneId: t.milestoneId || null,
+                milestoneId: milestones.find(m => m.milestoneId === t.milestoneId || m.name === t.milestoneId)?.milestoneId || t.milestoneId || null,
                 memberId: t.assigneeId || null,
                 startDate: t.startDate ? new Date(t.startDate).toISOString() : null,
                 dueDate: new Date(t.endDate).toISOString(),
@@ -656,7 +653,7 @@ const ProjectDetails: React.FC = () => {
                 `}</style>
 
                 {/* Main Content Area */}
-                <div style={{ display: 'flex', gap: '2.5rem', alignItems: 'flex-start' }}>
+                <div style={{ display: 'flex', gap: '2.5rem', alignItems: 'stretch', minHeight: 'calc(100vh - 200px)' }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                         {activeTab === 'home' && (
                             <DetailsHome
@@ -799,16 +796,6 @@ const ProjectDetails: React.FC = () => {
                 submitting={submitting}
             />
 
-            <TaskDetailModal
-                isOpen={isDetailModalOpen}
-                onClose={() => setIsDetailModalOpen(false)}
-                taskId={selectedTaskId}
-                projectMembers={members}
-                milestones={milestones}
-                onTaskUpdated={refetchTasks}
-                projectStartDate={project?.startDate || undefined}
-                projectEndDate={project?.endDate || undefined}
-            />
 
 
 

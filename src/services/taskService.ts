@@ -99,8 +99,49 @@ export const taskService = {
         }
     },
 
+    getMembers: async (taskId: string): Promise<any[]> => {
+        try {
+            // Per devApi: GET /api/projects/tasks/{taskId}/members
+            const response = await api.get(`/api/projects/tasks/${taskId}/members`);
+            const data = response.data.data || response.data;
+            return Array.isArray(data) ? data : [];
+        } catch (error) {
+            console.error(`Error fetching task members for task ${taskId}:`, error);
+            return [];
+        }
+    },
+
     update: async (taskId: string, taskData: any): Promise<any> => {
         try {
+            const hasMemberId = Object.prototype.hasOwnProperty.call(taskData, 'memberId');
+            const nextMemberId = hasMemberId ? (taskData.memberId || null) : undefined;
+
+            const hasSupportMembers = Object.prototype.hasOwnProperty.call(taskData, 'supportMembers');
+
+            if (taskId && nextMemberId) {
+                const currentMembers = await taskService.getMembers(taskId);
+                const conflictingMember = currentMembers.find((tm: any) => {
+                    const membershipId = tm.membershipId || tm.memberId || tm.member?.membershipId || tm.member?.id;
+                    const userId = tm.userId || tm.user?.id;
+                    return membershipId === nextMemberId || userId === nextMemberId;
+                });
+
+                const associationId =
+                    conflictingMember?.id ||
+                    conflictingMember?.taskMemberId ||
+                    conflictingMember?.taskMemberID ||
+                    conflictingMember?.taskMemberAssociationId;
+
+                if (associationId) {
+                    try {
+                        await taskService.removeMember(associationId);
+                    } catch (memberError) {
+                        console.error('Failed to remove assignee from current collaborators before task update:', memberError);
+                        throw memberError;
+                    }
+                }
+            }
+
             // Per updated model: PUT /api/projects/tasks
             const updatePayload = {
                 id: taskId,
@@ -108,7 +149,7 @@ export const taskService = {
                 description: taskData.description,
                 priority: taskData.priority,
                 status: taskData.status,
-                memberId: taskData.memberId || null,
+                ...(hasMemberId ? { memberId: nextMemberId } : {}),
                 startDate: taskData.startDate,
                 dueDate: taskData.dueDate,
                 milestoneId: taskData.milestoneId || null
@@ -117,32 +158,55 @@ export const taskService = {
             const response = await api.put('/api/projects/tasks', updatePayload);
             const updatedTask = response.data.data || response.data;
 
-            // If there are support members, update them
-            if (taskId && taskData.supportMembers) {
+            // If supportMembers is provided (including empty array), sync collaborators
+            if (taskId && hasSupportMembers) {
                 console.log('Updating support members for task:', taskId);
 
-                // Get current details to know who to add/remove
-                const currentTask = await taskService.getById(taskId);
-                if (currentTask) {
-                    // Use memberId (which we've mapped to membershipId) for ID comparison
-                    const currentSupportIds = (currentTask.members || []).map((m: any) => m.memberId);
-                    const newSupportIds = taskData.supportMembers || [];
+                // Use the dedicated members endpoint to ensure we have association IDs
+                // required for DELETE /tasks/members/{taskMemberId}.
+                const currentMembers = await taskService.getMembers(taskId);
 
-                    // Members to add: in newSupportIds but not in currentSupportIds
-                    const toAdd = newSupportIds.filter((id: string) => id && !currentSupportIds.includes(id));
+                const currentKeySet = new Set<string>();
+                currentMembers.forEach((tm: any) => {
+                    const membershipKey = tm.membershipId || tm.memberId || tm.member?.membershipId || tm.member?.id;
+                    const userKey = tm.userId || tm.user?.id;
+                    if (membershipKey) currentKeySet.add(String(membershipKey));
+                    if (userKey) currentKeySet.add(String(userKey));
+                });
 
-                    // Members to remove: in currentSupportIds but not in newSupportIds
-                    const toRemove = (currentTask.members || []).filter((m: any) => m.memberId && !newSupportIds.includes(m.memberId));
+                const desiredSupportIdsRaw = Array.isArray(taskData.supportMembers) ? taskData.supportMembers : [];
+                const newSupportIds = desiredSupportIdsRaw
+                    .filter((id: string) => !!id)
+                    .filter((id: string) => !nextMemberId || id !== nextMemberId);
 
-                    try {
-                        await Promise.all([
-                            ...toAdd.map((mId: string) => taskService.addMember(taskId, mId)),
-                            ...toRemove.map((m: any) => taskService.removeMember(m.id)) // Use association ID for deletion
-                        ]);
-                    } catch (memberError) {
-                        console.error('Failed to update some project collaborators:', memberError);
-                        updatedTask._partialError = "Task updated successfully, but collaborator changes failed.";
-                    }
+                const toAdd = newSupportIds.filter((id: string) => id && !currentKeySet.has(String(id)));
+
+                const desiredKeySet = new Set<string>(newSupportIds.map((id: string) => String(id)));
+                const toRemoveAssociationIds = currentMembers
+                    .map((tm: any) => {
+                        const associationId = tm.id || tm.taskMemberId || tm.taskMemberID || tm.taskMemberAssociationId;
+                        const membershipKey = tm.membershipId || tm.memberId || tm.member?.membershipId || tm.member?.id;
+                        const userKey = tm.userId || tm.user?.id;
+                        return { associationId, membershipKey, userKey };
+                    })
+                    .filter((row: any) => !!row.associationId)
+                    .filter((row: any) => {
+                        const membershipHit = row.membershipKey && desiredKeySet.has(String(row.membershipKey));
+                        const userHit = row.userKey && desiredKeySet.has(String(row.userKey));
+                        return !membershipHit && !userHit;
+                    })
+                    .map((row: any) => row.associationId);
+
+                console.log('Support members diff:', { toAdd: toAdd.length, toRemove: toRemoveAssociationIds.length });
+
+                try {
+                    await Promise.all([
+                        ...toAdd.map((mId: string) => taskService.addMember(taskId, mId)),
+                        ...toRemoveAssociationIds.map((assocId: string) => taskService.removeMember(assocId))
+                    ]);
+                } catch (memberError) {
+                    console.error('Failed to update some project collaborators:', memberError);
+                    updatedTask._partialError = "Task updated successfully, but collaborator changes failed.";
                 }
             }
 
@@ -204,8 +268,18 @@ export const taskService = {
             const response = await api.get(`/api/projects/tasks/${taskId}`);
             const taskData: any = response.data.data || response.data;
 
-            // 1. Process existing members (collaborators) - data is already provided in the array
-            const taskMembers = taskData.members || [];
+            // 1. Process existing members (collaborators) - backend field name varies across endpoints
+            const rawTaskMembers =
+                taskData.members ??
+                taskData.taskMembers ??
+                taskData.taskMember ??
+                taskData.supportMembers ??
+                taskData.collaborators ??
+                taskData.taskMemberDtos ??
+                taskData.taskMemberResponses ??
+                [];
+
+            const taskMembers = Array.isArray(rawTaskMembers) ? rawTaskMembers : [];
             const processedMembers = taskMembers.map((tm: any) => {
                 const pr = tm.projectRole;
                 const projectRoleName = tm.projectRoleName || tm.roleName ||
@@ -214,13 +288,25 @@ export const taskService = {
                             pr === 3 ? 'Member' :
                                 pr === 4 ? 'Leader' : 'Researcher');
 
+                const associationId = tm.id || tm.taskMemberId || tm.taskMemberID || tm.taskMemberAssociationId;
+                const membershipId = tm.membershipId || tm.memberId || tm.member?.membershipId || tm.member?.id;
+                const userId = tm.userId || tm.user?.id;
+                const displayName =
+                    tm.fullName ||
+                    tm.userName ||
+                    tm.email ||
+                    tm.user?.fullName ||
+                    tm.user?.userName ||
+                    tm.user?.email ||
+                    'Unknown';
+
                 return {
                     ...tm,
-                    id: tm.id, // TaskMember association ID
-                    membershipId: tm.membershipId,
-                    memberId: tm.membershipId || tm.memberId, // Use membershipId as the primary identifier
-                    userId: tm.userId,
-                    userName: tm.fullName || tm.userName || tm.email || 'Unknown',
+                    id: associationId, // TaskMember association ID
+                    membershipId,
+                    memberId: membershipId || tm.memberId, // Prefer membershipId as identifier for add/remove
+                    userId,
+                    userName: displayName,
                     projectRoleName: projectRoleName,
                 };
             });

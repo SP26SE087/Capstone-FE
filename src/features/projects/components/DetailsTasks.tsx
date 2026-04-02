@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-    Search, Plus, X, LayoutGrid, User, Users, Calendar, Loader2, Play, Send,
+    Search, Plus, X, LayoutGrid, User, Calendar, Loader2, Play, Send,
     Upload, Paperclip, Target, Filter, ChevronDown, Check, RotateCw, CheckCircle2, Clock, Pencil, Save
 } from 'lucide-react';
 import { Project, Task, TaskStatus, Priority, Milestone, MilestoneStatus } from '@/types';
 import ActivityTimeline from './ActivityTimeline';
-import { taskService } from '@/services/taskService';
+import { milestoneService, taskService } from '@/services';
+import ConfirmModal from '@/components/common/ConfirmModal';
 
 interface DetailsTasksProps {
     tasks: Task[];
@@ -64,17 +65,20 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
     const isSpecialRole = currentMember?.projectRole === 1 || currentMember?.projectRole === 4;
     const [viewContext, setViewContext] = useState<'personal' | 'all'>(isSpecialRole ? 'all' : 'personal');
     const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
-    const [showCollabs, setShowCollabs] = useState(false);
     const [isAddingNew, setIsAddingNew] = useState(false);
     const [showFilterDropdown, setShowFilterDropdown] = useState(false);
     const [submittingId, setSubmittingId] = useState<string | null>(null);
     const [evidenceFiles, setEvidenceFiles] = useState<{ [taskId: string]: File[] }>({});
     const [uploadedEvidences, setUploadedEvidences] = useState<{ [taskId: string]: any[] }>({});
     const [errorMessages, setErrorMessages] = useState<{ [taskId: string]: string | null }>({});
+    const [successMessages, setSuccessMessages] = useState<{ [taskId: string]: string | null }>({});
+    const [selectedTaskDetail, setSelectedTaskDetail] = useState<Task | null>(null);
 
     const [isEvidenceModalOpen, setIsEvidenceModalOpen] = useState(false);
     const [previewEvidence, setPreviewEvidence] = useState<any>(null);
     const [pendingDelete, setPendingDelete] = useState<{ taskId: string, evidenceId: number } | null>(null);
+    const [pendingSubmitTaskId, setPendingSubmitTaskId] = useState<string | null>(null);
+    const [selectedTaskMilestone, setSelectedTaskMilestone] = useState<Milestone | null>(null);
 
     const [isEditMode, setIsEditMode] = useState(false);
     const [editForm, setEditForm] = useState({
@@ -110,6 +114,25 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
         }
     }, [isEvidenceModalOpen, previewEvidence]);
 
+    const loadSelectedTaskDetail = useCallback(async (taskId: string) => {
+        if (!taskId) {
+            setSelectedTaskDetail(null);
+            setSelectedTaskMilestone(null);
+            return null;
+        }
+
+        try {
+            const detail = await taskService.getById(taskId);
+            setSelectedTaskDetail(detail);
+            return detail;
+        } catch (error) {
+            console.error(`Failed to fetch task detail for ${taskId}:`, error);
+            setSelectedTaskDetail(null);
+            setSelectedTaskMilestone(null);
+            return null;
+        }
+    }, []);
+
     useEffect(() => {
         if (viewContext === 'personal') {
             fetchPersonalTasks();
@@ -122,6 +145,10 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
         }
     }, [selectedTaskId, fetchEvidences]);
 
+    useEffect(() => {
+        void loadSelectedTaskDetail(selectedTaskId || '');
+    }, [selectedTaskId, loadSelectedTaskDetail]);
+
     const displayTasks = (viewContext === 'all' ? filteredTasks : personalTasks).filter((t: Task) => {
         const matchesSearch = t.name.toLowerCase().includes(taskSearchQuery.toLowerCase());
         const matchesStatus = taskStatusFilter.length === 0 || taskStatusFilter.includes('all') || taskStatusFilter.includes(t.status.toString());
@@ -130,7 +157,57 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
         return matchesSearch && matchesStatus && matchesPriority && matchesMilestone;
     });
 
-    const activeTask = (viewContext === 'all' ? tasks : personalTasks).find((t: Task) => (t.taskId || (t as any).id) === selectedTaskId);
+    const activeTask = selectedTaskDetail || (viewContext === 'all' ? tasks : personalTasks).find((t: Task) => (t.taskId || (t as any).id) === selectedTaskId);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const loadSelectedTaskMilestone = async () => {
+            if (!activeTask) {
+                setSelectedTaskMilestone(null);
+                return;
+            }
+
+            const rawMilestoneId =
+                (activeTask as any)?.milestoneId ||
+                (activeTask as any)?.milestoneID ||
+                (activeTask as any)?.milestone_id ||
+                (activeTask as any)?.milestone?.milestoneId ||
+                (activeTask as any)?.milestone?.id ||
+                (activeTask as any)?.milestone?.name ||
+                (activeTask as any)?.milestoneName ||
+                (typeof (activeTask as any)?.milestone === 'string' ? (activeTask as any).milestone : '') ||
+                '';
+
+            const localMilestone = resolveMilestone(rawMilestoneId);
+            if (localMilestone) {
+                setSelectedTaskMilestone(localMilestone);
+                return;
+            }
+
+            if (!rawMilestoneId) {
+                setSelectedTaskMilestone(null);
+                return;
+            }
+
+            try {
+                const fetchedMilestone = await milestoneService.getById(String(rawMilestoneId));
+                if (!cancelled) {
+                    setSelectedTaskMilestone(fetchedMilestone);
+                }
+            } catch (error) {
+                if (!cancelled) {
+                    setSelectedTaskMilestone(null);
+                }
+            }
+        };
+
+        loadSelectedTaskMilestone();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [activeTask, milestones]);
 
     const normalizeId = (value: any): string => value === undefined || value === null ? '' : String(value);
     const toDateInput = (value: any): string => {
@@ -151,43 +228,48 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
         });
     };
 
+    const getMilestoneOptionId = (milestone: any): string => {
+        return normalizeId(milestone?.milestoneId || milestone?.id || milestone?.ID || milestone?.milestoneID);
+    };
+
     const findMemberId = (rawIdOrEmail: any): string => {
         const target = normalizeId(rawIdOrEmail).toLowerCase();
         if (!target) return '';
         const matched = projectMembers.find((m: any) => {
-            const identifiers = [
-                m.email, m.userId, m.userID, m.memberId, m.memberID, 
-                m.membershipId, m.membershipID, m.id, m.idUser, m.idMember,
-                m.fullName, m.userName, m.name
-            ].map(v => normalizeId(v).toLowerCase()).filter(Boolean);
+            const identifiers = [m.membershipId, m.memberId, m.email, m.userId, m.id, m.fullName, m.userName, m.name, m.memberEmail].map(v => normalizeId(v).toLowerCase()).filter(Boolean);
             return identifiers.includes(target);
         });
         if (matched) {
-            const m = matched as any;
-            const possibleIds = [
-                m.membershipId, m.membershipID, m.id, m.idUser, m.userId, m.userID, m.idMember, m.memberId
-            ];
-            // Find the first ID that isn't null and doesn't look like an email
-            const guid = possibleIds.find(id => id && typeof id === 'string' && !id.includes('@'));
-            if (guid) return guid;
-            
-            // If we only have an email in the ID fields, we'll return '' to signify no GUID found
-            return '';
+            // Priority for GUID-like identifiers
+            const guid = matched.membershipId || matched.memberId || matched.userId || (matched.id?.length > 20 ? matched.id : '');
+            return normalizeId(guid);
         }
-        // If the input itself is a GUID, use it
-        return (target.includes('-') && target.length > 30) ? target : '';
+        // Fallback for direct GUID-like inputs
+        return target.length > 20 ? target : '';
     };
 
     const getMemberOptionId = (member: any): string => {
-        if (!member) return '';
-        const m = member as any;
-        const possibleIds = [
-            m.membershipId, m.membershipID, m.id, m.idUser, m.userId, m.userID, m.idMember, m.memberId
-        ];
-        const guid = possibleIds.find(id => id && typeof id === 'string' && !id.includes('@'));
-        if (guid) return guid;
+        const guid = member?.membershipId || member?.memberId || member?.userId || (member?.id?.length > 20 ? member.id : '');
+        return normalizeId(guid);
+    };
 
-        return normalizeId(member.email).toLowerCase();
+    const getTaskCollaboratorEntries = (task: any) => {
+        const rawCollaborators = task?.members || task?.supportMembers || task?.collaborators || task?.supportMemberIds || task?.collaboratorIds || [];
+        const rows = Array.isArray(rawCollaborators) ? rawCollaborators : [];
+
+        return rows.map((item: any) => {
+            const matchedMember = typeof item === 'object'
+                ? item
+                : projectMembers.find(pm => getMemberOptionId(pm) === normalizeId(item));
+            const id = getMemberOptionId(matchedMember) || normalizeId(item);
+            const fullName = matchedMember?.fullName || matchedMember?.userName || matchedMember?.name || matchedMember?.email || (typeof item === 'string' ? item : 'Member');
+
+            return {
+                id,
+                fullName,
+                email: matchedMember?.email || ''
+            };
+        }).filter((item: any) => !!item.id || !!item.fullName);
     };
 
     const today = toDateInput(new Date());
@@ -216,6 +298,21 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
     const isStartDirty = editForm.startDate !== originalStart;
     const isDueDirty = editForm.dueDate !== originalDue;
     const isMilestoneDirty = editForm.milestoneId !== originalMilestoneId;
+
+    const rawActiveAssignee =
+        (activeTask as any)?.member?.fullName ||
+        (activeTask as any)?.member?.userName ||
+        (activeTask as any)?.member?.name ||
+        (activeTask as any)?.member?.email ||
+        (activeTask as any)?.assignee?.email ||
+        (activeTask as any)?.memberEmail ||
+        (activeTask as any)?.assigneeEmail ||
+        (activeTask as any)?.memberId ||
+        (activeTask as any)?.assigneeId ||
+        (activeTask as any)?.assigneeName ||
+        '';
+    const originalMemberId = findMemberId(rawActiveAssignee);
+    const isMemberDirty = editForm.memberId !== originalMemberId;
 
     const invalidEditStartInPast = isStartDirty && !!editForm.startDate && editForm.startDate < today;
     const invalidEditDueInPast = isDueDirty && !!editForm.dueDate && editForm.dueDate < today;
@@ -266,6 +363,47 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
         setPendingDelete({ taskId, evidenceId });
     };
 
+    const refreshSelectedTaskViews = useCallback(async (taskId: string) => {
+        await Promise.all([
+            loadSelectedTaskDetail(taskId),
+            fetchEvidences(taskId),
+        ]);
+        refreshTasks();
+        if (viewContext === 'personal') {
+            fetchPersonalTasks();
+        }
+    }, [fetchEvidences, fetchPersonalTasks, loadSelectedTaskDetail, refreshTasks, viewContext]);
+
+    const handleUploadEvidence = async (taskId: string) => {
+        // Safety: ensure we don't have a submit-confirm open while uploading
+        setPendingSubmitTaskId(null);
+        const drafts = evidenceFiles[taskId] || [];
+
+        if (drafts.length === 0) {
+            setErrorMessages(prev => ({ ...prev, [taskId]: 'Please select at least 1 file first.' }));
+            return;
+        }
+
+        setErrorMessages(prev => ({ ...prev, [taskId]: null }));
+        setSuccessMessages(prev => ({ ...prev, [taskId]: null }));
+        setSubmittingId(taskId);
+        try {
+            await taskService.uploadEvidences(taskId, drafts);
+            setEvidenceFiles(prev => {
+                const next = { ...prev };
+                delete next[taskId];
+                return next;
+            });
+            await refreshSelectedTaskViews(taskId);
+            setSuccessMessages(prev => ({ ...prev, [taskId]: 'Evidence uploaded successfully.' }));
+        } catch (error: any) {
+            console.error('Failed to upload evidence:', error);
+            setErrorMessages(prev => ({ ...prev, [taskId]: error.message || 'Failed to upload evidence.' }));
+        } finally {
+            setSubmittingId(null);
+        }
+    };
+
     const confirmDeleteEvidence = async () => {
         if (!pendingDelete) return;
         const { taskId, evidenceId } = pendingDelete;
@@ -286,32 +424,22 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
 
 
     const handleSubmitForReview = async (taskId: string) => {
-        const drafts = (evidenceFiles[taskId] || []);
         const uploadedCount = (uploadedEvidences[taskId] || []).length;
 
-        if (uploadedCount === 0 && drafts.length === 0) {
-            setErrorMessages(prev => ({ ...prev, [taskId]: 'Upload at least 1 evidence before submitting.' }));
+        if (uploadedCount === 0) {
+            setErrorMessages(prev => ({ ...prev, [taskId]: 'Upload evidence successfully before submitting.' }));
             return;
         }
 
         setErrorMessages(prev => ({ ...prev, [taskId]: null }));
+        setSuccessMessages(prev => ({ ...prev, [taskId]: null }));
         setSubmittingId(taskId);
         try {
-            // First: Auto-upload any local drafts before final submission
-            if (drafts.length > 0) {
-                await taskService.uploadEvidences(taskId, drafts);
-                setEvidenceFiles(prev => {
-                    const newState = { ...prev };
-                    delete newState[taskId];
-                    return newState;
-                });
-                await fetchEvidences(taskId);
-            }
-
-            // Second: Update task status to Submitted - only happens if upload succeeds
             await taskService.updateStatus(taskId, TaskStatus.Submitted);
+            await refreshSelectedTaskViews(taskId);
             refreshTasks();
             if (viewContext === 'personal') fetchPersonalTasks();
+            setSuccessMessages(prev => ({ ...prev, [taskId]: 'Task submitted for review successfully.' }));
         } catch (error: any) {
             console.error('Failed to submit for review:', error);
             setErrorMessages(prev => ({ ...prev, [taskId]: error.message || 'Failed to submit.' }));
@@ -324,6 +452,7 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
         setSubmittingId(taskId);
         try {
             await taskService.updateStatus(taskId, TaskStatus.Completed);
+            await refreshSelectedTaskViews(taskId);
             refreshTasks();
             if (viewContext === 'personal') fetchPersonalTasks();
         } catch (error: any) {
@@ -338,6 +467,7 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
         setSubmittingId(taskId);
         try {
             await taskService.updateStatus(taskId, TaskStatus.Adjusting);
+            await refreshSelectedTaskViews(taskId);
             refreshTasks();
             if (viewContext === 'personal') fetchPersonalTasks();
         } catch (error: any) {
@@ -364,19 +494,30 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
 
         setEditError(null);
         setEditSaving(true);
+        const updatePayload: any = {
+            name: editForm.name,
+            description: editForm.description,
+            priority: editForm.priority,
+            status: activeTask.status,
+            milestoneId: editForm.milestoneId || null,
+            supportMembers: Array.isArray(editForm.supportMemberIds) ? editForm.supportMemberIds : [],
+            projectId: (activeTask as any).projectId || project.projectId || (project as any).id,
+        };
+
+        if (isMemberDirty) {
+            updatePayload.memberId = editForm.memberId || null;
+        }
+
+        if (isStartDirty) {
+            updatePayload.startDate = editForm.startDate ? new Date(editForm.startDate).toISOString() : null;
+        }
+        if (isDueDirty) {
+            updatePayload.dueDate = editForm.dueDate ? new Date(editForm.dueDate).toISOString() : null;
+        }
+
         try {
-            await taskService.update(tId, {
-                name: editForm.name,
-                description: editForm.description,
-                priority: editForm.priority,
-                status: activeTask.status,
-                milestoneId: editMilestoneGuid || null,
-                memberId: editForm.memberId || null,
-                startDate: editForm.startDate ? new Date(editForm.startDate).toISOString() : null,
-                dueDate: editForm.dueDate ? new Date(editForm.dueDate).toISOString() : null,
-                supportMembers: editForm.supportMemberIds,
-                projectId: (activeTask as any).projectId || project.projectId || (project as any).id,
-            });
+            await taskService.update(tId, updatePayload);
+            await refreshSelectedTaskViews(tId);
             setIsEditMode(false);
             refreshTasks();
             if (viewContext === 'personal') fetchPersonalTasks();
@@ -406,6 +547,7 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
         setSubmittingId(taskId);
         try {
             await taskService.updateStatus(taskId, TaskStatus.InProgress);
+            await refreshSelectedTaskViews(taskId);
             refreshTasks();
             if (viewContext === 'personal') {
                 fetchPersonalTasks();
@@ -421,6 +563,8 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
     const handleAddNewClick = () => {
         setIsAddingNew(true);
         setSelectedTaskId(null);
+        setSelectedTaskDetail(null);
+        setSelectedTaskMilestone(null);
         handleAddTaskForm();
     };
 
@@ -662,7 +806,7 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                     </div>
                 </div>
 
-                <div style={{ flex: 1, maxHeight: 'calc(100vh - 320px)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', paddingRight: '4px' }} className="custom-scrollbar">
+                <div style={{ flex: 1, minHeight: 'calc(100vh - 180px)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', paddingRight: '4px' }} className="custom-scrollbar">
                     {loadingTasks ? (
                         <div style={{ textAlign: 'center', padding: '2rem' }}><Loader2 size={24} className="animate-spin-slow" style={{ opacity: 0.3, margin: '0 auto' }} /></div>
                     ) : displayTasks.length > 0 ? (
@@ -763,7 +907,7 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                                                             <option value="">Select Milestone</option>
                                                             {milestones
                                                                 .filter(m => m.status !== MilestoneStatus.Completed && m.status !== MilestoneStatus.Cancelled)
-                                                                .map(m => <option key={m.milestoneId} value={m.milestoneId}>{m.name}</option>)
+                                                                .map(m => <option key={getMilestoneOptionId(m)} value={getMilestoneOptionId(m)}>{m.name}</option>)
                                                             }
                                                         </select>
                                                     </div>
@@ -808,12 +952,23 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
 
                                     <div>
                                         <label style={labelStyle}>Assignee</label>
-                                        <select style={inputStyle} value={form.assigneeId} onChange={(e) => handleNewTaskChange(form.tempId, 'assigneeId', e.target.value)}>
+                                        <select
+                                            style={inputStyle}
+                                            value={form.assigneeId}
+                                            onChange={(e) => {
+                                                const nextAssigneeId = e.target.value;
+                                                handleNewTaskChange(form.tempId, 'assigneeId', nextAssigneeId);
+                                                const nextSupportIds = (form.supportMemberIds || []).filter((id: string) => id !== nextAssigneeId);
+                                                if (nextSupportIds.length !== (form.supportMemberIds || []).length) {
+                                                    handleNewTaskChange(form.tempId, 'supportMemberIds', nextSupportIds);
+                                                }
+                                            }}
+                                        >
                                             <option value="">Unassigned</option>
-                                            {projectMembers.filter(m => m.projectRole !== 1).map(m => {
-                                                const mId = getMemberOptionId(m);
+                                            {projectMembers.map(m => {
+                                                const id = getMemberOptionId(m);
                                                 return (
-                                                    <option key={mId} value={mId}>
+                                                    <option key={id} value={id}>
                                                         {m.fullName || m.userName}
                                                     </option>
                                                 );
@@ -837,7 +992,7 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                                             style={inputStyle}
                                         >
                                             <option value="">Select Collaborators ({form.supportMemberIds?.length || 0})</option>
-                                            {projectMembers.filter(m => m.projectRole !== 1 && getMemberOptionId(m) !== form.assigneeId).map(m => {
+                                            {projectMembers.filter(m => getMemberOptionId(m) !== form.assigneeId).map(m => {
                                                 const mId = getMemberOptionId(m);
                                                 const isSelected = (form.supportMemberIds || []).includes(mId);
                                                 return (
@@ -921,6 +1076,9 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                                             const normalizedMilestoneId = resolveMilestone(rawMilestoneId)?.milestoneId || '';
 
                                             const rawAssignee =
+                                                (activeTask as any).member?.fullName ||
+                                                (activeTask as any).member?.userName ||
+                                                (activeTask as any).member?.name ||
                                                 (activeTask as any).member?.email ||
                                                 (activeTask as any).assignee?.email ||
                                                 (activeTask as any).memberEmail ||
@@ -941,9 +1099,9 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                                                 (activeTask as any).collaboratorNames ||
                                                 [];
 
-                                            const normalizedCollaborators = Array.from(new Set(
+                                            const normalizedCollaboratorIds = Array.from(new Set(
                                                 (Array.isArray(collaboratorRows) ? collaboratorRows : []).map((item: any) => {
-                                                    const idToFind = item?.email || item?.userId || item?.memberId || item?.membershipId || item?.id || (typeof item === 'string' ? item : '');
+                                                    const idToFind = item?.email || item?.memberEmail || item?.userId || item?.memberId || item?.membershipId || item?.id || (typeof item === 'string' ? item : '');
                                                     return findMemberId(idToFind);
                                                 }).filter((id: string) => !!id && id !== normalizedAssigneeId)
                                             ));
@@ -956,7 +1114,7 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                                                 dueDate: toDateInput(activeTask.dueDate),
                                                 milestoneId: normalizedMilestoneId,
                                                 memberId: normalizedAssigneeId,
-                                                supportMemberIds: normalizedCollaborators,
+                                                supportMemberIds: normalizedCollaboratorIds,
                                             });
                                             setEditError(null);
                                             setIsEditMode(true);
@@ -1041,7 +1199,7 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                                             >
                                                 <option value="">No Milestone</option>
                                                 {milestones.filter(m => m.status !== MilestoneStatus.Cancelled).map(m => (
-                                                    <option key={m.milestoneId} value={m.milestoneId}>{m.name}</option>
+                                                    <option key={getMilestoneOptionId(m)} value={getMilestoneOptionId(m)}>{m.name}</option>
                                                 ))}
                                             </select>
                                         </div>
@@ -1080,7 +1238,18 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                                     </div>
                                     <div>
                                         <label style={{ ...labelStyle, marginBottom: '4px' }}>Assignee</label>
-                                        <select value={editForm.memberId} onChange={e => setEditForm(f => ({ ...f, memberId: e.target.value }))} style={inputStyle}>
+                                        <select
+                                            value={editForm.memberId}
+                                            onChange={e => {
+                                                const nextAssigneeId = e.target.value;
+                                                setEditForm(f => ({
+                                                    ...f,
+                                                    memberId: nextAssigneeId,
+                                                    supportMemberIds: f.supportMemberIds.filter(id => id !== nextAssigneeId)
+                                                }));
+                                            }}
+                                            style={inputStyle}
+                                        >
                                             <option value="">Unassigned</option>
                                             {projectMembers.filter(m => m.projectRole !== 1).map(m => {
                                                 const id = getMemberOptionId(m);
@@ -1090,351 +1259,345 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                                     </div>
                                     <div>
                                         <label style={{ ...labelStyle, marginBottom: '4px' }}>Collaborators</label>
-                                        <select
-                                            value=""
-                                            onChange={e => {
-                                                const val = e.target.value;
-                                                if (!val) return;
-                                                setEditForm(f => ({
-                                                    ...f,
-                                                    supportMemberIds: f.supportMemberIds.includes(val)
-                                                        ? f.supportMemberIds.filter(id => id !== val)
-                                                        : [...f.supportMemberIds, val]
-                                                }));
+                                        <div
+                                            className="custom-scrollbar"
+                                            style={{
+                                                ...inputStyle,
+                                                background: 'white',
+                                                padding: '8px 10px',
+                                                maxHeight: '160px',
+                                                overflowY: 'auto',
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                gap: '8px'
                                             }}
-                                            style={inputStyle}
                                         >
-                                            <option value="">Select Collaborators ({editForm.supportMemberIds.length})</option>
-                                            {projectMembers.filter(m => m.projectRole !== 1 && getMemberOptionId(m) !== editForm.memberId).map(m => {
-                                                const id = getMemberOptionId(m);
-                                                return (
-                                                    <option key={id} value={id}>
-                                                        {editForm.supportMemberIds.includes(id) ? '✓ ' : ''}{m.fullName || m.userName}
-                                                    </option>
-                                                );
-                                            })}
-                                        </select>
-                                        {editForm.supportMemberIds.length > 0 && (
-                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
-                                                {editForm.supportMemberIds.map(id => {
-                                                    const m = projectMembers.find(pm => getMemberOptionId(pm) === id);
-                                                    return m ? (
-                                                        <span key={id} style={{ fontSize: '0.65rem', padding: '2px 8px', background: '#e0f2fe', color: '#0369a1', borderRadius: '20px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                            {m.fullName || m.userName}
-                                                            <button onClick={() => setEditForm(f => ({ ...f, supportMemberIds: f.supportMemberIds.filter(i => i !== id) }))}
-                                                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#0369a1', display: 'flex' }}>
-                                                                <X size={10} />
-                                                            </button>
-                                                        </span>
-                                                    ) : null;
+                                            {projectMembers
+                                                .filter(m => getMemberOptionId(m) !== editForm.memberId)
+                                                .map(m => {
+                                                    const id = getMemberOptionId(m);
+                                                    const checked = (editForm.supportMemberIds || []).includes(id);
+                                                    return (
+                                                        <label key={id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', color: '#1e293b', fontWeight: 500, cursor: 'pointer' }}>
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={checked}
+                                                                onChange={() => {
+                                                                    setEditForm(f => ({
+                                                                        ...f,
+                                                                        supportMemberIds: f.supportMemberIds.includes(id)
+                                                                            ? f.supportMemberIds.filter(x => x !== id)
+                                                                            : [...f.supportMemberIds, id]
+                                                                    }));
+                                                                }}
+                                                            />
+                                                            <span>{m.fullName || m.userName}</span>
+                                                        </label>
+                                                    );
                                                 })}
-                                            </div>
-                                        )}
+                                            {projectMembers.filter(m => getMemberOptionId(m) !== editForm.memberId).length === 0 && (
+                                                <div style={{ fontSize: '0.8rem', color: '#94a3b8', fontStyle: 'italic' }}>No collaborators</div>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             )}
 
                             {!isEditMode && (
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', background: '#f8fafc', padding: '1rem', borderRadius: '12px', border: '1px solid #f1f5f9' }}>
-                                <div>
-                                    <label style={{ ...labelStyle, marginBottom: '4px' }}>Timeline</label>
-                                    <div style={{ fontSize: '0.75rem', color: '#1e293b', fontWeight: 600, display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#64748b', fontSize: '0.65rem' }}>Start Date</span>
-                                        <span>{formatProjectDate(activeTask.startDate || undefined)}</span>
-                                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#64748b', fontSize: '0.65rem', marginTop: '6px' }}>Due Date</span>
-                                        <span>{formatProjectDate(activeTask.dueDate || undefined)}</span>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', background: '#f8fafc', padding: '1rem', borderRadius: '12px', border: '1px solid #f1f5f9' }}>
+                                    <div>
+                                        <label style={{ ...labelStyle, marginBottom: '4px' }}>Timeline</label>
+                                        <div style={{ fontSize: '0.75rem', color: '#1e293b', fontWeight: 600, display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#64748b', fontSize: '0.65rem' }}>Start Date</span>
+                                            <span>{formatProjectDate(activeTask.startDate || undefined)}</span>
+                                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#64748b', fontSize: '0.65rem', marginTop: '6px' }}>Due Date</span>
+                                            <span>{formatProjectDate(activeTask.dueDate || undefined)}</span>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label style={{ ...labelStyle, marginBottom: '4px' }}>Milestone</label>
+                                        {(() => {
+                                            const m = resolveMilestone((activeTask as any).milestoneId || (activeTask as any).milestoneID || (activeTask as any).milestone_id || (activeTask as any).milestone?.milestoneId || (activeTask as any).milestone?.id || (activeTask as any).milestone?.name) || selectedTaskMilestone;
+                                            return <div style={{ fontSize: '0.8rem', fontWeight: 500 }}>{m ? m.name : 'No Milestone'}</div>;
+                                        })()}
                                     </div>
                                 </div>
-                                <div>
-                                    <label style={{ ...labelStyle, marginBottom: '4px' }}>Milestone</label>
-                                    {(() => {
-                                        const m = resolveMilestone((activeTask as any).milestoneId || (activeTask as any).milestoneID || (activeTask as any).milestone_id || (activeTask as any).milestone?.milestoneId || (activeTask as any).milestone?.id || (activeTask as any).milestone?.name);
-                                        if (!m) return <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic' }}>No Milestone</div>;
-                                        return (
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                                <div style={{ 
-                                                    fontSize: '0.75rem', 
-                                                    fontWeight: 800, 
-                                                    color: 'var(--primary-color)',
-                                                    background: '#f0f9ff',
-                                                    padding: '2px 8px',
-                                                    borderRadius: '6px',
-                                                    display: 'inline-block',
-                                                    width: 'fit-content',
-                                                    border: '1px solid #bae6fd'
-                                                }}>
-                                                    {m.name}
-                                                </div>
-                                                {m.startDate && m.dueDate && (
-                                                    <div style={{ fontSize: '0.65rem', color: '#64748b' }}>
-                                                        {formatProjectDate(m.startDate)} – {formatProjectDate(m.dueDate)}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        );
-                                    })()}
-                                </div>
-                            </div>
                             )}
 
                             {!isEditMode && (
-                            <div>
-                                <label style={labelStyle}>Assignee</label>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <div style={{ width: '28px', height: '28px', background: '#e2e8f0', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                            <User size={14} color="#64748b" />
+                                <div>
+                                    <label style={labelStyle}>Assignee</label>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <div style={{ width: '28px', height: '28px', background: '#e2e8f0', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                <User size={14} color="#64748b" />
+                                            </div>
+                                            <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#1e293b' }}>
+                                                {(activeTask as any).member?.fullName || (activeTask as any).member?.userName || (activeTask as any).member?.name || (activeTask as any).assigneeName || (activeTask as any).assignedToName || 'Unassigned'}
+                                            </div>
                                         </div>
-                                        <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#1e293b' }}>
-                                            {(activeTask as any).assigneeName || (activeTask as any).assignedToName || 'Unassigned'}
-                                        </div>
-                                    </div>
 
-                                    {(() => {
-                                        const collabs = (activeTask as any).collaborators || (activeTask as any).supportMembers || (activeTask as any).supportMemberIds || (activeTask as any).collaboratorIds || [];
-                                        if (collabs.length === 0) return null;
-                                        return (
-                                            <div style={{ marginTop: '0.25rem', position: 'relative' }}>
-                                                <button
-                                                    onClick={() => setShowCollabs(!showCollabs)}
-                                                    style={{
-                                                        display: 'flex', alignItems: 'center', gap: '8px', background: '#f8fafc', border: '1px solid #e2e8f0',
-                                                        padding: '6px 12px', borderRadius: '8px', cursor: 'pointer', width: '100%', transition: 'all 0.2s',
-                                                        justifyContent: 'flex-start'
-                                                    }}
-                                                >
-                                                    <Users size={14} style={{ color: '#94a3b8' }} />
-                                                    <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#475569', flex: 1, textAlign: 'left' }}>
-                                                        Collaborators ({collabs.length})
+                                        {(() => {
+                                            const collabs = getTaskCollaboratorEntries(activeTask);
+                                            if (collabs.length === 0) {
+                                                return (
+                                                    <div style={{ marginTop: '0.25rem' }}>
+                                                        <label style={labelStyle}>Collaborators (0)</label>
+                                                        <div style={{ fontSize: '0.8rem', color: '#94a3b8', fontStyle: 'italic' }}>No collaborators</div>
                                                     </div>
-                                                    <ChevronDown size={14} style={{ color: '#94a3b8', transform: showCollabs ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
-                                                </button>
-
-                                                {showCollabs && (
+                                                );
+                                            }
+                                            return (
+                                                <div style={{ marginTop: '0.25rem' }}>
+                                                    <label style={labelStyle}>Collaborators ({collabs.length})</label>
                                                     <div style={{
-                                                        position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 50,
-                                                        background: 'white', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '6px',
-                                                        display: 'flex', flexDirection: 'column', gap: '4px',
-                                                        boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)'
-                                                    }}>
-                                                        {collabs.map((collab: any, index: number) => {
-                                                            const fullName = collab.fullName || collab.userName || 'Member';
-                                                            const email = collab.email || 'No email';
-                                                            const role = collab.roleName || (collab.projectRole === 4 ? 'Leader' : 'Researcher');
-
-                                                            return (
-                                                                <div key={index} style={{ display: 'flex', flexDirection: 'column', padding: '8px 10px', borderRadius: '8px', background: '#f8fafc', border: '1px solid #f1f5f9' }}>
-                                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                                        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#1e293b' }}>{fullName}</span>
-                                                                        <span style={{ fontSize: '0.6rem', fontWeight: 800, color: 'var(--primary-color)', opacity: 0.8, textTransform: 'uppercase' }}>{role}</span>
-                                                                    </div>
-                                                                    <span style={{ fontSize: '0.65rem', color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{email}</span>
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        );
-                                    })()}
-                                </div>
-                            </div>
-                            )}
-
-                            {!isEditMode && (
-                            <div>
-                                <label style={labelStyle}>Task Description</label>
-                                <div style={{ fontSize: '0.85rem', color: '#445469', lineHeight: 1.6, background: 'white', padding: '1rem', borderRadius: '12px', border: '1px solid #e2e8f0' }}>{activeTask.description || 'No description provided.'}</div>
-                            </div>
-                            )}
-
-                            {!isEditMode && (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                {/* Evidence Section - Management approach */}
-                                {(() => {
-                                    const taskId = activeTask.taskId || (activeTask as any).id;
-                                    const canUpload = [TaskStatus.Todo, TaskStatus.InProgress, TaskStatus.Adjusting, TaskStatus.Missed].includes(activeTask.status) &&
-                                        ((activeTask as any).isAssignee === true || viewContext === 'personal');
-                                    const drafts = evidenceFiles[taskId] || [];
-                                    const uploaded = uploadedEvidences[taskId] || [];
-                                    const hasRecords = uploaded.length > 0 || drafts.length > 0;
-
-                                    if (!canUpload && !hasRecords) return null;
-
-                                    return (
-                                        <div style={{ background: '#f8fafc', padding: '1.25rem', borderRadius: '16px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                    <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>Evidence Management</span>
-                                                    {canUpload && (uploaded.length + drafts.length === 0) && (
-                                                        <div
-                                                            title="Upload at least 1 evidence"
-                                                            style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ef4444', cursor: 'help' }}
-                                                        />
-                                                    )}
-                                                </div>
-                                                <button
-                                                    onClick={() => {
-                                                        setIsEvidenceModalOpen(true);
-                                                        if (uploaded.length > 0) setPreviewEvidence(uploaded[0]);
+                                                        ...inputStyle,
+                                                        background: 'white',
+                                                        padding: '8px 10px',
+                                                        maxHeight: '120px',
+                                                        overflowY: 'auto',
+                                                        display: 'flex',
+                                                        flexDirection: 'column',
+                                                        gap: '6px'
                                                     }}
-                                                    style={{ background: 'none', border: 'none', color: 'var(--accent-color)', fontSize: '0.65rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
-                                                >
-                                                    <Search size={12} /> View Detail
-                                                </button>
-                                            </div>
-
-                                            {/* Input Box - ONLY for uploaders */}
-                                            {canUpload && (
-                                                <div style={{
-                                                    position: 'relative',
-                                                    padding: '1rem',
-                                                    border: '1.5px dashed #cbd5e1',
-                                                    borderRadius: '12px',
-                                                    textAlign: 'center',
-                                                    background: (drafts.length + uploaded.length) >= 5 ? '#f8fafc' : 'white',
-                                                    transition: 'all 0.2s',
-                                                    opacity: ((submittingId === taskId) || (drafts.length + uploaded.length) >= 5) ? 0.6 : 1,
-                                                    pointerEvents: ((submittingId === taskId) || (drafts.length + uploaded.length) >= 5) ? 'none' : 'auto'
-                                                }}>
-                                                    <input
-                                                        type="file"
-                                                        multiple
-                                                        disabled={(submittingId === taskId) || (drafts.length + uploaded.length) >= 5}
-                                                        onChange={(e) => handleFileChange(taskId, e)}
-                                                        style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }}
-                                                    />
-                                                    <Upload size={18} style={{ color: '#94a3b8', marginBottom: '4px' }} />
-                                                    <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#64748b' }}>
-                                                        {(drafts.length + uploaded.length) >= 5 ? 'FILE LIMIT REACHED (MAX 5)' : 'Click or drag to add files (Max 10MB)'}
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            {/* File List */}
-                                            {hasRecords && (
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', opacity: (submittingId === taskId) ? 0.8 : 1 }}>
-                                                    <div className="custom-scrollbar" style={{
-                                                        display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '180px',
-                                                        overflowY: (drafts.length + uploaded.length) >= 3 ? 'auto' : 'visible',
-                                                        paddingRight: '2px'
-                                                    }}>
-                                                        {uploaded.map((ev: any) => (
-                                                            <div key={ev.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', background: 'white', borderRadius: '8px', fontSize: '0.65rem', border: '1px solid #e2e8f0' }}>
-                                                                <Check size={12} color="#10b981" />
-                                                                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', color: '#475569', fontWeight: 500 }}>{ev.fileName}</span>
-                                                                {canUpload && (submittingId !== taskId) && (
-                                                                    <button
-                                                                        onClick={() => handleDeleteEvidence(taskId, ev.id)}
-                                                                        style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', padding: '2px' }}
-                                                                    >
-                                                                        <X size={12} />
-                                                                    </button>
-                                                                )}
-                                                            </div>
-                                                        ))}
-                                                        {drafts.map((f, i) => (
-                                                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', background: '#f1f5f9', borderRadius: '8px', fontSize: '0.65rem', border: '1px solid #e2e8f0' }}>
-                                                                <Paperclip size={12} color="#64748b" />
-                                                                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', color: '#475569', fontWeight: 500 }}>{f.name}</span>
-                                                                {canUpload && (submittingId !== taskId) && (
-                                                                    <button
-                                                                        onClick={() => removeFile(taskId, i)}
-                                                                        style={{ border: 'none', background: 'none', color: '#64748b', cursor: 'pointer', padding: '2px' }}
-                                                                    >
-                                                                        <X size={12} />
-                                                                    </button>
-                                                                )}
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            {/* Submit Actions */}
-                                            {canUpload && [TaskStatus.InProgress, TaskStatus.Adjusting, TaskStatus.Missed].includes(activeTask.status) && (
-                                                <div style={{ marginTop: '0.5rem', paddingTop: '0.75rem', borderTop: '1px solid #f1f5f9' }}>
-                                                    <button
-                                                        onClick={() => handleSubmitForReview(taskId)}
-                                                        disabled={(submittingId === taskId) || (drafts.length + uploaded.length === 0)}
-                                                        style={{
-                                                            width: '100%', padding: '0.75rem', borderRadius: '10px', fontWeight: 800, fontSize: '0.75rem',
-                                                            cursor: (drafts.length + uploaded.length === 0) ? 'not-allowed' : 'pointer',
-                                                            background: (drafts.length + uploaded.length === 0) ? '#f1f5f9' : 'white',
-                                                            color: (drafts.length + uploaded.length === 0) ? '#94a3b8' : 'var(--accent-color)',
-                                                            border: `2px solid ${(drafts.length + uploaded.length === 0) ? '#e2e8f0' : 'var(--accent-color)'}`
-                                                        }}
+                                                    className="custom-scrollbar"
                                                     >
-                                                        {(submittingId === taskId) ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-                                                        {(drafts.length + uploaded.length === 0) ? 'SUBMIT BLOCKED (NEED EVIDENCE)' : (drafts.length > 0 ? 'UPLOAD & SUBMIT' : 'SUBMIT FOR REVIEW')}
+                                                        {collabs.map((collab: any) => (
+                                                            <div key={collab.id || collab.fullName} style={{ fontSize: '0.8rem', color: '#1e293b', fontWeight: 500 }}>
+                                                                {collab.fullName}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
+                                    </div>
+                                </div>
+                            )}
+
+                            {!isEditMode && (
+                                <div>
+                                    <label style={labelStyle}>Task Description</label>
+                                    <div style={{ fontSize: '0.85rem', color: '#445469', lineHeight: 1.6, background: 'white', padding: '1rem', borderRadius: '12px', border: '1px solid #e2e8f0' }}>{activeTask.description || 'No description provided.'}</div>
+                                </div>
+                            )}
+
+                            {!isEditMode && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                    {/* Evidence Section - Management approach */}
+                                    {(() => {
+                                        const taskId = activeTask.taskId || (activeTask as any).id;
+                                        const canUpload = [TaskStatus.Todo, TaskStatus.InProgress, TaskStatus.Adjusting, TaskStatus.Missed].includes(activeTask.status) &&
+                                            ((activeTask as any).isAssignee === true || viewContext === 'personal');
+                                        const drafts = evidenceFiles[taskId] || [];
+                                        const uploaded = uploadedEvidences[taskId] || [];
+                                        const hasRecords = uploaded.length > 0 || drafts.length > 0;
+
+                                        if (!canUpload && !hasRecords) return null;
+
+                                        return (
+                                            <div style={{ background: '#f8fafc', padding: '1.25rem', borderRadius: '16px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                        <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase' }}>Evidence Management</span>
+                                                        {canUpload && (uploaded.length + drafts.length === 0) && (
+                                                            <div
+                                                                title="Upload at least 1 evidence"
+                                                                style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ef4444', cursor: 'help' }}
+                                                            />
+                                                        )}
+                                                    </div>
+                                                    <button
+                                                        onClick={() => {
+                                                            setIsEvidenceModalOpen(true);
+                                                            if (uploaded.length > 0) setPreviewEvidence(uploaded[0]);
+                                                        }}
+                                                        style={{ background: 'none', border: 'none', color: 'var(--accent-color)', fontSize: '0.65rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                                    >
+                                                        <Search size={12} /> View Detail
                                                     </button>
                                                 </div>
-                                            )}
-                                            {errorMessages[taskId] && <div style={{ color: '#ef4444', fontSize: '0.65rem', fontWeight: 700, marginTop: '4px' }}>{errorMessages[taskId]}</div>}
+
+                                                {/* Input Box - ONLY for uploaders */}
+                                                {canUpload && (
+                                                    <div style={{
+                                                        position: 'relative',
+                                                        padding: '1rem',
+                                                        border: '1.5px dashed #cbd5e1',
+                                                        borderRadius: '12px',
+                                                        textAlign: 'center',
+                                                        background: (drafts.length + uploaded.length) >= 5 ? '#f8fafc' : 'white',
+                                                        transition: 'all 0.2s',
+                                                        opacity: ((submittingId === taskId) || (drafts.length + uploaded.length) >= 5) ? 0.6 : 1,
+                                                        pointerEvents: ((submittingId === taskId) || (drafts.length + uploaded.length) >= 5) ? 'none' : 'auto'
+                                                    }}>
+                                                        <input
+                                                            type="file"
+                                                            multiple
+                                                            disabled={(submittingId === taskId) || (drafts.length + uploaded.length) >= 5}
+                                                            onChange={(e) => handleFileChange(taskId, e)}
+                                                            style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }}
+                                                        />
+                                                        <Upload size={18} style={{ color: '#94a3b8', marginBottom: '4px' }} />
+                                                        <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#64748b' }}>
+                                                            {(drafts.length + uploaded.length) >= 5 ? 'FILE LIMIT REACHED (MAX 5)' : 'Click or drag to add files (Max 10MB)'}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* File List */}
+                                                {hasRecords && (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', opacity: (submittingId === taskId) ? 0.8 : 1 }}>
+                                                        <div className="custom-scrollbar" style={{
+                                                            display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '180px',
+                                                            overflowY: (drafts.length + uploaded.length) >= 3 ? 'auto' : 'visible',
+                                                            paddingRight: '2px'
+                                                        }}>
+                                                            {uploaded.map((ev: any) => (
+                                                                <div key={ev.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', background: 'white', borderRadius: '8px', fontSize: '0.65rem', border: '1px solid #e2e8f0' }}>
+                                                                    <Check size={12} color="#10b981" />
+                                                                    <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', color: '#475569', fontWeight: 500 }}>{ev.fileName}</span>
+                                                                    {canUpload && (submittingId !== taskId) && (
+                                                                        <button
+                                                                            onClick={() => handleDeleteEvidence(taskId, ev.id)}
+                                                                            style={{ border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', padding: '2px' }}
+                                                                        >
+                                                                            <X size={12} />
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            ))}
+                                                            {drafts.map((f, i) => (
+                                                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', background: '#f1f5f9', borderRadius: '8px', fontSize: '0.65rem', border: '1px solid #e2e8f0' }}>
+                                                                    <Paperclip size={12} color="#64748b" />
+                                                                    <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', color: '#475569', fontWeight: 500 }}>{f.name}</span>
+                                                                    {canUpload && (submittingId !== taskId) && (
+                                                                        <button
+                                                                            onClick={() => removeFile(taskId, i)}
+                                                                            style={{ border: 'none', background: 'none', color: '#64748b', cursor: 'pointer', padding: '2px' }}
+                                                                        >
+                                                                            <X size={12} />
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {canUpload && drafts.length > 0 && (
+                                                    <div style={{ marginTop: '0.25rem' }}>
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.preventDefault();
+                                                                handleUploadEvidence(taskId);
+                                                            }}
+                                                            disabled={submittingId === taskId}
+                                                            style={{
+                                                                width: '100%', padding: '0.75rem', borderRadius: '10px', fontWeight: 800, fontSize: '0.75rem',
+                                                                cursor: submittingId === taskId ? 'not-allowed' : 'pointer',
+                                                                background: 'white',
+                                                                color: 'var(--accent-color)',
+                                                                border: '2px solid var(--accent-color)',
+                                                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+                                                            }}
+                                                        >
+                                                            {submittingId === taskId ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
+                                                            UPLOAD EVIDENCE
+                                                        </button>
+                                                    </div>
+                                                )}
+
+                                                {/* Submit Actions */}
+                                                {canUpload && [TaskStatus.InProgress, TaskStatus.Adjusting, TaskStatus.Missed].includes(activeTask.status) && (
+                                                    <div style={{ marginTop: '0.5rem', paddingTop: '0.75rem', borderTop: '1px solid #f1f5f9' }}>
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.preventDefault();
+                                                                setPendingSubmitTaskId(taskId);
+                                                            }}
+                                                            disabled={(submittingId === taskId) || (uploaded.length === 0)}
+                                                            style={{
+                                                                width: '100%', padding: '0.75rem', borderRadius: '10px', fontWeight: 800, fontSize: '0.75rem',
+                                                                cursor: (uploaded.length === 0) ? 'not-allowed' : 'pointer',
+                                                                background: (uploaded.length === 0) ? '#f1f5f9' : 'white',
+                                                                color: (uploaded.length === 0) ? '#94a3b8' : 'var(--accent-color)',
+                                                                border: `2px solid ${(uploaded.length === 0) ? '#e2e8f0' : 'var(--accent-color)'}`
+                                                            }}
+                                                        >
+                                                            {(submittingId === taskId) ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                                                            {(uploaded.length === 0) ? 'SUBMIT BLOCKED (UPLOAD FIRST)' : 'SUBMIT FOR REVIEW'}
+                                                        </button>
+                                                    </div>
+                                                )}
+                                                {successMessages[taskId] && <div style={{ color: '#10b981', fontSize: '0.65rem', fontWeight: 700, marginTop: '4px' }}>{successMessages[taskId]}</div>}
+                                                {errorMessages[taskId] && <div style={{ color: '#ef4444', fontSize: '0.65rem', fontWeight: 700, marginTop: '4px' }}>{errorMessages[taskId]}</div>}
+                                            </div>
+                                        );
+                                    })()}
+
+                                    {/* Primary Action: Start Working (Only for Todo, only for assignee) */}
+                                    {activeTask.status === TaskStatus.Todo && ((activeTask as any).isAssignee === true || viewContext === 'personal') && (
+                                        <button
+                                            onClick={() => handleStartTask(activeTask.taskId || (activeTask as any).id)}
+                                            disabled={submittingId === (activeTask.taskId || (activeTask as any).id)}
+                                            style={{
+                                                padding: '0.85rem',
+                                                background: 'white',
+                                                color: 'var(--primary-color)',
+                                                border: '1.5px solid var(--primary-color)',
+                                                borderRadius: '12px',
+                                                fontWeight: 700,
+                                                fontSize: '0.8rem',
+                                                cursor: 'pointer',
+                                                width: '100%',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                gap: '10px',
+                                                boxShadow: '0 4px 10px rgba(0,0,0,0.03)',
+                                                transition: 'all 0.2s'
+                                            }}
+                                            onMouseOver={(e) => e.currentTarget.style.background = '#fff8f2'}
+                                            onMouseOut={(e) => e.currentTarget.style.background = 'white'}
+                                        >
+                                            {submittingId === (activeTask.taskId || (activeTask as any).id) ? <Loader2 size={18} className="animate-spin" /> : <Play size={18} fill="currentColor" />} START THIS TASK
+                                        </button>
+                                    )}
+
+                                    {isSpecialRole && !(activeTask as any).isAssignee && activeTask.status === TaskStatus.Submitted && (
+                                        <div style={{ display: 'flex', gap: '10px', width: '100%', marginBottom: '1rem' }}>
+                                            <button
+                                                onClick={() => handleRequestAdjusting(activeTask.taskId || (activeTask as any).id)}
+                                                disabled={submittingId !== null}
+                                                style={{ flex: 1, padding: '0.85rem', background: '#fff1f2', color: '#e11d48', border: '1.5px solid #fecdd3', borderRadius: '12px', fontWeight: 800, fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s' }}
+                                                onMouseOver={(e) => e.currentTarget.style.background = '#ffe4e6'}
+                                                onMouseOut={(e) => e.currentTarget.style.background = '#fff1f2'}
+                                            >
+                                                <RotateCw size={14} /> REQUEST ADJUST
+                                            </button>
+                                            <button
+                                                onClick={() => handleApproveTask(activeTask.taskId || (activeTask as any).id)}
+                                                disabled={submittingId !== null}
+                                                style={{ flex: 1, padding: '0.85rem', background: '#f0fdf4', color: '#16a34a', border: '1.5px solid #bbf7d0', borderRadius: '12px', fontWeight: 800, fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s' }}
+                                                onMouseOver={(e) => e.currentTarget.style.background = '#dcfce7'}
+                                                onMouseOut={(e) => e.currentTarget.style.background = '#f0fdf4'}
+                                            >
+                                                <CheckCircle2 size={14} /> APPROVE TASK
+                                            </button>
                                         </div>
-                                    );
-                                })()}
+                                    )}
 
-                                {/* Primary Action: Start Working (Only for Todo, only for assignee) */}
-                                {activeTask.status === TaskStatus.Todo && ((activeTask as any).isAssignee === true || viewContext === 'personal') && (
-                                    <button
-                                        onClick={() => handleStartTask(activeTask.taskId || (activeTask as any).id)}
-                                        disabled={submittingId === (activeTask.taskId || (activeTask as any).id)}
-                                        style={{
-                                            padding: '0.85rem',
-                                            background: 'white',
-                                            color: 'var(--primary-color)',
-                                            border: '1.5px solid var(--primary-color)',
-                                            borderRadius: '12px',
-                                            fontWeight: 700,
-                                            fontSize: '0.8rem',
-                                            cursor: 'pointer',
-                                            width: '100%',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            gap: '10px',
-                                            boxShadow: '0 4px 10px rgba(0,0,0,0.03)',
-                                            transition: 'all 0.2s'
-                                        }}
-                                        onMouseOver={(e) => e.currentTarget.style.background = '#fff8f2'}
-                                        onMouseOut={(e) => e.currentTarget.style.background = 'white'}
-                                    >
-                                        {submittingId === (activeTask.taskId || (activeTask as any).id) ? <Loader2 size={18} className="animate-spin" /> : <Play size={18} fill="currentColor" />} START THIS TASK
-                                    </button>
-                                )}
-
-                                {isSpecialRole && !(activeTask as any).isAssignee && activeTask.status === TaskStatus.Submitted && (
-                                    <div style={{ display: 'flex', gap: '10px', width: '100%', marginBottom: '1rem' }}>
-                                        <button
-                                            onClick={() => handleRequestAdjusting(activeTask.taskId || (activeTask as any).id)}
-                                            disabled={submittingId !== null}
-                                            style={{ flex: 1, padding: '0.85rem', background: '#fff1f2', color: '#e11d48', border: '1.5px solid #fecdd3', borderRadius: '12px', fontWeight: 800, fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s' }}
-                                            onMouseOver={(e) => e.currentTarget.style.background = '#ffe4e6'}
-                                            onMouseOut={(e) => e.currentTarget.style.background = '#fff1f2'}
-                                        >
-                                            <RotateCw size={14} /> REQUEST ADJUST
-                                        </button>
-                                        <button
-                                            onClick={() => handleApproveTask(activeTask.taskId || (activeTask as any).id)}
-                                            disabled={submittingId !== null}
-                                            style={{ flex: 1, padding: '0.85rem', background: '#f0fdf4', color: '#16a34a', border: '1.5px solid #bbf7d0', borderRadius: '12px', fontWeight: 800, fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s' }}
-                                            onMouseOver={(e) => e.currentTarget.style.background = '#dcfce7'}
-                                            onMouseOut={(e) => e.currentTarget.style.background = '#f0fdf4'}
-                                        >
-                                            <CheckCircle2 size={14} /> APPROVE TASK
-                                        </button>
-                                    </div>
-                                )}
-
-                                {/* Restricted View Notice */}
-                                {!(activeTask as any).isAssignee && viewContext !== 'personal' && !isSpecialRole && (
-                                    <div style={{ textAlign: 'center', padding: '1.5rem', color: '#94a3b8', fontSize: '0.75rem', background: '#f8fafc', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
-                                        <User size={24} style={{ opacity: 0.2, marginBottom: '8px' }} />
-                                        <div>Viewing as Observer. Actions restricted to the assignee.</div>
-                                    </div>
-                                )}
-                            </div>
+                                    {/* Restricted View Notice */}
+                                    {!(activeTask as any).isAssignee && viewContext !== 'personal' && !isSpecialRole && (
+                                        <div style={{ textAlign: 'center', padding: '1.5rem', color: '#94a3b8', fontSize: '0.75rem', background: '#f8fafc', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
+                                            <User size={24} style={{ opacity: 0.2, marginBottom: '8px' }} />
+                                            <div>Viewing as Observer. Actions restricted to the assignee.</div>
+                                        </div>
+                                    )}
+                                </div>
                             )}
                         </div>
                     ) : (
@@ -1633,6 +1796,22 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                     </div>
                 </div>
             )}
+
+            <ConfirmModal
+                isOpen={!!pendingSubmitTaskId}
+                onClose={() => setPendingSubmitTaskId(null)}
+                onConfirm={async () => {
+                    const id = pendingSubmitTaskId;
+                    setPendingSubmitTaskId(null);
+                    if (!id) return;
+                    await handleSubmitForReview(id);
+                }}
+                title="Confirm Submit"
+                message="Submit this task for review? Make sure your evidence is correct and complete."
+                confirmText="Submit"
+                cancelText="Cancel"
+                variant="info"
+            />
 
             {/* Simple Delete Confirmation Overlay */}
             {pendingDelete && (

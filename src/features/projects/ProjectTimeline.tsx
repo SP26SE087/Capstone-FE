@@ -55,19 +55,19 @@ const SegmentedTaskBar: React.FC<SegmentedTaskBarProps> = ({ task, range, conten
     const tStart = new Date(task.startDate || "").getTime();
     const tEnd = new Date(task.dueDate || "").getTime();
     const tUpdate = new Date(task.updatedAt || task.updatedDate || task.createdAt || "").getTime();
-    
+
     const left = ((tStart - range.start) / range.duration) * contentWidth;
     const totalWidth = Math.max(12, ((tEnd - tStart) / range.duration) * contentWidth);
-    
+
     const cfg = getTaskStatusConfig(task.status);
-    
+
     // Approximation Logic:
     const hasHistory = task.status !== TaskStatus.Todo && task.status !== TaskStatus.InProgress;
-    const transitionPoint = hasHistory && tUpdate > tStart && tUpdate < tEnd 
-        ? ((tUpdate - tStart) / (tEnd - tStart)) * 100 
+    const transitionPoint = hasHistory && tUpdate > tStart && tUpdate < tEnd
+        ? ((tUpdate - tStart) / (tEnd - tStart)) * 100
         : (task.status === TaskStatus.Completed ? 100 : 0);
 
-    const isNearDeadline = task.dueDate && (task.status !== TaskStatus.Completed && task.status !== TaskStatus.Submitted) && 
+    const isNearDeadline = task.dueDate && (task.status !== TaskStatus.Completed && task.status !== TaskStatus.Submitted) &&
         ((new Date(task.dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) <= 3;
 
     return (
@@ -80,8 +80,8 @@ const SegmentedTaskBar: React.FC<SegmentedTaskBarProps> = ({ task, range, conten
                 className="timeline-item-bar"
                 style={{
                     position: 'absolute', left: `${left}px`, width: `${totalWidth}px`,
-                    height: '24px', 
-                    background: hasHistory 
+                    height: '24px',
+                    background: hasHistory
                         ? `linear-gradient(90deg, #2563eb ${transitionPoint}%, ${cfg.color} ${transitionPoint}%)`
                         : cfg.gradient,
                     border: `1.5px solid ${cfg.color}`,
@@ -97,8 +97,8 @@ const SegmentedTaskBar: React.FC<SegmentedTaskBarProps> = ({ task, range, conten
                     background: 'white', border: `1px solid ${cfg.color}`, flexShrink: 0
                 }} />
                 <span style={{
-                    fontSize: '0.62rem', 
-                    color: hasHistory ? 'white' : cfg.color, 
+                    fontSize: '0.62rem',
+                    color: hasHistory ? 'white' : cfg.color,
                     fontWeight: 800,
                     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                     textShadow: hasHistory ? '0 1px 2px rgba(0,0,0,0.2)' : 'none'
@@ -324,7 +324,7 @@ const ProjectTimeline: React.FC<ProjectTimelineProps> = ({
                 }
             `}</style>
             <div className="card" style={{
-                padding: 0, maxHeight: '480px', minHeight: '220px', width: '100%',
+                padding: 0, minHeight: '400px', width: '100%',
                 display: 'flex', flexDirection: 'column',
                 border: '1px solid #e2e8f0', borderRadius: '20px', background: 'white',
                 boxShadow: '0 4px 30px -8px rgba(0,0,0,0.08)', cursor: cursor
@@ -580,11 +580,11 @@ const ProjectTimeline: React.FC<ProjectTimelineProps> = ({
 
                                             {/* Task bars */}
                                             {isExpanded && mTasks.map((task) => (
-                                                <SegmentedTaskBar 
-                                                    key={task.taskId} 
-                                                    task={task} 
-                                                    range={range} 
-                                                    contentWidth={contentWidth} 
+                                                <SegmentedTaskBar
+                                                    key={task.taskId}
+                                                    task={task}
+                                                    range={range}
+                                                    contentWidth={contentWidth}
                                                     onTaskClick={onTaskClick}
                                                     setHoverInfo={setHoverInfo}
                                                 />
@@ -623,11 +623,11 @@ const ProjectTimeline: React.FC<ProjectTimelineProps> = ({
 
                                     <div style={{ width: `${contentWidth}px`, flexShrink: 0, position: 'relative', padding: isOrphanExpanded ? '10px 0' : '0' }}>
                                         {isOrphanExpanded && activeOrphanTasks.map((task) => (
-                                            <SegmentedTaskBar 
-                                                key={task.taskId} 
-                                                task={task} 
-                                                range={range} 
-                                                contentWidth={contentWidth} 
+                                            <SegmentedTaskBar
+                                                key={task.taskId}
+                                                task={task}
+                                                range={range}
+                                                contentWidth={contentWidth}
                                                 onTaskClick={onTaskClick}
                                                 setHoverInfo={setHoverInfo}
                                             />

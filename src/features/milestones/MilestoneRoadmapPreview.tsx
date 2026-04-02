@@ -173,7 +173,7 @@ const MilestoneRoadmapPreview: React.FC<RoadmapPreviewProps> = ({
             <div style={{ 
                 position: 'relative', 
                 maxHeight: '750px',
-                minHeight: '400px',
+                minHeight: '600px',
                 background: 'white', 
                 border: '1.5px solid #e2e8f0', 
                 borderRadius: '12px',
