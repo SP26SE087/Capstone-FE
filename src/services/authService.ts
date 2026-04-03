@@ -54,7 +54,26 @@ export const authService = {
             email: rawData.email || rawData.Email,
             fullName: rawData.fullName || rawData.FullName,
             role: rawData.role ?? rawData.Role,
-            avatarUrl: rawData.avatarUrl || rawData.AvatarUrl,
+            avatarUrl:
+                rawData.avatarUrl ||
+                rawData.AvatarUrl ||
+                rawData.avatar ||
+                rawData.Avatar ||
+                rawData.pictureUrl ||
+                rawData.PictureUrl ||
+                rawData.pictureURL ||
+                rawData.picture ||
+                rawData.photoUrl ||
+                rawData.PhotoUrl ||
+                rawData.photoURL ||
+                rawData.imageUrl ||
+                rawData.ImageUrl ||
+                rawData.googleAvatarUrl ||
+                rawData.GoogleAvatarUrl ||
+                rawData.profilePictureUrl ||
+                rawData.ProfilePictureUrl ||
+                rawData.profileImageUrl ||
+                rawData.ProfileImageUrl,
             userId: '' // Will fetch below
         };
 
@@ -157,7 +176,27 @@ export const authService = {
                 ...authData,
                 fullName: data.fullName || data.FullName || authData.fullName,
                 role: data.role ?? data.Role ?? authData.role,
-                avatarUrl: data.avatarUrl || data.AvatarUrl || data.pictureUrl || data.PictureUrl || authData.avatarUrl,
+                avatarUrl:
+                    data.avatarUrl ||
+                    data.AvatarUrl ||
+                    data.avatar ||
+                    data.Avatar ||
+                    data.pictureUrl ||
+                    data.PictureUrl ||
+                    data.pictureURL ||
+                    data.picture ||
+                    data.photoUrl ||
+                    data.PhotoUrl ||
+                    data.photoURL ||
+                    data.imageUrl ||
+                    data.ImageUrl ||
+                    data.googleAvatarUrl ||
+                    data.GoogleAvatarUrl ||
+                    data.profilePictureUrl ||
+                    data.ProfilePictureUrl ||
+                    data.profileImageUrl ||
+                    data.ProfileImageUrl ||
+                    authData.avatarUrl,
                 isActive,
             };
         } catch (err) {

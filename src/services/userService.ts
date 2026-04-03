@@ -18,6 +18,7 @@ export interface UserResponse {
     email: string;
     fullName: string;
     role: number;
+    isActive?: boolean;
     status: number;
     createdAt: string;
     updatedAt: string;
@@ -79,8 +80,10 @@ export const userService = {
         return response.data.data || response.data;
     },
 
-    deleteUser: async (userId: string): Promise<void> => {
-        await api.delete(`/api/users/${userId}`);
+    deleteUser: async (userId: string): Promise<UserResponse> => {
+        // Backend supports soft-delete via update (set isActive=false), not HTTP DELETE.
+        const response = await api.put(`/api/users/${userId}`, { isActive: false });
+        return response.data.data || response.data;
     },
 
     updateUser: async (userId: string, data: UpdateUserRequest): Promise<UserResponse> => {
@@ -113,7 +116,27 @@ export const userService = {
                 fullName: data.fullName || data.FullName || '',
                 role: data.role ?? data.Role ?? 4,
                 createdAt: data.createdAt || data.CreatedAt || '',
-                avatarUrl: data.avatarUrl || data.AvatarUrl || data.pictureUrl || data.PictureUrl || '',
+                avatarUrl:
+                    data.avatarUrl ||
+                    data.AvatarUrl ||
+                    data.avatar ||
+                    data.Avatar ||
+                    data.pictureUrl ||
+                    data.PictureUrl ||
+                    data.pictureURL ||
+                    data.picture ||
+                    data.photoUrl ||
+                    data.PhotoUrl ||
+                    data.photoURL ||
+                    data.imageUrl ||
+                    data.ImageUrl ||
+                    data.googleAvatarUrl ||
+                    data.GoogleAvatarUrl ||
+                    data.profilePictureUrl ||
+                    data.ProfilePictureUrl ||
+                    data.profileImageUrl ||
+                    data.ProfileImageUrl ||
+                    '',
                 phoneNumber: data.phoneNumber || data.PhoneNumber || '',
                 orcid: data.orcid || data.Orcid || '',
                 googleScholarUrl: data.googleScholarUrl || data.GoogleScholarUrl || '',
