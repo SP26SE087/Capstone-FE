@@ -5,8 +5,6 @@ export enum SubmissionStatus {
     InternalReview = 2,
     Approved = 3,
     Submitted = 4,
-    Revision = 5,
-    Decision = 6,
     Rejected = 7,
 }
 
@@ -15,8 +13,6 @@ export const SubmissionStatusLabel: Record<SubmissionStatus, string> = {
     [SubmissionStatus.InternalReview]: 'Internal Review',
     [SubmissionStatus.Approved]: 'Approved',
     [SubmissionStatus.Submitted]: 'Submitted',
-    [SubmissionStatus.Revision]: 'Revision Required',
-    [SubmissionStatus.Decision]: 'Pending Decision',
     [SubmissionStatus.Rejected]: 'Rejected',
 };
 

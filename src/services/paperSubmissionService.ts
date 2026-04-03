@@ -69,12 +69,6 @@ export const paperSubmissionService = {
         return response.data.data || response.data;
     },
 
-    /** Record venue decision (Submitted → Decision) */
-    venueDecision: async (id: string): Promise<PaperSubmissionResponse> => {
-        const response = await api.post(`${BASE}/${id}/venue-decision`);
-        return response.data.data || response.data;
-    },
-
     /** Manually change status */
     changeStatus: async (id: string, newStatus: SubmissionStatus): Promise<PaperSubmissionResponse> => {
         const response = await api.patch(`${BASE}/${id}/status`, { newStatus });
