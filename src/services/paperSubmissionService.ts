@@ -69,6 +69,12 @@ export const paperSubmissionService = {
         return response.data.data || response.data;
     },
 
+    /** Mark as Revision Required (Submitted → Revision) */
+    markRevision: async (id: string): Promise<PaperSubmissionResponse> => {
+        const response = await api.post(`${BASE}/${id}/revision`);
+        return response.data.data || response.data;
+    },
+
     /** Record venue decision (Submitted → Decision) */
     venueDecision: async (id: string): Promise<PaperSubmissionResponse> => {
         const response = await api.post(`${BASE}/${id}/venue-decision`);

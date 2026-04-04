@@ -18,7 +18,7 @@ import Toast, { ToastType } from '@/components/common/Toast';
 import {
     Plus, Search, ExternalLink, X, Loader2, Trash2,
     Send, Edit2, Link as LinkIcon, FileText, CheckCircle2, XCircle,
-    Clock, Filter, Target, Briefcase, BookOpen, FileCheck
+    Clock, Filter, Target, Briefcase, BookOpen, FileCheck, RefreshCw, Gavel
 } from 'lucide-react';
 
 const STATUS_COLOR: Record<SubmissionStatus, string> = {
@@ -71,6 +71,7 @@ const PaperSubmissions: React.FC = () => {
     const [addConference, setAddConference] = useState('');
     const [addPaperUrl, setAddPaperUrl] = useState('');
     const [addProjectId, setAddProjectId] = useState('');
+    const [addDeadline, setAddDeadline] = useState('');
     const [addMembers, setAddMembers] = useState<PaperMemberRequest[]>([]);
     const [addLoading, setAddLoading] = useState(false);
 
@@ -160,7 +161,7 @@ const PaperSubmissions: React.FC = () => {
                 projectId: addProjectId || null,
                 title: addTitle, abstract: addAbstract,
                 conferenceName: addConference, paperUrl: addPaperUrl,
-                submissionDeadline: null,
+                submissionDeadline: addDeadline ? new Date(addDeadline).toISOString() : null,
                 members: addMembers.map(m => ({ membershipId: m.membershipId, role: Number(m.role) })),
                 // @ts-ignore
                 createdByMembershipId: myMembershipId || null
@@ -168,7 +169,7 @@ const PaperSubmissions: React.FC = () => {
             const newPaper = await paperSubmissionService.create(payload);
             await loadPapers(1);
             showToast(`Paper "${newPaper.title}" created successfully!`, 'success');
-            setAddTitle(''); setAddAbstract(''); setAddConference(''); setAddPaperUrl(''); setAddProjectId(''); setAddMembers([]);
+            setAddTitle(''); setAddAbstract(''); setAddConference(''); setAddPaperUrl(''); setAddProjectId(''); setAddDeadline(''); setAddMembers([]);
             setActivePanel(null);
         } catch (err: any) {
             showToast(err.response?.data?.message || 'Failed to create paper.', 'error');
@@ -191,7 +192,7 @@ const PaperSubmissions: React.FC = () => {
                 projectId: editData.projectId || null, title: editData.title || '',
                 abstract: editData.abstract || '', paperUrl: editData.paperUrl || '',
                 conferenceName: editData.conferenceName || '',
-                submissionDeadline: editData.submissionDeadline || null,
+                submissionDeadline: editData.submissionDeadline ? new Date(editData.submissionDeadline).toISOString() : null,
                 members: editData.members?.map((m: any) => ({ membershipId: m.membershipId, role: Number(m.role) })) || [],
                 // @ts-ignore
                 lastUpdatedByMembershipId: myMembershipId || null
@@ -261,11 +262,41 @@ const PaperSubmissions: React.FC = () => {
             setPapers(prev => prev.map(p => p.paperSubmissionId === updated.paperSubmissionId ? updated : p));
             setSelectedPaper(updated);
             setShowVenueInput(false); setVenueUrl('');
-            showToast('Submitted to venue!', 'success');
+            showToast('Paper submitted successfully!', 'success');
         } catch (err: any) {
-            showToast(err.response?.data?.message || 'Failed to submit to venue.', 'error');
+            showToast(err.response?.data?.message || 'Failed to submit paper.', 'error');
         } finally {
             setVenueLoading(false);
+        }
+    };
+
+    const handleMarkRevision = async () => {
+        if (!selectedPaper) return;
+        setActionLoading(selectedPaper.paperSubmissionId);
+        try {
+            const updated = await paperSubmissionService.markRevision(selectedPaper.paperSubmissionId);
+            setPapers(prev => prev.map(p => p.paperSubmissionId === updated.paperSubmissionId ? updated : p));
+            setSelectedPaper(updated);
+            showToast('Marked as revision required.', 'info');
+        } catch (err: any) {
+            showToast(err.response?.data?.message || 'Failed to mark revision.', 'error');
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
+    const handleVenueDecision = async () => {
+        if (!selectedPaper) return;
+        setActionLoading(selectedPaper.paperSubmissionId);
+        try {
+            const updated = await paperSubmissionService.venueDecision(selectedPaper.paperSubmissionId);
+            setPapers(prev => prev.map(p => p.paperSubmissionId === updated.paperSubmissionId ? updated : p));
+            setSelectedPaper(updated);
+            showToast('Decision recorded.', 'success');
+        } catch (err: any) {
+            showToast(err.response?.data?.message || 'Failed to record decision.', 'error');
+        } finally {
+            setActionLoading(null);
         }
     };
 
@@ -287,7 +318,7 @@ const PaperSubmissions: React.FC = () => {
     const openCreate = () => {
         setSelectedPaper(null);
         setAddTitle(''); setAddAbstract(''); setAddConference(''); setAddPaperUrl('');
-        setAddProjectId(''); setAddMembers([]); setFormErrors({});
+        setAddProjectId(''); setAddDeadline(''); setAddMembers([]); setFormErrors({});
         setActivePanel('create');
     };
 
@@ -579,12 +610,13 @@ const PaperSubmissions: React.FC = () => {
                             {activePanel === 'create' && (
                                 <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                                     <PaperFormFields
-                                        data={{ title: addTitle, abstract: addAbstract, conferenceName: addConference, paperUrl: addPaperUrl, projectId: addProjectId, members: addMembers }}
+                                        data={{ title: addTitle, abstract: addAbstract, conferenceName: addConference, paperUrl: addPaperUrl, projectId: addProjectId, deadline: addDeadline, members: addMembers }}
                                         onChange={(field, val) => {
                                             if (field === 'title') setAddTitle(val);
                                             else if (field === 'abstract') setAddAbstract(val);
                                             else if (field === 'conferenceName') setAddConference(val);
                                             else if (field === 'paperUrl') setAddPaperUrl(val);
+                                            else if (field === 'deadline') setAddDeadline(val);
                                         }}
                                         onProjectChange={pid => handleProjectChange(pid)}
                                         onMembersChange={setAddMembers}
@@ -609,23 +641,16 @@ const PaperSubmissions: React.FC = () => {
                                         data={{
                                             title: editData.title || '', abstract: editData.abstract || '',
                                             conferenceName: editData.conferenceName || '', paperUrl: editData.paperUrl || '',
-                                            projectId: editData.projectId || '', members: editData.members || []
+                                            projectId: editData.projectId || '', deadline: editData.submissionDeadline || '',
+                                            members: editData.members || []
                                         }}
-                                        onChange={(field, val) => setEditData((p: any) => ({ ...p, [field]: val }))}
+                                        onChange={(field, val) => setEditData((p: any) => ({ ...p, [field === 'deadline' ? 'submissionDeadline' : field]: val }))}
                                         onProjectChange={pid => handleProjectChange(pid, true)}
                                         onMembersChange={m => setEditData((p: any) => ({ ...p, members: m }))}
                                         projects={projects}
                                         projectMembers={projectMembers}
                                         membersLoading={membersLoading}
                                         formErrors={formErrors}
-                                        extraField={
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                                <label style={fieldLabelStyle}>Submission Deadline</label>
-                                                <input type="date" className="form-input" style={fieldInputStyle}
-                                                    value={editData.submissionDeadline || ''}
-                                                    onChange={e => setEditData((p: any) => ({ ...p, submissionDeadline: e.target.value }))} />
-                                            </div>
-                                        }
                                     />
                                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '8px', borderTop: '1px solid #f1f5f9' }}>
                                         <button onClick={() => setActivePanel('view')} style={{ padding: '8px 18px', borderRadius: '10px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 700 }}>Cancel</button>
@@ -695,75 +720,99 @@ const PaperSubmissions: React.FC = () => {
                                     {/* Actions */}
                                     <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '14px', display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '4px' }}>
 
-                                        {/* Researcher actions */}
-                                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' as const }}>
-                                            {(selectedPaper.status === SubmissionStatus.Draft || selectedPaper.status === SubmissionStatus.Revision) && (
-                                                <>
-                                                    <button onClick={() => openEdit(selectedPaper)}
-                                                        style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: '1px solid #e2e8f0', background: '#fff', color: '#475569', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>
-                                                        <Edit2 size={14} /> Edit
-                                                    </button>
-                                                    <button
-                                                        onClick={handleSubmitForReview} disabled={submitReviewLoading}
-                                                        style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: '1px solid #bfdbfe', background: '#eff6ff', color: '#3b82f6', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>
-                                                        {submitReviewLoading ? <><Loader2 size={14} className="animate-spin" /> Submitting...</> : <><Send size={14} /> Submit for Review</>}
-                                                    </button>
-                                                </>
-                                            )}
-                                            {selectedPaper.status === SubmissionStatus.Approved && (
-                                                showVenueInput ? (
-                                                    <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
-                                                        <input type="url" value={venueUrl} onChange={e => setVenueUrl(e.target.value)} placeholder="Final submission URL..." className="form-input" style={{ flex: 1, height: '38px', fontSize: '0.85rem' }} />
+                                        {/* Draft / Revision: Edit + Submit for Review */}
+                                        {(selectedPaper.status === SubmissionStatus.Draft || selectedPaper.status === SubmissionStatus.Revision) && (
+                                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' as const }}>
+                                                <button onClick={() => openEdit(selectedPaper)}
+                                                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: '1px solid #e2e8f0', background: '#fff', color: '#475569', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>
+                                                    <Edit2 size={14} /> Edit
+                                                </button>
+                                                <button onClick={handleSubmitForReview} disabled={submitReviewLoading}
+                                                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: '1px solid #bfdbfe', background: '#eff6ff', color: '#3b82f6', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>
+                                                    {submitReviewLoading ? <><Loader2 size={14} className="animate-spin" /> Submitting...</> : <><Send size={14} /> Submit for Internal Review</>}
+                                                </button>
+                                                {selectedPaper.status === SubmissionStatus.Draft && (
+                                                    deleteConfirmId === selectedPaper.paperSubmissionId ? (
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', borderRadius: '9px', background: '#fef2f2', border: '1px solid #fecaca', width: '100%' }}>
+                                                            <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 600, color: '#dc2626' }}>Delete this paper?</span>
+                                                            <button onClick={() => setDeleteConfirmId(null)} style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700 }}>Cancel</button>
+                                                            <button onClick={() => handleDelete(selectedPaper.paperSubmissionId)} disabled={!!actionLoading}
+                                                                style={{ padding: '4px 10px', borderRadius: '6px', border: 'none', background: '#ef4444', color: '#fff', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700 }}>
+                                                                {actionLoading ? <Loader2 size={12} className="animate-spin" /> : 'Delete'}
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <button onClick={() => setDeleteConfirmId(selectedPaper.paperSubmissionId)}
+                                                            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: '1px solid #fecaca', background: '#fef2f2', color: '#ef4444', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>
+                                                            <Trash2 size={14} /> Delete
+                                                        </button>
+                                                    )
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* Approved → Submit paper to journal/conference */}
+                                        {selectedPaper.status === SubmissionStatus.Approved && (
+                                            <div style={{ display: 'flex', gap: '8px' }}>
+                                                {showVenueInput ? (
+                                                    <>
+                                                        <input type="url" value={venueUrl} onChange={e => setVenueUrl(e.target.value)}
+                                                            placeholder="Submission URL..." className="form-input"
+                                                            style={{ flex: 1, height: '38px', fontSize: '0.85rem' }} />
                                                         <button onClick={handleSubmitVenue} disabled={venueLoading || !venueUrl.trim()}
-                                                            style={{ padding: '8px 14px', borderRadius: '9px', border: 'none', background: '#8b5cf6', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem', whiteSpace: 'nowrap' as const }}>
-                                                            {venueLoading ? <Loader2 size={14} className="animate-spin" /> : 'Submit'}
+                                                            style={{ padding: '8px 14px', borderRadius: '9px', border: 'none', background: '#059669', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem', whiteSpace: 'nowrap' as const }}>
+                                                            {venueLoading ? <Loader2 size={14} className="animate-spin" /> : 'Confirm'}
                                                         </button>
                                                         <button onClick={() => setShowVenueInput(false)} style={{ padding: '8px', borderRadius: '9px', border: '1px solid #e2e8f0', background: '#fff', color: '#94a3b8', cursor: 'pointer' }}><X size={14} /></button>
-                                                    </div>
+                                                    </>
                                                 ) : (
                                                     <button onClick={() => { setShowVenueInput(true); setVenueUrl(selectedPaper.paperUrl || ''); }}
-                                                        style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: '1px solid #ddd6fe', background: '#f5f3ff', color: '#8b5cf6', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>
-                                                        <ExternalLink size={14} /> Submit to Venue
+                                                        style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '9px', border: 'none', background: '#16a34a', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: '0.82rem', boxShadow: '0 2px 8px rgba(22,163,74,0.2)' }}>
+                                                        <ExternalLink size={14} /> Submit Paper
                                                     </button>
-                                                )
-                                            )}
-                                            {selectedPaper.status === SubmissionStatus.Draft && (
-                                                deleteConfirmId === selectedPaper.paperSubmissionId ? (
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', borderRadius: '9px', background: '#fef2f2', border: '1px solid #fecaca', width: '100%' }}>
-                                                        <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 600, color: '#dc2626' }}>Delete this paper?</span>
-                                                        <button onClick={() => setDeleteConfirmId(null)} style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700 }}>Cancel</button>
-                                                        <button onClick={() => handleDelete(selectedPaper.paperSubmissionId)} disabled={!!actionLoading}
-                                                            style={{ padding: '4px 10px', borderRadius: '6px', border: 'none', background: '#ef4444', color: '#fff', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700 }}>
-                                                            {actionLoading ? <Loader2 size={12} className="animate-spin" /> : 'Delete'}
-                                                        </button>
-                                                    </div>
-                                                ) : (
-                                                    <button onClick={() => setDeleteConfirmId(selectedPaper.paperSubmissionId)}
-                                                        style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: '1px solid #fecaca', background: '#fef2f2', color: '#ef4444', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>
-                                                        <Trash2 size={14} /> Delete
-                                                    </button>
-                                                )
-                                            )}
-                                        </div>
+                                                )}
+                                            </div>
+                                        )}
 
-                                        {/* Lab Director approve/reject */}
+                                        {/* Submitted → Revision or Decision */}
+                                        {selectedPaper.status === SubmissionStatus.Submitted && (
+                                            <div style={{ display: 'flex', gap: '8px' }}>
+                                                <button onClick={handleMarkRevision} disabled={!!actionLoading}
+                                                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: '1px solid #fed7aa', background: '#fff7ed', color: '#c2410c', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>
+                                                    {actionLoading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />} Revision Required
+                                                </button>
+                                                <button onClick={handleVenueDecision} disabled={!!actionLoading}
+                                                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: 'none', background: '#8b5cf6', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem', boxShadow: '0 2px 8px rgba(139,92,246,0.25)' }}>
+                                                    {actionLoading ? <Loader2 size={14} className="animate-spin" /> : <Gavel size={14} />} Record Decision
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        {/* Decision: final */}
+                                        {selectedPaper.status === SubmissionStatus.Decision && (
+                                            <div style={{ padding: '10px 14px', borderRadius: '9px', background: '#f5f3ff', border: '1px solid #ddd6fe', fontSize: '0.82rem', fontWeight: 600, color: '#7c3aed' }}>
+                                                Final decision recorded. No further actions available.
+                                            </div>
+                                        )}
+
+                                        {/* Rejected: final */}
+                                        {selectedPaper.status === SubmissionStatus.Rejected && (
+                                            <div style={{ padding: '10px 14px', borderRadius: '9px', background: '#fef2f2', border: '1px solid #fecaca', fontSize: '0.82rem', fontWeight: 600, color: '#dc2626' }}>
+                                                Rejected by Lab Director. No further actions available.
+                                            </div>
+                                        )}
+
+                                        {/* Lab Director: approve/reject InternalReview only */}
                                         {isDirector && selectedPaper.status === SubmissionStatus.InternalReview && (
-                                            <div style={{
-                                                display: 'flex', gap: '8px', padding: '12px 14px',
-                                                borderRadius: '10px', background: '#fffbeb', border: '1px solid #fde68a'
-                                            }}>
+                                            <div style={{ display: 'flex', gap: '8px', padding: '12px 14px', borderRadius: '10px', background: '#fffbeb', border: '1px solid #fde68a' }}>
                                                 <div style={{ flex: 1, fontSize: '0.78rem', fontWeight: 600, color: '#92400e', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                                     <Clock size={13} /> Awaiting director review
                                                 </div>
-                                                <button
-                                                    onClick={() => handleDirectorReview(true)}
-                                                    disabled={!!actionLoading}
+                                                <button onClick={() => handleDirectorReview(true)} disabled={!!actionLoading}
                                                     style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 14px', borderRadius: '8px', border: 'none', background: '#16a34a', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem', boxShadow: '0 2px 6px rgba(22,163,74,0.25)' }}>
                                                     {actionLoading ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />} Approve
                                                 </button>
-                                                <button
-                                                    onClick={() => handleDirectorReview(false)}
-                                                    disabled={!!actionLoading}
+                                                <button onClick={() => handleDirectorReview(false)} disabled={!!actionLoading}
                                                     style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 14px', borderRadius: '8px', border: '1px solid #fecaca', background: '#fee2e2', color: '#dc2626', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>
                                                     <XCircle size={13} /> Reject
                                                 </button>
@@ -795,7 +844,7 @@ const fieldLabelStyle: React.CSSProperties = { fontSize: '0.72rem', fontWeight: 
 const fieldInputStyle: React.CSSProperties = { width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1.5px solid #e2e8f0', fontSize: '0.85rem', fontFamily: 'inherit', outline: 'none', background: '#fff', boxSizing: 'border-box' };
 
 interface PaperFormFieldsProps {
-    data: { title: string; abstract: string; conferenceName: string; paperUrl: string; projectId: string; members: PaperMemberRequest[] };
+    data: { title: string; abstract: string; conferenceName: string; paperUrl: string; projectId: string; deadline?: string; members: PaperMemberRequest[] };
     onChange: (field: string, val: string) => void;
     onProjectChange: (pid: string) => void;
     onMembersChange: (m: PaperMemberRequest[]) => void;
@@ -837,6 +886,12 @@ const PaperFormFields: React.FC<PaperFormFieldsProps> = ({
             <input className="form-input" style={{ ...fieldInputStyle, borderColor: formErrors.paperUrl ? '#ef4444' : '#e2e8f0' }}
                 type="url" value={data.paperUrl} onChange={e => onChange('paperUrl', e.target.value)} placeholder="https://..." />
             {formErrors.paperUrl && <span style={{ color: '#ef4444', fontSize: '0.72rem' }}>{formErrors.paperUrl}</span>}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <label style={fieldLabelStyle}>Submission Deadline</label>
+            <input type="date" className="form-input" style={fieldInputStyle}
+                value={data.deadline || ''}
+                onChange={e => onChange('deadline', e.target.value)} />
         </div>
         {extraField}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>

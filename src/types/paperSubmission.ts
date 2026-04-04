@@ -16,7 +16,7 @@ export const SubmissionStatusLabel: Record<SubmissionStatus, string> = {
     [SubmissionStatus.Approved]: 'Approved',
     [SubmissionStatus.Submitted]: 'Submitted',
     [SubmissionStatus.Revision]: 'Revision Required',
-    [SubmissionStatus.Decision]: 'Pending Decision',
+    [SubmissionStatus.Decision]: 'Decision',
     [SubmissionStatus.Rejected]: 'Rejected',
 };
 
