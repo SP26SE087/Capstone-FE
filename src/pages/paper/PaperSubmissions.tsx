@@ -16,7 +16,7 @@ import {
 import {
     Plus, Search, ExternalLink, X, Loader2, AlertTriangle, Trash2,
     Send, Edit2, Link as LinkIcon, FileText, Clock, CheckCircle2,
-    XCircle, RotateCcw, ChevronDown, ChevronRight, Eye
+    XCircle, RotateCcw, ChevronDown, ChevronRight, Eye, Repeat, Gavel
 } from 'lucide-react';
 
 const getStatusConfig = (status: SubmissionStatus) => {
@@ -29,6 +29,10 @@ const getStatusConfig = (status: SubmissionStatus) => {
             return { color: '#16a34a', bg: '#dcfce7', icon: <CheckCircle2 size={14} />, label: 'Approved' };
         case SubmissionStatus.Submitted:
             return { color: '#2563eb', bg: '#dbeafe', icon: <Send size={14} />, label: 'Submitted' };
+        case SubmissionStatus.Revision:
+            return { color: '#8b5cf6', bg: '#ede9fe', icon: <Repeat size={14} />, label: 'Revision' };
+        case SubmissionStatus.Decision:
+            return { color: '#0f766e', bg: '#ccfbf1', icon: <Gavel size={14} />, label: 'Decision' };
         case SubmissionStatus.Rejected:
             return { color: '#dc2626', bg: '#fee2e2', icon: <XCircle size={14} />, label: 'Rejected' };
         default:
@@ -55,7 +59,8 @@ const PaperSubmissions: React.FC = () => {
     const [addTitle, setAddTitle] = useState('');
     const [addAbstract, setAddAbstract] = useState('');
     const [addConference, setAddConference] = useState('');
-    const [addPaperUrl, setAddPaperUrl] = useState('');
+    const [addDocument, setAddDocument] = useState('');
+    const [addDocumentName, setAddDocumentName] = useState('');
     const [addProjectId, setAddProjectId] = useState('');
     const [addMembers, setAddMembers] = useState<PaperMemberRequest[]>([]);
     const [addLoading, setAddLoading] = useState(false);
@@ -121,40 +126,68 @@ const PaperSubmissions: React.FC = () => {
         }
         if (projectId) {
             setMembersLoading(true);
-            try { const members = await membershipService.getProjectMembers(projectId); setProjectMembers(members); }
+            try {
+                const members = await membershipService.getProjectMembers(projectId);
+                setProjectMembers(members);
+                // Auto-add current user as FirstAuthor when selecting/changing project
+                if (updateMembers) {
+                    const me = await projectService.getCurrentMember(projectId);
+                    const myId = me?.membershipId || me?.memberId;
+                    if (myId) {
+                        if (isEdit) {
+                            setEditData((prev: any) => ({ ...prev, members: [{ membershipId: myId, role: PaperRoleEnum.FirstAuthor }] }));
+                        } else {
+                            setAddMembers([{ membershipId: myId, role: PaperRoleEnum.FirstAuthor }]);
+                        }
+                    }
+                }
+            }
             catch (err) { console.error('Failed to load project members:', err); }
             finally { setMembersLoading(false); }
         } else { setProjectMembers([]); }
     };
 
-    const validateForm = (data: { title: string, conferenceName: string, paperUrl?: string }) => {
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, isEdit: boolean) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            if (isEdit) {
+                setEditData((prev: any) => ({ ...prev, document: ev.target?.result as string, documentName: file.name }));
+            } else {
+                setAddDocument(ev.target?.result as string);
+                setAddDocumentName(file.name);
+            }
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const validateForm = (data: { title: string, conferenceName: string, document?: string }) => {
         const errs: Record<string, string> = {};
         if (!data.title?.trim()) errs.title = 'Title is required';
         if (!data.conferenceName?.trim()) errs.conferenceName = 'Conference/Journal name is required';
-        if (data.paperUrl && data.paperUrl.trim() && !data.paperUrl.match(/^https?:\/\/.+/)) {
-            errs.paperUrl = 'Please enter a valid URL (starting with http:// or https://)';
-        }
+        if (!data.document?.trim()) errs.document = 'A .doc or .docx file is required';
         setFormErrors(errs);
         return Object.keys(errs).length === 0;
     };
 
     const handleCreatePaper = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!validateForm({ title: addTitle, conferenceName: addConference, paperUrl: addPaperUrl })) return;
+        if (!validateForm({ title: addTitle, conferenceName: addConference, document: addDocument })) return;
         setAddError(null); setAddSuccess(null); setAddLoading(true);
         try {
             let myMembershipId: string | undefined;
             if (addProjectId) { const me = await projectService.getCurrentMember(addProjectId); myMembershipId = me?.membershipId; }
             const payload: CreatePaperRequest = {
                 projectId: addProjectId || null, title: addTitle, abstract: addAbstract,
-                conferenceName: addConference, paperUrl: addPaperUrl, submissionDeadline: null,
+                conferenceName: addConference, paperUrl: '', document: addDocument, documentName: addDocumentName, submissionDeadline: null,
                 members: addMembers.map(m => ({ membershipId: m.membershipId, role: Number(m.role) })),
                 // @ts-ignore
                 createdByMembershipId: myMembershipId || null
             };
             const newPaper = await paperSubmissionService.create(payload);
             await loadPapers(1, pageSize);
-            setAddTitle(''); setAddAbstract(''); setAddConference(''); setAddPaperUrl(''); setAddProjectId(''); setAddMembers([]);
+            setAddTitle(''); setAddAbstract(''); setAddConference(''); setAddDocument(''); setAddDocumentName(''); setAddProjectId(''); setAddMembers([]);
             setAddSuccess(`Paper "${newPaper.title}" created successfully!`);
             addToast('Draft created successfully!', 'success');
             setTimeout(() => { setAddSuccess(null); setShowAddForm(false); }, 2000);
@@ -164,14 +197,14 @@ const PaperSubmissions: React.FC = () => {
 
     const handleUpdatePaper = async () => {
         if (!editingPaperId) return;
-        if (!validateForm({ title: editData.title || '', conferenceName: editData.conferenceName || '', paperUrl: editData.paperUrl })) return;
+        if (!validateForm({ title: editData.title || '', conferenceName: editData.conferenceName || '', document: editData.document })) return;
         setEditError(null); setEditLoading(true);
         try {
             let myMembershipId: string | undefined;
             if (editData.projectId) { const me = await projectService.getCurrentMember(editData.projectId); myMembershipId = me?.membershipId; }
             const payload: UpdatePaperRequest = {
                 projectId: editData.projectId || null, title: editData.title || '', abstract: editData.abstract || '',
-                paperUrl: editData.paperUrl || '', conferenceName: editData.conferenceName || '',
+                paperUrl: editData.paperUrl || '', document: editData.document || '', documentName: editData.documentName || '', conferenceName: editData.conferenceName || '',
                 submissionDeadline: editData.submissionDeadline ? editData.submissionDeadline : null,
                 members: editData.members?.map((m: any) => ({ membershipId: m.membershipId, role: Number(m.role) })) || [],
                 // @ts-ignore
@@ -218,11 +251,30 @@ const PaperSubmissions: React.FC = () => {
         finally { setRevertLoading(null); }
     };
 
+    const handleChangeStatus = async (id: string, newStatus: SubmissionStatus, e?: React.MouseEvent) => {
+        if (e) e.stopPropagation();
+        setRevertLoading(id);
+        try {
+            const updated = await paperSubmissionService.changeStatus(id, newStatus);
+            setPapers((prev) => prev.map((p) => (p.paperSubmissionId === id ? updated : p)));
+            addToast(`Status updated successfully!`, 'success');
+        } catch (err: any) { alert(err.response?.data?.message || 'Failed to update status.'); }
+        finally { setRevertLoading(null); }
+    };
+
     const handleSubmitVenue = async () => {
         if (!showVenueModal) return;
         setVenueLoading(true);
         try {
-            const updated = await paperSubmissionService.submitToVenue(showVenueModal, venueUrl);
+            const paper = papers.find(p => p.paperSubmissionId === showVenueModal);
+            let targetStatus = undefined;
+            
+            // If already submitted or in revision, resubmitting moves it to Revision
+            if (paper?.status === SubmissionStatus.Submitted || paper?.status === SubmissionStatus.Revision) {
+                targetStatus = SubmissionStatus.Revision;
+            }
+
+            const updated = await paperSubmissionService.submitToVenue(showVenueModal, venueUrl, targetStatus);
             setPapers((prev) => prev.map((p) => (p.paperSubmissionId === updated.paperSubmissionId ? updated : p)));
             setShowVenueModal(null); setVenueUrl('');
             addToast('Submitted successfully!', 'success');
@@ -244,11 +296,37 @@ const PaperSubmissions: React.FC = () => {
         }
     };
 
-    const startEditing = (paper: PaperSubmissionResponse, e?: React.MouseEvent) => {
+    const startEditing = async (paper: PaperSubmissionResponse, e?: React.MouseEvent) => {
         if (e) e.stopPropagation();
         setExpandedPaperId(paper.paperSubmissionId);
         setEditingPaperId(paper.paperSubmissionId);
-        setEditData({ ...paper, submissionDeadline: paper.submissionDeadline ? paper.submissionDeadline.split('T')[0] : '' });
+        
+        // Identify current user and set as FirstAuthor
+        let members = paper.members?.map(m => ({ membershipId: m.membershipId, role: m.role })) || [];
+        if (paper.projectId) {
+            try {
+                const me = await projectService.getCurrentMember(paper.projectId);
+                const myId = me?.membershipId || me?.memberId;
+                console.log('[Paper Edit] getCurrentMember:', me, 'myId:', myId);
+                console.log('[Paper Edit] paper.members:', members);
+                if (myId) {
+                    const existingIdx = members.findIndex(m => m.membershipId === myId);
+                    if (existingIdx >= 0) {
+                        // Current user exists in members - set as FirstAuthor and move to front
+                        members[existingIdx] = { ...members[existingIdx], role: PaperRoleEnum.FirstAuthor };
+                        const [creator] = members.splice(existingIdx, 1);
+                        members.unshift(creator);
+                    } else {
+                        // Current user not in members - add as FirstAuthor at front
+                        members.unshift({ membershipId: myId, role: PaperRoleEnum.FirstAuthor });
+                    }
+                    // Ensure all other members are CoAuthor
+                    members = members.map((m, i) => i === 0 ? m : { ...m, role: PaperRoleEnum.CoAuthor });
+                }
+            } catch (err) { console.error('[Paper Edit] getCurrentMember failed:', err); }
+        }
+        
+        setEditData({ ...paper, members, submissionDeadline: paper.submissionDeadline ? paper.submissionDeadline.split('T')[0] : '', documentName: paper.documentName || '' });
         setEditError(null);
         if (paper.projectId) handleProjectChange(paper.projectId, true, false);
     };
@@ -278,11 +356,14 @@ const PaperSubmissions: React.FC = () => {
 
     // Stats
     const statWidgets = [
-        { label: 'Total Papers', value: totalCount, icon: <FileText size={20} />, color: 'var(--accent-color)', bg: 'var(--accent-bg)' },
-        { label: 'Drafts', value: papers.filter(p => p.status === SubmissionStatus.Draft).length, icon: <Clock size={20} />, color: '#64748b', bg: '#f1f5f9' },
-        { label: 'In Review', value: papers.filter(p => p.status === SubmissionStatus.InternalReview).length, icon: <Eye size={20} />, color: '#d97706', bg: '#fef3c7' },
-        { label: 'Approved', value: papers.filter(p => p.status === SubmissionStatus.Approved).length, icon: <CheckCircle2 size={20} />, color: '#16a34a', bg: '#dcfce7' },
-        { label: 'Rejected', value: papers.filter(p => p.status === SubmissionStatus.Rejected).length, icon: <XCircle size={20} />, color: '#dc2626', bg: '#fee2e2' },
+        { label: 'Total Papers', value: totalCount, icon: <FileText size={18} />, color: 'var(--accent-color)', bg: 'var(--accent-bg)' },
+        { label: 'Drafts', value: papers.filter(p => p.status === SubmissionStatus.Draft).length, icon: <Clock size={18} />, color: '#64748b', bg: '#f1f5f9' },
+        { label: 'In Review', value: papers.filter(p => p.status === SubmissionStatus.InternalReview).length, icon: <Eye size={18} />, color: '#d97706', bg: '#fef3c7' },
+        { label: 'Approved', value: papers.filter(p => p.status === SubmissionStatus.Approved).length, icon: <CheckCircle2 size={18} />, color: '#16a34a', bg: '#dcfce7' },
+        { label: 'Submitted', value: papers.filter(p => p.status === SubmissionStatus.Submitted).length, icon: <Send size={18} />, color: '#2563eb', bg: '#dbeafe' },
+        { label: 'Revision', value: papers.filter(p => p.status === SubmissionStatus.Revision).length, icon: <Repeat size={18} />, color: '#8b5cf6', bg: '#ede9fe' },
+        { label: 'Decision', value: papers.filter(p => p.status === SubmissionStatus.Decision).length, icon: <Gavel size={18} />, color: '#0f766e', bg: '#ccfbf1' },
+        { label: 'Rejected', value: papers.filter(p => p.status === SubmissionStatus.Rejected).length, icon: <XCircle size={18} />, color: '#dc2626', bg: '#fee2e2' },
     ];
 
     return (
@@ -305,17 +386,27 @@ const PaperSubmissions: React.FC = () => {
 
                 {/* Stat Widgets */}
                 <div style={{
-                    display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
-                    gap: '1rem', marginBottom: '2rem'
+                    display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)',
+                    gap: '0.75rem', marginBottom: '2rem'
                 }}>
                     {statWidgets.map((stat, index) => (
-                        <div key={index} className="card stat-widget" style={{ opacity: loading ? 0.7 : 1 }}>
-                            <div className="stat-widget-icon" style={{ background: stat.bg, color: stat.color }}>
+                        <div key={index} className="card" style={{ 
+                            opacity: loading ? 0.7 : 1, padding: '1rem', 
+                            display: 'flex', alignItems: 'center', gap: '0.75rem',
+                            borderRadius: '12px', transition: 'all 0.2s',
+                            border: '1px solid var(--border-color)',
+                            background: '#ffffff'
+                        }}>
+                            <div style={{ 
+                                background: stat.bg, color: stat.color, 
+                                padding: '8px', borderRadius: '10px', flexShrink: 0,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center'
+                            }}>
                                 {stat.icon}
                             </div>
-                            <div>
-                                <p className="stat-widget-label">{stat.label}</p>
-                                <p className="stat-widget-value">{loading ? '...' : stat.value}</p>
+                            <div style={{ minWidth: 0 }}>
+                                <p style={{ margin: 0, fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{stat.label}</p>
+                                <p style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-primary)' }}>{loading ? '...' : stat.value}</p>
                             </div>
                         </div>
                     ))}
@@ -352,9 +443,12 @@ const PaperSubmissions: React.FC = () => {
                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: addMembers.length > 0 ? '10px' : 0 }}>
                                             {addMembers.map((m, idx) => {
                                                 const pm = projectMembers.find(p => (p.membershipId || p.memberId) === m.membershipId);
-                                                return <div key={idx} style={{ background: 'white', padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                    {pm?.fullName || 'User'} ({PaperRoleLabel[m.role as PaperRoleEnum]})
-                                                    <button type="button" onClick={() => setAddMembers(prev => prev.filter((_, i) => i !== idx))} style={{ color: '#dc2626', border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}><X size={14} /></button>
+                                                const isCreator = m.role === PaperRoleEnum.FirstAuthor;
+                                                return <div key={idx} style={{ background: isCreator ? '#fffbeb' : 'white', padding: '4px 10px', borderRadius: '6px', border: `1px solid ${isCreator ? '#f59e0b' : 'var(--border-color)'}`, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                    {pm?.fullName || 'User'} <span style={{ color: isCreator ? '#d97706' : '#64748b', fontWeight: 600, fontSize: '0.75rem' }}>({PaperRoleLabel[m.role as PaperRoleEnum]})</span>
+                                                    {!isCreator && (
+                                                        <button type="button" onClick={() => setAddMembers(prev => prev.filter((_, i) => i !== idx))} style={{ color: '#dc2626', border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}><X size={14} /></button>
+                                                    )}
                                                 </div>
                                             })}
                                         </div>
@@ -362,19 +456,61 @@ const PaperSubmissions: React.FC = () => {
                                             const mid = e.target.value; if (!mid || addMembers.some(am => am.membershipId === mid)) return;
                                             setAddMembers([...addMembers, { membershipId: mid, role: PaperRoleEnum.CoAuthor }]); e.target.value = '';
                                         }}>
-                                            <option value="">+ Add Author...</option>
+                                            <option value="">+ Add Co-Author...</option>
                                             {projectMembers.map(pm => ({ ...pm, _mid: pm.membershipId || pm.memberId })).filter(pm => pm._mid && !addMembers.some(am => am.membershipId === pm._mid)).map(pm => <option key={pm._mid} value={pm._mid}>{pm.fullName}</option>)}
                                         </select>
                                     </div>
                                 )}
                             </div>
                             <div style={{ gridColumn: '1 / -1' }}>
-                                <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Paper URL</label>
-                                <input type="url" placeholder="https://..." value={addPaperUrl} onChange={(e) => setAddPaperUrl(e.target.value)} className={`form-input ${formErrors.paperUrl ? 'error' : ''}`} />
+                                <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Paper Document (.doc, .docx) *</label>
+                                <div style={{ 
+                                    border: `2px dashed ${formErrors.document ? '#dc2626' : 'var(--border-color)'}`, 
+                                    borderRadius: '12px', 
+                                    padding: '1.5rem', 
+                                    textAlign: 'center',
+                                    background: 'var(--surface-color)',
+                                    transition: 'all 0.2s',
+                                    position: 'relative'
+                                }}>
+                                    {!addDocument ? (
+                                        <>
+                                            <div style={{ color: 'var(--text-muted)', marginBottom: '8px' }}>
+                                                <FileText size={32} style={{ opacity: 0.5, marginBottom: '8px' }} />
+                                                <p style={{ margin: 0, fontSize: '0.9rem' }}>Click or drag to add .doc or .docx (Max 500MB)</p>
+                                            </div>
+                                            <input 
+                                                type="file" 
+                                                accept=".doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" 
+                                                onChange={(e) => handleFileChange(e, false)} 
+                                                style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }} 
+                                            />
+                                        </>
+                                    ) : (
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
+                                            <div style={{ background: 'var(--accent-bg)', color: 'var(--accent-color)', padding: '10px', borderRadius: '10px' }}>
+                                                <FileText size={24} />
+                                            </div>
+                                            <div style={{ textAlign: 'left', flex: 1, minWidth: 0 }}>
+                                                <p style={{ margin: 0, fontWeight: 600, fontSize: '0.9rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{addDocumentName}</p>
+                                                <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)' }}>Ready to upload</p>
+                                            </div>
+                                            <button 
+                                                type="button" 
+                                                onClick={() => { setAddDocument(''); setAddDocumentName(''); }}
+                                                className="btn btn-ghost" 
+                                                style={{ color: '#dc2626', padding: '6px' }}
+                                            >
+                                                <Trash2 size={18} />
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                                {formErrors.document && <span style={{ color: '#dc2626', fontSize: '0.8rem', marginTop: '4px', display: 'block' }}>{formErrors.document}</span>}
                             </div>
                             <div style={{ gridColumn: '1 / -1' }}>
                                 <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Abstract</label>
-                                <textarea placeholder="..." value={addAbstract} onChange={(e) => setAddAbstract(e.target.value)} className="form-input" rows={3} />
+                                <textarea placeholder="Provide a brief summary of your research..." value={addAbstract} onChange={(e) => setAddAbstract(e.target.value)} className="form-input" rows={3} />
                             </div>
                             <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
                                 <button type="button" className="btn btn-secondary" onClick={() => setShowAddForm(false)}>Cancel</button>
@@ -399,24 +535,26 @@ const PaperSubmissions: React.FC = () => {
                             style={{ paddingLeft: '44px', height: '44px', border: 'none', background: 'var(--surface-hover)', borderRadius: '10px', fontSize: '0.95rem' }}
                         />
                     </div>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        {[
-                            { value: 'all', label: 'All' },
-                            { value: SubmissionStatus.Draft.toString(), label: 'Draft' },
-                            { value: SubmissionStatus.InternalReview.toString(), label: 'In Review' },
-                            { value: SubmissionStatus.Approved.toString(), label: 'Approved' },
-                            { value: SubmissionStatus.Rejected.toString(), label: 'Rejected' },
-                        ].map(f => (
-                            <button
-                                key={f.value}
-                                onClick={() => setStatusFilter(f.value)}
-                                className={`filter-chip ${statusFilter === f.value ? 'active' : ''}`}
-                                style={{ height: '44px', padding: '0 1.25rem', borderRadius: '10px' }}
-                            >
-                                {f.label}
-                            </button>
-                        ))}
-                    </div>
+                    <select
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value)}
+                        className="form-input"
+                        style={{ 
+                            height: '44px', width: '180px', borderRadius: '10px', 
+                            background: 'var(--surface-hover)', border: 'none',
+                            fontSize: '0.9rem', fontWeight: 600, cursor: 'pointer',
+                            color: 'var(--text-primary)', padding: '0 12px'
+                        }}
+                    >
+                        <option value="all">All Status</option>
+                        <option value={SubmissionStatus.Draft.toString()}>Draft</option>
+                        <option value={SubmissionStatus.InternalReview.toString()}>In Review</option>
+                        <option value={SubmissionStatus.Approved.toString()}>Approved</option>
+                        <option value={SubmissionStatus.Submitted.toString()}>Submitted</option>
+                        <option value={SubmissionStatus.Revision.toString()}>Revision</option>
+                        <option value={SubmissionStatus.Decision.toString()}>Decision</option>
+                        <option value={SubmissionStatus.Rejected.toString()}>Rejected</option>
+                    </select>
                 </div>
 
                 {/* Paper List */}
@@ -505,6 +643,27 @@ const PaperSubmissions: React.FC = () => {
                                                         <ExternalLink size={18} />
                                                     </button>
                                                 )}
+                                                {/* Revisions & Decision Actions */}
+                                                {(paper.status === SubmissionStatus.Submitted || paper.status === SubmissionStatus.Revision) && (
+                                                    <>
+                                                        <button 
+                                                            onClick={() => { setShowVenueModal(paper.paperSubmissionId); setVenueUrl(paper.paperUrl); }} 
+                                                            className="btn btn-ghost" 
+                                                            title="Resubmit / Update URL" 
+                                                            style={{ color: '#8b5cf6', padding: '6px' }}
+                                                        >
+                                                            <RotateCcw size={18} />
+                                                        </button>
+                                                        <button 
+                                                            onClick={e => handleChangeStatus(paper.paperSubmissionId, SubmissionStatus.Decision, e)} 
+                                                            className="btn btn-ghost" 
+                                                            title="Final Decision" 
+                                                            style={{ color: '#0f766e', padding: '6px' }}
+                                                        >
+                                                            {isReverting ? <Loader2 size={16} className="animate-spin" /> : <Gavel size={18} />}
+                                                        </button>
+                                                    </>
+                                                )}
                                                 {/* Submit for Review */}
                                                 {paper.status === SubmissionStatus.Draft && (
                                                     <button onClick={e => handleSubmitForReview(paper.paperSubmissionId, e)} className="btn btn-ghost" title="Submit for Review" style={{ color: '#2563eb', padding: '6px' }}>
@@ -553,9 +712,12 @@ const PaperSubmissions: React.FC = () => {
                                                                     {/* @ts-ignore */}
                                                                     {editData.members?.map((m: any, idx: number) => {
                                                                         const pm = projectMembers.find((p: any) => (p.membershipId || p.memberId) === m.membershipId);
-                                                                        return <div key={idx} style={{ background: 'white', padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                                            {pm?.fullName || 'User'} ({PaperRoleLabel[m.role as PaperRoleEnum]})
-                                                                            <button type="button" onClick={() => setEditData({ ...editData, members: editData.members?.filter((_: any, i: number) => i !== idx) })} style={{ color: '#dc2626', border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}><X size={14} /></button>
+                                                                        const isCreator = m.role === PaperRoleEnum.FirstAuthor;
+                                                                        return <div key={idx} style={{ background: isCreator ? '#fffbeb' : 'white', padding: '4px 10px', borderRadius: '6px', border: `1px solid ${isCreator ? '#f59e0b' : 'var(--border-color)'}`, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                                            {pm?.fullName || 'User'} <span style={{ color: isCreator ? '#d97706' : '#64748b', fontWeight: 600, fontSize: '0.75rem' }}>({PaperRoleLabel[m.role as PaperRoleEnum]})</span>
+                                                                            {!isCreator && (
+                                                                                <button type="button" onClick={() => setEditData({ ...editData, members: editData.members?.filter((_: any, i: number) => i !== idx) })} style={{ color: '#dc2626', border: 'none', background: 'none', cursor: 'pointer', padding: 0 }}><X size={14} /></button>
+                                                                            )}
                                                                         </div>
                                                                     })}
                                                                 </div>
@@ -563,16 +725,52 @@ const PaperSubmissions: React.FC = () => {
                                                                     const mid = e.target.value; if (!mid || editData.members?.some((am: any) => am.membershipId === mid)) return;
                                                                     setEditData({ ...editData, members: [...(editData.members || []), { membershipId: mid, role: PaperRoleEnum.CoAuthor }] }); e.target.value = '';
                                                                 }}>
-                                                                    <option value="">+ Add Author...</option>
+                                                                    <option value="">+ Add Co-Author...</option>
                                                                     {projectMembers.map(pm => ({ ...pm, _mid: pm.membershipId || pm.memberId })).filter(pm => pm._mid && !editData.members?.some((am: any) => am.membershipId === pm._mid)).map(pm => <option key={pm._mid} value={pm._mid}>{pm.fullName}</option>)}
                                                                 </select>
                                                             </div>
                                                         </div>
                                                         <div style={{ gridColumn: '1 / -1' }}>
-                                                            <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Paper URL</label>
-                                                            <div style={{ display: 'flex', gap: '8px' }}>
-                                                                <input className="form-input" style={{ flex: 1 }} value={editData.paperUrl} onChange={e => setEditData({...editData, paperUrl: e.target.value})} />
-                                                                {editData.paperUrl && <a href={editData.paperUrl} target="_blank" rel="noreferrer" className="btn btn-ghost" style={{ padding: '8px', border: '1px solid var(--border-color)', borderRadius: '8px' }}><ExternalLink size={18} /></a>}
+                                                            <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Paper Document (.doc, .docx) *</label>
+                                                            <div style={{ 
+                                                                border: '2px dashed var(--border-color)', 
+                                                                borderRadius: '12px', 
+                                                                padding: '1.25rem', 
+                                                                textAlign: 'center',
+                                                                background: 'var(--surface-color)',
+                                                                position: 'relative'
+                                                            }}>
+                                                                {!editData.document ? (
+                                                                    <>
+                                                                        <div style={{ color: 'var(--text-muted)' }}>
+                                                                            <FileText size={24} style={{ opacity: 0.5, marginBottom: '4px' }} />
+                                                                            <p style={{ margin: 0, fontSize: '0.85rem' }}>Upload new version (Max 500MB)</p>
+                                                                        </div>
+                                                                        <input 
+                                                                            type="file" 
+                                                                            accept=".doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" 
+                                                                            onChange={(e) => handleFileChange(e, true)} 
+                                                                            style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }} 
+                                                                        />
+                                                                    </>
+                                                                ) : (
+                                                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+                                                                        <div style={{ background: 'var(--accent-bg)', color: 'var(--accent-color)', padding: '8px', borderRadius: '8px' }}>
+                                                                            <FileText size={20} />
+                                                                        </div>
+                                                                        <div style={{ textAlign: 'left', flex: 1, minWidth: 0 }}>
+                                                                            <p style={{ margin: 0, fontWeight: 600, fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{editData.documentName || 'File attached'}</p>
+                                                                        </div>
+                                                                        <button 
+                                                                            type="button" 
+                                                                            onClick={() => setEditData((prev: any) => ({ ...prev, document: '', documentName: '' }))}
+                                                                            className="btn btn-ghost" 
+                                                                            style={{ color: '#dc2626', padding: '4px' }}
+                                                                        >
+                                                                            <Trash2 size={16} />
+                                                                        </button>
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         </div>
                                                         <div style={{ gridColumn: '1 / -1' }}>
@@ -607,20 +805,32 @@ const PaperSubmissions: React.FC = () => {
                                                             </div>
                                                         </div>
 
-                                                        {/* Paper URL */}
-                                                        {paper.paperUrl && (
-                                                            <div>
-                                                                <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '6px', letterSpacing: '0.5px' }}>Paper URL</div>
-                                                                <a href={paper.paperUrl} target="_blank" rel="noreferrer"
-                                                                    style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'var(--surface-color)', padding: '10px 16px', borderRadius: '10px', border: '1px solid var(--border-color)', color: 'var(--accent-color)', textDecoration: 'none', fontSize: '0.9rem', fontWeight: 500, transition: 'all 0.2s' }}
-                                                                    onMouseOver={e => e.currentTarget.style.borderColor = 'var(--accent-color)'}
-                                                                    onMouseOut={e => e.currentTarget.style.borderColor = 'var(--border-color)'}
-                                                                >
-                                                                    <LinkIcon size={16} />
-                                                                    <span style={{ maxWidth: '400px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{paper.paperUrl}</span>
-                                                                </a>
+                                                        {/* Files & URLs */}
+                                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1rem' }}>
+                                                            {/* Document */}
+                                                            <div style={{ background: 'var(--surface-color)', padding: '1rem', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+                                                                <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '8px', letterSpacing: '0.5px' }}>Evidence / Document</div>
+                                                                {paper.document ? (
+                                                                    <a href={paper.document} download={paper.documentName || `Paper_${paper.title.substring(0, 20)}.docx`}
+                                                                        style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--accent-color)', textDecoration: 'none', fontWeight: 500, fontSize: '0.9rem' }}>
+                                                                        <div style={{ background: 'var(--accent-bg)', padding: '8px', borderRadius: '8px' }}><FileText size={18} /></div>
+                                                                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{paper.documentName || 'Download Document'}</span>
+                                                                    </a>
+                                                                ) : <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>No document uploaded</span>}
                                                             </div>
-                                                        )}
+
+                                                            {/* Paper URL (only if exists) */}
+                                                            {paper.paperUrl && (
+                                                                <div style={{ background: 'var(--surface-color)', padding: '1rem', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+                                                                    <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '8px', letterSpacing: '0.5px' }}>Paper URL (Venue)</div>
+                                                                    <a href={paper.paperUrl} target="_blank" rel="noreferrer"
+                                                                        style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--accent-color)', textDecoration: 'none', fontWeight: 500, fontSize: '0.9rem' }}>
+                                                                        <div style={{ background: '#dbeafe', padding: '8px', borderRadius: '8px', color: '#2563eb' }}><LinkIcon size={18} /></div>
+                                                                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{paper.paperUrl}</span>
+                                                                    </a>
+                                                                </div>
+                                                            )}
+                                                        </div>
 
                                                         {/* Authors */}
                                                         {paper.members && paper.members.length > 0 && (

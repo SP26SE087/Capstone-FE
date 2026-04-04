@@ -63,9 +63,9 @@ export const paperSubmissionService = {
         return response.data.data || response.data;
     },
 
-    /** Submit paper to venue (Approved → Submitted) */
-    submitToVenue: async (id: string, paperUrl: string): Promise<PaperSubmissionResponse> => {
-        const response = await api.post(`${BASE}/${id}/submit-venue`, { paperUrl });
+    /** Submit paper to venue (Approved → Submitted, or Submitted/Revision → Revision) */
+    submitToVenue: async (id: string, paperUrl: string, targetStatus?: SubmissionStatus): Promise<PaperSubmissionResponse> => {
+        const response = await api.post(`${BASE}/${id}/submit-venue`, { paperUrl, targetStatus });
         return response.data.data || response.data;
     },
 

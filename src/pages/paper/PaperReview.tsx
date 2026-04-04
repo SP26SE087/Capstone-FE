@@ -11,7 +11,7 @@ import {
 } from '@/types/paperSubmission';
 import {
     FileSearch, CheckCircle2, XCircle, Loader2, AlertTriangle,
-    FileText, Link as LinkIcon, Clock, Eye, Send, ChevronDown, ChevronRight
+    FileText, Link as LinkIcon, Clock, Eye, Send, ChevronDown, ChevronRight, Repeat, Gavel, Download, Search
 } from 'lucide-react';
 
 const getStatusConfig = (status: SubmissionStatus) => {
@@ -24,6 +24,10 @@ const getStatusConfig = (status: SubmissionStatus) => {
             return { color: '#16a34a', bg: '#dcfce7', icon: <CheckCircle2 size={14} />, label: 'Approved' };
         case SubmissionStatus.Submitted:
             return { color: '#2563eb', bg: '#dbeafe', icon: <Send size={14} />, label: 'Submitted' };
+        case SubmissionStatus.Revision:
+            return { color: '#8b5cf6', bg: '#ede9fe', icon: <Repeat size={14} />, label: 'Revision' };
+        case SubmissionStatus.Decision:
+            return { color: '#0f766e', bg: '#ccfbf1', icon: <Gavel size={14} />, label: 'Decision' };
         case SubmissionStatus.Rejected:
             return { color: '#dc2626', bg: '#fee2e2', icon: <XCircle size={14} />, label: 'Rejected' };
         default:
@@ -31,13 +35,14 @@ const getStatusConfig = (status: SubmissionStatus) => {
     }
 };
 
-type FilterTab = 'pending' | 'all';
+type FilterTab = 'all' | 'pending' | string;
 
 const PaperReview: React.FC = () => {
     const [papers, setPapers] = useState<PaperSubmissionResponse[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [activeTab, setActiveTab] = useState<FilterTab>('pending');
+    const [activeTab, setActiveTab] = useState<FilterTab>('all');
+    const [search, setSearch] = useState('');
     const [expandedPaperId, setExpandedPaperId] = useState<string | null>(null);
     const [projects, setProjects] = useState<any[]>([]);
     const [projectMembers, setProjectMembers] = useState<any[]>([]);
@@ -81,12 +86,23 @@ const PaperReview: React.FC = () => {
     };
 
     const pendingCount = papers.filter(p => p.status === SubmissionStatus.InternalReview).length;
-    const approvedCount = papers.filter(p => p.status === SubmissionStatus.Approved || p.status === SubmissionStatus.Submitted).length;
+    const approvedCount = papers.filter(p => p.status === SubmissionStatus.Approved).length;
+    const submittedCount = papers.filter(p => p.status === SubmissionStatus.Submitted).length;
+    const revisionCount = papers.filter(p => p.status === SubmissionStatus.Revision).length;
+    const decisionCount = papers.filter(p => p.status === SubmissionStatus.Decision).length;
     const rejectedCount = papers.filter(p => p.status === SubmissionStatus.Rejected).length;
 
-    const filteredPapers = activeTab === 'pending'
-        ? papers.filter((p) => p.status === SubmissionStatus.InternalReview)
-        : papers;
+    const filteredPapers = papers.filter((p) => {
+        // Status filter
+        if (activeTab === 'pending' && p.status !== SubmissionStatus.InternalReview) return false;
+        if (activeTab !== 'all' && activeTab !== 'pending' && p.status.toString() !== activeTab) return false;
+        // Search filter
+        if (search.trim()) {
+            const q = search.toLowerCase();
+            if (!p.title.toLowerCase().includes(q) && !p.conferenceName.toLowerCase().includes(q)) return false;
+        }
+        return true;
+    });
 
     const getProjectName = (id?: string | null) => {
         if (!id) return 'N/A';
@@ -109,12 +125,15 @@ const PaperReview: React.FC = () => {
         }
     };
 
-    // Stats
+    // Stats - same order/colors as researcher page (without Drafts)
     const statWidgets = [
-        { label: 'Pending Review', value: pendingCount, icon: <Eye size={20} />, color: '#d97706', bg: '#fef3c7' },
-        { label: 'Approved / Submitted', value: approvedCount, icon: <CheckCircle2 size={20} />, color: '#16a34a', bg: '#dcfce7' },
-        { label: 'Rejected', value: rejectedCount, icon: <XCircle size={20} />, color: '#dc2626', bg: '#fee2e2' },
         { label: 'Total Papers', value: papers.length, icon: <FileText size={20} />, color: 'var(--accent-color)', bg: 'var(--accent-bg)' },
+        { label: 'In Review', value: pendingCount, icon: <Eye size={20} />, color: '#d97706', bg: '#fef3c7' },
+        { label: 'Approved', value: approvedCount, icon: <CheckCircle2 size={20} />, color: '#16a34a', bg: '#dcfce7' },
+        { label: 'Submitted', value: submittedCount, icon: <Send size={20} />, color: '#2563eb', bg: '#dbeafe' },
+        { label: 'Revision', value: revisionCount, icon: <Repeat size={20} />, color: '#8b5cf6', bg: '#ede9fe' },
+        { label: 'Decision', value: decisionCount, icon: <Gavel size={20} />, color: '#0f766e', bg: '#ccfbf1' },
+        { label: 'Rejected', value: rejectedCount, icon: <XCircle size={20} />, color: '#dc2626', bg: '#fee2e2' },
     ];
 
     return (
@@ -130,41 +149,66 @@ const PaperReview: React.FC = () => {
 
                 {/* Stat Widgets */}
                 <div style={{
-                    display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                    gap: '1rem', marginBottom: '2rem'
+                    display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)',
+                    gap: '0.75rem', marginBottom: '2rem'
                 }}>
                     {statWidgets.map((stat, index) => (
-                        <div key={index} className="card stat-widget" style={{ opacity: loading ? 0.7 : 1 }}>
-                            <div className="stat-widget-icon" style={{ background: stat.bg, color: stat.color }}>
+                        <div key={index} className="card" style={{ 
+                            opacity: loading ? 0.7 : 1, padding: '1rem', 
+                            display: 'flex', alignItems: 'center', gap: '0.75rem',
+                            borderRadius: '12px', transition: 'all 0.2s'
+                        }}>
+                            <div style={{ 
+                                background: stat.bg, color: stat.color, 
+                                padding: '8px', borderRadius: '10px', flexShrink: 0,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center'
+                            }}>
                                 {stat.icon}
                             </div>
-                            <div>
-                                <p className="stat-widget-label">{stat.label}</p>
-                                <p className="stat-widget-value">{loading ? '...' : stat.value}</p>
+                            <div style={{ minWidth: 0 }}>
+                                <p style={{ margin: 0, fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.3px', whiteSpace: 'nowrap' }}>{stat.label}</p>
+                                <p style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>{loading ? '...' : stat.value}</p>
                             </div>
                         </div>
                     ))}
                 </div>
 
-                {/* Tab Filters */}
+                {/* Search & Filter Toolbar */}
                 <div style={{
-                    display: 'flex', gap: '0.5rem', marginBottom: '1.5rem',
-                    background: 'var(--surface-color)', padding: '0.75rem 1rem', borderRadius: '14px',
+                    display: 'flex', gap: '1rem', marginBottom: '1.5rem', alignItems: 'center',
+                    background: 'var(--surface-color)', padding: '1rem', borderRadius: '16px',
                     border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)'
                 }}>
-                    {([
-                        { key: 'pending' as FilterTab, label: `Pending Review (${pendingCount})` },
-                        { key: 'all' as FilterTab, label: `All Submissions (${papers.length})` },
-                    ]).map((tab) => (
-                        <button
-                            key={tab.key}
-                            onClick={() => setActiveTab(tab.key)}
-                            className={`filter-chip ${activeTab === tab.key ? 'active' : ''}`}
-                            style={{ height: '40px', padding: '0 1.25rem', borderRadius: '10px' }}
-                        >
-                            {tab.label}
-                        </button>
-                    ))}
+                    <div style={{ position: 'relative', flex: 1 }}>
+                        <Search size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                        <input
+                            type="text" placeholder="Search by title or conference..."
+                            value={search} onChange={(e) => setSearch(e.target.value)}
+                            className="form-input"
+                            style={{ paddingLeft: '44px', height: '44px', border: 'none', background: 'var(--surface-hover)', borderRadius: '10px', fontSize: '0.95rem', width: '100%' }}
+                        />
+                    </div>
+                    <select
+                        value={activeTab}
+                        onChange={(e) => setActiveTab(e.target.value)}
+                        className="form-input"
+                        style={{ 
+                            height: '44px', width: '200px', borderRadius: '10px', 
+                            background: 'var(--surface-hover)', border: 'none',
+                            fontSize: '0.9rem', fontWeight: 600, cursor: 'pointer',
+                            color: 'var(--text-primary)', padding: '0 12px'
+                        }}
+                    >
+                        <option value="all">All Status</option>
+                        <option value="pending">Pending Review</option>
+                        <option value={SubmissionStatus.Draft.toString()}>Draft</option>
+                        <option value={SubmissionStatus.InternalReview.toString()}>In Review</option>
+                        <option value={SubmissionStatus.Approved.toString()}>Approved</option>
+                        <option value={SubmissionStatus.Submitted.toString()}>Submitted</option>
+                        <option value={SubmissionStatus.Revision.toString()}>Revision</option>
+                        <option value={SubmissionStatus.Decision.toString()}>Decision</option>
+                        <option value={SubmissionStatus.Rejected.toString()}>Rejected</option>
+                    </select>
                 </div>
 
                 {/* Content */}
@@ -278,20 +322,33 @@ const PaperReview: React.FC = () => {
                                                     </div>
                                                 </div>
 
-                                                {/* Paper URL */}
-                                                {paper.paperUrl && (
-                                                    <div>
-                                                        <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '6px', letterSpacing: '0.5px' }}>Paper URL</div>
-                                                        <a href={paper.paperUrl} target="_blank" rel="noreferrer"
-                                                            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'var(--surface-color)', padding: '10px 16px', borderRadius: '10px', border: '1px solid var(--border-color)', color: 'var(--accent-color)', textDecoration: 'none', fontSize: '0.9rem', fontWeight: 500, transition: 'all 0.2s' }}
-                                                            onMouseOver={e => e.currentTarget.style.borderColor = 'var(--accent-color)'}
-                                                            onMouseOut={e => e.currentTarget.style.borderColor = 'var(--border-color)'}
-                                                        >
-                                                            <LinkIcon size={16} />
-                                                            <span style={{ maxWidth: '400px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{paper.paperUrl}</span>
-                                                        </a>
+                                                {/* Files & URLs */}
+                                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1rem' }}>
+                                                    {/* Document */}
+                                                    <div style={{ background: 'var(--surface-color)', padding: '1rem', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+                                                        <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '8px', letterSpacing: '0.5px' }}>Evidence / Document</div>
+                                                        {paper.document ? (
+                                                            <a href={paper.document} download={paper.documentName || `Paper_${paper.title.substring(0, 20)}.docx`}
+                                                                style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--accent-color)', textDecoration: 'none', fontWeight: 500, fontSize: '0.9rem' }}>
+                                                                <div style={{ background: 'var(--accent-bg)', padding: '8px', borderRadius: '8px' }}><FileText size={18} /></div>
+                                                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{paper.documentName || 'Download Document'}</span>
+                                                                <Download size={16} style={{ flexShrink: 0, opacity: 0.6 }} />
+                                                            </a>
+                                                        ) : <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>No document uploaded</span>}
                                                     </div>
-                                                )}
+
+                                                    {/* Paper URL (only if exists) */}
+                                                    {paper.paperUrl && (
+                                                        <div style={{ background: 'var(--surface-color)', padding: '1rem', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+                                                            <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '8px', letterSpacing: '0.5px' }}>Paper URL (Venue)</div>
+                                                            <a href={paper.paperUrl} target="_blank" rel="noreferrer"
+                                                                style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--accent-color)', textDecoration: 'none', fontWeight: 500, fontSize: '0.9rem' }}>
+                                                                <div style={{ background: '#dbeafe', padding: '8px', borderRadius: '8px', color: '#2563eb' }}><LinkIcon size={18} /></div>
+                                                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{paper.paperUrl}</span>
+                                                            </a>
+                                                        </div>
+                                                    )}
+                                                </div>
 
                                                 {/* Authors */}
                                                 {paper.members && paper.members.length > 0 && (

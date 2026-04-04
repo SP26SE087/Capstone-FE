@@ -5,6 +5,8 @@ export enum SubmissionStatus {
     InternalReview = 2,
     Approved = 3,
     Submitted = 4,
+    Revision = 5,
+    Decision = 6,
     Rejected = 7,
 }
 
@@ -13,6 +15,8 @@ export const SubmissionStatusLabel: Record<SubmissionStatus, string> = {
     [SubmissionStatus.InternalReview]: 'Internal Review',
     [SubmissionStatus.Approved]: 'Approved',
     [SubmissionStatus.Submitted]: 'Submitted',
+    [SubmissionStatus.Revision]: 'Revision',
+    [SubmissionStatus.Decision]: 'Decision',
     [SubmissionStatus.Rejected]: 'Rejected',
 };
 
@@ -47,6 +51,7 @@ export interface PaperSubmissionResponse {
     conferenceName: string;
     paperUrl: string;
     document?: string;
+    documentName?: string;
     submissionDeadline: string | null;
     createdAt: string;
     updatedAt: string;
@@ -66,6 +71,7 @@ export interface CreatePaperRequest {
     abstract: string;
     paperUrl: string;
     document?: string;
+    documentName?: string;
     conferenceName: string;
     submissionDeadline: string | null;
     members: PaperMemberRequest[];
@@ -77,6 +83,7 @@ export interface UpdatePaperRequest {
     abstract: string;
     paperUrl: string;
     document?: string;
+    documentName?: string;
     conferenceName: string;
     submissionDeadline: string | null;
     members: PaperMemberRequest[];
