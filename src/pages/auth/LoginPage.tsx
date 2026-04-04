@@ -3,14 +3,23 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import { useGoogleLogin } from '@react-oauth/google';
 import { authService } from '@/services/authService';
 import { FlaskConical, AlertTriangle } from 'lucide-react';
+import { SystemRoleEnum } from '@/types/enums';
 
 const LoginPage: React.FC = () => {
     const navigate = useNavigate();
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
 
+    const getPostLoginPath = (role: string | number | undefined) => {
+        const roleNumber = Number(role);
+        const roleString = String(role ?? '');
+        if (roleNumber === SystemRoleEnum.Admin || roleString === 'Admin') return '/user-management';
+        return '/dashboard';
+    };
+
     if (authService.isAuthenticated()) {
-        return <Navigate to="/dashboard" replace />;
+        const stored = authService.getAuthUser();
+        return <Navigate to={getPostLoginPath(stored?.role)} replace />;
     }
 
     // Combined Login & Calendar consent flow
@@ -22,14 +31,14 @@ const LoginPage: React.FC = () => {
             setError(null);
             try {
                 // Call the new unified endpoint: /api/auth/google-code
-                await authService.loginWithCode(
+                const authData = await authService.loginWithCode(
                     response.code,
                     "postmessage"
                 );
                 
                 // If the user context requires it, set the calendar authorized flag
                 localStorage.setItem('calendar_authorized', 'true');
-                navigate('/dashboard', { replace: true });
+                navigate(getPostLoginPath(authData?.role), { replace: true });
             } catch (err: any) {
                 console.error('Lỗi đăng nhập:', err);
                 const serverMessage = err?.response?.data?.message || err?.message || 'Đăng nhập thất bại. Vui lòng thử lại.';

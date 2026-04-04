@@ -6,10 +6,10 @@ export enum ResourceType {
 }
 
 export enum ResourceStatus {
-  Available = 0,
-  Maintenance = 1,
-  Booked = 2,
-  Damaged = 3
+  Available = 1,
+  InUse = 2,
+  Maintenance = 3,
+  Retired = 4
 }
 
 export interface Resource {
@@ -19,6 +19,9 @@ export interface Resource {
   ids: string[];
   name: string;
   description?: string;
+  resourceTypeId?: string;
+  resourceTypeName?: string;
+  modelSeries?: string;
   type: ResourceType;
   status?: ResourceStatus;
   location?: string;
@@ -44,6 +47,7 @@ export interface Booking {
   resourceIds?: string[];
   userId: string;
   userName: string;
+  userEmail?: string;
   title: string;
   purpose: string;
   startTime: string;
@@ -53,6 +57,18 @@ export interface Booking {
   cancelReason?: string;
   note?: string;
   createdAt: string;
+  resource?: {
+    id: string;
+    name?: string;
+    resourceTypeId?: string;
+    resourceTypeName?: string;
+    status?: number;
+    location?: string | null;
+    modelSeries?: string;
+    isAvailable?: boolean;
+    isDamaged?: boolean;
+    isInUse?: boolean;
+  };
   resources?: { id: string; name: string; type: ResourceType }[];
 }
 
@@ -84,7 +100,7 @@ export interface UpdateBookingRequest {
 export interface CreateResourceRequest {
   name: string;
   description?: string;
-  type: ResourceType;
+  resourceTypeId: string;
   location?: string;
   managedBy: string;
   modelSeriesList: string[];
@@ -95,6 +111,7 @@ export interface UpdateResourceRequest {
   description?: string;
   location?: string;
   modelSeries?: string;
+  resourceTypeId?: string;
   isDamaged?: boolean;
   isInUse?: boolean;
 }
@@ -112,8 +129,8 @@ export interface EquipmentLog {
 }
 
 export enum EquipmentLogAction {
-  CheckOut = 1,
-  CheckIn = 2
+  CheckIn = 1,
+  CheckOut = 2
 }
 
 export interface AddEquipmentLogRequest {

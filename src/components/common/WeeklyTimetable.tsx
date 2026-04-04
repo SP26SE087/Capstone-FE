@@ -25,7 +25,7 @@ interface WeeklyTimetableProps {
     onEventClick?: (event: TimetableEvent) => void;
 }
 
-const HOURS = Array.from({ length: 15 }, (_, i) => i + 7); // 7:00 - 21:00
+const HOURS = Array.from({ length: 24 }, (_, i) => i); // 0:00 - 23:00
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const HOUR_HEIGHT = 72; // px per hour
 

@@ -823,11 +823,6 @@
                     "dayOfWeek": {
                         "$ref": "#/components/schemas/DayOfWeek"
                     },
-                    "projectId": {
-                        "type": "string",
-                        "format": "uuid",
-                        "nullable": true
-                    },
                     "presenters": {
                         "type": "array",
                         "items": {
@@ -1384,6 +1379,9 @@
                             "type": "string"
                         },
                         "nullable": true
+                    },
+                    "status": {
+                        "$ref": "#/components/schemas/MeetingStatus"
                     }
                 },
                 "additionalProperties": false
@@ -1400,6 +1398,10 @@
                         "nullable": true
                     },
                     "slideUrl": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "location": {
                         "type": "string",
                         "nullable": true
                     }

@@ -356,7 +356,6 @@ const UserManagement: React.FC = () => {
 
         try {
             const updateData: UpdateUserRequest = {
-                fullName: editFullName,
                 role: editRole,
                 isActive: editIsActive,
             };
@@ -604,7 +603,7 @@ const UserManagement: React.FC = () => {
                                                                                     />
                                                                                 </div>
                                                                                 <div style={{ flex: 1 }}>
-                                                                                    <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Edit User</h3>
+                                                                                    <h3 style={{ margin: 0, fontSize: '1.1rem' }}>{editFullName}</h3>
                                                                                     <p style={{ margin: '4px 0 0', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{member.email}</p>
                                                                                 </div>
                                                                             </div>
@@ -620,9 +619,10 @@ const UserManagement: React.FC = () => {
                                                                                     <input
                                                                                         type="text"
                                                                                         value={editFullName}
-                                                                                        onChange={(e) => setEditFullName(e.target.value)}
-                                                                                        disabled={editLoading}
+                                                                                        readOnly
+                                                                                        disabled={true}
                                                                                         className="form-input"
+                                                                                        style={{ backgroundColor: '#f8fafc', cursor: 'not-allowed' }}
                                                                                         required
                                                                                     />
                                                                                 </div>

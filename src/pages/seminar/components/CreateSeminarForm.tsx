@@ -3,6 +3,8 @@ import { CreateRecurringSeminarRequest, DateOfWeek } from '@/types/seminar';
 import { PresenterInfo } from '@/types/meeting';
 import seminarService from '@/services/seminarService';
 import { userService } from '@/services';
+import Toast, { ToastType } from '@/components/common/Toast';
+import DateTimePicker from '@/components/common/DateTimePicker';
 import {
     Save,
     Loader2,
@@ -79,6 +81,7 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
 }) => {
     const [saving, setSaving] = useState(false);
     const [dateError, setDateError] = useState('');
+    const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
 
     // Core
     const [title, setTitle] = useState('');
@@ -211,7 +214,7 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
         } catch (err: any) {
             console.error('Create recurring seminar failed:', err);
             const msg = err?.response?.data?.message || err?.response?.data?.title || 'Failed to create recurring seminar.';
-            alert(msg);
+            setToast({ message: msg, type: 'error' });
         } finally {
             setSaving(false);
         }
@@ -219,6 +222,7 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+            {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
             {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', paddingBottom: '12px', borderBottom: '1px solid var(--border-light)' }}>
                 <div style={{
@@ -299,31 +303,25 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
                 <div style={sectionStyle}>
                     <div style={labelStyle}><Repeat size={12} /> Recurring Schedule</div>
 
+                    <div style={{ marginBottom: '18px' }}>
+                        <label style={{ ...labelStyle, fontSize: '0.68rem' }}>First Session *</label>
+                        <DateTimePicker
+                            value={firstSessionStartTime}
+                            onChange={v => handleDateChange(v)}
+                            min={getMinDatetime()}
+                        />
+                        {dateError && (
+                            <div style={{
+                                display: 'flex', alignItems: 'center', gap: '4px',
+                                color: '#ef4444', fontSize: '0.72rem', fontWeight: 600,
+                                marginTop: '6px'
+                            }}>
+                                <AlertCircle size={12} /> {dateError}
+                            </div>
+                        )}
+                    </div>
+
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '18px' }}>
-                        <div>
-                            <label style={{ ...labelStyle, fontSize: '0.68rem' }}><Calendar size={12} /> First Session *</label>
-                            <input
-                                type="datetime-local"
-                                style={{
-                                    ...inputStyle,
-                                    borderColor: dateError ? '#ef4444' : undefined
-                                }}
-                                value={firstSessionStartTime}
-                                onChange={e => handleDateChange(e.target.value)}
-                                min={getMinDatetime()}
-                                onFocus={e => { e.currentTarget.style.borderColor = dateError ? '#ef4444' : 'var(--accent-color)'; }}
-                                onBlur={e => { e.currentTarget.style.borderColor = dateError ? '#ef4444' : 'var(--border-color)'; }}
-                            />
-                            {dateError && (
-                                <div style={{
-                                    display: 'flex', alignItems: 'center', gap: '4px',
-                                    color: '#ef4444', fontSize: '0.72rem', fontWeight: 600,
-                                    marginTop: '4px'
-                                }}>
-                                    <AlertCircle size={12} /> {dateError}
-                                </div>
-                            )}
-                        </div>
                         <div>
                             <label style={{ ...labelStyle, fontSize: '0.68rem' }}><Calendar size={12} /> Day of Week</label>
                             <select style={inputStyle} value={dayOfWeek} onChange={e => setDayOfWeek(Number(e.target.value))}>

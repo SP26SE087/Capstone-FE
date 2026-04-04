@@ -14,7 +14,6 @@ interface SeminarListProps {
     selectedId: string | null;
     onSelect: (meeting: SeminarMeetingResponse) => void;
     usersMap: Record<string, string>;
-    isSplit?: boolean;
 }
 
 const formatDateOnly = (dateStr: string) => {
@@ -47,7 +46,6 @@ const SeminarList: React.FC<SeminarListProps> = ({
     selectedId,
     onSelect,
     usersMap,
-    isSplit = false
 }) => {
     const [expandedSeries, setExpandedSeries] = React.useState<Record<string, boolean>>({});
 
@@ -94,7 +92,7 @@ const SeminarList: React.FC<SeminarListProps> = ({
             ) : (
                 seriesIds.map(sid => {
                     const group = grouped[sid];
-                    const isExpanded = expandedSeries[sid] ?? false; // Default collapsed
+                    const isExpanded = expandedSeries[sid] ?? false;
                     const hasSelected = group.meetings.some(m => m.seminarMeetingId === selectedId);
 
                     return (

@@ -43,6 +43,8 @@ const Sidebar: React.FC = () => {
         { icon: <FileSearch size={20} />, label: 'Paper Review', path: '/paper-review' },
     ];
 
+    const mainItems = isLabDirector ? [...workspaceItems, ...labDirectorItems] : workspaceItems;
+
     return (
         <aside className="sidebar">
             <div className="sidebar-header">
@@ -58,10 +60,10 @@ const Sidebar: React.FC = () => {
             </div>
 
             <nav className="sidebar-nav">
-                {isMemberOrSenior && (
+                {(isMemberOrSenior || isLabDirector) && (
                     <>
                         <div className="sidebar-section-label">WORKSPACE</div>
-                        {workspaceItems.map((item) => (
+                        {mainItems.map((item) => (
                             <NavLink
                                 key={item.path}
                                 to={item.path}
@@ -94,23 +96,6 @@ const Sidebar: React.FC = () => {
                     </>
                 )}
 
-                {isLabDirector && (
-                    <>
-                        <div className="sidebar-section-label">WORKSPACE</div>
-                        {labDirectorItems.map((item) => (
-                            <NavLink
-                                key={item.path}
-                                to={item.path}
-                                className={({ isActive }) =>
-                                    `sidebar-link ${isActive ? 'active' : ''}`
-                                }
-                            >
-                                <span className="sidebar-link-icon">{item.icon}</span>
-                                <span className="sidebar-link-label">{item.label}</span>
-                            </NavLink>
-                        ))}
-                    </>
-                )}
             </nav>
         </aside>
     );

@@ -38,10 +38,10 @@ export interface ProfileResponse {
 
 export interface UpdateProfileRequest {
     fullName?: string;
-    phoneNumber?: string;
-    orcid?: string;
-    googleScholarUrl?: string;
-    githubUrl?: string;
+    phoneNumber?: string | null;
+    orcid?: string | null;
+    googleScholarUrl?: string | null;
+    githubUrl?: string | null;
 }
 
 export const userService = {

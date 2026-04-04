@@ -16,7 +16,7 @@ import {
     AlertTriangle,
     CheckCircle2,
     Users,
-    UserCheck
+    UserCheck,
 } from 'lucide-react';
 import meetingService from '@/services/meetingService';
 import { MeetingResponse, MeetingStatus } from '@/types/meeting';
@@ -25,6 +25,7 @@ import Toast, { ToastType } from '@/components/common/Toast';
 
 import ScheduleList from './components/ScheduleList';
 import SchedulePanel from './components/SchedulePanel';
+import TranscriptionPanel from './components/TranscriptionPanel';
 import WeeklyTimetable, { TimetableEvent } from '@/components/common/WeeklyTimetable';
 
 type ListTabType = 'my_meetings' | 'my_invited_meetings';
@@ -53,6 +54,7 @@ const Schedules: React.FC = () => {
 
     // Panel system
     const [activePanel, setActivePanel] = useState<ScheduleTab | null>(null);
+    const [showTranscription, setShowTranscription] = useState(false);
 
     // Fetch metadata
     useEffect(() => {
@@ -355,26 +357,21 @@ const Schedules: React.FC = () => {
                             ))}
                         </div>
                     </div>
-                    <button
-                        onClick={handleAddCreateTab}
-                        className="btn btn-primary"
-                        style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            fontWeight: 700,
-                            padding: '10px 20px',
-                            borderRadius: '12px',
-                            fontSize: '0.85rem',
-                            boxShadow: '0 4px 12px rgba(232, 114, 12, 0.2)',
-                            whiteSpace: 'nowrap' as const,
-                            marginLeft: '1rem',
-                            height: '42px',
-                            marginBottom: '0px'
-                        }}
-                    >
-                        <Plus size={18} /> New Schedule
-                    </button>
+                    <div style={{ display: 'flex', gap: '8px', marginLeft: '1rem' }}>
+                        <button
+                            onClick={handleAddCreateTab}
+                            className="btn btn-primary"
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: '8px',
+                                fontWeight: 700, padding: '10px 20px', borderRadius: '12px',
+                                fontSize: '0.85rem', height: '42px', marginBottom: '0px',
+                                boxShadow: '0 4px 12px rgba(232, 114, 12, 0.2)',
+                                whiteSpace: 'nowrap' as const,
+                            }}
+                        >
+                            <Plus size={18} /> New Schedule
+                        </button>
+                    </div>
                 </div>
 
                 {/* Main Content */}
@@ -389,77 +386,82 @@ const Schedules: React.FC = () => {
                         />
                     </div>
                 ) : (
-                    <div style={{ display: 'flex', gap: '2rem', height: 'calc(100vh - 340px)', minHeight: '650px' }}>
-                        {/* Left: List */}
-                        <div style={{
-                            flex: activePanel ? 4 : 10,
-                            display: 'flex',
-                            flexDirection: 'column',
-                            transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
-                            width: activePanel ? '40%' : '100%',
-                            overflow: 'hidden'
-                        }}>
-                            <div style={{ flex: 1, overflowY: 'auto', paddingRight: '0.5rem' }} className="custom-scrollbar">
-                                {loading ? (
-                                    <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
-                                        <Loader2 className="animate-spin" size={32} style={{ color: 'var(--accent-color)' }} />
-                                    </div>
-                                ) : displayMeetings.length > 0 ? (
-                                    <ScheduleList
-                                        meetings={displayMeetings}
-                                        selectedId={activePanel?.type === 'view' ? activePanel.meetingId! : null}
-                                        onSelect={handleOpenViewTab}
-                                        projectsMap={projectsMap}
-                                        usersMap={usersMap}
-                                        isSplit={!!activePanel}
-                                    />
-                                ) : (
-                                    <div style={{ textAlign: 'center', padding: '4rem 2rem', color: '#94a3b8' }}>
-                                        <Target size={48} style={{ marginBottom: '1.5rem', opacity: 0.3 }} />
-                                        <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1e293b' }}>No Schedules</h3>
-                                        <p style={{ fontSize: '0.85rem' }}>Create your first schedule to get started with team meetings.</p>
-                                    </div>
-                                )}
+                    <div style={{ display: 'flex', gap: '1.5rem', height: 'calc(100vh - 340px)', minHeight: '650px' }}>
+                        {/* List — hidden when transcription is open, shrinks when detail panel open */}
+                        {!showTranscription && (
+                            <div style={{
+                                flex: activePanel ? 3 : 10,
+                                minWidth: 0,
+                                display: 'flex', flexDirection: 'column',
+                                transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+                                overflow: 'hidden'
+                            }}>
+                                <div style={{ flex: 1, overflowY: 'auto', paddingRight: '0.5rem' }} className="custom-scrollbar">
+                                    {loading ? (
+                                        <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
+                                            <Loader2 className="animate-spin" size={32} style={{ color: 'var(--accent-color)' }} />
+                                        </div>
+                                    ) : displayMeetings.length > 0 ? (
+                                        <ScheduleList
+                                            meetings={displayMeetings}
+                                            selectedId={activePanel?.type === 'view' ? activePanel.meetingId! : null}
+                                            onSelect={handleOpenViewTab}
+                                            projectsMap={projectsMap}
+                                            usersMap={usersMap}
+                                            isSplit={!!activePanel}
+                                        />
+                                    ) : (
+                                        <div style={{ textAlign: 'center', padding: '4rem 2rem', color: '#94a3b8' }}>
+                                            <Target size={48} style={{ marginBottom: '1.5rem', opacity: 0.3 }} />
+                                            <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1e293b' }}>No Schedules</h3>
+                                            <p style={{ fontSize: '0.85rem' }}>Create your first schedule to get started with team meetings.</p>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
-                        </div>
+                        )}
 
-                        {/* Right: Panel */}
+                        {/* Meeting detail panel */}
                         {activePanel && (
                             <div style={{
-                                flex: 6,
-                                opacity: 1,
-                                pointerEvents: 'auto',
-                                transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
-                                width: '60%',
-                                overflow: 'hidden',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                background: '#fff',
-                                borderRadius: '16px',
-                                border: '1px solid var(--border-color)',
-                                padding: '1.5rem'
+                                flex: showTranscription ? 5 : 4, minWidth: 0, overflow: 'hidden',
+                                display: 'flex', flexDirection: 'column',
+                                background: '#fff', borderRadius: '16px',
+                                border: '1px solid var(--border-color)', padding: '1.5rem',
+                                transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
                             }}>
                                 <SchedulePanel
                                     meetingId={activePanel.type === 'view' ? activePanel.meetingId! : null}
                                     isCreating={activePanel.type === 'create'}
-                                    onClose={handleClosePanel}
+                                    onClose={() => { handleClosePanel(); setShowTranscription(false); }}
                                     onSaved={(shouldClose = false, message?: string, newEventId?: string) => {
                                         fetchMeetings();
                                         if (message) showToast(message, 'success');
                                         if (activePanel.type === 'create' && newEventId) {
-                                            setActivePanel({
-                                                id: `view-${newEventId}`,
-                                                type: 'view',
-                                                meetingId: newEventId,
-                                                title: 'Schedule Detail'
-                                            });
+                                            setActivePanel({ id: `view-${newEventId}`, type: 'view', meetingId: newEventId, title: 'Schedule Detail' });
                                         } else if (shouldClose) {
                                             handleClosePanel();
                                         }
                                     }}
                                     onTitleChange={handleTitleChange}
                                     projectsMap={projectsMap}
+                                    onToggleAINote={() => setShowTranscription(v => !v)}
+                                    showAINote={showTranscription}
                                 />
+                            </div>
+                        )}
+
+                        {/* AI Notes / Transcription panel */}
+                        {showTranscription && (
+                            <div style={{
+                                flex: 4, minWidth: 0, overflow: 'hidden',
+                                display: 'flex', flexDirection: 'column',
+                                background: '#fff', borderRadius: '16px',
+                                border: '1.5px solid #e0e7ff', padding: '1.5rem',
+                                transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+                                boxShadow: '0 4px 20px rgba(99,102,241,0.08)'
+                            }}>
+                                <TranscriptionPanel onClose={() => setShowTranscription(false)} />
                             </div>
                         )}
                     </div>

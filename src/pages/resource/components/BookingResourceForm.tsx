@@ -9,14 +9,14 @@ import {
     Clock,
     FileText,
     Search,
-    CheckSquare,
-    Square,
     Cpu,
     HardDrive,
     Box,
     Monitor,
     Package,
-    AlertCircle
+    AlertCircle,
+    Minus,
+    Plus
 } from 'lucide-react';
 
 interface BookingResourceFormProps {
@@ -108,10 +108,10 @@ const BookingResourceForm: React.FC<BookingResourceFormProps> = ({
     const [endTime, setEndTime] = useState(formatDatetimeLocal(defaultEnd));
 
     const [resources, setResources] = useState<Resource[]>([]);
-    // selectedResourceIds stores one entry per resource GROUP (using the first id for lookup)
-    const [selectedResourceIds, setSelectedResourceIds] = useState<string[]>(
-        preSelectedResource ? [preSelectedResource.id] : []
+    const [selectedResourceId, setSelectedResourceId] = useState<string>(
+        preSelectedResource ? preSelectedResource.id : ''
     );
+    const [quantity, setQuantity] = useState(1);
     const [resourceSearch, setResourceSearch] = useState('');
     const [loadingResources, setLoadingResources] = useState(false);
     const [errors, setErrors] = useState<Record<string, string>>({});
@@ -143,10 +143,9 @@ const BookingResourceForm: React.FC<BookingResourceFormProps> = ({
         e.currentTarget.style.boxShadow = 'none';
     };
 
-    const toggleResource = (id: string) => {
-        setSelectedResourceIds(prev =>
-            prev.includes(id) ? prev.filter(rid => rid !== id) : [...prev, id]
-        );
+    const selectResource = (id: string) => {
+        setSelectedResourceId(id);
+        setQuantity(1);
         setErrors(prev => ({ ...prev, resources: '' }));
     };
 
@@ -154,6 +153,8 @@ const BookingResourceForm: React.FC<BookingResourceFormProps> = ({
         const q = resourceSearch.toLowerCase();
         return !q || r.name.toLowerCase().includes(q) || getResourceTypeLabel(r.type).toLowerCase().includes(q);
     });
+
+    const selectedResource = resources.find(r => r.id === selectedResourceId);
 
     const validate = (): boolean => {
         const newErrors: Record<string, string> = {};
@@ -164,7 +165,13 @@ const BookingResourceForm: React.FC<BookingResourceFormProps> = ({
         if (!purpose.trim()) newErrors.purpose = 'Purpose is required.';
         if (purpose.trim().length > 2000) newErrors.purpose = 'Purpose must be under 2000 characters.';
 
-        if (selectedResourceIds.length === 0) newErrors.resources = 'Select at least one resource.';
+        if (!selectedResourceId) {
+            newErrors.resources = 'Select a resource.';
+        } else if (selectedResource && quantity > selectedResource.availableQuantity) {
+            newErrors.resources = `Only ${selectedResource.availableQuantity} unit(s) available.`;
+        } else if (quantity < 1) {
+            newErrors.resources = 'Quantity must be at least 1.';
+        }
 
         const start = new Date(startTime);
         const end = new Date(endTime);
@@ -180,15 +187,6 @@ const BookingResourceForm: React.FC<BookingResourceFormProps> = ({
             newErrors.endTime = 'End time must be after start time.';
         }
 
-        // Check availability
-        const unavailable = selectedResourceIds.filter(id => {
-            const r = resources.find(res => res.id === id);
-            return r && r.availableQuantity <= 0;
-        });
-        if (unavailable.length > 0) {
-            newErrors.resources = 'Some selected resources are not available.';
-        }
-
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
@@ -198,14 +196,11 @@ const BookingResourceForm: React.FC<BookingResourceFormProps> = ({
 
         setSaving(true);
         try {
-            // Expand each selected resource group into all its unit IDs
-            const allResourceIds = selectedResourceIds.flatMap(id => {
-                const r = resources.find(res => res.id === id);
-                return r?.ids?.length ? r.ids : [id];
-            });
+            // Pick `quantity` unit IDs from the selected resource group
+            const pickedIds = selectedResource?.ids?.slice(0, quantity) || [selectedResourceId];
 
             const request: CreateBookingRequest = {
-                resourceIds: allResourceIds,
+                resourceIds: pickedIds,
                 title: title.trim(),
                 purpose: purpose.trim(),
                 startTime: new Date(startTime).toISOString(),
@@ -343,12 +338,7 @@ const BookingResourceForm: React.FC<BookingResourceFormProps> = ({
                 {/* Resource Selection */}
                 <div style={sectionStyle}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                        <div style={labelStyle}><Package size={12} /> Select Resources *</div>
-                        {selectedResourceIds.length > 0 && (
-                            <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--accent-color)' }}>
-                                {selectedResourceIds.length} selected
-                            </span>
-                        )}
+                        <div style={labelStyle}><Package size={12} /> Select Resource *</div>
                     </div>
 
                     {/* Search */}
@@ -388,13 +378,13 @@ const BookingResourceForm: React.FC<BookingResourceFormProps> = ({
                                     No resources found.
                                 </div>
                             ) : filteredResources.map(resource => {
-                                const isSelected = selectedResourceIds.includes(resource.id);
+                                const isSelected = selectedResourceId === resource.id;
                                 const isAvailable = resource.availableQuantity > 0;
 
                                 return (
                                     <div
                                         key={resource.id}
-                                        onClick={() => isAvailable && toggleResource(resource.id)}
+                                        onClick={() => isAvailable && selectResource(resource.id)}
                                         style={{
                                             display: 'flex',
                                             alignItems: 'center',
@@ -402,16 +392,25 @@ const BookingResourceForm: React.FC<BookingResourceFormProps> = ({
                                             padding: '10px 12px',
                                             borderBottom: '1px solid var(--border-light)',
                                             cursor: isAvailable ? 'pointer' : 'not-allowed',
-                                            background: isSelected ? 'rgba(232,114,12,0.04)' : 'transparent',
+                                            background: isSelected ? 'rgba(232,114,12,0.06)' : 'transparent',
                                             opacity: isAvailable ? 1 : 0.5,
                                             transition: 'all 0.15s'
                                         }}
                                     >
-                                        {isSelected ? (
-                                            <CheckSquare size={16} style={{ color: 'var(--accent-color)', flexShrink: 0 }} />
-                                        ) : (
-                                            <Square size={16} style={{ color: '#cbd5e1', flexShrink: 0 }} />
-                                        )}
+                                        {/* Radio indicator */}
+                                        <div style={{
+                                            width: '16px',
+                                            height: '16px',
+                                            borderRadius: '50%',
+                                            border: `2px solid ${isSelected ? 'var(--accent-color)' : '#cbd5e1'}`,
+                                            background: isSelected ? 'var(--accent-color)' : 'transparent',
+                                            flexShrink: 0,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center'
+                                        }}>
+                                            {isSelected && <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#fff' }} />}
+                                        </div>
 
                                         <div style={{
                                             width: '28px',
@@ -450,6 +449,47 @@ const BookingResourceForm: React.FC<BookingResourceFormProps> = ({
                                     </div>
                                 );
                             })}
+                        </div>
+                    )}
+
+                    {/* Quantity selector - shown only when a resource is selected */}
+                    {selectedResource && (
+                        <div style={{ marginTop: '14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                                Quantity
+                            </span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => setQuantity(q => Math.max(1, q - 1))}
+                                    style={{
+                                        width: '28px', height: '28px', borderRadius: '8px',
+                                        border: '1.5px solid var(--border-color)',
+                                        background: '#fff', cursor: 'pointer',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                    }}
+                                >
+                                    <Minus size={12} />
+                                </button>
+                                <span style={{ fontSize: '0.9rem', fontWeight: 800, minWidth: '24px', textAlign: 'center', color: 'var(--text-primary)' }}>
+                                    {quantity}
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={() => setQuantity(q => Math.min(selectedResource.availableQuantity, q + 1))}
+                                    style={{
+                                        width: '28px', height: '28px', borderRadius: '8px',
+                                        border: '1.5px solid var(--border-color)',
+                                        background: '#fff', cursor: 'pointer',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                    }}
+                                >
+                                    <Plus size={12} />
+                                </button>
+                                <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 600 }}>
+                                    / {selectedResource.availableQuantity} available
+                                </span>
+                            </div>
                         </div>
                     )}
                 </div>

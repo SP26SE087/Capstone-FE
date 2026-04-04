@@ -7,7 +7,6 @@ import {
     Loader2,
     Calendar,
     Plus,
-    ChevronRight,
     Clock,
     Filter,
     Target,
@@ -455,6 +454,7 @@ const Seminars: React.FC = () => {
                             {activeTab === 'swap_requests' ? (
                                 <SwapRequests
                                     usersMap={usersMap}
+                                    emailsMap={emailsMap}
                                     onActionComplete={() => {
                                         showToast('Swap request updated.', 'success');
                                         fetchSeminars();
@@ -480,7 +480,6 @@ const Seminars: React.FC = () => {
                                     selectedId={activePanel?.meetingId || null}
                                     onSelect={handleOpenViewTab}
                                     usersMap={usersMap}
-                                    isSplit={!!activePanel}
                                 />
                             ) : (
                                 <div style={{ textAlign: 'center', padding: '4rem 2rem', color: '#94a3b8' }}>

@@ -25,7 +25,9 @@ import {
     ChevronDown,
     ChevronUp,
     AlertCircle,
-    Lock
+    Lock,
+    X,
+    Mic
 } from 'lucide-react';
 
 interface SchedulePanelProps {
@@ -35,6 +37,8 @@ interface SchedulePanelProps {
     onSaved: (shouldClose?: boolean, message?: string, newEventId?: string) => void;
     onTitleChange?: (title: string) => void;
     projectsMap: Record<string, string>;
+    onToggleAINote?: () => void;
+    showAINote?: boolean;
 }
 
 const getStatusInfo = (status: MeetingStatus) => {
@@ -110,7 +114,9 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
     onClose,
     onSaved,
     onTitleChange,
-    projectsMap
+    projectsMap,
+    onToggleAINote,
+    showAINote
 }) => {
     const { user } = useAuth();
     const [meeting, setMeeting] = useState<MeetingResponse | null>(null);
@@ -301,7 +307,24 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                         )}
                     </div>
                 </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    {!isCreating && onToggleAINote && (
+                        <button
+                            onClick={onToggleAINote}
+                            title="AI Notes"
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: '5px',
+                                padding: '6px 12px', borderRadius: '8px', cursor: 'pointer',
+                                fontSize: '0.75rem', fontWeight: 700,
+                                border: showAINote ? '1.5px solid #6366f1' : '1px solid #e2e8f0',
+                                background: showAINote ? '#f5f3ff' : '#fff',
+                                color: showAINote ? '#6366f1' : '#64748b',
+                                transition: 'all 0.2s'
+                            }}
+                        >
+                            <Mic size={13} /> AI Notes
+                        </button>
+                    )}
                     {!isCreating && meetingId && isOwner && (
                         <button
                             onClick={handleDelete}
@@ -325,6 +348,21 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                             Delete
                         </button>
                     )}
+                    <button
+                        onClick={onClose}
+                        title="Close"
+                        style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            width: '32px', height: '32px', borderRadius: '8px',
+                            border: '1px solid #e2e8f0', background: '#fff',
+                            color: '#94a3b8', cursor: 'pointer', flexShrink: 0,
+                            transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#f1f5f9'; (e.currentTarget as HTMLButtonElement).style.color = '#475569'; }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = '#fff'; (e.currentTarget as HTMLButtonElement).style.color = '#94a3b8'; }}
+                    >
+                        <X size={15} />
+                    </button>
                 </div>
             </div>
 
@@ -688,22 +726,6 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                 gap: '10px',
                 marginTop: 'auto'
             }}>
-                <button
-                    onClick={onClose}
-                    style={{
-                        padding: '8px 20px',
-                        borderRadius: '10px',
-                        border: '1px solid var(--border-color)',
-                        background: '#fff',
-                        color: 'var(--text-secondary)',
-                        cursor: 'pointer',
-                        fontSize: '0.8rem',
-                        fontWeight: 700,
-                        transition: 'all 0.2s'
-                    }}
-                >
-                    Close
-                </button>
                 {canEdit && (
                     <button
                         onClick={handleSave}

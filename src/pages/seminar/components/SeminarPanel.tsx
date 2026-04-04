@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { SeminarMeetingResponse, UpdateSeminarMeetingRequest } from '@/types/seminar';
+import { SeminarMeetingResponse, UpdateSeminarMeetingRequest, CreateSeminarSwapRequest } from '@/types/seminar';
 import seminarService from '@/services/seminarService';
 import { useAuth } from '@/hooks/useAuth';
+import Toast, { ToastType } from '@/components/common/Toast';
+import DateTimePicker from '@/components/common/DateTimePicker';
 import {
     Save,
     Loader2,
@@ -12,7 +14,8 @@ import {
     Calendar,
     MapPin,
     FileText,
-    Lock
+    Lock,
+    ArrowLeftRight
 } from 'lucide-react';
 
 interface SeminarPanelProps {
@@ -92,14 +95,32 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
     const [meeting, setMeeting] = useState<SeminarMeetingResponse | null>(null);
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
 
     // Editable fields
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
     const [slideUrl, setSlideUrl] = useState('');
 
+    // Swap request
+    const [showSwapForm, setShowSwapForm] = useState(false);
+    const [allMeetings, setAllMeetings] = useState<SeminarMeetingResponse[]>([]);
+    const [swapTargetId, setSwapTargetId] = useState('');
+    const [swapReason, setSwapReason] = useState('');
+    const [swapExpiry, setSwapExpiry] = useState('');
+    const [submittingSwap, setSubmittingSwap] = useState(false);
+
     useEffect(() => {
         if (meetingId) {
+            setMeeting(null);
+            setTitle('');
+            setDescription('');
+            setSlideUrl('');
+            setShowSwapForm(false);
+            setAllMeetings([]);
+            setSwapTargetId('');
+            setSwapReason('');
+            setSwapExpiry('');
             loadMeetingFromList(meetingId);
         }
     }, [meetingId]);
@@ -131,6 +152,48 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
         }
     };
 
+    const handleOpenSwapForm = async () => {
+        setShowSwapForm(true);
+        if (allMeetings.length === 0) {
+            try {
+                const data = await seminarService.getAllSeminarMeetings();
+                setAllMeetings(Array.isArray(data) ? data.filter(m =>
+                    m.seminarMeetingId !== meetingId && m.seminarId === meeting?.seminarId
+                ) : []);
+            } catch (err) {
+                console.error('Failed to load meetings for swap:', err);
+            }
+        }
+    };
+
+    const handleSubmitSwap = async () => {
+        if (!meetingId || !swapTargetId) return;
+        if (swapExpiry && new Date(swapExpiry) <= new Date()) {
+            setToast({ message: 'Expiry date must be in the future.', type: 'error' });
+            return;
+        }
+        setSubmittingSwap(true);
+        try {
+            const req: CreateSeminarSwapRequest = {
+                sourceSeminarMeetingId: meetingId,
+                targetSeminarMeetingId: swapTargetId,
+                reason: swapReason.trim() || null,
+                expiresAtUtc: swapExpiry ? new Date(swapExpiry).toISOString() : null
+            };
+            await seminarService.createSwapRequest(req);
+            setShowSwapForm(false);
+            setSwapTargetId('');
+            setSwapReason('');
+            setSwapExpiry('');
+            onSaved(false, 'Swap request submitted successfully.');
+        } catch (err: any) {
+            const msg = err?.response?.data?.message || err?.response?.data?.title || 'Failed to submit swap request.';
+            setToast({ message: msg, type: 'error' });
+        } finally {
+            setSubmittingSwap(false);
+        }
+    };
+
     const handleSave = async () => {
         if (!meetingId || !meeting) return;
         setSaving(true);
@@ -146,7 +209,7 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
         } catch (err: any) {
             console.error('Save failed:', err);
             const msg = err?.response?.data?.message || err?.response?.data?.title || 'Failed to update seminar meeting.';
-            alert(msg);
+            setToast({ message: msg, type: 'error' });
         } finally {
             setSaving(false);
         }
@@ -175,6 +238,7 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+            {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
             {/* Panel Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '12px', borderBottom: '1px solid var(--border-light)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -438,6 +502,72 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
                         )}
                     </div>
                 </div>
+
+                {/* Swap Request Form */}
+                {showSwapForm && canEdit && (
+                    <div style={{ ...sectionStyle, background: '#f5f3ff', border: '1px solid #e9d5ff' }}>
+                        <div style={{ ...labelStyle, color: '#7c3aed' }}><ArrowLeftRight size={12} /> Request Session Swap</div>
+
+                        <div style={{ marginBottom: '10px' }}>
+                            <label style={{ ...labelStyle, fontSize: '0.68rem' }}>Target Session</label>
+                            <select
+                                value={swapTargetId}
+                                onChange={e => setSwapTargetId(e.target.value)}
+                                style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1.5px solid #e9d5ff', fontSize: '0.85rem', fontFamily: 'inherit', outline: 'none', background: '#fff' }}
+                            >
+                                <option value="">Select a session to swap with...</option>
+                                {allMeetings.map(m => (
+                                    <option key={m.seminarMeetingId} value={m.seminarMeetingId}>
+                                        {m.title || 'Untitled'} — {new Date(m.meetingDate).toLocaleDateString()}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div style={{ marginBottom: '10px' }}>
+                            <label style={{ ...labelStyle, fontSize: '0.68rem' }}>Reason (optional)</label>
+                            <textarea
+                                value={swapReason}
+                                onChange={e => setSwapReason(e.target.value)}
+                                placeholder="Why do you want to swap this session?"
+                                style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1.5px solid #e9d5ff', fontSize: '0.85rem', fontFamily: 'inherit', outline: 'none', minHeight: '60px', resize: 'vertical' as const, background: '#fff' }}
+                            />
+                        </div>
+
+                        <div style={{ marginBottom: '12px' }}>
+                            <label style={{ ...labelStyle, fontSize: '0.68rem' }}>Expires At (optional)</label>
+                            <DateTimePicker
+                                value={swapExpiry}
+                                onChange={setSwapExpiry}
+                                accentColor="#7c3aed"
+                                min={new Date().toISOString()}
+                            />
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                            <button
+                                onClick={() => { setShowSwapForm(false); setSwapTargetId(''); setSwapReason(''); setSwapExpiry(''); }}
+                                style={{ padding: '6px 14px', borderRadius: '8px', border: '1px solid var(--border-color)', background: '#fff', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700 }}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleSubmitSwap}
+                                disabled={submittingSwap || !swapTargetId}
+                                style={{
+                                    padding: '6px 16px', borderRadius: '8px', border: 'none',
+                                    background: !swapTargetId ? '#e2e8f0' : '#7c3aed',
+                                    color: '#fff', cursor: submittingSwap || !swapTargetId ? 'not-allowed' : 'pointer',
+                                    fontSize: '0.78rem', fontWeight: 700,
+                                    display: 'flex', alignItems: 'center', gap: '4px'
+                                }}
+                            >
+                                {submittingSwap ? <Loader2 size={12} className="animate-spin" /> : <ArrowLeftRight size={12} />}
+                                Submit Swap
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Footer */}
@@ -445,50 +575,68 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
                 paddingTop: '14px',
                 borderTop: '1px solid var(--border-light)',
                 display: 'flex',
-                justifyContent: 'flex-end',
+                justifyContent: 'space-between',
                 gap: '10px',
                 marginTop: 'auto'
             }}>
-                <button
-                    onClick={onClose}
-                    style={{
-                        padding: '8px 20px',
-                        borderRadius: '10px',
-                        border: '1px solid var(--border-color)',
-                        background: '#fff',
-                        color: 'var(--text-secondary)',
-                        cursor: 'pointer',
-                        fontSize: '0.8rem',
-                        fontWeight: 700,
-                        transition: 'all 0.2s'
-                    }}
-                >
-                    Close
-                </button>
-                {canEdit && (
+                <div>
+                    {canEdit && !showSwapForm && (
+                        <button
+                            onClick={handleOpenSwapForm}
+                            style={{
+                                padding: '8px 16px', borderRadius: '10px',
+                                border: '1px solid #e9d5ff', background: '#f5f3ff',
+                                color: '#7c3aed', cursor: 'pointer',
+                                fontSize: '0.8rem', fontWeight: 700,
+                                display: 'flex', alignItems: 'center', gap: '6px'
+                            }}
+                        >
+                            <ArrowLeftRight size={14} /> Request Swap
+                        </button>
+                    )}
+                </div>
+                <div style={{ display: 'flex', gap: '10px' }}>
                     <button
-                        onClick={handleSave}
-                        disabled={saving}
+                        onClick={onClose}
                         style={{
-                            padding: '8px 24px',
+                            padding: '8px 20px',
                             borderRadius: '10px',
-                            border: 'none',
-                            background: saving ? '#94a3b8' : 'var(--accent-color)',
-                            color: '#fff',
-                            cursor: saving ? 'not-allowed' : 'pointer',
+                            border: '1px solid var(--border-color)',
+                            background: '#fff',
+                            color: 'var(--text-secondary)',
+                            cursor: 'pointer',
                             fontSize: '0.8rem',
                             fontWeight: 700,
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            transition: 'all 0.2s',
-                            boxShadow: saving ? 'none' : '0 4px 12px rgba(232,114,12,0.25)'
+                            transition: 'all 0.2s'
                         }}
                     >
-                        {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                        Save Changes
+                        Close
                     </button>
-                )}
+                    {canEdit && (
+                        <button
+                            onClick={handleSave}
+                            disabled={saving}
+                            style={{
+                                padding: '8px 24px',
+                                borderRadius: '10px',
+                                border: 'none',
+                                background: saving ? '#94a3b8' : 'var(--accent-color)',
+                                color: '#fff',
+                                cursor: saving ? 'not-allowed' : 'pointer',
+                                fontSize: '0.8rem',
+                                fontWeight: 700,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                transition: 'all 0.2s',
+                                boxShadow: saving ? 'none' : '0 4px 12px rgba(232,114,12,0.25)'
+                            }}
+                        >
+                            {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                            Save Changes
+                        </button>
+                    )}
+                </div>
             </div>
         </div>
     );

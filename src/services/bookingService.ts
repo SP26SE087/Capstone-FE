@@ -33,6 +33,22 @@ export const bookingService = {
     return { ...data, id: data.id || data.bookingId };
   },
 
+  getManaged: async (pageIndex = 1, pageSize = 50): Promise<PaginatedResponse<Booking>> => {
+    const response = await api.get('/api/bookings/managed', {
+      params: { pageIndex, pageSize }
+    });
+    const data = response.data.data || response.data;
+    const normalize = (item: any) => ({ ...item, id: item.id || item.bookingId });
+    if (Array.isArray(data)) {
+      const items = data.map(normalize);
+      return { items, totalCount: items.length, pageIndex: 1, pageSize: items.length, totalPages: 1 };
+    }
+    if (data.items && Array.isArray(data.items)) {
+      data.items = data.items.map(normalize);
+    }
+    return data;
+  },
+
   getToday: async (pageIndex = 1, pageSize = 50): Promise<PaginatedResponse<Booking>> => {
     const response = await api.get('/api/bookings/today', {
       params: { pageIndex, pageSize }

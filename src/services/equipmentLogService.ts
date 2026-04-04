@@ -31,8 +31,15 @@ export const equipmentLogService = {
     return response.data.data || response.data;
   },
 
-  update: async (id: string, request: UpdateEquipmentLogRequest): Promise<EquipmentLog> => {
-    const response = await api.put(`${BASE_URL}/${id}`, request);
+  update: async (arg1: string | UpdateEquipmentLogRequest, arg2?: UpdateEquipmentLogRequest): Promise<EquipmentLog> => {
+    // New API shape: PUT /api/equipment-logs with body (no logId path param)
+    // Backward compatible: PUT /api/equipment-logs/{logId}
+    if (typeof arg1 === 'string') {
+      const response = await api.put(`${BASE_URL}/${arg1}`, arg2);
+      return response.data.data || response.data;
+    }
+
+    const response = await api.put(BASE_URL, arg1);
     return response.data.data || response.data;
   },
 

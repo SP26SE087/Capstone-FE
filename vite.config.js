@@ -5,7 +5,7 @@ import path from 'path';
 export default defineConfig(function (_a) {
     var mode = _a.mode;
     var env = loadEnv(mode, process.cwd(), '');
-    var isServerMode = true;
+    var isServerMode = false; // Set to true to use server URLs, false for local URLs
     var serverUrl = env.VITE_SERVER_URL;
     var getTarget = function (localUrl) { return (isServerMode ? serverUrl : localUrl); };
     return {
@@ -53,6 +53,21 @@ export default defineConfig(function (_a) {
                 },
                 '/api/equipment-logs': {
                     target: getTarget('https://localhost:7162'),
+                    changeOrigin: true,
+                    secure: false,
+                },
+                '/api/resource-types': {
+                    target: getTarget('https://localhost:7162'),
+                    changeOrigin: true,
+                    secure: false,
+                },
+                '/api/Transcriptions': {
+                    target: getTarget('https://localhost:7180'),
+                    changeOrigin: true,
+                    secure: false,
+                },
+                '/api/tasks/suggest': {
+                    target: getTarget('https://localhost:7180'),
                     changeOrigin: true,
                     secure: false,
                 },

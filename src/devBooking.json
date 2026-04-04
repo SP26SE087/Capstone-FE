@@ -66,6 +66,38 @@
                 }
             }
         },
+        "/api/bookings/managed": {
+            "get": {
+                "tags": [
+                    "Bookings"
+                ],
+                "parameters": [
+                    {
+                        "name": "pageIndex",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "pageSize",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 10
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
         "/api/bookings/today": {
             "get": {
                 "tags": [
@@ -512,16 +544,6 @@
                 "tags": [
                     "Resources"
                 ],
-                "parameters": [
-                    {
-                        "name": "managedBy",
-                        "in": "query",
-                        "schema": {
-                            "type": "string",
-                            "format": "uuid"
-                        }
-                    }
-                ],
                 "requestBody": {
                     "content": {
                         "application/json": {
@@ -548,6 +570,38 @@
                 }
             }
         },
+        "/api/resources/managed": {
+            "get": {
+                "tags": [
+                    "Resources"
+                ],
+                "parameters": [
+                    {
+                        "name": "pageIndex",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "pageSize",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 10
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
         "/api/resources/by-name": {
             "get": {
                 "tags": [
@@ -567,6 +621,27 @@
                         "schema": {
                             "type": "string",
                             "format": "date-time"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/api/resources/by-serial": {
+            "get": {
+                "tags": [
+                    "Resources"
+                ],
+                "parameters": [
+                    {
+                        "name": "serial",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
                         }
                     }
                 ],
@@ -702,6 +777,131 @@
                     }
                 }
             }
+        },
+        "/api/resource-types": {
+            "get": {
+                "tags": [
+                    "ResourceTypes"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "ResourceTypes"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateResourceTypeRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateResourceTypeRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateResourceTypeRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/api/resource-types/{resourceTypeId}": {
+            "get": {
+                "tags": [
+                    "ResourceTypes"
+                ],
+                "parameters": [
+                    {
+                        "name": "resourceTypeId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "ResourceTypes"
+                ],
+                "parameters": [
+                    {
+                        "name": "resourceTypeId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateResourceTypeRequest"
+                            }
+                        },
+                        "text/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateResourceTypeRequest"
+                            }
+                        },
+                        "application/*+json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateResourceTypeRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "ResourceTypes"
+                ],
+                "parameters": [
+                    {
+                        "name": "resourceTypeId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
         }
     },
     "components": {
@@ -811,9 +1011,10 @@
             },
             "CreateResourceRequest": {
                 "required": [
+                    "managedBy",
                     "modelSeriesList",
                     "name",
-                    "type"
+                    "resourceTypeId"
                 ],
                 "type": "object",
                 "properties": {
@@ -827,13 +1028,18 @@
                         "type": "string",
                         "nullable": true
                     },
-                    "type": {
-                        "$ref": "#/components/schemas/ResourceType"
+                    "resourceTypeId": {
+                        "type": "string",
+                        "format": "uuid"
                     },
                     "location": {
                         "maxLength": 200,
                         "type": "string",
                         "nullable": true
+                    },
+                    "managedBy": {
+                        "type": "string",
+                        "format": "uuid"
                     },
                     "modelSeriesList": {
                         "minItems": 1,
@@ -841,6 +1047,25 @@
                         "items": {
                             "type": "string"
                         }
+                    }
+                },
+                "additionalProperties": false
+            },
+            "CreateResourceTypeRequest": {
+                "required": [
+                    "name"
+                ],
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "maxLength": 200,
+                        "minLength": 1,
+                        "type": "string"
+                    },
+                    "description": {
+                        "maxLength": 2000,
+                        "type": "string",
+                        "nullable": true
                     }
                 },
                 "additionalProperties": false
@@ -870,16 +1095,6 @@
                     }
                 },
                 "additionalProperties": false
-            },
-            "ResourceType": {
-                "enum": [
-                    1,
-                    2,
-                    3,
-                    4
-                ],
-                "type": "integer",
-                "format": "int32"
             },
             "UpdateBookingRequest": {
                 "type": "object",
@@ -969,11 +1184,43 @@
                         "type": "string",
                         "nullable": true
                     },
+                    "resourceTypeId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "nullable": true
+                    },
                     "isDamaged": {
                         "type": "boolean",
                         "nullable": true
                     },
                     "isInUse": {
+                        "type": "boolean",
+                        "nullable": true
+                    }
+                },
+                "additionalProperties": false
+            },
+            "UpdateResourceTypeRequest": {
+                "required": [
+                    "id"
+                ],
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "name": {
+                        "maxLength": 200,
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "description": {
+                        "maxLength": 2000,
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "isActive": {
                         "type": "boolean",
                         "nullable": true
                     }
