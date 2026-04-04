@@ -3,6 +3,7 @@ import MainLayout from '@/layout/MainLayout';
 import { paperSubmissionService } from '@/services/paperSubmissionService';
 import { projectService } from '@/services/projectService';
 import { membershipService } from '@/services/membershipService';
+import { useToastStore } from '@/store/slices/toastSlice';
 import {
     SubmissionStatus,
     PaperRoleEnum,
@@ -41,6 +42,7 @@ const PaperSubmissions: React.FC = () => {
     const [_error, setError] = useState<string | null>(null);
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState<string>('all');
+    const addToast = useToastStore(state => state.addToast);
 
     // Pagination
     const [pageIndex, setPageIndex] = useState(1);
@@ -74,7 +76,6 @@ const PaperSubmissions: React.FC = () => {
     const [_editError, setEditError] = useState<string | null>(null);
 
     // Delete & Submit
-    const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
     const [_deleteLoading, setDeleteLoading] = useState(false);
     const [submitReviewLoading, setSubmitReviewLoading] = useState<string | null>(null);
     const [revertLoading, setRevertLoading] = useState<string | null>(null);
@@ -155,6 +156,7 @@ const PaperSubmissions: React.FC = () => {
             await loadPapers(1, pageSize);
             setAddTitle(''); setAddAbstract(''); setAddConference(''); setAddPaperUrl(''); setAddProjectId(''); setAddMembers([]);
             setAddSuccess(`Paper "${newPaper.title}" created successfully!`);
+            addToast('Draft created successfully!', 'success');
             setTimeout(() => { setAddSuccess(null); setShowAddForm(false); }, 2000);
         } catch (err: any) { setAddError(err.response?.data?.message || 'Failed to create paper.'); }
         finally { setAddLoading(false); }
@@ -184,8 +186,13 @@ const PaperSubmissions: React.FC = () => {
 
     const handleDelete = async (id: string, e?: React.MouseEvent) => {
         if (e) e.stopPropagation();
+        if (!window.confirm('Are you sure you want to delete this paper?')) return;
         setDeleteLoading(true);
-        try { await paperSubmissionService.delete(id); await loadPapers(pageIndex, pageSize); setDeleteConfirmId(null); }
+        try { 
+            await paperSubmissionService.delete(id); 
+            await loadPapers(pageIndex, pageSize); 
+            addToast('Paper deleted successfully!', 'success');
+        }
         catch (err: any) { alert(err.response?.data?.message || 'Failed to delete paper.'); }
         finally { setDeleteLoading(false); }
     };
@@ -196,6 +203,7 @@ const PaperSubmissions: React.FC = () => {
         try {
             const updated = await paperSubmissionService.submitForReview(id);
             setPapers((prev) => prev.map((p) => (p.paperSubmissionId === id ? updated : p)));
+            addToast('Submitted successfully!', 'success');
         } catch (err: any) { alert(err.response?.data?.message || 'Failed to submit for review.'); }
         finally { setSubmitReviewLoading(null); }
     };
@@ -217,6 +225,7 @@ const PaperSubmissions: React.FC = () => {
             const updated = await paperSubmissionService.submitToVenue(showVenueModal, venueUrl);
             setPapers((prev) => prev.map((p) => (p.paperSubmissionId === updated.paperSubmissionId ? updated : p)));
             setShowVenueModal(null); setVenueUrl('');
+            addToast('Submitted successfully!', 'success');
         } catch (err: any) { alert(err.response?.data?.message || 'Failed to process submission.'); }
         finally { setVenueLoading(false); }
     };
@@ -429,7 +438,7 @@ const PaperSubmissions: React.FC = () => {
                             {filtered.map((paper) => {
                                 const isExpanded = expandedPaperId === paper.paperSubmissionId;
                                 const isEditing = editingPaperId === paper.paperSubmissionId;
-                                const isDeleting = deleteConfirmId === paper.paperSubmissionId;
+
                                 const isSubmitting = submitReviewLoading === paper.paperSubmissionId;
                                 const isReverting = revertLoading === paper.paperSubmissionId;
                                 const statusConfig = getStatusConfig(paper.status);
@@ -510,22 +519,12 @@ const PaperSubmissions: React.FC = () => {
                                                 )}
                                                 {/* Delete */}
                                                 {(paper.status === SubmissionStatus.Draft || paper.status === SubmissionStatus.Rejected) && (
-                                                    <button onClick={() => setDeleteConfirmId(isDeleting ? null : paper.paperSubmissionId)} className="btn btn-ghost" title="Delete" style={{ color: '#dc2626', padding: '6px' }}>
+                                                    <button onClick={(e) => handleDelete(paper.paperSubmissionId, e)} className="btn btn-ghost" title="Delete" style={{ color: '#dc2626', padding: '6px' }}>
                                                         <Trash2 size={18} />
                                                     </button>
                                                 )}
                                             </div>
                                         </div>
-
-                                        {/* Delete Confirmation */}
-                                        {isDeleting && (
-                                            <div style={{ display: 'flex', gap: '1rem', padding: '10px 1.5rem', background: '#fef2f2', borderTop: '1px solid #fecaca', alignItems: 'center' }}>
-                                                <AlertTriangle size={16} style={{ color: '#dc2626', flexShrink: 0 }} />
-                                                <span style={{ flex: 1, fontSize: '0.9rem' }}>Delete <strong>{paper.title}</strong>?</span>
-                                                <button className="btn btn-secondary" style={{ padding: '4px 12px', fontSize: '0.85rem' }} onClick={() => setDeleteConfirmId(null)}>Cancel</button>
-                                                <button className="btn" style={{ background: '#dc2626', color: 'white', padding: '4px 12px', fontSize: '0.85rem', border: 'none', borderRadius: '6px' }} onClick={() => handleDelete(paper.paperSubmissionId)}>Confirm Delete</button>
-                                            </div>
-                                        )}
 
                                         {/* Expanded Detail / Edit Panel */}
                                         {isExpanded && (
