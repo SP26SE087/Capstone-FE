@@ -535,7 +535,11 @@ const ProjectDetails: React.FC = () => {
             userName={currentUser.name}
             hideBreadcrumbs={true}
         >
-            {toast && <Toast message={toast.message} type={toast.type} duration={toast.duration} onClose={() => setToast(null)} />}
+            {toast && (
+                <div style={{ position: 'fixed', top: '24px', right: '24px', zIndex: 9999 }}>
+                    <Toast message={toast.message} type={toast.type} duration={toast.duration} onClose={() => setToast(null)} />
+                </div>
+            )}
 
             <div style={{ padding: '0 0 2rem 0' }}>
                 {/* Header Breadcrumb */}

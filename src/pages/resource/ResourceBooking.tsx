@@ -508,6 +508,24 @@ const ResourceBooking: React.FC = () => {
                     );
                 })()}
 
+                {/* Breadcrumb */}
+                {activePanel && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '0.75rem', fontSize: '0.78rem', fontWeight: 600 }}>
+                        <button
+                            onClick={handleClosePanel}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#f97316', fontWeight: 700, padding: '2px 6px', borderRadius: '6px', fontSize: '0.78rem', transition: 'background 0.15s' }}
+                            onMouseEnter={e => (e.currentTarget.style.background = '#fff7ed')}
+                            onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                        >
+                            {TAB_GROUPS.find(g => g.tabs.some(t => t.id === activeTab))?.label ?? activeTab}
+                        </button>
+                        <ChevronRight size={13} color="#94a3b8" />
+                        <span style={{ color: '#1e293b', maxWidth: '280px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
+                            {activePanel.title}
+                        </span>
+                    </div>
+                )}
+
                 {/* ── Main content ── */}
                 <div style={{ display: 'flex', gap: '1.5rem', height: 'calc(100vh - 320px)', minHeight: '600px' }}>
                     {/* Left: List */}

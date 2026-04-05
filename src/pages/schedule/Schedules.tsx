@@ -17,6 +17,7 @@ import {
     CheckCircle2,
     Users,
     UserCheck,
+    ChevronRight,
 } from 'lucide-react';
 import meetingService from '@/services/meetingService';
 import { MeetingResponse, MeetingStatus } from '@/types/meeting';
@@ -55,6 +56,7 @@ const Schedules: React.FC = () => {
     // Panel system
     const [activePanel, setActivePanel] = useState<ScheduleTab | null>(null);
     const [showTranscription, setShowTranscription] = useState(false);
+    const [transcriptionMode, setTranscriptionMode] = useState<'full' | 'view'>('full');
 
     // Fetch metadata
     useEffect(() => {
@@ -310,7 +312,7 @@ const Schedules: React.FC = () => {
                         <List size={16} /> List View
                     </button>
                     <button
-                        onClick={() => setViewMode('timetable')}
+                        onClick={() => { setViewMode('timetable'); setActivePanel(null); setShowTranscription(false); }}
                         style={{
                             padding: '8px 16px', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 700,
                             border: viewMode === 'timetable' ? '1.5px solid var(--accent-color)' : '1px solid var(--border-color)',
@@ -322,6 +324,24 @@ const Schedules: React.FC = () => {
                         <LayoutGrid size={16} /> Timetable
                     </button>
                 </div>
+
+                {/* Breadcrumb */}
+                {activePanel && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '0.75rem', fontSize: '0.78rem', fontWeight: 600 }}>
+                        <button
+                            onClick={() => { setActivePanel(null); setShowTranscription(false); }}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent-color)', fontWeight: 700, padding: '2px 6px', borderRadius: '6px', fontSize: '0.78rem', transition: 'background 0.15s' }}
+                            onMouseEnter={e => (e.currentTarget.style.background = 'var(--accent-bg)')}
+                            onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                        >
+                            Schedules
+                        </button>
+                        <ChevronRight size={13} color="#94a3b8" />
+                        <span style={{ color: '#1e293b', maxWidth: '280px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
+                            {activePanel.title}
+                        </span>
+                    </div>
+                )}
 
                 {/* List Tabs + New Schedule Button */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1.5rem' }}>
@@ -421,10 +441,10 @@ const Schedules: React.FC = () => {
                             </div>
                         )}
 
-                        {/* Meeting detail panel */}
-                        {activePanel && (
+                        {/* Meeting detail panel — hidden when AI Notes is open */}
+                        {activePanel && !showTranscription && (
                             <div style={{
-                                flex: showTranscription ? 5 : 4, minWidth: 0, overflow: 'hidden',
+                                flex: 4, minWidth: 0, overflow: 'hidden',
                                 display: 'flex', flexDirection: 'column',
                                 background: '#fff', borderRadius: '16px',
                                 border: '1px solid var(--border-color)', padding: '1.5rem',
@@ -445,23 +465,25 @@ const Schedules: React.FC = () => {
                                     }}
                                     onTitleChange={handleTitleChange}
                                     projectsMap={projectsMap}
-                                    onToggleAINote={() => setShowTranscription(v => !v)}
+                                    onToggleAINote={() => { setTranscriptionMode('full'); setShowTranscription(v => !v); }}
                                     showAINote={showTranscription}
+                                    onGetTranscribe={() => { setTranscriptionMode('view'); setShowTranscription(true); }}
                                 />
                             </div>
                         )}
 
-                        {/* AI Notes / Transcription panel */}
+                        {/* AI Notes / Transcription panel — takes full width */}
                         {showTranscription && (
                             <div style={{
-                                flex: 4, minWidth: 0, overflow: 'hidden',
+                                flex: 10, minWidth: 0, overflow: 'hidden',
                                 display: 'flex', flexDirection: 'column',
-                                background: '#fff', borderRadius: '16px',
-                                border: '1.5px solid #e0e7ff', padding: '1.5rem',
                                 transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
-                                boxShadow: '0 4px 20px rgba(99,102,241,0.08)'
                             }}>
-                                <TranscriptionPanel onClose={() => setShowTranscription(false)} />
+                                <TranscriptionPanel
+                                    onClose={() => setShowTranscription(false)}
+                                    meetingId={activePanel?.type === 'view' ? activePanel.meetingId : undefined}
+                                    mode={transcriptionMode}
+                                />
                             </div>
                         )}
                     </div>

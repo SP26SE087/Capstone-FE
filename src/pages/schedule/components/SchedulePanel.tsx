@@ -9,6 +9,7 @@ import {
 import meetingService from '@/services/meetingService';
 import { useAuth } from '@/hooks/useAuth';
 import AttendeeSelector, { SelectedAttendee } from '@/components/common/AttendeeSelector';
+import DateTimePicker from '@/components/common/DateTimePicker';
 import {
     Save,
     Trash2,
@@ -27,7 +28,8 @@ import {
     AlertCircle,
     Lock,
     X,
-    Mic
+    Mic,
+    FileSearch
 } from 'lucide-react';
 
 interface SchedulePanelProps {
@@ -39,6 +41,7 @@ interface SchedulePanelProps {
     projectsMap: Record<string, string>;
     onToggleAINote?: () => void;
     showAINote?: boolean;
+    onGetTranscribe?: () => void;
 }
 
 const getStatusInfo = (status: MeetingStatus) => {
@@ -54,7 +57,9 @@ const getStatusInfo = (status: MeetingStatus) => {
 const formatDateForInput = (dateStr: string) => {
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return '';
-    return d.toISOString().slice(0, 16);
+    // Use local time so the picker shows the user's timezone (e.g. UTC+7)
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
 const formatDisplayDate = (dateStr: string) => {
@@ -66,13 +71,6 @@ const formatDisplayDate = (dateStr: string) => {
     const hours = d.getHours().toString().padStart(2, '0');
     const minutes = d.getMinutes().toString().padStart(2, '0');
     return `${day}/${month}/${year} ${hours}:${minutes}`;
-};
-
-// Get current datetime string for min attribute
-const getMinDatetime = () => {
-    const now = new Date();
-    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-    return now.toISOString().slice(0, 16);
 };
 
 const inputStyle: React.CSSProperties = {
@@ -116,7 +114,8 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
     onTitleChange,
     projectsMap,
     onToggleAINote,
-    showAINote
+    showAINote,
+    onGetTranscribe
 }) => {
     const { user } = useAuth();
     const [meeting, setMeeting] = useState<MeetingResponse | null>(null);
@@ -325,6 +324,23 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                             <Mic size={13} /> AI Notes
                         </button>
                     )}
+                    {!isCreating && meetingId && onGetTranscribe && (
+                        <button
+                            onClick={onGetTranscribe}
+                            title="Get Transcribe"
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: '5px',
+                                padding: '6px 12px', borderRadius: '8px', cursor: 'pointer',
+                                fontSize: '0.75rem', fontWeight: 700,
+                                border: '1px solid #e2e8f0',
+                                background: '#fff',
+                                color: '#64748b',
+                                transition: 'all 0.2s'
+                            }}
+                        >
+                            <FileSearch size={13} /> Get Transcribe
+                        </button>
+                    )}
                     {!isCreating && meetingId && isOwner && (
                         <button
                             onClick={handleDelete}
@@ -494,35 +510,23 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                         />
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '14px' }}>
                         <div>
                             <label style={labelStyle}><Calendar size={12} /> Start Time</label>
-                            <input
-                                type="datetime-local"
-                                style={{
-                                    ...inputStyle,
-                                    borderColor: dateError && dateError.includes('Start') ? '#ef4444' : undefined
-                                }}
+                            <DateTimePicker
                                 value={startTime}
-                                onChange={e => handleStartTimeChange(e.target.value)}
-                                min={isCreating ? getMinDatetime() : undefined}
-                                onFocus={e => { e.currentTarget.style.borderColor = 'var(--accent-color)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,114,12,0.08)'; }}
-                                onBlur={e => { e.currentTarget.style.borderColor = dateError && dateError.includes('Start') ? '#ef4444' : 'var(--border-color)'; e.currentTarget.style.boxShadow = 'none'; }}
+                                onChange={handleStartTimeChange}
+                                min={isCreating ? new Date().toISOString().slice(0, 16) : undefined}
+                                disabled={!canEdit}
                             />
                         </div>
                         <div>
                             <label style={labelStyle}><Clock size={12} /> End Time</label>
-                            <input
-                                type="datetime-local"
-                                style={{
-                                    ...inputStyle,
-                                    borderColor: dateError && dateError.includes('End') ? '#ef4444' : undefined
-                                }}
+                            <DateTimePicker
                                 value={endTime}
-                                onChange={e => handleEndTimeChange(e.target.value)}
-                                min={isCreating ? getMinDatetime() : undefined}
-                                onFocus={e => { e.currentTarget.style.borderColor = 'var(--accent-color)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,114,12,0.08)'; }}
-                                onBlur={e => { e.currentTarget.style.borderColor = dateError && dateError.includes('End') ? '#ef4444' : 'var(--border-color)'; e.currentTarget.style.boxShadow = 'none'; }}
+                                onChange={handleEndTimeChange}
+                                min={isCreating ? new Date().toISOString().slice(0, 16) : undefined}
+                                disabled={!canEdit}
                             />
                         </div>
                     </div>
@@ -556,10 +560,22 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
 
                     <div>
                         <label style={labelStyle}><Users size={12} /> Invite Attendees</label>
+                        {user?.email && (
+                            <div style={{
+                                display: 'flex', alignItems: 'center', gap: '6px',
+                                padding: '6px 10px', borderRadius: '8px', marginBottom: '8px',
+                                background: '#f0fdf4', border: '1px solid #bbf7d0',
+                                fontSize: '0.7rem', fontWeight: 600, color: '#065f46'
+                            }}>
+                                <span style={{ fontSize: '0.85rem' }}>✓</span>
+                                You are the organiser and already included — invite others below.
+                            </div>
+                        )}
                         <AttendeeSelector
                             selectedAttendees={selectedAttendees}
                             onChange={setSelectedAttendees}
                             projectsMap={projectsMap}
+                            excludeEmails={user?.email ? [user.email] : []}
                         />
                     </div>
                 </div>

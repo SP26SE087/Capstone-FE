@@ -23,31 +23,9 @@ export const projectService = {
             if (mapped.length === 0) {
                 console.warn('Projects response empty or unmapped. Raw:', response.data);
             }
-            if (mapped.length > 0) return mapped;
+            return mapped;
         } catch (error) {
             console.error('Error fetching projects:', error);
-        }
-
-        // fallback to public if auth/role chặn
-        try {
-            const fallback = await api.get('/api/projects/public');
-            const mapped = mapProjects(fallback.data);
-            if (mapped.length === 0) {
-                console.warn('Public projects response empty or unmapped. Raw:', fallback.data);
-            }
-            return mapped;
-        } catch (fallbackErr) {
-            console.error('Fallback public projects failed:', fallbackErr);
-            return mockProjects;
-        }
-    },
-
-    getPublic: async (): Promise<Project[]> => {
-        try {
-            const response = await api.get('/api/projects/public');
-            return mapProjects(response.data);
-        } catch (error) {
-            console.error('Error fetching public projects:', error);
             return mockProjects;
         }
     },

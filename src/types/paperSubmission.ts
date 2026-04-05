@@ -15,7 +15,7 @@ export const SubmissionStatusLabel: Record<SubmissionStatus, string> = {
     [SubmissionStatus.InternalReview]: 'Internal Review',
     [SubmissionStatus.Approved]: 'Approved',
     [SubmissionStatus.Submitted]: 'Submitted',
-    [SubmissionStatus.Revision]: 'Revision',
+    [SubmissionStatus.Revision]: 'Revision Required',
     [SubmissionStatus.Decision]: 'Decision',
     [SubmissionStatus.Rejected]: 'Rejected',
 };
@@ -50,11 +50,13 @@ export interface PaperSubmissionResponse {
     status: SubmissionStatus;
     conferenceName: string;
     paperUrl: string;
-    document?: string;
-    documentName?: string;
+    document?: string | null;
+    documents?: string | null;
     submissionDeadline: string | null;
     createdAt: string;
     updatedAt: string;
+    createdByMembershipId?: string | null;
+    lastUpdatedByMembershipId?: string | null;
     members: PaperMemberResponse[];
 }
 
@@ -69,11 +71,12 @@ export interface CreatePaperRequest {
     projectId?: string | null;
     title: string;
     abstract: string;
-    paperUrl: string;
-    document?: string;
-    documentName?: string;
+    paperUrl?: string;
+    document?: File | string | null;
+    documents?: string;
     conferenceName: string;
     submissionDeadline: string | null;
+    createdByMembershipId?: string | null;
     members: PaperMemberRequest[];
 }
 
@@ -81,10 +84,22 @@ export interface UpdatePaperRequest {
     projectId?: string | null;
     title: string;
     abstract: string;
-    paperUrl: string;
-    document?: string;
-    documentName?: string;
+    paperUrl?: string;
+    document?: File | string | null;
+    documents?: string;
     conferenceName: string;
     submissionDeadline: string | null;
+    lastUpdatedByMembershipId?: string | null;
     members: PaperMemberRequest[];
+}
+
+export interface SemanticSearchRequest {
+    query: string;
+    topK?: number;
+    projectId?: string | null;
+}
+
+export interface SubmitToVenueRequest {
+    paperUrl?: string | null;
+    targetStatus?: SubmissionStatus;
 }

@@ -15,7 +15,9 @@ import {
     MapPin,
     FileText,
     Lock,
-    ArrowLeftRight
+    ArrowLeftRight,
+    Mic,
+    FileSearch
 } from 'lucide-react';
 
 interface SeminarPanelProps {
@@ -25,6 +27,9 @@ interface SeminarPanelProps {
     onTitleChange?: (title: string) => void;
     usersMap: Record<string, string>;
     emailsMap: Record<string, string>;
+    onToggleAINote?: () => void;
+    showAINote?: boolean;
+    onGetTranscribe?: () => void;
 }
 
 const inputStyle: React.CSSProperties = {
@@ -89,7 +94,10 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
     onSaved,
     onTitleChange,
     usersMap,
-    emailsMap
+    emailsMap,
+    onToggleAINote,
+    onGetTranscribe,
+    showAINote
 }) => {
     const { user } = useAuth();
     const [meeting, setMeeting] = useState<SeminarMeetingResponse | null>(null);
@@ -269,6 +277,42 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
                             {isUpcoming ? 'Upcoming' : 'Completed'}
                         </span>
                     </div>
+                </div>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    {onGetTranscribe && (
+                        <button
+                            onClick={onGetTranscribe}
+                            title="Get Transcribe"
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: '5px',
+                                padding: '6px 12px', borderRadius: '8px', cursor: 'pointer',
+                                fontSize: '0.75rem', fontWeight: 700,
+                                border: '1px solid #e2e8f0',
+                                background: '#fff',
+                                color: '#64748b',
+                                transition: 'all 0.2s'
+                            }}
+                        >
+                            <FileSearch size={13} /> Get Transcribe
+                        </button>
+                    )}
+                    {onToggleAINote && (
+                        <button
+                            onClick={onToggleAINote}
+                            title="AI Notes"
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: '5px',
+                                padding: '6px 12px', borderRadius: '8px', cursor: 'pointer',
+                                fontSize: '0.75rem', fontWeight: 700,
+                                border: showAINote ? '1.5px solid #6366f1' : '1px solid #e2e8f0',
+                                background: showAINote ? '#f5f3ff' : '#fff',
+                                color: showAINote ? '#6366f1' : '#64748b',
+                                transition: 'all 0.2s'
+                            }}
+                        >
+                            <Mic size={13} /> AI Notes
+                        </button>
+                    )}
                 </div>
             </div>
 

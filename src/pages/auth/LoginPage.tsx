@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useGoogleLogin } from '@react-oauth/google';
 import { authService } from '@/services/authService';
@@ -9,6 +9,7 @@ const LoginPage: React.FC = () => {
     const navigate = useNavigate();
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
+    const handlingRef = useRef(false);
 
     const getPostLoginPath = (role: string | number | undefined) => {
         const roleNumber = Number(role);
@@ -27,6 +28,8 @@ const LoginPage: React.FC = () => {
         flow: 'auth-code',
         scope: 'openid email profile https://www.googleapis.com/auth/calendar.events',
         onSuccess: async (response) => {
+            if (handlingRef.current) return;
+            handlingRef.current = true;
             setLoading(true);
             setError(null);
             try {
@@ -40,14 +43,15 @@ const LoginPage: React.FC = () => {
                 localStorage.setItem('calendar_authorized', 'true');
                 navigate(getPostLoginPath(authData?.role), { replace: true });
             } catch (err: any) {
-                console.error('Lỗi đăng nhập:', err);
-                const serverMessage = err?.response?.data?.message || err?.message || 'Đăng nhập thất bại. Vui lòng thử lại.';
+                console.error('Login error:', err);
+                const serverMessage = err?.response?.data?.message || err?.message || 'Login failed. Please try again.';
                 setError(serverMessage);
                 setLoading(false);
+                handlingRef.current = false;
             }
         },
         onError: () => {
-            setError('Đăng nhập Google thất bại. Vui lòng thử lại.');
+            setError('Google sign-in failed. Please try again.');
             setLoading(false);
         },
     });

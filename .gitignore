@@ -34,3 +34,14 @@ devBooking.json
 
 # TypeScript incremental build cache
 *.tsbuildinfo
+.vercel
+src/features/milestones/MilestoneFormModal.tsx
+src/features/milestones/MilestoneDetailModal.tsx
+src/devReport.Json
+src/devPaper.json
+src/devMeeting.json
+src/devBooking.json
+src/devApi.json
+.claude/settings.local.json
+src/utils/devTrascript.json
+src/devUserApi.json

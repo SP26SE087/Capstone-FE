@@ -21,6 +21,8 @@ interface AttendeeSelectorProps {
     selectedAttendees: SelectedAttendee[];
     onChange: (attendees: SelectedAttendee[]) => void;
     projectsMap: Record<string, string>;
+    /** Emails to hide from the picker entirely — e.g. already-selected presenters or the meeting creator */
+    excludeEmails?: string[];
 }
 
 type TabMode = 'users' | 'project' | 'manual';
@@ -28,7 +30,8 @@ type TabMode = 'users' | 'project' | 'manual';
 const AttendeeSelector: React.FC<AttendeeSelectorProps> = ({
     selectedAttendees,
     onChange,
-    projectsMap
+    projectsMap,
+    excludeEmails = []
 }) => {
     const [activeMode, setActiveMode] = useState<TabMode>('users');
 
@@ -81,14 +84,19 @@ const AttendeeSelector: React.FC<AttendeeSelectorProps> = ({
         loadMembers();
     }, [selectedProjectId]);
 
+    const excludeSet = useMemo(() =>
+        new Set(excludeEmails.map(e => e.toLowerCase()))
+    , [excludeEmails]);
+
     const filteredUsers = useMemo(() => {
-        if (!userSearch.trim()) return allUsers;
+        const base = allUsers.filter(u => !excludeSet.has((u.email || '').toLowerCase()));
+        if (!userSearch.trim()) return base;
         const q = userSearch.toLowerCase();
-        return allUsers.filter(u =>
+        return base.filter(u =>
             (u.fullName || '').toLowerCase().includes(q) ||
             (u.email || '').toLowerCase().includes(q)
         );
-    }, [allUsers, userSearch]);
+    }, [allUsers, userSearch, excludeSet]);
 
     const isSelected = (email: string) =>
         selectedAttendees.some(a => a.email.toLowerCase() === email.toLowerCase());
@@ -207,7 +215,7 @@ const AttendeeSelector: React.FC<AttendeeSelectorProps> = ({
             )}
 
             {/* Mode Tabs */}
-            <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: excludeEmails.length > 0 ? '8px' : '12px' }}>
                 <button style={tabBtnStyle(activeMode === 'users')} onClick={() => setActiveMode('users')}>
                     <Users size={14} /> From Users
                 </button>
@@ -218,6 +226,19 @@ const AttendeeSelector: React.FC<AttendeeSelectorProps> = ({
                     <Mail size={14} /> Manual
                 </button>
             </div>
+
+            {/* Exclusion hint */}
+            {excludeEmails.length > 0 && (
+                <div style={{
+                    display: 'flex', alignItems: 'center', gap: '6px',
+                    padding: '6px 10px', borderRadius: '8px', marginBottom: '10px',
+                    background: '#fffbeb', border: '1px solid #fde68a',
+                    fontSize: '0.7rem', fontWeight: 600, color: '#92400e'
+                }}>
+                    <span style={{ fontSize: '0.8rem' }}>⚠</span>
+                    {excludeEmails.length} {excludeEmails.length === 1 ? 'person is' : 'people are'} hidden — already assigned as presenter
+                </div>
+            )}
 
             {/* Users Mode */}
             {activeMode === 'users' && (
@@ -323,7 +344,7 @@ const AttendeeSelector: React.FC<AttendeeSelectorProps> = ({
                             <div style={{ textAlign: 'center', padding: '1rem', color: 'var(--text-muted)', fontSize: '0.78rem' }}>Select a project above</div>
                         ) : projectMembers.length === 0 ? (
                             <div style={{ textAlign: 'center', padding: '1rem', color: 'var(--text-muted)', fontSize: '0.78rem' }}>No members in this project</div>
-                        ) : projectMembers.map(m => {
+                        ) : projectMembers.filter(m => !excludeSet.has((m.email || m.userEmail || '').toLowerCase())).map(m => {
                             const email = m.email || m.userEmail || '';
                             const name = m.fullName || m.userName || '';
                             const role = m.projectRoleName || '';
