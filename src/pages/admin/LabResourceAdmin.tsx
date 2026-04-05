@@ -20,6 +20,10 @@ import AdminLogPanel from './components/AdminLogPanel';
 
 type TabType = 'inventory' | 'bookings' | 'logs';
 
+interface LabResourceAdminProps {
+  initialTab?: TabType;
+}
+
 interface ActivePanel {
   id: string;
   type: 'resource' | 'booking' | 'log';
@@ -27,12 +31,12 @@ interface ActivePanel {
   title: string;
 }
 
-const LabResourceAdmin: React.FC = () => {
+const LabResourceAdmin: React.FC<LabResourceAdminProps> = ({ initialTab }) => {
   const { user } = useAuth();
   const { addToast } = useToastStore();
   
   // State
-  const [activeTab, setActiveTab] = useState<TabType>('inventory');
+  const [activeTab, setActiveTab] = useState<TabType>(initialTab ?? 'inventory');
   const [resources, setResources] = useState<Resource[]>([]);
   const [logs, setLogs] = useState<EquipmentLog[]>([]);
   const [allBookings, setAllBookings] = useState<BookingResponse[]>([]);

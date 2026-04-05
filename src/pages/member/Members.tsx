@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import MainLayout from '@/layout/MainLayout';
 import {
     UserPlus,
@@ -13,6 +13,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { userService } from '@/services/userService';
 import UserDetailModal from './UserDetailModal';
 import InviteMemberForm from './components/InviteMemberForm';
+import FaceScannerModal from './FaceScannerModal';
+import CheckLogPanel from './CheckLogPanel';
 import { SystemRoleEnum, SystemRoleMap } from '@/types/enums';
 import { useToastStore } from '@/store/slices/toastSlice';
 
@@ -24,6 +26,10 @@ const Members: React.FC = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
     const [isInviteFormOpen, setIsInviteFormOpen] = useState(false);
+    const [faceScanData, setFaceScanData] = useState<{ studentId: string; userName: string } | null>(null);
+    const [checkLogData, setCheckLogData] = useState<{ email: string; studentId: string; userName: string } | null>(null);
+    const [studentSearchResult, setStudentSearchResult] = useState<any | null>(null);
+    const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const isLabDirector = user.role === 'Lab Director' || 
                          user.role === 'LabDirector' || 
@@ -50,24 +56,53 @@ const Members: React.FC = () => {
     }, []);
 
     const filteredMembers = useMemo(() => {
-        if (!searchQuery.trim()) return members;
-        
-        const query = searchQuery.toLowerCase();
-        return members.filter(member => 
-            (member.fullName || member.userName || '').toLowerCase().includes(query) ||
-            (member.email || '').toLowerCase().includes(query) ||
-            (member.role || '').toLowerCase().includes(query)
-        );
-    }, [members, searchQuery]);
+        const base = (() => {
+            if (!searchQuery.trim()) return members;
+            const query = searchQuery.toLowerCase();
+            return members.filter(member =>
+                (member.fullName || member.userName || '').toLowerCase().includes(query) ||
+                (member.email || '').toLowerCase().includes(query) ||
+                (member.role || '').toLowerCase().includes(query) ||
+                (member.studentId || member.StudentId || '').toLowerCase().includes(query)
+            );
+        })();
+
+        if (studentSearchResult) {
+            const alreadyIn = base.some(m =>
+                (m.userId || m.id) === (studentSearchResult.userId || studentSearchResult.id)
+            );
+            return alreadyIn ? base : [...base, studentSearchResult];
+        }
+        return base;
+    }, [members, searchQuery, studentSearchResult]);
+
+    // studentId API search when local results are empty
+    useEffect(() => {
+        const q = searchQuery.trim();
+        if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+        if (!q) { setStudentSearchResult(null); return; }
+        searchDebounceRef.current = setTimeout(async () => {
+            try {
+                const result = await userService.getByStudentId(q);
+                if (result && (result.userId || result.id)) setStudentSearchResult(result);
+                else setStudentSearchResult(null);
+            } catch {
+                setStudentSearchResult(null);
+            }
+        }, 500);
+    }, [searchQuery]);
 
     const isSidePanelOpen = isInviteFormOpen || Boolean(selectedUserId);
+    const isCheckLogOpen = Boolean(checkLogData);
 
     const handleMemberClick = (userId: string) => {
         setSelectedUserId(userId);
         setIsInviteFormOpen(false);
+        setCheckLogData(null);
     };
 
     return (
+        <>
         <MainLayout role={user.role} userName={user.name}>
             <div className="page-container">
                 {/* Page Header */}
@@ -140,14 +175,15 @@ const Members: React.FC = () => {
                 {/* Main Content Area: List + Form */}
                 <div style={{ 
                     display: 'flex', 
-                    gap: isSidePanelOpen ? '2.5rem' : '0', 
+                    gap: isSidePanelOpen ? '1.5rem' : '0', 
                     transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)'
                 }}>
-                    {/* Left Column: Members List (70% when open) */}
+                    {/* Left Column: Members List */}
                     <div style={{ 
-                        flex: isSidePanelOpen ? '0 0 70%' : '0 100%', 
-                        maxWidth: isSidePanelOpen ? '70%' : '100%',
-                        transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)'
+                        flex: !isSidePanelOpen ? '1' : isCheckLogOpen ? '0 0 42%' : '0 0 60%',
+                        maxWidth: !isSidePanelOpen ? '100%' : isCheckLogOpen ? '42%' : '60%',
+                        transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                        minWidth: 0
                     }}>
                         {/* Status indicators (loading/error) */}
                         {loading && (
@@ -197,9 +233,22 @@ const Members: React.FC = () => {
                                                     fontWeight: 700,
                                                     width: '48px',
                                                     height: '48px',
-                                                    fontSize: '1rem'
+                                                    fontSize: '1rem',
+                                                    overflow: 'hidden',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    flexShrink: 0
                                                 }}>
-                                                    {initials}
+                                                    {(member.avatarUrl || member.AvatarUrl) ? (
+                                                        <img
+                                                            src={member.avatarUrl || member.AvatarUrl}
+                                                            alt={name}
+                                                            referrerPolicy="no-referrer"
+                                                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                                            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                                                        />
+                                                    ) : initials}
                                                 </div>
 
                                                 {/* Column 2: Identity Info (Left Aligned) */}
@@ -238,15 +287,16 @@ const Members: React.FC = () => {
                         )}
                     </div>
 
-                    {/* Right Column: Side Panel (Invite form OR Member detail) */}
+                    {/* Middle Column: User detail / Invite form */}
                     <div style={{ 
-                        flex: isSidePanelOpen ? '0 0 30%' : '0 0 0',
-                        maxWidth: isSidePanelOpen ? '30%' : '0',
+                        flex: isSidePanelOpen ? (isCheckLogOpen ? '0 0 25%' : '0 0 40%') : '0 0 0',
+                        maxWidth: isSidePanelOpen ? (isCheckLogOpen ? '25%' : '40%') : '0',
                         transform: isSidePanelOpen ? 'translateX(0)' : 'translateX(50px)',
                         opacity: isSidePanelOpen ? 1 : 0,
                         visibility: isSidePanelOpen ? 'visible' : 'hidden',
                         transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                        zIndex: 10
+                        zIndex: 10,
+                        minWidth: 0
                     }}>
                         {isInviteFormOpen ? (
                             <InviteMemberForm 
@@ -260,13 +310,50 @@ const Members: React.FC = () => {
                             <UserDetailModal
                                 userId={selectedUserId}
                                 systemRoleMap={SystemRoleMap}
-                                onClose={() => setSelectedUserId(null)}
+                                onClose={() => { setSelectedUserId(null); setCheckLogData(null); }}
+                                onScanFace={(studentId, userName) => setFaceScanData({ studentId, userName })}
+                                onCheckLog={(email, studentId, userName) => {
+                                    if (isCheckLogOpen && checkLogData?.email === email) {
+                                        setCheckLogData(null);
+                                    } else {
+                                        setCheckLogData({ email, studentId, userName });
+                                    }
+                                }}
+                                isCheckLogOpen={isCheckLogOpen}
+                            />
+                        )}
+                    </div>
+
+                    {/* Right Column: Check Log panel */}
+                    <div style={{
+                        flex: isCheckLogOpen ? '0 0 33%' : '0 0 0',
+                        maxWidth: isCheckLogOpen ? '33%' : '0',
+                        transform: isCheckLogOpen ? 'translateX(0)' : 'translateX(50px)',
+                        opacity: isCheckLogOpen ? 1 : 0,
+                        visibility: isCheckLogOpen ? 'visible' : 'hidden',
+                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                        zIndex: 10,
+                        minWidth: 0
+                    }}>
+                        {checkLogData && (
+                            <CheckLogPanel
+                                email={checkLogData.email}
+                                studentId={checkLogData.studentId}
+                                userName={checkLogData.userName}
+                                onClose={() => setCheckLogData(null)}
                             />
                         )}
                     </div>
                 </div>
             </div>
         </MainLayout>
+        <FaceScannerModal
+            isOpen={Boolean(faceScanData)}
+            onClose={() => setFaceScanData(null)}
+            initialStudentId={faceScanData?.studentId ?? ''}
+            userName={faceScanData?.userName ?? ''}
+        />
+        </>
     );
 };
 

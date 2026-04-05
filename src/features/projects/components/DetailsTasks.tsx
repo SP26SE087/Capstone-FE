@@ -58,7 +58,7 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
     taskMilestoneFilter, setTaskMilestoneFilter, viewMode, setViewMode,
     canManageTasks, isArchived,
     newTasks, handleAddTaskForm, handleRemoveTaskForm, handleNewTaskChange, handleSaveNewTask,
-    milestones, projectMembers, project, formatProjectDate, currentMember, refreshTasks, onEditTask
+    milestones, projectMembers, project, formatProjectDate, currentMember, refreshTasks
 }) => {
     const [personalTasks, setPersonalTasks] = useState<Task[]>([]);
     const [loadingTasks, setLoadingTasks] = useState(false);
@@ -275,7 +275,6 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
     const today = toDateInput(new Date());
 
     const selectedEditMilestone = resolveMilestone(editForm.milestoneId);
-    const editMilestoneGuid = selectedEditMilestone?.milestoneId || '';
     const editMilestoneStart = toDateInput(selectedEditMilestone?.startDate);
     const editMilestoneEnd = toDateInput(selectedEditMilestone?.dueDate);
 

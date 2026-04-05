@@ -20,7 +20,7 @@ const ProfilePage: React.FC = () => {
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
     // Edit state
-    const [editData, setEditData] = useState({ phoneNumber: '', orcid: '', googleScholarUrl: '', githubUrl: '' });
+    const [editData, setEditData] = useState({ studentId: '', phoneNumber: '', orcid: '', googleScholarUrl: '', githubUrl: '' });
 
     useEffect(() => { fetchProfile(); }, []);
     useEffect(() => {
@@ -36,6 +36,7 @@ const ProfilePage: React.FC = () => {
             const data = await userService.getProfile();
             setProfile(data);
             setEditData({
+                studentId: data.studentId || '',
                 phoneNumber: data.phoneNumber || '',
                 orcid: data.orcid || '',
                 googleScholarUrl: data.googleScholarUrl || '',
@@ -48,6 +49,7 @@ const ProfilePage: React.FC = () => {
 
     const handleSave = async () => {
         const hasChanges =
+            editData.studentId.trim() !== (profile?.studentId || '') ||
             editData.phoneNumber.trim() !== (profile?.phoneNumber || '') ||
             editData.orcid.trim() !== (profile?.orcid || '') ||
             editData.googleScholarUrl.trim() !== (profile?.googleScholarUrl || '') ||
@@ -61,6 +63,7 @@ const ProfilePage: React.FC = () => {
         setSubmitting(true);
         try {
             await userService.updateProfile({
+                studentId: editData.studentId.trim() || null,
                 phoneNumber: editData.phoneNumber.trim() || null,
                 orcid: editData.orcid.trim() || null,
                 googleScholarUrl: editData.googleScholarUrl.trim() || null,
@@ -78,6 +81,7 @@ const ProfilePage: React.FC = () => {
 
     const handleCancelEdit = () => {
         setEditData({
+            studentId: profile?.studentId || '',
             phoneNumber: profile?.phoneNumber || '',
             orcid: profile?.orcid || '',
             googleScholarUrl: profile?.googleScholarUrl || '',
@@ -199,6 +203,7 @@ const ProfilePage: React.FC = () => {
                                 </div>
                             </div>
                         </div>
+                        </div>
 
                         {/* Info Fields */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
@@ -241,6 +246,43 @@ const ProfilePage: React.FC = () => {
                                 }}>
                                     {profile?.email || authUser.email || '—'}
                                 </p>
+                            </div>
+
+                            {/* Student ID */}
+                            <div>
+                                <label style={{
+                                    display: 'flex', alignItems: 'center', gap: '8px',
+                                    fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)',
+                                    textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '8px'
+                                }}>
+                                    <GraduationCap size={14} /> Student ID
+                                    {isEditMode && <span style={{ color: 'var(--accent-color)', fontSize: '0.65rem', fontWeight: 600, textTransform: 'none' }}>(editable)</span>}
+                                </label>
+                                {isEditMode ? (
+                                    <input
+                                        type="text"
+                                        value={editData.studentId}
+                                        onChange={(e) => setEditData({ ...editData, studentId: e.target.value })}
+                                        className="form-input"
+                                        placeholder="Your student ID"
+                                        style={{
+                                            width: '100%', padding: '10px 14px', fontSize: '0.95rem',
+                                            borderRadius: '10px', border: '1px solid var(--border-color)',
+                                            outline: 'none', fontWeight: 600,
+                                            transition: 'border-color 0.2s',
+                                            background: '#f8fafc'
+                                        }}
+                                        onFocus={(e) => e.target.style.borderColor = 'var(--accent-color)'}
+                                        onBlur={(e) => e.target.style.borderColor = 'var(--border-color)'}
+                                    />
+                                ) : (
+                                    <p style={{
+                                        margin: 0, fontSize: '0.95rem', fontWeight: 600,
+                                        color: 'var(--text-primary)', padding: '10px 0'
+                                    }}>
+                                        {profile?.studentId || '—'}
+                                    </p>
+                                )}
                             </div>
 
                             {/* Phone Number */}

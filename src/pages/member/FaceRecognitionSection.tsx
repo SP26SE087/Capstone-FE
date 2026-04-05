@@ -1,19 +1,20 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Camera, ShieldCheck, Trash2, Ban, RotateCcw } from 'lucide-react';
-import FaceScannerModal from './FaceScannerModal';
 import { faceService } from '@/services/faceService';
+import { useToastStore } from '@/store/slices/toastSlice';
 
 interface FaceRecognitionSectionProps {
     studentId: string;
     userName: string;
+    onScanFace: (studentId: string, userName: string) => void;
 }
 
-const FaceRecognitionSection: React.FC<FaceRecognitionSectionProps> = ({ studentId, userName }) => {
-    const [isScannerOpen, setIsScannerOpen] = useState(false);
+const FaceRecognitionSection: React.FC<FaceRecognitionSectionProps> = ({ studentId, userName, onScanFace }) => {
+    const { addToast } = useToastStore();
 
     const handleAction = async (action: string) => {
         if (!studentId) {
-            alert('Student ID is missing.');
+            addToast('Student ID is missing.', 'error');
             return;
         }
 
@@ -33,45 +34,43 @@ const FaceRecognitionSection: React.FC<FaceRecognitionSectionProps> = ({ student
                 default:
                     return;
             }
-            alert(response?.message || `${action} successful.`);
+            addToast(response?.message || `${action} successful.`, 'success');
         } catch (err) {
             console.error(`${action} failed:`, err);
-            alert(`Failed to perform ${action}. Please check if the Biometric server is running.`);
+            addToast(`Failed to perform ${action}. Please check if the Biometric server is running.`, 'error');
         }
     };
 
     return (
         <div style={{
-            marginTop: '1.5rem',
-            padding: '1.25rem',
+            marginTop: '0.75rem',
+            padding: '0.75rem',
             background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
             borderRadius: 'var(--radius-lg)',
             border: '1px solid var(--border-color)',
             display: 'flex',
             flexDirection: 'column',
-            gap: '1.25rem'
+            gap: '0.625rem'
         }}>
             {/* Header Area */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <div style={{
-                        width: '36px', height: '36px', borderRadius: '10px',
+                        width: '28px', height: '28px', borderRadius: '8px',
                         background: 'var(--primary-color)', color: 'white',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center'
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
                     }}>
-                        <ShieldCheck size={20} />
+                        <ShieldCheck size={15} />
                     </div>
-                    <div>
-                        <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)' }}>Biometric Security</h4>
-                    </div>
+                    <h4 style={{ margin: 0, fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)' }}>Biometric Security</h4>
                 </div>
 
                 <button
                     className="btn btn-primary"
-                    onClick={() => setIsScannerOpen(true)}
-                    style={{ gap: '8px', padding: '8px 16px', background: '#10b981', fontSize: '0.8rem' }}
+                    onClick={() => onScanFace(studentId, userName)}
+                    style={{ gap: '5px', padding: '5px 10px', background: '#10b981', fontSize: '0.72rem', flexShrink: 0 }}
                 >
-                    <Camera size={16} /> Scan Face
+                    <Camera size={13} /> Scan Face
                 </button>
             </div>
 
@@ -79,27 +78,20 @@ const FaceRecognitionSection: React.FC<FaceRecognitionSectionProps> = ({ student
             <div style={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(3, 1fr)',
-                gap: '0.75rem',
-                paddingTop: '0.5rem',
+                gap: '0.4rem',
+                paddingTop: '0.4rem',
                 borderTop: '1px solid var(--border-color)'
             }}>
-                <button className="btn btn-secondary" onClick={() => handleAction('Remove')} style={{ gap: '6px', fontSize: '0.75rem', color: '#ef4444' }}>
-                    <Trash2 size={14} /> Remove
+                <button className="btn btn-secondary" onClick={() => handleAction('Remove')} style={{ gap: '4px', fontSize: '0.68rem', padding: '4px 6px', color: '#ef4444' }}>
+                    <Trash2 size={12} /> Remove
                 </button>
-                <button className="btn btn-secondary" onClick={() => handleAction('Ban')} style={{ gap: '6px', fontSize: '0.75rem', color: '#f59e0b' }}>
-                    <Ban size={14} /> Suspend
+                <button className="btn btn-secondary" onClick={() => handleAction('Ban')} style={{ gap: '4px', fontSize: '0.68rem', padding: '4px 6px', color: '#f59e0b' }}>
+                    <Ban size={12} /> Suspend
                 </button>
-                <button className="btn btn-secondary" onClick={() => handleAction('Unban')} style={{ gap: '6px', fontSize: '0.75rem', color: '#3b82f6' }}>
-                    <RotateCcw size={14} /> Restore
+                <button className="btn btn-secondary" onClick={() => handleAction('Unban')} style={{ gap: '4px', fontSize: '0.68rem', padding: '4px 6px', color: '#3b82f6' }}>
+                    <RotateCcw size={12} /> Restore
                 </button>
             </div>
-
-            <FaceScannerModal
-                isOpen={isScannerOpen}
-                onClose={() => setIsScannerOpen(false)}
-                initialStudentId={studentId}
-                userName={userName}
-            />
         </div>
     );
 };

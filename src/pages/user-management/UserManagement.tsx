@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import MainLayout from '@/layout/MainLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { userService, AddUserRequest } from '@/services/userService';
@@ -37,10 +37,20 @@ const UserManagement: React.FC = () => {
     const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
     const [editingUserId, setEditingUserId] = useState<string | null>(null);
     const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+    const [detailsLoadingId, setDetailsLoadingId] = useState<string | null>(null);
+
+    const editingUserIdRef = useRef<string | null>(null);
 
     // Form states
     const [formData, setFormData] = useState({ email: '', fullName: '', role: 4 });
-    const [editData, setEditData] = useState({ fullName: '', role: 4, isActive: true });
+    const [editData, setEditData] = useState({
+        role: 4,
+        isActive: true,
+        studentId: '',
+        orcid: '',
+        googleScholarUrl: '',
+        githubUrl: ''
+    });
 
     // Pagination
     const [pageIndex, setPageIndex] = useState(1);
@@ -51,6 +61,7 @@ const UserManagement: React.FC = () => {
     };
 
     useEffect(() => { loadMembers(); }, []);
+    useEffect(() => { editingUserIdRef.current = editingUserId; }, [editingUserId]);
     useEffect(() => {
         if (!toast) return;
         const timer = setTimeout(() => setToast(null), 3500);
@@ -140,7 +151,15 @@ const UserManagement: React.FC = () => {
         if (!editingUserId) return;
         setActionLoadingId(editingUserId);
         try {
-            const updated = await userService.updateUser(editingUserId, editData);
+            const payload: any = {
+                role: editData.role,
+                isActive: editData.isActive,
+                studentId: editData.studentId.trim() || undefined,
+                orcid: editData.orcid.trim() || undefined,
+                googleScholarUrl: editData.googleScholarUrl.trim() || undefined,
+                githubUrl: editData.githubUrl.trim() || undefined,
+            };
+            const updated = await userService.updateUser(editingUserId, payload);
             setMembers(prev => prev.map(u => (u.userId || u.id) === editingUserId ? { ...u, ...updated } : u));
             setEditingUserId(null);
             showToast('User updated successfully.');
@@ -148,12 +167,43 @@ const UserManagement: React.FC = () => {
         finally { setActionLoadingId(null); }
     };
 
-    const startEditing = (m: any, e: React.MouseEvent) => {
+    const startEditing = async (m: any, e: React.MouseEvent) => {
         e.stopPropagation();
         const uid = m.userId || m.id;
+        const uidStr = String(uid);
         setExpandedUserId(uid);
         setEditingUserId(uid);
-        setEditData({ fullName: m.fullName, role: Number(m.role), isActive: m.isActive !== false });
+
+        // Prefill quick values immediately, then fetch full user details (if available)
+        setEditData(prev => ({
+            ...prev,
+            role: Number(m.role),
+            isActive: m.isActive !== false,
+            studentId: m.studentId || '',
+            orcid: m.orcid || '',
+            googleScholarUrl: m.googleScholarUrl || '',
+            githubUrl: m.githubUrl || ''
+        }));
+
+        setDetailsLoadingId(uidStr);
+        try {
+            const detail = await userService.getById(uidStr);
+            if (editingUserIdRef.current !== uidStr) return;
+            setEditData(prev => ({
+                ...prev,
+                role: Number(detail?.role ?? m.role),
+                isActive: detail?.isActive !== false,
+                studentId: detail?.studentId || detail?.StudentId || prev.studentId || '',
+                orcid: detail?.orcid || detail?.Orcid || prev.orcid || '',
+                googleScholarUrl: detail?.googleScholarUrl || detail?.GoogleScholarUrl || prev.googleScholarUrl || '',
+                githubUrl: detail?.githubUrl || detail?.GithubUrl || prev.githubUrl || ''
+            }));
+        } catch (err) {
+            // Non-blocking: allow editing with list-provided values
+            console.warn('Failed to fetch user details for edit:', err);
+        } finally {
+            setDetailsLoadingId(null);
+        }
     };
 
     return (
@@ -363,10 +413,11 @@ const UserManagement: React.FC = () => {
                                         <div style={{ borderTop: '1px solid var(--border-color)', background: '#f8fafc', padding: '1.75rem' }}>
                                             {isEditing ? (
                                                 <form onSubmit={handleUpdateUser} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
-                                                    <div style={{ gridColumn: '1 / -1' }}>
-                                                        <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Full Name</label>
-                                                        <input className="form-input" value={editData.fullName} onChange={e => setEditData({ ...editData, fullName: e.target.value })} />
-                                                    </div>
+                                                    {detailsLoadingId === String(uid) && (
+                                                        <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                                                            <Loader2 size={16} className="spin" /> Loading user details...
+                                                        </div>
+                                                    )}
                                                     <div>
                                                         <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Role</label>
                                                         <select className="form-input" value={editData.role} onChange={e => setEditData({ ...editData, role: Number(e.target.value) })}>
@@ -382,6 +433,23 @@ const UserManagement: React.FC = () => {
                                                             <option value="true">Active</option>
                                                             <option value="false">Inactive</option>
                                                         </select>
+                                                    </div>
+
+                                                    <div>
+                                                        <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Student ID</label>
+                                                        <input className="form-input" type="text" value={editData.studentId} onChange={e => setEditData({ ...editData, studentId: e.target.value })} placeholder="Student ID" />
+                                                    </div>
+                                                    <div>
+                                                        <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>ORCID</label>
+                                                        <input className="form-input" type="text" value={editData.orcid} onChange={e => setEditData({ ...editData, orcid: e.target.value })} placeholder="xxxx-xxxx-xxxx-xxxx" />
+                                                    </div>
+                                                    <div>
+                                                        <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Google Scholar URL</label>
+                                                        <input className="form-input" type="url" value={editData.googleScholarUrl} onChange={e => setEditData({ ...editData, googleScholarUrl: e.target.value })} placeholder="https://scholar.google.com/..." />
+                                                    </div>
+                                                    <div>
+                                                        <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>GitHub URL</label>
+                                                        <input className="form-input" type="url" value={editData.githubUrl} onChange={e => setEditData({ ...editData, githubUrl: e.target.value })} placeholder="https://github.com/..." />
                                                     </div>
                                                     <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '0.5rem' }}>
                                                         <button type="button" className="btn btn-secondary" onClick={() => setEditingUserId(null)}>Cancel</button>

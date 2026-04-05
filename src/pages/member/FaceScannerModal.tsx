@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Modal from '@/components/common/Modal';
 import { Camera, ShieldCheck, Play, Square } from 'lucide-react';
 import { faceService } from '@/services/faceService';
+import { useToastStore } from '@/store/slices/toastSlice';
 
 interface FaceScannerModalProps {
     isOpen: boolean;
@@ -14,6 +15,7 @@ const FaceScannerModal: React.FC<FaceScannerModalProps> = ({ isOpen, onClose, in
     const [isScanning, setIsScanning] = useState(false);
     const [status, setStatus] = useState<string | null>(null);
     const videoRef = React.useRef<HTMLVideoElement>(null);
+    const { addToast } = useToastStore();
 
     useEffect(() => {
         if (isOpen) {
@@ -62,7 +64,7 @@ const FaceScannerModal: React.FC<FaceScannerModalProps> = ({ isOpen, onClose, in
             console.error('Start scan failed:', err);
             setStatus('Connection failed. Is the Biometric BE running?');
             setIsScanning(false);
-            alert((err as any).message || 'Failed to start biometric registration.');
+            addToast((err as any).message || 'Failed to start biometric registration.', 'error');
         }
     };
 
@@ -72,7 +74,7 @@ const FaceScannerModal: React.FC<FaceScannerModalProps> = ({ isOpen, onClose, in
             await faceService.stopAddUser();
             setIsScanning(false);
             setStatus(null);
-            alert('Biometric registration process stopped.');
+            addToast('Biometric registration process stopped.', 'success');
         } catch (err) {
             console.error('Stop scan failed:', err);
             setIsScanning(false);
@@ -86,6 +88,7 @@ const FaceScannerModal: React.FC<FaceScannerModalProps> = ({ isOpen, onClose, in
             onClose={onClose}
             title="Biometric Registration"
             maxWidth="500px"
+            disableBackdropClose
         >
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                 <div style={{ textAlign: 'center' }}>
@@ -100,6 +103,7 @@ const FaceScannerModal: React.FC<FaceScannerModalProps> = ({ isOpen, onClose, in
                     <h3 style={{ margin: '0 0 8px 0', fontSize: '1.2rem' }}>Face Recognition Setup</h3>
                     <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
                         Register biometrics for <strong>{userName}</strong>
+                        {initialStudentId && <span style={{ color: 'var(--text-muted)', marginLeft: '4px' }}>({initialStudentId})</span>}
                     </p>
                 </div>
 

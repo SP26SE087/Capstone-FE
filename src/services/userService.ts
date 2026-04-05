@@ -11,6 +11,10 @@ export interface UpdateUserRequest {
     fullName?: string;
     role?: number;
     isActive?: boolean;
+    orcid?: string;
+    googleScholarUrl?: string;
+    githubUrl?: string;
+    studentId?: string;
 }
 
 export interface UserResponse {
@@ -30,6 +34,7 @@ export interface ProfileResponse {
     role: number;
     createdAt: string;
     avatarUrl?: string;
+    studentId?: string;
     phoneNumber?: string;
     orcid?: string;
     googleScholarUrl?: string;
@@ -38,6 +43,7 @@ export interface ProfileResponse {
 
 export interface UpdateProfileRequest {
     fullName?: string;
+    studentId?: string | null;
     phoneNumber?: string | null;
     orcid?: string | null;
     googleScholarUrl?: string | null;
@@ -137,6 +143,7 @@ export const userService = {
                     data.profileImageUrl ||
                     data.ProfileImageUrl ||
                     '',
+                studentId: data.studentId || data.StudentId || '',
                 phoneNumber: data.phoneNumber || data.PhoneNumber || '',
                 orcid: data.orcid || data.Orcid || '',
                 googleScholarUrl: data.googleScholarUrl || data.GoogleScholarUrl || '',
@@ -156,5 +163,20 @@ export const userService = {
             console.error('Error updating profile:', error);
             throw error;
         }
+    },
+
+    getByStudentId: async (studentId: string): Promise<any> => {
+        const response = await api.get(`/api/users/student/${encodeURIComponent(studentId)}`);
+        return response.data.data || response.data;
+    },
+
+    getCheckingLogs: async (email: string): Promise<any[]> => {
+        const response = await api.get(`/api/users/checking-logs/${encodeURIComponent(email)}`);
+        return response.data.data ?? response.data ?? [];
+    },
+
+    addCheckingLog: async (studentId: string, checkingTime: string): Promise<any> => {
+        const response = await api.post('/api/users/checking-log', { studentId, checkingTime });
+        return response.data.data || response.data;
     },
 };

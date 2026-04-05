@@ -114,7 +114,6 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
     const [loadingTasks, setLoadingTasks] = React.useState(false);
     const [taskTab, setTaskTab] = React.useState<'draft' | 'current'>('current');
     const [expandedTasks, setExpandedTasks] = React.useState<string[]>([]);
-    const [isBulkSaving, setIsBulkSaving] = React.useState(false);
     const [savingTaskId, setSavingTaskId] = React.useState<string | null>(null);
 
     // API Stats State
@@ -258,43 +257,6 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
             console.error("Failed to save task:", error);
             showToast(error.message || 'Failed to save task.', 'error');
             setDraftTasks(prev => prev.map(d => d.id === draft.id ? { ...d, isSaving: false } : d));
-        }
-    };
-
-    const handleBulkTaskSave = async () => {
-        const validDrafts = draftTasks.filter(d => d.name.trim() !== '' && d.assigneeId);
-        if (validDrafts.length === 0 || !activeMilestone || isBulkSaving) return;
-
-        setIsBulkSaving(true);
-        setDraftTasks(prev => prev.map(d => ({ ...d, isSaving: true })));
-
-        try {
-            const mId = editingMilestoneId || activeMilestone.milestoneId || (activeMilestone as any).id;
-            const payloads = validDrafts.map(draft => ({
-                name: draft.name,
-                description: draft.description,
-                priority: draft.priority,
-                status: draft.status || 1,
-                memberId: draft.assigneeId,
-                milestoneId: mId,
-                projectId: projectId,
-                startDate: draft.startDate + "T00:00:00.000Z",
-                dueDate: draft.dueDate + "T23:59:59.000Z",
-                supportMembers: draft.collaboratorIds
-            }));
-
-            await taskService.createBulk(payloads);
-            showToast(`Successfully saved ${validDrafts.length} tasks`, 'success');
-
-            setDraftTasks([]);
-            if (mId) fetchMilestoneTasks(mId);
-            if (refreshTasks) refreshTasks();
-        } catch (error: any) {
-            console.error("Failed to save bulk tasks:", error);
-            showToast(error.message || 'Failed to save bulk tasks.', 'error');
-            setDraftTasks(prev => prev.map(d => ({ ...d, isSaving: false })));
-        } finally {
-            setIsBulkSaving(false);
         }
     };
 

@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Clock, Video, Presentation, X, ExternalLink, User, Users, FileText } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, Video, Presentation, X, ExternalLink, Users, FileText } from 'lucide-react';
 
 export interface TimetableEvent {
     id: string;
