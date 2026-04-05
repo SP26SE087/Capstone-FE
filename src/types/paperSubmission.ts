@@ -15,8 +15,8 @@ export const SubmissionStatusLabel: Record<SubmissionStatus, string> = {
     [SubmissionStatus.InternalReview]: 'Internal Review',
     [SubmissionStatus.Approved]: 'Approved',
     [SubmissionStatus.Submitted]: 'Submitted',
-    [SubmissionStatus.Revision]: 'Revision Required',
-    [SubmissionStatus.Decision]: 'Pending Decision',
+    [SubmissionStatus.Revision]: 'Revision',
+    [SubmissionStatus.Decision]: 'Decision',
     [SubmissionStatus.Rejected]: 'Rejected',
 };
 
@@ -50,6 +50,8 @@ export interface PaperSubmissionResponse {
     status: SubmissionStatus;
     conferenceName: string;
     paperUrl: string;
+    document?: string;
+    documentName?: string;
     submissionDeadline: string | null;
     createdAt: string;
     updatedAt: string;
@@ -68,6 +70,8 @@ export interface CreatePaperRequest {
     title: string;
     abstract: string;
     paperUrl: string;
+    document?: string;
+    documentName?: string;
     conferenceName: string;
     submissionDeadline: string | null;
     members: PaperMemberRequest[];
@@ -78,6 +82,8 @@ export interface UpdatePaperRequest {
     title: string;
     abstract: string;
     paperUrl: string;
+    document?: string;
+    documentName?: string;
     conferenceName: string;
     submissionDeadline: string | null;
     members: PaperMemberRequest[];

@@ -1,35 +1,25 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import MainLayout from '@/layout/MainLayout';
 import { useAuth } from '@/hooks/useAuth';
-import { userService, AddUserRequest, UpdateUserRequest } from '@/services/userService';
+import { userService, AddUserRequest } from '@/services/userService';
+import {
+    Users, Shield, CheckCircle, XCircle, Eye, EyeOff,
+    Search, Edit2, Power, UserPlus, Mail, Calendar,
+    ChevronDown, ChevronRight, Loader2, AlertTriangle, X
+} from 'lucide-react';
 
-const SystemRoleMap: Record<number | string, string> = {
-    1: 'Admin',
-    2: 'Lab Director',
-    3: 'Senior Researcher',
-    4: 'Member',
-    5: 'Guest',
-    'Admin': 'Admin',
-    'LabDirector': 'Lab Director',
-    'Lab Director': 'Lab Director',
-    'SeniorResearcher': 'Senior Researcher',
-    'Senior Researcher': 'Senior Researcher',
-    'Member': 'Member',
-    'Guest': 'Guest',
-};
-
-const getRoleBadgeClass = (role: number | string): string => {
+const getRoleBadgeConfig = (role: number | string) => {
     const roleStr = String(role);
-    if (roleStr === '1' || roleStr === 'Admin') return 'badge-danger';
-    if (roleStr === '2' || roleStr === 'LabDirector' || roleStr === 'Lab Director') return 'badge-accent';
-    if (roleStr === '3' || roleStr === 'SeniorResearcher' || roleStr === 'Senior Researcher') return 'badge-info';
-    if (roleStr === '4' || roleStr === 'Member') return 'badge-success';
-    return 'badge-muted';
+    if (roleStr === '1' || roleStr === 'Admin') return { label: 'Admin', color: '#ef4444', bg: '#fef2f2' };
+    if (roleStr === '2' || roleStr === 'Lab Director') return { label: 'Lab Director', color: '#e8720c', bg: 'rgba(232, 114, 12, 0.08)' };
+    if (roleStr === '3' || roleStr === 'Senior Researcher') return { label: 'Senior Researcher', color: '#3b82f6', bg: '#eff6ff' };
+    return { label: 'Member', color: '#10b981', bg: '#ecfdf5' };
 };
 
 const UserManagement: React.FC = () => {
     const { user } = useAuth();
     const currentUserId = String((user as any)?.userId || (user as any)?.id || '');
+    const isAdmin = user?.role === 'Admin' || Number((user as any)?.role) === 1;
 
     // Data states
     const [members, setMembers] = useState<any[]>([]);
@@ -37,720 +27,422 @@ const UserManagement: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-    // Search
+    // Search & Filter
     const [searchQuery, setSearchQuery] = useState('');
-    const isAdmin = user?.role === 'Admin' || Number((user as any)?.role) === 1;
-    const canAssignLabDirector = isAdmin || user?.role === 'LabDirector' || user?.role === 'Lab Director' || Number((user as any)?.role) === 2;
+    const [activeRoleFilter, setActiveRoleFilter] = useState<number | 'all'>('all');
+    const [showEmails, setShowEmails] = useState(false); // Privacy toggle
 
-    // Add form
+    // UI States
     const [showAddForm, setShowAddForm] = useState(false);
-    const [addEmail, setAddEmail] = useState('');
-    const [addFullName, setAddFullName] = useState('');
-    const [addRole, setAddRole] = useState<number>(4);
-    const [addLoading, setAddLoading] = useState(false);
-
-    // Detail / Edit panel
     const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
     const [editingUserId, setEditingUserId] = useState<string | null>(null);
-    const [editFullName, setEditFullName] = useState('');
-    const [editRole, setEditRole] = useState<number>(4);
-    const [editIsActive, setEditIsActive] = useState(true);
-    const [editLoading, setEditLoading] = useState(false);
-    const [editError, setEditError] = useState<string | null>(null);
+    const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
-    // Quick status update
-    const [statusLoadingId, setStatusLoadingId] = useState<string | null>(null);
+    // Form states
+    const [formData, setFormData] = useState({ email: '', fullName: '', role: 4 });
+    const [editData, setEditData] = useState({ fullName: '', role: 4, isActive: true });
 
     // Pagination
     const [pageIndex, setPageIndex] = useState(1);
     const [pageSize, setPageSize] = useState(10);
-    const [totalPages, setTotalPages] = useState(1);
-    const [totalCount, setTotalCount] = useState(0);
 
     const showToast = (message: string, type: 'success' | 'error' = 'success') => {
         setToast({ type, message });
     };
 
-    useEffect(() => {
-        fetchMembers();
-    }, []);
-
+    useEffect(() => { loadMembers(); }, []);
     useEffect(() => {
         if (!toast) return;
-        const timer = setTimeout(() => setToast(null), 3200);
+        const timer = setTimeout(() => setToast(null), 3500);
         return () => clearTimeout(timer);
     }, [toast]);
 
-    const fetchMembers = async () => {
+    const loadMembers = async () => {
         try {
-            setLoading(true);
+            setLoading(true); setError(null);
             const data = await userService.getAll();
             setMembers(data);
-            setError(null);
         } catch (err) {
             console.error('Error loading members:', err);
-            setError((err as any).message || 'Failed to load user list.');
+            setError((err as any)?.message || 'Failed to load user list. Please ensure the backend is running.');
         } finally {
             setLoading(false);
         }
     };
 
     const filteredMembers = useMemo(() => {
-        if (!searchQuery.trim()) return members;
-        const query = searchQuery.toLowerCase();
-        return members.filter(member =>
-            (member.fullName || member.userName || '').toLowerCase().includes(query) ||
-            (member.email || '').toLowerCase().includes(query) ||
-            (SystemRoleMap[member.role] || '').toLowerCase().includes(query)
-        );
-    }, [members, searchQuery]);
-
-    useEffect(() => {
-        const total = filteredMembers.length;
-        setTotalCount(total);
-        const pages = Math.max(1, Math.ceil(Math.max(total, 1) / pageSize));
-        setTotalPages(pages);
-        if (pageIndex > pages) setPageIndex(pages);
-    }, [filteredMembers, pageSize]);
-
-    useEffect(() => {
-        setPageIndex(1);
-    }, [searchQuery]);
-
-    const pagedMembers = useMemo(() => {
-        const start = (pageIndex - 1) * pageSize;
-        return filteredMembers.slice(start, start + pageSize);
-    }, [filteredMembers, pageIndex, pageSize]);
-
-    const showingFrom = totalCount === 0 ? 0 : (pageIndex - 1) * pageSize + 1;
-    const showingTo = totalCount === 0 ? 0 : Math.min(totalCount, showingFrom + pagedMembers.length - 1);
-
-    const handlePageChange = (nextPage: number) => {
-        if (nextPage < 1 || nextPage > totalPages) return;
-        setPageIndex(nextPage);
-    };
-
-    const handlePageSizeChange = (size: number) => {
-        setPageSize(size);
-        setPageIndex(1);
-    };
-
-    const getAvatarSources = (member: any, name: string) => {
-        const fallback = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=ef7e25&color=fff&bold=true`;
-        const primary =
-            member?.avatarUrl ||
-            member?.AvatarUrl ||
-            member?.avatar ||
-            member?.Avatar ||
-            member?.pictureUrl ||
-            member?.PictureUrl ||
-            member?.pictureURL ||
-            member?.picture ||
-            member?.photoUrl ||
-            member?.PhotoUrl ||
-            member?.photoURL ||
-            member?.imageUrl ||
-            member?.ImageUrl ||
-            member?.googleAvatarUrl ||
-            member?.GoogleAvatarUrl ||
-            member?.profilePictureUrl ||
-            member?.ProfilePictureUrl ||
-            member?.profileImageUrl ||
-            member?.ProfileImageUrl;
-        return { src: primary || fallback, fallback };
-    };
-
-    // ---- VALIDATION HELPERS ----
-    const validateEmail = (email: string): string | null => {
-        if (!email?.trim()) return 'Email is required.';
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(email)) return 'Email format is invalid.';
-        return null;
-    };
-
-    const validateFullName = (name: string): string | null => {
-        if (!name?.trim()) return 'Full name is required.';
-        if (name.trim().length < 2) return 'Full name must be at least 2 characters.';
-        if (name.trim().length > 100) return 'Full name cannot exceed 100 characters.';
-        return null;
-    };
-
-    const validateRole = (role: number): string | null => {
-        if (![1, 2, 3, 4].includes(role)) return 'Role is invalid.';
-        if (role === 2 && !isAdmin) return 'Only Admin can assign the Lab Director role.';
-        return null;
-    };
-
-    const validateAddFormInputs = (): boolean => {
-        const emailErr = validateEmail(addEmail);
-        if (emailErr) {
-            showToast(emailErr, 'error');
-            return false;
+        let result = members;
+        if (activeRoleFilter !== 'all') {
+            result = result.filter(m => Number(m.role) === activeRoleFilter);
         }
-        const nameErr = validateFullName(addFullName);
-        if (nameErr) {
-            showToast(nameErr, 'error');
-            return false;
+        if (searchQuery.trim()) {
+            const q = searchQuery.toLowerCase();
+            result = result.filter(m =>
+                (m.fullName || '').toLowerCase().includes(q) ||
+                (m.email || '').toLowerCase().includes(q)
+            );
         }
-        const roleErr = validateRole(addRole);
-        if (roleErr) {
-            showToast(roleErr, 'error');
-            return false;
-        }
-        return true;
+        return result;
+    }, [members, searchQuery, activeRoleFilter]);
+
+    // Stats
+    const stats = {
+        total: members.length,
+        admins: members.filter(m => Number(m.role) === 1).length,
+        active: members.filter(m => m.isActive !== false).length,
+        inactive: members.filter(m => m.isActive === false).length
     };
 
-    const validateEditFormInputs = (): boolean => {
-        const nameErr = validateFullName(editFullName);
-        if (nameErr) {
-            setEditError(nameErr);
-            return false;
-        }
-        const roleErr = validateRole(editRole);
-        if (roleErr) {
-            setEditError(roleErr);
-            return false;
-        }
-        return true;
+    // Pagination calculations
+    const totalPages = Math.max(1, Math.ceil(filteredMembers.length / pageSize));
+    const pagedMembers = filteredMembers.slice((pageIndex - 1) * pageSize, pageIndex * pageSize);
+    const showingFrom = filteredMembers.length === 0 ? 0 : (pageIndex - 1) * pageSize + 1;
+    const showingTo = Math.min(filteredMembers.length, pageIndex * pageSize);
+
+    const maskEmail = (email: string) => {
+        if (showEmails) return email;
+        const [user, domain] = (email || '').split('@');
+        if (!user || !domain) return '***@***';
+        return `${user.substring(0, 2)}***@${domain}`;
     };
 
-    const getDetailedErrorMessage = (err: any): string => {
-        const status = err?.response?.status;
-        const data = err?.response?.data;
-        const serverMessage = data?.message || data || err?.message || '';
-        const messageText = String(serverMessage);
-        const isDuplicateEmail = /email/i.test(messageText) && /(already exists|đã tồn tại|exists in the system|already registered)/i.test(messageText);
-        const normalizedMessage = String(serverMessage)
-            .replace(/\u0027/g, "'")
-            .replace(/\u0111\u00e3 t\u1ed3n t\u1ea1i trong h\u1ec7 th\u1ed1ng\.?/i, 'already exists in the system.')
-            .replace(/đã tồn tại trong hệ thống\.?/gi, 'already exists in the system.')
-            .replace(/Lỗi server\.?/gi, 'Server error.')
-            .replace(/Vui lòng thử lại sau\.?/gi, 'Please try again later.');
-
-        switch (status) {
-            case 400:
-                return `Invalid data: ${normalizedMessage || 'Please check the input.'}`;
-            case 401:
-                return 'Your session has expired. Please sign in again.';
-            case 403:
-                return 'You do not have permission to perform this action.';
-            case 404:
-                return 'The user does not exist or has already been deleted.';
-            case 409:
-                return 'This email is already registered. Please use a different email.';
-            case 500:
-                if (isDuplicateEmail) {
-                    return 'This email is already registered. Please use a different email.';
-                }
-                return normalizedMessage ? `Server error: ${normalizedMessage}` : 'Server error. Please try again later.';
-            default:
-                if (isDuplicateEmail) {
-                    return 'This email is already registered. Please use a different email.';
-                }
-                return normalizedMessage || 'Something went wrong. Please try again.';
-        }
-    };
-
-    // ---- ADD USER ----
     const handleAddUser = async (e: React.FormEvent) => {
         e.preventDefault();
-
-        if (!validateAddFormInputs()) return;
-
-        setAddLoading(true);
-
+        setActionLoadingId('new');
         try {
-            const newUser = await userService.addUser({ email: addEmail, fullName: addFullName, role: addRole } as AddUserRequest);
-            
-            if (!newUser?.userId || !newUser?.email) {
-                throw new Error('Invalid server response: missing userId or email.');
-            }
-
+            const newUser = await userService.addUser(formData as AddUserRequest);
             setMembers(prev => [...prev, newUser]);
-            setAddEmail('');
-            setAddFullName('');
-            setAddRole(4);
+            setFormData({ email: '', fullName: '', role: 4 });
             setShowAddForm(false);
-            showToast('User added successfully.', 'success');
+            showToast('User added successfully.');
         } catch (err: any) {
-            const errorMessage = !err.response
-                ? 'Cannot reach the server. Please check that the backend is running.'
-                : getDetailedErrorMessage(err);
-            showToast(errorMessage, 'error');
-        } finally {
-            setAddLoading(false);
-        }
+            showToast(err.response?.data?.message || 'Failed to add user.', 'error');
+        } finally { setActionLoadingId(null); }
     };
 
-    const handleToggleUserStatus = async (member: any) => {
-        const userId = String(member.userId || member.id || '');
-        if (!userId) return;
+    const handleToggleStatus = async (m: any, e: React.MouseEvent) => {
+        e.stopPropagation();
+        const uid = m.userId || m.id;
+        if (String(uid) === currentUserId) return showToast('Cannot deactivate yourself.', 'error');
 
-        if (userId === currentUserId) {
-            showToast('You cannot change your own account status.', 'error');
-            return;
-        }
-
-        const currentIsActive = member.isActive !== false;
-        const nextIsActive = !currentIsActive;
-        const actionLabel = nextIsActive ? 'activate' : 'deactivate';
-        const confirmed = window.confirm(`Are you sure you want to ${actionLabel} this user?`);
-        if (!confirmed) return;
-
-        setStatusLoadingId(userId);
+        setActionLoadingId(String(uid));
         try {
-            const updatedUser = await userService.updateUser(userId, { isActive: nextIsActive });
-            setMembers(prev => prev.map(m => {
-                const uid = m.userId || m.id;
-                if (String(uid) === userId) {
-                    return {
-                        ...m,
-                        ...updatedUser,
-                        userId: uid,
-                        isActive: updatedUser?.isActive ?? nextIsActive,
-                    };
-                }
-                return m;
-            }));
-
-            if (editingUserId === userId) {
-                setEditIsActive(nextIsActive);
-            }
-
-            showToast(nextIsActive ? 'User activated successfully.' : 'User deactivated successfully.', 'success');
-        } catch (err: any) {
-            const errorMessage = !err.response
-                ? 'Cannot reach the server.'
-                : getDetailedErrorMessage(err);
-            showToast(errorMessage, 'error');
-        } finally {
-            setStatusLoadingId(null);
-        }
-    };
-
-    // ---- EDIT USER ----
-    const startEditing = (member: any) => {
-        const userId = member.userId || member.id;
-        setEditingUserId(userId);
-        setEditFullName(member.fullName || member.userName || '');
-        setEditRole(typeof member.role === 'number' ? member.role : 4);
-        setEditIsActive(member.isActive !== false);
-        setEditError(null);
-        // Make sure detail panel is open
-        setExpandedUserId(userId);
-    };
-
-    const cancelEditing = () => {
-        setEditingUserId(null);
-        setEditError(null);
+            const nextActive = m.isActive === false;
+            await userService.updateUser(uid, { isActive: nextActive });
+            setMembers(prev => prev.map(u => (u.userId || u.id) === uid ? { ...u, isActive: nextActive } : u));
+            showToast(`User ${nextActive ? 'activated' : 'deactivated'} successfully.`);
+        } catch (err) { showToast('Update status failed.', 'error'); }
+        finally { setActionLoadingId(null); }
     };
 
     const handleUpdateUser = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!editingUserId) return;
-
-        if (!validateEditFormInputs()) return;
-
-        setEditLoading(true);
-        setEditError(null);
-
+        setActionLoadingId(editingUserId);
         try {
-            const updateData: UpdateUserRequest = {
-                role: editRole,
-                isActive: editIsActive,
-            };
-            const updatedUser = await userService.updateUser(editingUserId, updateData);
-            
-            if (!updatedUser?.userId) {
-                throw new Error('Invalid server response: missing userId.');
-            }
-
-            setMembers(prev => prev.map(m => {
-                const uid = m.userId || m.id;
-                if (uid === editingUserId) {
-                    return { ...m, ...updatedUser, userId: uid };
-                }
-                return m;
-            }));
-            showToast('User information updated successfully.', 'success');
+            const updated = await userService.updateUser(editingUserId, editData);
+            setMembers(prev => prev.map(u => (u.userId || u.id) === editingUserId ? { ...u, ...updated } : u));
             setEditingUserId(null);
-        } catch (err: any) {
-            const errorMessage = !err.response
-                ? 'Cannot reach the server. Please check that the backend is running.'
-                : getDetailedErrorMessage(err);
-            setEditError(errorMessage);
-            showToast(errorMessage, 'error');
-        } finally {
-            setEditLoading(false);
-        }
+            showToast('User updated successfully.');
+        } catch (err) { showToast('Update failed.', 'error'); }
+        finally { setActionLoadingId(null); }
     };
 
-    const toggleRow = (userId: string) => {
-        if (expandedUserId === userId) {
-            setExpandedUserId(null);
-            setEditingUserId(null);
-        } else {
-            setExpandedUserId(userId);
-            setEditingUserId(null);
-            setEditError(null);
-        }
+    const startEditing = (m: any, e: React.MouseEvent) => {
+        e.stopPropagation();
+        const uid = m.userId || m.id;
+        setExpandedUserId(uid);
+        setEditingUserId(uid);
+        setEditData({ fullName: m.fullName, role: Number(m.role), isActive: m.isActive !== false });
     };
 
     return (
-        <MainLayout role={user.role} userName={user.name}>
-            <div className="page-container">
+        <MainLayout>
+            <div className="page-container" style={{ margin: '0 auto' }}>
+                {/* Toast Notification */}
                 {toast && (
-                    <div
-                        className="card"
-                        style={{
-                            position: 'fixed', top: '80px', right: '24px', zIndex: 1100,
-                            background: toast.type === 'success' ? '#f0fdf4' : '#fef2f2',
-                            color: toast.type === 'success' ? '#166534' : '#991b1b',
-                            border: `1px solid ${toast.type === 'success' ? '#bbf7d0' : '#fecaca'}`,
-                            padding: '10px 14px', borderRadius: '10px', boxShadow: '0 10px 24px rgba(0,0,0,0.08)',
-                            minWidth: '240px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px'
-                        }}
-                    >
-                        <span style={{ fontWeight: 600, fontSize: '0.92rem' }}>{toast.message}</span>
-                        <button className="btn btn-ghost" style={{ color: 'inherit', padding: '4px 6px' }} onClick={() => setToast(null)}>x</button>
+                    <div style={{
+                        position: 'fixed', top: '80px', right: '24px', zIndex: 1100,
+                        background: toast.type === 'success' ? '#f0fdf4' : '#fef2f2',
+                        color: toast.type === 'success' ? '#166534' : '#991b1b',
+                        border: `1px solid ${toast.type === 'success' ? '#bbf7d0' : '#fecaca'}`,
+                        padding: '12px 20px', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
+                        display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 600
+                    }}>
+                        {toast.type === 'success' ? <CheckCircle size={18} /> : <AlertTriangle size={18} />}
+                        {toast.message}
                     </div>
                 )}
 
-                <div className="page-header" style={{ marginBottom: '1.5rem', padding: '0 1.25rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                        <h1 style={{ margin: 0 }}>User Management</h1>
-                        <button
-                            className={`btn ${showAddForm ? 'btn-secondary' : 'btn-primary'}`}
-                            style={{ padding: '0.75rem 1.5rem', borderRadius: '12px', fontWeight: 700 }}
-                            onClick={() => { setShowAddForm(!showAddForm); }}
-                        >
-                            {showAddForm ? 'Close form' : 'Add member'}
-                        </button>
+                {/* Page Header */}
+                <div className="page-header" style={{ marginBottom: '2rem' }}>
+                    <div>
+                        <h1>User Management</h1>
+                        <p>Manage laboratory members, roles and access permissions.</p>
                     </div>
+                    <button
+                        className={`btn ${showAddForm ? 'btn-secondary' : 'btn-primary'}`}
+                        style={{ borderRadius: '12px', height: '48px', padding: '0 1.5rem' }}
+                        onClick={() => setShowAddForm(!showAddForm)}
+                    >
+                        {showAddForm ? <X size={20} /> : <UserPlus size={20} />}
+                        {showAddForm ? 'Close Form' : 'Add Member'}
+                    </button>
                 </div>
 
-                {showAddForm && (
-                    <div className="um-add-form card">
-                        <h3 style={{ margin: '0 0 1rem', fontSize: '1.05rem', fontWeight: 700 }}>Add New Member</h3>
+                {/* Stat Widgets */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.25rem', marginBottom: '2rem' }}>
+                    {[
+                        { label: 'Total Users', value: stats.total, icon: <Users size={22} />, color: '#6366f1', bg: '#eef2ff' },
+                        { label: 'Admins', value: stats.admins, icon: <Shield size={22} />, color: '#ef4444', bg: '#fef2f2' },
+                        { label: 'Active', value: stats.active, icon: <CheckCircle size={22} />, color: '#10b981', bg: '#ecfdf5' },
+                        { label: 'Disabled', value: stats.inactive, icon: <XCircle size={22} />, color: '#94a3b8', bg: '#f1f5f9' },
+                    ].map((s, i) => (
+                        <div key={i} className="card stat-widget" style={{ marginBottom: 0 }}>
+                            <div className="stat-widget-icon" style={{ background: s.bg, color: s.color }}>{s.icon}</div>
+                            <div>
+                                <p className="stat-widget-label">{s.label}</p>
+                                <p className="stat-widget-value">{loading ? '...' : s.value}</p>
+                            </div>
+                        </div>
+                    ))}
+                </div>
 
-                        <form onSubmit={handleAddUser} className="um-form-grid">
-                            <div className="um-form-field">
-                                <label>Email Address *</label>
-                                <input
-                                    required
-                                    type="email"
-                                    placeholder="user@example.com"
-                                    value={addEmail}
-                                    onChange={(e) => setAddEmail(e.target.value)}
-                                    disabled={addLoading}
-                                    className="form-input"
-                                />
+                {/* Add User Form */}
+                {showAddForm && (
+                    <div className="card" style={{ padding: '1.75rem', border: '1px solid var(--accent-color)', background: 'var(--accent-bg)' }}>
+                        <h3 style={{ marginTop: 0, marginBottom: '1.25rem' }}>Add New Member</h3>
+                        <form onSubmit={handleAddUser} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', alignItems: 'flex-end' }}>
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.85rem', fontWeight: 600 }}>Email Address</label>
+                                <input className="form-input" required type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} />
                             </div>
-                            <div className="um-form-field">
-                                <label>Full Name *</label>
-                                <input
-                                    required
-                                    type="text"
-                                    placeholder="Nguyen Van A"
-                                    value={addFullName}
-                                    onChange={(e) => setAddFullName(e.target.value)}
-                                    disabled={addLoading}
-                                    className="form-input"
-                                />
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.85rem', fontWeight: 600 }}>Full Name</label>
+                                <input className="form-input" required type="text" value={formData.fullName} onChange={e => setFormData({ ...formData, fullName: e.target.value })} />
                             </div>
-                            <div className="um-form-field">
-                                <label>Role *</label>
-                                <select
-                                    value={addRole}
-                                    onChange={(e) => setAddRole(Number(e.target.value))}
-                                    disabled={addLoading}
-                                    className="form-input"
-                                >
-                                    {isAdmin && <option value={1}>Admin</option>}
-                                    {canAssignLabDirector && <option value={2}>Lab Director</option>}
-                                    <option value={3}>Senior Researcher</option>
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.85rem', fontWeight: 600 }}>Role</label>
+                                <select className="form-input" value={formData.role} onChange={e => setFormData({ ...formData, role: Number(e.target.value) })}>
                                     <option value={4}>Member</option>
+                                    <option value={3}>Senior Researcher</option>
+                                    <option value={2}>Lab Director</option>
+                                    {isAdmin && <option value={1}>Admin</option>}
                                 </select>
                             </div>
-                            <div className="um-form-actions">
-                                <button type="submit" disabled={addLoading} className="btn btn-primary">
-                                    {addLoading ? 'Adding...' : 'Add User'}
-                                </button>
-                            </div>
+                            <button type="submit" className="btn btn-primary" style={{ height: '42px' }} disabled={actionLoadingId === 'new'}>
+                                {actionLoadingId === 'new' ? <Loader2 size={18} className="spin" /> : 'Save Member'}
+                            </button>
                         </form>
                     </div>
                 )}
 
-                <div className="card" style={{ marginBottom: '1.5rem', display: 'flex', gap: '1rem', alignItems: 'center', padding: '1rem 1.25rem' }}>
-                    <div style={{ flex: 1 }}>
+                {/* Toolbar */}
+                <div className="card" style={{ padding: '1rem 1.25rem', display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center', marginBottom: '1.5rem' }}>
+                    <div style={{ position: 'relative', flex: 1, minWidth: '250px' }}>
+                        <Search style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} size={18} />
                         <input
-                            type="text"
-                            placeholder="Search by name, email, or role..."
                             className="form-input"
+                            style={{ paddingLeft: '40px' }}
+                            placeholder="Find by name or email..."
                             value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
+                            onChange={e => setSearchQuery(e.target.value)}
                         />
                     </div>
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        {[
+                            { id: 'all', label: 'All Roles' },
+                            { id: 1, label: 'Admin' },
+                            { id: 2, label: 'Director' },
+                            { id: 3, label: 'Senior' },
+                            { id: 4, label: 'Member' },
+                        ].map(role => (
+                            <button
+                                key={role.id}
+                                onClick={() => setActiveRoleFilter(role.id as any)}
+                                className={`filter-chip ${activeRoleFilter === role.id ? 'active' : ''}`}
+                            >
+                                {role.label}
+                            </button>
+                        ))}
+                    </div>
+                    <button
+                        className="btn btn-ghost"
+                        style={{ marginLeft: 'auto', gap: '8px', color: showEmails ? 'var(--accent-color)' : 'var(--text-muted)' }}
+                        onClick={() => setShowEmails(!showEmails)}
+                        title={showEmails ? 'Hide sensitive data' : 'Show full emails'}
+                    >
+                        {showEmails ? <EyeOff size={18} /> : <Eye size={18} />}
+                        {showEmails ? 'Mask Emails' : 'Show Emails'}
+                    </button>
                 </div>
 
-                {loading && (
-                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '300px', flexDirection: 'column', gap: '0.75rem', color: 'var(--text-secondary)' }}>
-                        <div className="spinner" />
-                        <p>Loading users...</p>
+                {/* Error / Loading */}
+                {loading ? (
+                    <div style={{ textAlign: 'center', padding: '4rem 0' }}>
+                        <Loader2 className="animate-spin" size={40} style={{ color: 'var(--accent-color)', margin: '0 auto' }} />
+                        <p style={{ marginTop: '1rem', color: 'var(--text-secondary)' }}>Loading members...</p>
                     </div>
-                )}
-
-                {!loading && error && (
-                    <div className="card" style={{ padding: '2rem', textAlign: 'center', color: 'var(--danger)' }}>
-                        <p>{error}</p>
-                        <button className="btn btn-primary" onClick={fetchMembers} style={{ marginTop: '1rem' }}>Retry</button>
+                ) : error ? (
+                    <div className="card" style={{ textAlign: 'center', color: 'var(--danger)', padding: '3rem' }}>
+                        <AlertTriangle size={40} style={{ margin: '0 auto 1rem' }} />
+                        <h3>{error}</h3>
+                        <button className="btn btn-primary" onClick={loadMembers} style={{ marginTop: '1rem' }}>Retry</button>
                     </div>
-                )}
+                ) : filteredMembers.length === 0 ? (
+                    <div className="card" style={{ textAlign: 'center', padding: '5rem 0', borderStyle: 'dashed' }}>
+                        <Users size={48} style={{ opacity: 0.2, margin: '0 auto 1rem' }} />
+                        <p style={{ color: 'var(--text-secondary)' }}>No members found matching your search.</p>
+                    </div>
+                ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        {pagedMembers.map(m => {
+                            const uid = m.userId || m.id;
+                            const isSelf = String(uid) === currentUserId;
+                            const isExpanded = expandedUserId === uid;
+                            const isEditing = editingUserId === uid;
+                            const roleCfg = getRoleBadgeConfig(m.role);
+                            const isActive = m.isActive !== false;
 
-                {!loading && !error && (
-                    filteredMembers.length > 0 ? (
-                        <>
-                            <div className="um-table-wrapper card" style={{ padding: 0, overflow: 'hidden' }}>
-                                <table className="um-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Full Name</th>
-                                            <th>Email</th>
-                                            <th>Role</th>
-                                            <th>Status</th>
-                                            <th style={{ width: '160px', textAlign: 'center' }}>Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {pagedMembers.map((member: any) => {
-                                            const userId = member.userId || member.id;
-                                            const name = member.fullName || member.userName || member.name || 'Unknown';
-                                            const isExpanded = expandedUserId === userId;
-                                            const isEditing = editingUserId === userId;
-                                            const isSelf = Boolean(currentUserId) && String(userId) === currentUserId;
-                                            const isStatusLoading = statusLoadingId === String(userId);
-                                            const avatar = getAvatarSources(member, name);
+                            return (
+                                <div key={uid} className="card" style={{
+                                    padding: 0, overflow: 'hidden',
+                                    borderLeft: `4px solid ${isExpanded ? 'var(--accent-color)' : 'transparent'}`,
+                                    transition: 'all 0.2s'
+                                }}>
+                                    {/* Card Row */}
+                                    <div
+                                        onClick={() => setExpandedUserId(isExpanded ? null : uid)}
+                                        style={{ display: 'flex', alignItems: 'center', padding: '1.25rem 1.5rem', cursor: 'pointer', gap: '1.25rem' }}
+                                        onMouseOver={e => e.currentTarget.style.background = 'var(--surface-hover)'}
+                                        onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+                                    >
+                                        <div style={{ color: 'var(--text-muted)' }}>{isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}</div>
 
-                                            return (
-                                                <React.Fragment key={userId}>
-                                                    <tr
-                                                        className={`um-row ${isExpanded ? 'um-row-expanded' : ''}`}
-                                                        onClick={() => toggleRow(userId)}
-                                                    >
-                                                        <td>
-                                                            <div style={{ fontWeight: 700 }}>{name}</div>
-                                                        </td>
-                                                        <td>
-                                                            <span style={{ color: 'var(--text-secondary)', fontSize: '0.88rem' }}>{member.email}</span>
-                                                        </td>
-                                                        <td>
-                                                            <span className={`badge ${getRoleBadgeClass(member.role)}`}>
-                                                                {SystemRoleMap[member.role] || member.role || 'Member'}
-                                                            </span>
-                                                        </td>
-                                                        <td>
-                                                            <span className={`badge ${member.isActive !== false ? 'badge-success' : 'badge-muted'}`}>
-                                                                {member.isActive !== false ? 'Active' : 'Inactive'}
-                                                            </span>
-                                                        </td>
-                                                        <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
-                                                            <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
-                                                                <button
-                                                                    className="btn btn-ghost"
-                                                                    style={{ color: 'var(--accent-color)', padding: '4px 10px' }}
-                                                                    onClick={() => startEditing(member)}
-                                                                    title="Edit"
-                                                                >
-                                                                    Edit
-                                                                </button>
-                                                                <button
-                                                                    className="btn btn-ghost"
-                                                                    style={{
-                                                                        color: isSelf
-                                                                            ? 'var(--text-muted)'
-                                                                            : (member.isActive !== false ? 'var(--danger)' : 'var(--success)'),
-                                                                        padding: '4px 10px'
-                                                                    }}
-                                                                    disabled={isSelf || isStatusLoading}
-                                                                    onClick={() => handleToggleUserStatus(member)}
-                                                                    title={
-                                                                        isSelf
-                                                                            ? 'You cannot change your own status'
-                                                                            : (member.isActive !== false ? 'Deactivate user' : 'Activate user')
-                                                                    }
-                                                                >
-                                                                    {isStatusLoading
-                                                                        ? 'Updating...'
-                                                                        : (member.isActive !== false ? 'Deactivate' : 'Activate')}
-                                                                </button>
-                                                            </div>
-                                                        </td>
-                                                    </tr>
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                <p style={{ margin: 0, fontWeight: 700, fontSize: '1rem' }}>{m.fullName}</p>
+                                                {isSelf && <span style={{ fontSize: '0.65rem', background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', color: '#64748b' }}>YOU</span>}
+                                            </div>
+                                            <p style={{ margin: '2px 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <Mail size={12} /> {maskEmail(m.email)}
+                                            </p>
+                                        </div>
 
-                                                    {isExpanded && (
-                                                        <tr className="um-detail-row">
-                                                            <td colSpan={6}>
-                                                                <div className="um-detail-panel">
-                                                                    {isEditing ? (
-                                                                        <form onSubmit={handleUpdateUser}>
-                                                                            <div className="um-detail-header">
-                                                                                <div className="avatar avatar-lg avatar-accent" style={{ width: '64px', height: '64px', overflow: 'hidden' }}>
-                                                                                    <img
-                                                                                        src={avatar.src}
-                                                                                        alt={name}
-                                                                                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                                                                        onError={(e) => { (e.currentTarget as HTMLImageElement).src = avatar.fallback; }}
-                                                                                    />
-                                                                                </div>
-                                                                                <div style={{ flex: 1 }}>
-                                                                                    <h3 style={{ margin: 0, fontSize: '1.1rem' }}>{editFullName}</h3>
-                                                                                    <p style={{ margin: '4px 0 0', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{member.email}</p>
-                                                                                </div>
-                                                                            </div>
+                                        <span className="badge" style={{ background: roleCfg.bg, color: roleCfg.color, fontWeight: 700, borderRadius: '8px' }}>
+                                            {roleCfg.label}
+                                        </span>
 
-                                                                            {editError && (
-                                                                                <div className="um-alert um-alert-error" style={{ marginTop: 0 }}>
-                                                                                    {editError}
-                                                                                </div>
-                                                                            )}
-                                                                            <div className="um-edit-grid">
-                                                                                <div className="um-form-field">
-                                                                                    <label>Full Name</label>
-                                                                                    <input
-                                                                                        type="text"
-                                                                                        value={editFullName}
-                                                                                        readOnly
-                                                                                        disabled={true}
-                                                                                        className="form-input"
-                                                                                        style={{ backgroundColor: '#f8fafc', cursor: 'not-allowed' }}
-                                                                                        required
-                                                                                    />
-                                                                                </div>
-                                                                                <div className="um-form-field">
-                                                                                    <label>Role</label>
-                                                                                    <select
-                                                                                        value={editRole}
-                                                                                        onChange={(e) => setEditRole(Number(e.target.value))}
-                                                                                        disabled={editLoading}
-                                                                                        className="form-input"
-                                                                                    >
-                                                                                        {isAdmin && <option value={1}>Admin</option>}
-                                                                                        {canAssignLabDirector && <option value={2}>Lab Director</option>}
-                                                                                        <option value={3}>Senior Researcher</option>
-                                                                                        <option value={4}>Member</option>
-                                                                                    </select>
-                                                                                </div>
-                                                                                <div className="um-form-field">
-                                                                                    <label>Status</label>
-                                                                                    <select
-                                                                                        value={editIsActive ? 'true' : 'false'}
-                                                                                        onChange={(e) => setEditIsActive(e.target.value === 'true')}
-                                                                                        disabled={editLoading}
-                                                                                        className="form-input"
-                                                                                    >
-                                                                                        <option value="true">Active</option>
-                                                                                        <option value="false">Inactive</option>
-                                                                                    </select>
-                                                                                </div>
-                                                                            </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '90px', justifyContent: 'flex-end' }}>
+                                            <span style={{
+                                                width: '10px', height: '10px', borderRadius: '50%',
+                                                background: isActive ? '#10b981' : '#cbd5e1',
+                                                boxShadow: isActive ? '0 0 8px rgba(16, 185, 129, 0.4)' : 'none'
+                                            }} />
+                                            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: isActive ? '#059669' : '#94a3b8' }}>
+                                                {isActive ? 'Active' : 'Disabled'}
+                                            </span>
+                                        </div>
 
-                                                                            <div style={{ display: 'flex', gap: '10px', marginTop: '1.25rem', justifyContent: 'flex-end' }}>
-                                                                                <button
-                                                                                    type="button"
-                                                                                    className="btn btn-secondary"
-                                                                                    onClick={cancelEditing}
-                                                                                    disabled={editLoading}
-                                                                                    style={{ padding: '6px 18px' }}
-                                                                                >
-                                                                                    Cancel
-                                                                                </button>
-                                                                                <button
-                                                                                    type="submit"
-                                                                                    className="btn btn-primary"
-                                                                                    disabled={editLoading}
-                                                                                    style={{ padding: '6px 18px' }}
-                                                                                >
-                                                                                    {editLoading ? 'Saving...' : 'Save Changes'}
-                                                                                </button>
-                                                                            </div>
-                                                                        </form>
-                                                                    ) : (
-                                                                        <>
-                                                                            <div className="um-detail-header">
-                                                                                <div className="avatar avatar-lg avatar-accent" style={{ width: '64px', height: '64px', overflow: 'hidden' }}>
-                                                                                    <img
-                                                                                        src={avatar.src}
-                                                                                        alt={name}
-                                                                                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                                                                        onError={(e) => { (e.currentTarget as HTMLImageElement).src = avatar.fallback; }}
-                                                                                    />
-                                                                                </div>
-                                                                                <div style={{ flex: 1 }}>
-                                                                                    <h3 style={{ margin: 0, fontSize: '1.2rem' }}>{name}</h3>
-                                                                                    <p style={{ margin: '4px 0 0', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{member.email}</p>
-                                                                                </div>
-                                                                            </div>
-                                                                            <div className="um-detail-grid">
-                                                                                <div className="um-detail-item">
-                                                                                    <span className="um-detail-label">Role</span>
-                                                                                    <span className={`badge ${getRoleBadgeClass(member.role)}`}>
-                                                                                        {SystemRoleMap[member.role] || member.role || 'Member'}
-                                                                                    </span>
-                                                                                </div>
-                                                                                <div className="um-detail-item">
-                                                                                    <span className="um-detail-label">Account Status</span>
-                                                                                    <span className={`badge ${member.isActive !== false ? 'badge-success' : 'badge-muted'}`}>
-                                                                                        {member.isActive !== false ? 'Active' : 'Inactive'}
-                                                                                    </span>
-                                                                                </div>
-                                                                                <div className="um-detail-item">
-                                                                                    <span className="um-detail-label">Email</span>
-                                                                                    <span className="um-detail-value">{member.email}</span>
-                                                                                </div>
-                                                                                {member.createdAt && (
-                                                                                    <div className="um-detail-item">
-                                                                                        <span className="um-detail-label">Created</span>
-                                                                                        <span className="um-detail-value">{new Date(member.createdAt).toLocaleDateString('en-US')}</span>
-                                                                                    </div>
-                                                                                )}
-                                                                            </div>
-                                                                        </>
-                                                                    )}
-                                                                </div>
-                                                            </td>
-                                                        </tr>
-                                                    )}
-                                                </React.Fragment>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
+                                        <div style={{ display: 'flex', gap: '4px' }} onClick={e => e.stopPropagation()}>
+                                            <button className="btn btn-ghost" style={{ padding: '8px' }} onClick={e => startEditing(m, e)} title="Edit Details"><Edit2 size={16} /></button>
+                                            <button
+                                                className="btn btn-ghost"
+                                                style={{ padding: '8px', color: isSelf ? '#e2e8f0' : (isActive ? '#ef4444' : '#10b981') }}
+                                                disabled={isSelf || actionLoadingId === String(uid)}
+                                                onClick={e => handleToggleStatus(m, e)}
+                                                title={isActive ? 'Deactivate User' : 'Activate User'}
+                                            >
+                                                {actionLoadingId === String(uid) ? <Loader2 size={16} className="spin" /> : <Power size={16} />}
+                                            </button>
+                                        </div>
+                                    </div>
 
-                            <div className="card" style={{ marginTop: '0.75rem', padding: '0.75rem 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
-                                <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-                                    Showing {showingFrom}-{showingTo} of {totalCount}
-                                </span>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                                    <button className="btn btn-secondary" disabled={pageIndex === 1} onClick={() => handlePageChange(pageIndex - 1)}>Previous</button>
-                                    <span style={{ minWidth: '90px', textAlign: 'center' }}>Page {pageIndex}/{totalPages}</span>
-                                    <button className="btn btn-secondary" disabled={pageIndex === totalPages} onClick={() => handlePageChange(pageIndex + 1)}>Next</button>
-                                    <select className="form-input" value={pageSize} onChange={(e) => handlePageSizeChange(Number(e.target.value))} style={{ width: '120px' }}>
-                                        <option value={5}>5 / page</option>
-                                        <option value={10}>10 / page</option>
-                                        <option value={20}>20 / page</option>
-                                    </select>
+                                    {/* Detail Panel */}
+                                    {isExpanded && (
+                                        <div style={{ borderTop: '1px solid var(--border-color)', background: '#f8fafc', padding: '1.75rem' }}>
+                                            {isEditing ? (
+                                                <form onSubmit={handleUpdateUser} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
+                                                    <div style={{ gridColumn: '1 / -1' }}>
+                                                        <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Full Name</label>
+                                                        <input className="form-input" value={editData.fullName} onChange={e => setEditData({ ...editData, fullName: e.target.value })} />
+                                                    </div>
+                                                    <div>
+                                                        <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Role</label>
+                                                        <select className="form-input" value={editData.role} onChange={e => setEditData({ ...editData, role: Number(e.target.value) })}>
+                                                            <option value={4}>Member</option>
+                                                            <option value={3}>Senior Researcher</option>
+                                                            <option value={2}>Lab Director</option>
+                                                            {isAdmin && <option value={1}>Admin</option>}
+                                                        </select>
+                                                    </div>
+                                                    <div>
+                                                        <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Status</label>
+                                                        <select className="form-input" value={editData.isActive ? 'true' : 'false'} onChange={e => setEditData({ ...editData, isActive: e.target.value === 'true' })}>
+                                                            <option value="true">Active</option>
+                                                            <option value="false">Inactive</option>
+                                                        </select>
+                                                    </div>
+                                                    <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '0.5rem' }}>
+                                                        <button type="button" className="btn btn-secondary" onClick={() => setEditingUserId(null)}>Cancel</button>
+                                                        <button type="submit" className="btn btn-primary" disabled={actionLoadingId === String(uid)}>
+                                                            {actionLoadingId === String(uid) ? <Loader2 size={16} className="spin" /> : 'Update Member'}
+                                                        </button>
+                                                    </div>
+                                                </form>
+                                            ) : (
+                                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+                                                    <div style={{ background: 'white', padding: '1rem', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+                                                        <p style={{ margin: '0 0 6px', fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Full Email</p>
+                                                        <p style={{ margin: 0, fontWeight: 600, fontSize: '0.9rem' }}>{maskEmail(m.email)}</p>
+                                                    </div>
+
+                                                    <div style={{ background: 'white', padding: '1rem', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+                                                        <p style={{ margin: '0 0 6px', fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Account Created</p>
+                                                        <p style={{ margin: 0, fontWeight: 600, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                            <Calendar size={14} style={{ color: 'var(--text-muted)' }} />
+                                                            {m.createdAt ? new Date(m.createdAt).toLocaleDateString() : '—'}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
-                            </div>
-                        </>
-                    ) : (
-                        <div className="empty-state">
-                            <h2>No users found</h2>
-                            <p>{searchQuery ? `No results for "${searchQuery}"` : 'Add members to your lab.'}</p>
+                            );
+                        })}
+                    </div>
+                )}
+
+                {/* Pagination */}
+                {!loading && filteredMembers.length > pageSize && (
+                    <div className="card" style={{ marginTop: '1.5rem', padding: '0.75rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                            Showing <strong>{showingFrom}</strong> – <strong>{showingTo}</strong> of {filteredMembers.length}
+                        </span>
+                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                            <button className="btn btn-secondary" disabled={pageIndex === 1} onClick={() => setPageIndex(pageIndex - 1)}>Prev</button>
+                            <span style={{ fontSize: '0.9rem', padding: '0 10px' }}>Page {pageIndex} of {totalPages}</span>
+                            <button className="btn btn-secondary" disabled={pageIndex === totalPages} onClick={() => setPageIndex(pageIndex + 1)}>Next</button>
+                            <select className="form-input" style={{ width: '100px', marginLeft: '10px' }} value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setPageIndex(1); }}>
+                                <option value={5}>5 / pg</option>
+                                <option value={10}>10 / pg</option>
+                                <option value={20}>20 / pg</option>
+                            </select>
                         </div>
-                    )
+                    </div>
                 )}
             </div>
+            <style>{`
+                .filter-chip {
+                    padding: 8px 16px; border: 1px solid var(--border-color); border-radius: 10px; background: white;
+                    font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; transition: all 0.2s;
+                }
+                .filter-chip:hover { border-color: var(--accent-color); color: var(--accent-color); }
+                .filter-chip.active { background: var(--accent-color); color: white; border-color: var(--accent-color); box-shadow: 0 4px 10px rgba(232, 114, 12, 0.2); }
+                .spin { animation: spin 1s linear infinite; }
+                @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+            `}</style>
         </MainLayout>
     );
 };
