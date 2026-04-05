@@ -21,6 +21,7 @@ const ProfilePage: React.FC = () => {
 
     // Edit state
     const [editData, setEditData] = useState({ fullName: '', phoneNumber: '', orcid: '', googleScholarUrl: '', githubUrl: '' });
+    const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
     useEffect(() => { fetchProfile(); }, []);
     useEffect(() => {
@@ -48,7 +49,8 @@ const ProfilePage: React.FC = () => {
     };
 
     const handleSave = async () => {
-        if (!editData.fullName.trim()) return setToast({ message: 'Full name is required.', type: 'error' });
+        setFormErrors({});
+        if (!editData.fullName.trim()) return setFormErrors({ fullName: 'Full name is required.' });
         setSubmitting(true);
         try {
             await userService.updateProfile({ ...editData, fullName: editData.fullName.trim() });
@@ -65,7 +67,26 @@ const ProfilePage: React.FC = () => {
             }
             fetchProfile();
         } catch (error: any) {
-            setToast({ message: error.response?.data?.message || 'Update failed.', type: 'error' });
+            let handled = false;
+            if (error.response?.data) {
+                const data = error.response.data;
+                const errObj = data.errors || data.Errors;
+                if (errObj && Object.keys(errObj).length > 0) {
+                    const newErrors: Record<string, string> = {};
+                    Object.keys(errObj).forEach(key => {
+                        const mappedKey = key.charAt(0).toLowerCase() + key.slice(1);
+                        newErrors[mappedKey] = String(errObj[key][0]);
+                    });
+                    setFormErrors(newErrors);
+                    handled = true;
+                } else if (data.message || data.Message) {
+                    setToast({ message: data.message || data.Message, type: 'error' });
+                    handled = true;
+                }
+            }
+            if (!handled) {
+                setToast({ message: error.message || 'Update failed.', type: 'error' });
+            }
         } finally { setSubmitting(false); }
     };
 
@@ -151,7 +172,10 @@ const ProfilePage: React.FC = () => {
                                 <div style={{ gridColumn: '1 / -1' }}>
                                     <label className="profile-label"><User size={14} /> Full Name</label>
                                     {isEditMode ? (
-                                        <input className="form-input" value={editData.fullName} onChange={e => setEditData({ ...editData, fullName: e.target.value })} />
+                                        <>
+                                            <input className="form-input" value={editData.fullName} onChange={e => setEditData({ ...editData, fullName: e.target.value })} style={formErrors.fullName ? { borderColor: '#dc2626' } : {}} />
+                                            {formErrors.fullName && <span style={{ color: '#dc2626', fontSize: '0.8rem', marginTop: '4px', display: 'block' }}>{formErrors.fullName}</span>}
+                                        </>
                                     ) : (
                                         <p className="profile-value">{profile?.fullName}</p>
                                     )}
@@ -159,7 +183,10 @@ const ProfilePage: React.FC = () => {
                                 <div>
                                     <label className="profile-label"><Phone size={14} /> Phone Number</label>
                                     {isEditMode ? (
-                                        <input className="form-input" value={editData.phoneNumber} onChange={e => setEditData({ ...editData, phoneNumber: e.target.value })} />
+                                        <>
+                                            <input className="form-input" value={editData.phoneNumber} onChange={e => setEditData({ ...editData, phoneNumber: e.target.value.replace(/[^0-9]/g, '') })} style={formErrors.phoneNumber ? { borderColor: '#dc2626' } : {}} />
+                                            {formErrors.phoneNumber && <span style={{ color: '#dc2626', fontSize: '0.8rem', marginTop: '4px', display: 'block' }}>{formErrors.phoneNumber}</span>}
+                                        </>
                                     ) : (
                                         <p className="profile-value">{profile?.phoneNumber || '—'}</p>
                                     )}
@@ -167,7 +194,10 @@ const ProfilePage: React.FC = () => {
                                 <div>
                                     <label className="profile-label">ORCID</label>
                                     {isEditMode ? (
-                                        <input className="form-input" value={editData.orcid} onChange={e => setEditData({ ...editData, orcid: e.target.value })} placeholder="xxxx-xxxx-xxxx-xxxx" />
+                                        <>
+                                            <input className="form-input" value={editData.orcid} onChange={e => setEditData({ ...editData, orcid: e.target.value.replace(/[^0-9\-xX]/g, '') })} placeholder="xxxx-xxxx-xxxx-xxxx" style={formErrors.orcid ? { borderColor: '#dc2626' } : {}} />
+                                            {formErrors.orcid && <span style={{ color: '#dc2626', fontSize: '0.8rem', marginTop: '4px', display: 'block' }}>{formErrors.orcid}</span>}
+                                        </>
                                     ) : (
                                         profile?.orcid ? (
                                             <a href={`https://orcid.org/${profile.orcid}`} target="_blank" rel="noreferrer" className="link-chip"><LinkIcon size={14} /> {profile.orcid}</a>
@@ -175,9 +205,12 @@ const ProfilePage: React.FC = () => {
                                     )}
                                 </div>
                                 <div style={{ gridColumn: '1 / -1' }}>
-                                    <label className="profile-label"><GraduationCap size={14} /> Google Scholar URL</label>
+                                    <label className="profile-label"><GraduationCap size={14} /> Google Scholar</label>
                                     {isEditMode ? (
-                                        <input className="form-input" value={editData.googleScholarUrl} onChange={e => setEditData({ ...editData, googleScholarUrl: e.target.value })} />
+                                        <>
+                                            <input className="form-input" value={editData.googleScholarUrl} onChange={e => setEditData({ ...editData, googleScholarUrl: e.target.value })} placeholder="https://scholar.google.com" style={formErrors.googleScholarUrl ? { borderColor: '#dc2626' } : {}} />
+                                            {formErrors.googleScholarUrl && <span style={{ color: '#dc2626', fontSize: '0.8rem', marginTop: '4px', display: 'block' }}>{formErrors.googleScholarUrl}</span>}
+                                        </>
                                     ) : (
                                         profile?.googleScholarUrl ? (
                                             <a href={profile.googleScholarUrl} target="_blank" rel="noreferrer" className="link-chip"><ExternalLink size={14} /> View scholar profile</a>
@@ -187,7 +220,10 @@ const ProfilePage: React.FC = () => {
                                 <div style={{ gridColumn: '1 / -1' }}>
                                     <label className="profile-label"><Github size={14} /> GitHub Profile</label>
                                     {isEditMode ? (
-                                        <input className="form-input" value={editData.githubUrl} onChange={e => setEditData({ ...editData, githubUrl: e.target.value })} />
+                                        <>
+                                            <input className="form-input" value={editData.githubUrl} onChange={e => setEditData({ ...editData, githubUrl: e.target.value })} placeholder="https://github.com/username" style={formErrors.githubUrl ? { borderColor: '#dc2626' } : {}} />
+                                            {formErrors.githubUrl && <span style={{ color: '#dc2626', fontSize: '0.8rem', marginTop: '4px', display: 'block' }}>{formErrors.githubUrl}</span>}
+                                        </>
                                     ) : (
                                         profile?.githubUrl ? (
                                             <a href={profile.githubUrl} target="_blank" rel="noreferrer" className="link-chip"><Github size={14} /> View GitHub</a>
@@ -214,21 +250,21 @@ const ProfilePage: React.FC = () => {
                             <h4 style={{ color: 'var(--text-muted)', textTransform: 'uppercase', fontSize: '0.75rem', marginBottom: '1.25rem', letterSpacing: '0.05em' }}>Account Metadata</h4>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', border: '1px solid var(--border-color)', borderRadius: '12px' }}>
-                                    <div style={{ padding: '8px', background: 'var(--accent-bg)', color: 'var(--accent-color)', borderRadius: '10px' }}><Shield size={20} /></div>
+                                    <div style={{ width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--accent-bg)', color: 'var(--accent-color)', borderRadius: '10px', flexShrink: 0 }}><Shield size={20} /></div>
                                     <div>
-                                        <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600 }}>System Role</p>
+                                        <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Role</p>
                                         <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700 }}>{roleLabel}</p>
                                     </div>
                                 </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', border: '1px solid var(--border-color)', borderRadius: '12px' }}>
+                                {/* <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', border: '1px solid var(--border-color)', borderRadius: '12px' }}>
                                     <div style={{ padding: '8px', background: '#ecfdf5', color: '#10b981', borderRadius: '10px' }}><CheckCircle size={20} /></div>
                                     <div>
                                         <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Account Status</p>
                                         <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#10b981' }}>Active</p>
                                     </div>
-                                </div>
+                                </div> */}
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', border: '1px solid var(--border-color)', borderRadius: '12px' }}>
-                                    <div style={{ padding: '8px', background: '#eff6ff', color: '#3b82f6', borderRadius: '10px' }}><Calendar size={20} /></div>
+                                    <div style={{ width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#eff6ff', color: '#3b82f6', borderRadius: '10px', flexShrink: 0 }}><Calendar size={20} /></div>
                                     <div>
                                         <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Member Since</p>
                                         <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700 }}>{memberSince}</p>
