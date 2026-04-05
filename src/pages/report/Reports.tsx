@@ -243,7 +243,7 @@ const Reports: React.FC = () => {
         if (rejected > 0) {
             return { label: `Revision (${rejected} Rejected)`, color: '#ef4444', icon: <AlertTriangle size={14} /> };
         }
-        if (report.status === 2) {
+        if (approved === total) {
             return { label: 'Fully Approved', color: '#10b981', icon: <CheckCircle size={14} /> };
         }
         if (approved > 0) {

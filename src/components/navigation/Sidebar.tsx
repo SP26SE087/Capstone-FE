@@ -18,21 +18,32 @@ import { useAuth } from '@/hooks/useAuth';
 
 const Sidebar: React.FC = () => {
     const { user } = useAuth();
-    const isAdmin = user && (Number(user.role) === 1 || user.role === 'Admin');
-    const isLabDirector = user && (Number(user.role) === 2 || user.role === 'LabDirector');
-    const isMemberOrSenior = user && (Number(user.role) === 3 || Number(user.role) === 4 || user.role === 'Member' || user.role === 'Senior');
+    const role = String(user?.role ?? '');
+    const isAdmin = Number(role) === 1 || role === 'Admin';
+    const isLabDirector = Number(role) === 2 || role === 'LabDirector' || role === 'Lab Director';
+    const isMemberOrSenior = Number(role) === 3 || Number(role) === 4 || role === 'Member' || role === 'Senior' || role === 'SeniorResearcher' || role === 'Senior Researcher';
 
-    const navItems = [
+    const workspaceItems = [
         { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/dashboard' },
         { icon: <Briefcase size={20} />, label: 'My Projects', path: '/projects' },
         { icon: <CheckSquare size={20} />, label: 'Tasks', path: '/tasks' },
-        ...(isMemberOrSenior ? [{ icon: <FileText size={20} />, label: 'PaperSubmissions', path: '/papers' }] : []),
+        ...(!isLabDirector ? [{ icon: <FileText size={20} />, label: 'Paper Submission', path: '/papers' }] : []),
         { icon: <Users size={20} />, label: 'Members', path: '/members' },
         { icon: <BarChart2 size={20} />, label: 'Reports', path: '/reports' },
         { icon: <Box size={20} />, label: 'Booking Resource', path: '/bookings' },
         { icon: <Calendar size={20} />, label: 'Schedules', path: '/schedules' },
         { icon: <Presentation size={20} />, label: 'Seminars', path: '/seminars' },
     ];
+
+    const adminItems = [
+        { icon: <UserCog size={20} />, label: 'User Management', path: '/user-management' },
+    ];
+
+    const labDirectorItems = [
+        { icon: <FileSearch size={20} />, label: 'Paper Review', path: '/paper-review' },
+    ];
+
+    const mainItems = isLabDirector ? [...workspaceItems, ...labDirectorItems] : workspaceItems;
 
     return (
         <aside className="sidebar">
@@ -49,47 +60,42 @@ const Sidebar: React.FC = () => {
             </div>
 
             <nav className="sidebar-nav">
-                <div className="sidebar-section-label">WORKSPACE</div>
-                {navItems.map((item) => (
-                    <NavLink
-                        key={item.path}
-                        to={item.path}
-                        className={({ isActive }) =>
-                            `sidebar-link ${isActive ? 'active' : ''}`
-                        }
-                    >
-                        <span className="sidebar-link-icon">{item.icon}</span>
-                        <span className="sidebar-link-label">{item.label}</span>
-                    </NavLink>
-                ))}
-
-                {(isAdmin || isLabDirector) && (
+                {(isMemberOrSenior || isLabDirector) && (
                     <>
-                        <div className="sidebar-section-label" style={{ marginTop: '0.5rem' }}>ADMINISTRATION</div>
-                        {isAdmin && (
+                        <div className="sidebar-section-label">WORKSPACE</div>
+                        {mainItems.map((item) => (
                             <NavLink
-                                to="/user-management"
+                                key={item.path}
+                                to={item.path}
                                 className={({ isActive }) =>
                                     `sidebar-link ${isActive ? 'active' : ''}`
                                 }
                             >
-                                <span className="sidebar-link-icon"><UserCog size={20} /></span>
-                                <span className="sidebar-link-label">User Management</span>
+                                <span className="sidebar-link-icon">{item.icon}</span>
+                                <span className="sidebar-link-label">{item.label}</span>
                             </NavLink>
-                        )}
-                        {isLabDirector && (
-                            <NavLink
-                                to="/paper-review"
-                                className={({ isActive }) =>
-                                    `sidebar-link ${isActive ? 'active' : ''}`
-                                }
-                            >
-                                <span className="sidebar-link-icon"><FileSearch size={20} /></span>
-                                <span className="sidebar-link-label">Paper Review</span>
-                            </NavLink>
-                        )}
+                        ))}
                     </>
                 )}
+
+                {isAdmin && (
+                    <>
+                        <div className="sidebar-section-label">WORKSPACE</div>
+                        {adminItems.map((item) => (
+                            <NavLink
+                                key={item.path}
+                                to={item.path}
+                                className={({ isActive }) =>
+                                    `sidebar-link ${isActive ? 'active' : ''}`
+                                }
+                            >
+                                <span className="sidebar-link-icon">{item.icon}</span>
+                                <span className="sidebar-link-label">{item.label}</span>
+                            </NavLink>
+                        ))}
+                    </>
+                )}
+
             </nav>
         </aside>
     );

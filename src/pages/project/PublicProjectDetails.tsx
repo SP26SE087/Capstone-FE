@@ -38,10 +38,6 @@ const PublicProjectDetails: React.FC = () => {
                 ]);
 
                 let actualProject = projectData;
-                if (!actualProject) {
-                    const publicProjects = await projectService.getPublic();
-                    actualProject = publicProjects.find(p => p.projectId?.toLowerCase() === id.toLowerCase()) || null;
-                }
 
                 if (actualProject) {
                     actualProject.projectRole = memberInfo?.projectRole;

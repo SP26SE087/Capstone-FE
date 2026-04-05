@@ -491,9 +491,6 @@ const DetailsHome: React.FC<DetailsHomeProps> = ({
                                 : milestones.find(m => String(m.milestoneId || (m as any).id) === String(selectedMilestoneId))?.name || 'Milestone'}
                         </span>
                     </div>
-                    <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#94a3b8', background: '#f8fafc', padding: '4px 12px', borderRadius: '20px', border: '1px solid #f1f5f9', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                        {viewMode === 'my-work' ? `${myTasksInProgressCount} focus tasks` : `${scopedTasks.length} total tasks`}
-                    </span>
                 </div>
 
                 {(() => {

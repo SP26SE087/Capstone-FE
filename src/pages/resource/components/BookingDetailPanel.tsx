@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Booking, BookingStatus } from '@/types/booking';
+import { Booking, BookingStatus, EquipmentLogAction } from '@/types/booking';
 import { bookingService } from '@/services/bookingService';
+import { equipmentLogService } from '@/services/equipmentLogService';
+import { useAuth } from '@/hooks/useAuth';
 import {
     Loader2,
     Calendar,
@@ -10,7 +12,9 @@ import {
     CheckCircle2,
     XCircle,
     AlertTriangle,
-    MessageSquare
+    MessageSquare,
+    LogIn,
+    LogOut
 } from 'lucide-react';
 
 interface BookingDetailPanelProps {
@@ -71,6 +75,7 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
     onTitleChange,
     isLabDirector
 }) => {
+    const { user } = useAuth();
     const [booking, setBooking] = useState<Booking | null>(null);
     const [loading, setLoading] = useState(false);
     const [actionLoading, setActionLoading] = useState(false);
@@ -80,6 +85,8 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
     const [showRejectForm, setShowRejectForm] = useState(false);
     const [showCancelForm, setShowCancelForm] = useState(false);
     const [showApproveForm, setShowApproveForm] = useState(false);
+    const [logNote, setLogNote] = useState('');
+    const [showLogForm, setShowLogForm] = useState<EquipmentLogAction | null>(null);
 
     useEffect(() => {
         if (bookingId) loadBooking();
@@ -147,6 +154,47 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
         }
     };
 
+    const handleEquipmentLog = async (action: EquipmentLogAction) => {
+        setActionLoading(true);
+        try {
+            if (action === EquipmentLogAction.CheckIn) {
+                const resolvedBookingId = booking?.id || bookingId;
+                const resolvedResourceId =
+                    (booking as any)?.resource?.id ||
+                    booking?.resourceId ||
+                    booking?.resourceIds?.[0];
+
+                if (!resolvedResourceId) {
+                    alert('Missing resourceId for this booking.');
+                    return;
+                }
+
+                await equipmentLogService.update({
+                    resourceId: resolvedResourceId,
+                    bookingId: resolvedBookingId,
+                    action,
+                    note: logNote.trim() || undefined
+                });
+            } else {
+                await equipmentLogService.create({
+                    bookingId,
+                    action,
+                    note: logNote.trim() || undefined
+                });
+            }
+            const msg = action === EquipmentLogAction.CheckOut ? 'Equipment checked out.' : 'Equipment checked in.';
+            onSaved(false, msg);
+            setShowLogForm(null);
+            setLogNote('');
+            loadBooking();
+        } catch (err: any) {
+            const msg = err?.response?.data?.message || 'Failed to log equipment action.';
+            alert(msg);
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
     if (loading) {
         return (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '300px' }}>
@@ -164,8 +212,14 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
     }
 
     const statusConfig = getStatusConfig(booking.status);
-    const canApproveReject = isLabDirector && booking.status === BookingStatus.Pending;
+    const currentUserEmail = (user?.email || '').trim().toLowerCase();
+    const bookingUserEmail = (booking.userEmail || '').trim().toLowerCase();
+    const isRequester = !!currentUserEmail && !!bookingUserEmail && currentUserEmail === bookingUserEmail;
+    const canApproveReject = booking.status === BookingStatus.Pending && !!currentUserEmail && !!bookingUserEmail && !isRequester;
     const canCancel = (booking.status === BookingStatus.Pending || booking.status === BookingStatus.Approved);
+    const canLogEquipment = isLabDirector || isRequester;
+    const canCheckOut = canLogEquipment && booking.status === BookingStatus.Approved;
+    const canCheckIn = canLogEquipment && booking.status === BookingStatus.InUse;
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -427,6 +481,60 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                     </div>
                 )}
 
+                {/* Equipment Log Form (Check-Out / Check-In) */}
+                {showLogForm !== null && (
+                    <div style={{
+                        ...sectionStyle,
+                        background: showLogForm === EquipmentLogAction.CheckOut ? '#eff6ff' : '#f0fdf4',
+                        border: `1px solid ${showLogForm === EquipmentLogAction.CheckOut ? '#bfdbfe' : '#bbf7d0'}`
+                    }}>
+                        <div style={{ ...labelStyle, color: showLogForm === EquipmentLogAction.CheckOut ? '#2563eb' : '#16a34a' }}>
+                            {showLogForm === EquipmentLogAction.CheckOut ? <LogOut size={12} /> : <LogIn size={12} />}
+                            {showLogForm === EquipmentLogAction.CheckOut ? 'Check Out Equipment' : 'Check In Equipment'}
+                        </div>
+                        <textarea
+                            style={{
+                                width: '100%', padding: '10px 14px', borderRadius: '10px',
+                                border: `1.5px solid ${showLogForm === EquipmentLogAction.CheckOut ? '#bfdbfe' : '#bbf7d0'}`,
+                                fontSize: '0.85rem', fontWeight: 500, fontFamily: 'inherit',
+                                outline: 'none', minHeight: '60px', resize: 'vertical' as const,
+                                background: '#fff', marginBottom: '10px'
+                            }}
+                            value={logNote}
+                            onChange={e => setLogNote(e.target.value)}
+                            placeholder="Optional note..."
+                        />
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                            <button
+                                onClick={() => handleEquipmentLog(showLogForm)}
+                                disabled={actionLoading}
+                                style={{
+                                    padding: '6px 16px', borderRadius: '8px', border: 'none',
+                                    background: showLogForm === EquipmentLogAction.CheckOut ? '#2563eb' : '#16a34a',
+                                    color: '#fff', cursor: actionLoading ? 'not-allowed' : 'pointer',
+                                    fontSize: '0.78rem', fontWeight: 700,
+                                    display: 'flex', alignItems: 'center', gap: '4px'
+                                }}
+                            >
+                                {actionLoading ? <Loader2 size={12} className="animate-spin" /> :
+                                    showLogForm === EquipmentLogAction.CheckOut ? <LogOut size={12} /> : <LogIn size={12} />}
+                                Confirm
+                            </button>
+                            <button
+                                onClick={() => { setShowLogForm(null); setLogNote(''); }}
+                                style={{
+                                    padding: '6px 16px', borderRadius: '8px',
+                                    border: '1px solid var(--border-color)', background: '#fff',
+                                    color: 'var(--text-secondary)', cursor: 'pointer',
+                                    fontSize: '0.78rem', fontWeight: 700
+                                }}
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                )}
+
                 {/* Cancel Form */}
                 {showCancelForm && canCancel && (
                     <div style={{
@@ -504,7 +612,35 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                 marginTop: 'auto'
             }}>
                 <div style={{ display: 'flex', gap: '8px' }}>
-                    {canCancel && !showCancelForm && !showApproveForm && !showRejectForm && (
+                    {canCheckOut && !showLogForm && !showCancelForm && !showApproveForm && !showRejectForm && (
+                        <button
+                            onClick={() => setShowLogForm(EquipmentLogAction.CheckOut)}
+                            style={{
+                                padding: '8px 16px', borderRadius: '10px',
+                                border: '1px solid #bfdbfe', background: '#eff6ff',
+                                color: '#2563eb', cursor: 'pointer',
+                                fontSize: '0.8rem', fontWeight: 700,
+                                display: 'flex', alignItems: 'center', gap: '6px'
+                            }}
+                        >
+                            <LogOut size={14} /> Check Out
+                        </button>
+                    )}
+                    {canCheckIn && !showLogForm && !showCancelForm && (
+                        <button
+                            onClick={() => setShowLogForm(EquipmentLogAction.CheckIn)}
+                            style={{
+                                padding: '8px 16px', borderRadius: '10px',
+                                border: '1px solid #bbf7d0', background: '#f0fdf4',
+                                color: '#16a34a', cursor: 'pointer',
+                                fontSize: '0.8rem', fontWeight: 700,
+                                display: 'flex', alignItems: 'center', gap: '6px'
+                            }}
+                        >
+                            <LogIn size={14} /> Check In
+                        </button>
+                    )}
+                    {canCancel && !showCancelForm && !showApproveForm && !showRejectForm && !showLogForm && (
                         <button
                             onClick={() => { setShowCancelForm(true); setShowApproveForm(false); setShowRejectForm(false); }}
                             style={{

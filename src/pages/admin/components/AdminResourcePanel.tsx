@@ -45,6 +45,7 @@ const AdminResourcePanel: React.FC<AdminResourcePanelProps> = ({
         name: formData.name || '',
         description: formData.description || '',
         type: Number(formData.type) || 1,
+        resourceTypeId: formData.resourceTypeId || String(Number(formData.type) || 1),
         location: formData.location || '',
         modelSeriesList: formData.modelSeriesList
       };

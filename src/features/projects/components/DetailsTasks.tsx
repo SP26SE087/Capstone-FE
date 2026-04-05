@@ -50,6 +50,51 @@ const getStatusColor = (status: TaskStatus) => {
     }
 };
 
+const getEvidenceExtension = (fileName?: string, fileUrl?: string): string => {
+    const fromName = fileName?.split('.').pop()?.toLowerCase();
+    if (fromName) return fromName;
+    try {
+        const pathname = new URL(fileUrl || '').pathname;
+        return pathname.split('.').pop()?.toLowerCase() || '';
+    } catch {
+        return '';
+    }
+};
+
+const getInlineCloudinaryRawUrl = (rawUrl?: string): string => {
+    if (!rawUrl) return '';
+    if (!rawUrl.includes('res.cloudinary.com')) return rawUrl;
+    if (!rawUrl.includes('/raw/upload/')) return rawUrl;
+    if (rawUrl.includes('fl_attachment:false')) return rawUrl;
+    return rawUrl.replace('/raw/upload/', '/raw/upload/fl_attachment:false/');
+};
+
+const resolveEvidenceViewer = (evidence?: { fileName?: string; fileUrl?: string } | null) => {
+    if (!evidence?.fileUrl) return { mode: 'none' as const, url: '' };
+
+    const ext = getEvidenceExtension(evidence.fileName, evidence.fileUrl);
+    const normalizedUrl = getInlineCloudinaryRawUrl(evidence.fileUrl);
+    const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'];
+    const officeExts = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'];
+
+    if (imageExts.includes(ext)) {
+        return { mode: 'image' as const, url: normalizedUrl };
+    }
+
+    if (ext === 'pdf') {
+        return { mode: 'pdf' as const, url: normalizedUrl };
+    }
+
+    if (officeExts.includes(ext)) {
+        return {
+            mode: 'office' as const,
+            url: `https://docs.google.com/viewer?url=${encodeURIComponent(normalizedUrl)}&embedded=true`
+        };
+    }
+
+    return { mode: 'none' as const, url: normalizedUrl };
+};
+
 // getPriorityStyle removed as it was unused
 
 const DetailsTasks: React.FC<DetailsTasksProps> = ({
@@ -58,7 +103,7 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
     taskMilestoneFilter, setTaskMilestoneFilter, viewMode, setViewMode,
     canManageTasks, isArchived,
     newTasks, handleAddTaskForm, handleRemoveTaskForm, handleNewTaskChange, handleSaveNewTask,
-    milestones, projectMembers, project, formatProjectDate, currentMember, refreshTasks, onEditTask
+    milestones, projectMembers, project, formatProjectDate, currentMember, refreshTasks
 }) => {
     const [personalTasks, setPersonalTasks] = useState<Task[]>([]);
     const [loadingTasks, setLoadingTasks] = useState(false);
@@ -275,7 +320,6 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
     const today = toDateInput(new Date());
 
     const selectedEditMilestone = resolveMilestone(editForm.milestoneId);
-    const editMilestoneGuid = selectedEditMilestone?.milestoneId || '';
     const editMilestoneStart = toDateInput(selectedEditMilestone?.startDate);
     const editMilestoneEnd = toDateInput(selectedEditMilestone?.dueDate);
 
@@ -1676,7 +1720,7 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                                                 </div>
                                                 <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
                                                     <a
-                                                        href={previewEvidence.fileUrl}
+                                                        href={getInlineCloudinaryRawUrl(previewEvidence.fileUrl)}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
                                                         style={{ padding: '0.5rem 0.85rem', background: '#1e293b', color: 'white', borderRadius: '8px', fontSize: '0.65rem', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}
@@ -1694,16 +1738,13 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
 
                                             {/* Media Preview Section - Now below the title */}
                                             {(() => {
-                                                const ext = previewEvidence.fileName?.split('.').pop()?.toLowerCase();
-                                                const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext || '');
-                                                const isPDF = ext === 'pdf';
-                                                const isDoc = ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(ext || '');
+                                                const viewer = resolveEvidenceViewer(previewEvidence);
 
-                                                if (isImage) {
+                                                if (viewer.mode === 'image') {
                                                     return (
                                                         <div style={{ width: '100%', borderRadius: '8px', overflow: 'hidden', border: '1px solid #f1f5f9', background: '#f8fafc', display: 'flex', justifyContent: 'center', minHeight: '100px' }}>
                                                             <img
-                                                                src={previewEvidence.fileUrl}
+                                                                src={viewer.url}
                                                                 alt={previewEvidence.fileName}
                                                                 style={{ maxWidth: '100%', maxHeight: '400px', objectFit: 'contain', display: 'block' }}
                                                             />
@@ -1711,11 +1752,11 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                                                     );
                                                 }
 
-                                                if (isPDF) {
+                                                if (viewer.mode === 'pdf') {
                                                     return (
                                                         <div style={{ width: '100%', height: '400px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #f1f5f9' }}>
                                                             <iframe
-                                                                src={`${previewEvidence.fileUrl}#toolbar=0&navpanes=0`}
+                                                                src={`${viewer.url}#toolbar=0&navpanes=0`}
                                                                 style={{ width: '100%', height: '100%', border: 'none' }}
                                                                 title="PDF Preview"
                                                             />
@@ -1723,11 +1764,11 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                                                     );
                                                 }
 
-                                                if (isDoc) {
+                                                if (viewer.mode === 'office') {
                                                     return (
                                                         <div style={{ width: '100%', height: '400px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #f1f5f9' }}>
                                                             <iframe
-                                                                src={`https://docs.google.com/viewer?url=${encodeURIComponent(previewEvidence.fileUrl)}&embedded=true`}
+                                                                src={viewer.url}
                                                                 style={{ width: '100%', height: '100%', border: 'none' }}
                                                                 title="Document Preview"
                                                             />
@@ -1736,9 +1777,17 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                                                 }
 
                                                 return (
-                                                    <div style={{ width: '100%', height: '140px', background: '#f8fafc', borderRadius: '8px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '10px', border: '1px dashed #cbd5e1' }}>
+                                                    <div style={{ width: '100%', minHeight: '140px', background: '#f8fafc', borderRadius: '8px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '10px', border: '1px dashed #cbd5e1', padding: '1rem' }}>
                                                         <Paperclip size={24} color="#94a3b8" />
                                                         <div style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 600 }}>Visual preview unavailable</div>
+                                                        <a
+                                                            href={viewer.url || previewEvidence.fileUrl}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            style={{ fontSize: '0.7rem', color: 'var(--accent-color)', fontWeight: 700, textDecoration: 'none' }}
+                                                        >
+                                                            Open file in new tab
+                                                        </a>
                                                     </div>
                                                 );
                                             })()}

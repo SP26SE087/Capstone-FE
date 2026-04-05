@@ -1,5 +1,5 @@
 import React from 'react';
-import { FileText, Sparkles, Briefcase } from 'lucide-react';
+import { FileText, Sparkles, Briefcase, User } from 'lucide-react';
 import { Report } from '@/services/reportService';
 
 interface ReportListProps {
@@ -101,6 +101,15 @@ const ReportList: React.FC<ReportListProps> = ({
                                                 <span style={{ color: '#1e293b', fontWeight: 700 }}>{projectsMap[pId] || 'No project assigned'}</span>
                                             </span>
                                         ) : <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#94a3b8' }}><Briefcase size={isSplit ? 12 : 14} /> No project assigned</span>;
+                                    })()}
+                                    {(() => {
+                                        const author = (report as any).userName || (report as any).UserName;
+                                        return author ? (
+                                            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <User size={isSplit ? 12 : 14} />
+                                                <span style={{ color: '#1e293b', fontWeight: 700 }}>{author}</span>
+                                            </span>
+                                        ) : null;
                                     })()}
                                     {!isSplit && (
                                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', maxWidth: '280px' }}>

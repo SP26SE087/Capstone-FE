@@ -11,6 +11,10 @@ export interface UpdateUserRequest {
     fullName?: string;
     role?: number;
     isActive?: boolean;
+    orcid?: string;
+    googleScholarUrl?: string;
+    githubUrl?: string;
+    studentId?: string;
 }
 
 export interface UserResponse {
@@ -18,6 +22,7 @@ export interface UserResponse {
     email: string;
     fullName: string;
     role: number;
+    isActive?: boolean;
     status: number;
     createdAt: string;
     updatedAt: string;
@@ -29,6 +34,7 @@ export interface ProfileResponse {
     role: number;
     createdAt: string;
     avatarUrl?: string;
+    studentId?: string;
     phoneNumber?: string;
     orcid?: string;
     googleScholarUrl?: string;
@@ -37,10 +43,11 @@ export interface ProfileResponse {
 
 export interface UpdateProfileRequest {
     fullName?: string;
-    phoneNumber?: string;
-    orcid?: string;
-    googleScholarUrl?: string;
-    githubUrl?: string;
+    studentId?: string | null;
+    phoneNumber?: string | null;
+    orcid?: string | null;
+    googleScholarUrl?: string | null;
+    githubUrl?: string | null;
 }
 
 export const userService = {
@@ -79,8 +86,10 @@ export const userService = {
         return response.data.data || response.data;
     },
 
-    deleteUser: async (userId: string): Promise<void> => {
-        await api.delete(`/api/users/${userId}`);
+    deleteUser: async (userId: string): Promise<UserResponse> => {
+        // Backend supports soft-delete via update (set isActive=false), not HTTP DELETE.
+        const response = await api.put(`/api/users/${userId}`, { isActive: false });
+        return response.data.data || response.data;
     },
 
     updateUser: async (userId: string, data: UpdateUserRequest): Promise<UserResponse> => {
@@ -113,7 +122,28 @@ export const userService = {
                 fullName: data.fullName || data.FullName || '',
                 role: data.role ?? data.Role ?? 4,
                 createdAt: data.createdAt || data.CreatedAt || '',
-                avatarUrl: data.avatarUrl || data.AvatarUrl || data.pictureUrl || data.PictureUrl || '',
+                avatarUrl:
+                    data.avatarUrl ||
+                    data.AvatarUrl ||
+                    data.avatar ||
+                    data.Avatar ||
+                    data.pictureUrl ||
+                    data.PictureUrl ||
+                    data.pictureURL ||
+                    data.picture ||
+                    data.photoUrl ||
+                    data.PhotoUrl ||
+                    data.photoURL ||
+                    data.imageUrl ||
+                    data.ImageUrl ||
+                    data.googleAvatarUrl ||
+                    data.GoogleAvatarUrl ||
+                    data.profilePictureUrl ||
+                    data.ProfilePictureUrl ||
+                    data.profileImageUrl ||
+                    data.ProfileImageUrl ||
+                    '',
+                studentId: data.studentId || data.StudentId || '',
                 phoneNumber: data.phoneNumber || data.PhoneNumber || '',
                 orcid: data.orcid || data.Orcid || '',
                 googleScholarUrl: data.googleScholarUrl || data.GoogleScholarUrl || '',
@@ -133,5 +163,20 @@ export const userService = {
             console.error('Error updating profile:', error);
             throw error;
         }
+    },
+
+    getByStudentId: async (studentId: string): Promise<any> => {
+        const response = await api.get(`/api/users/student/${encodeURIComponent(studentId)}`);
+        return response.data.data || response.data;
+    },
+
+    getCheckingLogs: async (email: string): Promise<any[]> => {
+        const response = await api.get(`/api/users/checking-logs/${encodeURIComponent(email)}`);
+        return response.data.data ?? response.data ?? [];
+    },
+
+    addCheckingLog: async (studentId: string, checkingTime: string): Promise<any> => {
+        const response = await api.post('/api/users/checking-log', { studentId, checkingTime });
+        return response.data.data || response.data;
     },
 };

@@ -15,7 +15,7 @@ import {
     Search,
     ShieldAlert
 } from 'lucide-react';
-import { toApiDate } from '@/utils/projectUtils';
+import { getVietnamDateInputValue, toApiDate } from '@/utils/projectUtils';
 
 
 import { useAuth } from '@/hooks/useAuth';
@@ -31,7 +31,7 @@ const CreateProject: React.FC = () => {
     const [formData, setFormData] = useState({
         projectName: '',
         projectDescription: '',
-        startDate: '',
+        startDate: getVietnamDateInputValue(),
         endDate: '',
     });
 
@@ -58,10 +58,21 @@ const CreateProject: React.FC = () => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setSubmitting(true);
         try {
-            const today = new Date().toISOString().split('T')[0];
-            const startDate = formData.startDate || today;
+            const todayVn = getVietnamDateInputValue();
+            const startDate = formData.startDate || todayVn;
+
+            if (startDate < todayVn) {
+                alert('Start date cannot be in the past.');
+                return;
+            }
+
+            if (formData.endDate && formData.endDate < startDate) {
+                alert('End date cannot be earlier than start date.');
+                return;
+            }
+
+            setSubmitting(true);
 
             const projectData = {
                 projectName: formData.projectName,
@@ -160,8 +171,16 @@ const CreateProject: React.FC = () => {
                                                 type="date"
                                                 id="startDate"
                                                 name="startDate"
+                                                min={getVietnamDateInputValue()}
                                                 value={formData.startDate}
-                                                onChange={handleInputChange}
+                                                onChange={(e) => {
+                                                    const nextStartDate = e.target.value;
+                                                    setFormData(prev => ({
+                                                        ...prev,
+                                                        startDate: nextStartDate,
+                                                        endDate: prev.endDate && prev.endDate < nextStartDate ? nextStartDate : prev.endDate
+                                                    }));
+                                                }}
                                             />
                                         </div>
                                     </div>
@@ -175,8 +194,15 @@ const CreateProject: React.FC = () => {
                                                 type="date"
                                                 id="endDate"
                                                 name="endDate"
+                                                min={formData.startDate || getVietnamDateInputValue()}
                                                 value={formData.endDate}
-                                                onChange={handleInputChange}
+                                                onChange={(e) => {
+                                                    const nextEndDate = e.target.value;
+                                                    setFormData(prev => ({
+                                                        ...prev,
+                                                        endDate: nextEndDate && prev.startDate && nextEndDate < prev.startDate ? prev.startDate : nextEndDate
+                                                    }));
+                                                }}
                                             />
                                         </div>
                                     </div>

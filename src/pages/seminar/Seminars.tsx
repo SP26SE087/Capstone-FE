@@ -7,7 +7,6 @@ import {
     Loader2,
     Calendar,
     Plus,
-    ChevronRight,
     Clock,
     Filter,
     Target,
@@ -29,6 +28,7 @@ import SeminarPanel from './components/SeminarPanel';
 import CreateSeminarForm from './components/CreateSeminarForm';
 import SwapRequests from './components/SwapRequests';
 import WeeklyTimetable, { TimetableEvent } from '@/components/common/WeeklyTimetable';
+import TranscriptionPanel from '@/pages/schedule/components/TranscriptionPanel';
 
 type TabType = 'my_seminars' | 'all_seminars' | 'invited_seminars' | 'swap_requests';
 
@@ -57,6 +57,8 @@ const Seminars: React.FC = () => {
 
     // Panel system
     const [activePanel, setActivePanel] = useState<SeminarTab | null>(null);
+    const [showTranscription, setShowTranscription] = useState(false);
+    const [transcriptionMode, setTranscriptionMode] = useState<'full' | 'view'>('full');
 
     const isLabDirector = React.useMemo(() => {
         if (!user) return false;
@@ -366,7 +368,7 @@ const Seminars: React.FC = () => {
                             <List size={16} /> List View
                         </button>
                         <button
-                            onClick={() => setViewMode('timetable')}
+                            onClick={() => { setViewMode('timetable'); setActivePanel(null); setShowTranscription(false); }}
                             style={{
                                 padding: '8px 16px', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 700,
                                 border: viewMode === 'timetable' ? '1.5px solid var(--accent-color)' : '1px solid var(--border-color)',
@@ -441,20 +443,33 @@ const Seminars: React.FC = () => {
                 </div>
 
                 {/* Main Content */}
+                {viewMode === 'timetable' ? (
+                    <div style={{ height: 'calc(100vh - 280px)', minHeight: '700px' }}>
+                        <WeeklyTimetable
+                            events={timetableEvents}
+                            onEventClick={(evt) => {
+                                const m = meetings.find(mm => mm.seminarMeetingId === evt.id);
+                                if (m) handleOpenViewTab(m);
+                            }}
+                        />
+                    </div>
+                ) : (
                 <div style={{ display: 'flex', gap: '2rem', height: 'calc(100vh - 340px)', minHeight: '650px' }}>
-                    {/* Left: List or Swap Requests */}
+                    {/* Left: List or Swap Requests — hidden when transcription is open */}
+                    {!showTranscription && (
                     <div style={{
                         flex: activePanel ? 4 : 10,
                         display: 'flex',
                         flexDirection: 'column',
                         transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
-                        width: activePanel ? '40%' : '100%',
+                        minWidth: 0,
                         overflow: 'hidden'
                     }}>
                         <div style={{ flex: 1, overflowY: 'auto', paddingRight: '0.5rem' }} className="custom-scrollbar">
                             {activeTab === 'swap_requests' ? (
                                 <SwapRequests
                                     usersMap={usersMap}
+                                    emailsMap={emailsMap}
                                     onActionComplete={() => {
                                         showToast('Swap request updated.', 'success');
                                         fetchSeminars();
@@ -464,23 +479,12 @@ const Seminars: React.FC = () => {
                                 <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
                                     <Loader2 className="animate-spin" size={32} style={{ color: 'var(--accent-color)' }} />
                                 </div>
-                            ) : viewMode === 'timetable' ? (
-                                <div style={{ height: 'calc(100vh - 380px)', minHeight: '500px' }}>
-                                    <WeeklyTimetable
-                                        events={timetableEvents}
-                                        onEventClick={(evt) => {
-                                            const m = meetings.find(mm => mm.seminarMeetingId === evt.id);
-                                            if (m) handleOpenViewTab(m);
-                                        }}
-                                    />
-                                </div>
                             ) : displayMeetings.length > 0 ? (
                                 <SeminarList
                                     meetings={displayMeetings}
                                     selectedId={activePanel?.meetingId || null}
                                     onSelect={handleOpenViewTab}
                                     usersMap={usersMap}
-                                    isSplit={!!activePanel}
                                 />
                             ) : (
                                 <div style={{ textAlign: 'center', padding: '4rem 2rem', color: '#94a3b8' }}>
@@ -495,15 +499,15 @@ const Seminars: React.FC = () => {
                             )}
                         </div>
                     </div>
+                    )}
 
-                    {/* Right: Panel */}
-                    {activePanel && (
+                    {/* Right: Panel — hidden when AI Notes is open */}
+                    {activePanel && !showTranscription && (
                         <div style={{
                             flex: 6,
                             opacity: 1,
                             pointerEvents: 'auto',
                             transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
-                            width: '60%',
                             overflow: 'hidden',
                             display: 'flex',
                             flexDirection: 'column',
@@ -535,11 +539,30 @@ const Seminars: React.FC = () => {
                                     onTitleChange={handleTitleChange}
                                     usersMap={usersMap}
                                     emailsMap={emailsMap}
+                                    onToggleAINote={() => { setTranscriptionMode('full'); setShowTranscription(v => !v); }}
+                                    showAINote={showTranscription}
+                                    onGetTranscribe={() => { setTranscriptionMode('view'); setShowTranscription(true); }}
                                 />
                             )}
                         </div>
                     )}
+
+                    {/* AI Notes / Transcription panel — takes full width */}
+                    {showTranscription && (
+                        <div style={{
+                            flex: 10, minWidth: 0, overflow: 'hidden',
+                            display: 'flex', flexDirection: 'column',
+                            transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+                        }}>
+                            <TranscriptionPanel
+                                onClose={() => setShowTranscription(false)}
+                                meetingId={activePanel?.type === 'view' ? activePanel.meetingId : undefined}
+                                mode={transcriptionMode}
+                            />
+                        </div>
+                    )}
                 </div>
+                )}
             </div>
 
             <style>{`

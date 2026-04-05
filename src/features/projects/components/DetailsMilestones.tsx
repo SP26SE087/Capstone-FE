@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-    Plus, Search, Calendar, Target, Edit3,
+    Plus, Search, Calendar, Target, Edit3, X,
     Clock, Activity, CheckCircle2, User, Users, Info,
     Save, Trash2, ChevronRight, ChevronDown, CheckCircle, Timer
 } from 'lucide-react';
@@ -8,7 +8,6 @@ import { Milestone, MilestoneStatus, Task } from '@/types';
 import MilestoneItem from '@/components/milestone/MilestoneItem';
 import { taskService } from '@/services/taskService';
 import { milestoneService } from '@/services/milestoneService';
-import { dashboardService } from '@/services';
 
 
 interface TaskDraft {
@@ -92,7 +91,6 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
     const pStartFormatted = projectStartDate ? new Date(projectStartDate).toLocaleDateString('en-CA') : today;
     const pEndFormatted = projectEndDate ? new Date(projectEndDate).toLocaleDateString('en-CA') : '';
     const [formTab, setFormTab] = React.useState<FormTab>('view');
-    const [showMoreOptions, setShowMoreOptions] = React.useState(false);
     const [draftTasks, setDraftTasks] = React.useState<TaskDraft[]>([]);
     const [confirmState, setConfirmState] = React.useState<{
         isOpen: boolean;
@@ -109,137 +107,37 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
         cancelLabel: 'Cancel',
         onConfirm: () => { }
     });
-
     const [milestoneTasks, setMilestoneTasks] = React.useState<Task[]>([]);
     const [loadingTasks, setLoadingTasks] = React.useState(false);
     const [taskTab, setTaskTab] = React.useState<'draft' | 'current'>('current');
     const [expandedTasks, setExpandedTasks] = React.useState<string[]>([]);
-    const [isBulkSaving, setIsBulkSaving] = React.useState(false);
     const [savingTaskId, setSavingTaskId] = React.useState<string | null>(null);
 
     // API Stats State
-    const [milestoneStats, setMilestoneStats] = React.useState<any>(null);
-    const [_loadingStats, setLoadingStats] = React.useState(false);
+    const [milestoneStats, _setMilestoneStats] = React.useState<any>(null);
+    const [_loadingStats, _setLoadingStats] = React.useState(false);
 
-    const fetchStats = React.useCallback(async () => {
-        if (!projectId) return;
-        setLoadingStats(true);
-        try {
-            const data = await dashboardService.getMilestoneStats(projectId);
-            setMilestoneStats(data);
-        } catch (error) {
-            console.error("Failed to fetch milestone stats:", error);
-        } finally {
-            setLoadingStats(false);
-        }
-    }, [projectId]);
-
-    React.useEffect(() => {
-        fetchStats();
-    }, [fetchStats, milestones.length]); // Re-fetch if milestones count changes
-
-    const fetchMilestoneTasks = React.useCallback(async (mId: string) => {
+    const fetchMilestoneTasks = async (mId: string) => {
         setLoadingTasks(true);
         try {
-            const result = await milestoneService.getTasksByMilestone(mId);
-            // Harmonize task data to ensure memberId is present for updates
-            const processed = (result || []).map((t: any) => {
-                const cIds = Array.isArray(t.collaborators) ? t.collaborators.map((c: any) => (c.memberId || c.membershipId || c.id)).filter(Boolean) : (t.collaboratorIds || []);
-                const existingId = t.memberId || t.assignedToId;
-                const taskId = t.taskId || t.id;
-
-                let finalTask = { ...t, taskId, collaboratorIds: cIds };
-
-                if (!existingId) {
-                    const match = members.find(m => (m.fullName || m.userName) === (t.assignedToName || t.assigneeName));
-                    finalTask.memberId = match ? (match.id || match.memberId || match.membershipId) : null;
-                }
-
-                return finalTask;
-            });
-            setMilestoneTasks(processed);
+            const tasks = await milestoneService.getTasksByMilestone(mId);
+            setMilestoneTasks(Array.isArray(tasks) ? tasks : []);
         } catch (error) {
-            console.error("Failed to fetch tasks for milestone:", error);
-            setMilestoneTasks([]);
+            console.error('Failed to fetch milestone tasks:', error);
         } finally {
             setLoadingTasks(false);
         }
-    }, []);
-
-    React.useEffect(() => {
-        const mId = editingMilestoneId || activeMilestone?.milestoneId || (activeMilestone as any)?.id;
-        if (mId) {
-            fetchMilestoneTasks(mId);
-        } else {
-            setMilestoneTasks([]);
-        }
-    }, [activeMilestone?.milestoneId, editingMilestoneId, fetchMilestoneTasks]);
-
-
-
-    // Helper to format date to DD/MM/YYYY
-    const formatDate = (dateInput: string | Date | null | undefined): string => {
-        if (!dateInput) return "TBD";
-        try {
-            const date = new Date(dateInput);
-            if (isNaN(date.getTime())) return "TBD";
-            const day = String(date.getDate()).padStart(2, '0');
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const year = date.getFullYear();
-            return `${month}/${day}/${year}`;
-        } catch (e) {
-            return "TBD";
-        }
     };
 
-    // Date range constraints for tasks
-    const mStartDate = activeMilestone?.startDate ? new Date(activeMilestone.startDate).toISOString().split('T')[0] : '';
-    const mDueDate = activeMilestone?.dueDate ? new Date(activeMilestone.dueDate).toISOString().split('T')[0] : '';
-
-    // Task Draft Handlers
-    const addDraftSlot = () => {
-        const today = new Date().toISOString().split('T')[0];
-        const newDraft: TaskDraft = {
-            id: Math.random().toString(36).substr(2, 9),
-            name: '',
-            description: '',
-            priority: 2, // Medium=2
-            status: 1,   // Todo=1
-            startDate: mStartDate || today,
-            dueDate: mDueDate || today,
-            assigneeId: '',
-            collaboratorIds: [],
-            isSaving: false,
-            isExpanded: true
-        };
-        setTaskTab('draft');
-        setDraftTasks([newDraft, ...draftTasks.map(d => ({ ...d, isExpanded: false }))]);
-    };
-
-    const updateDraft = (id: string, field: keyof TaskDraft, value: any) => {
-        setDraftTasks(prev => prev.map(d => d.id === id ? { ...d, [field]: value } : d));
-    };
-
-    const removeDraft = (id: string, e: React.MouseEvent) => {
-        e.stopPropagation();
-        setDraftTasks(prev => prev.filter(d => d.id !== id));
-    };
-
-    const toggleDraftExpand = (id: string) => {
-        setDraftTasks(prev => prev.map(d => d.id === id ? { ...d, isExpanded: !d.isExpanded } : { ...d, isExpanded: false }));
-    };
-
-    const handleSingleTaskSave = async (draft: TaskDraft) => {
-        if (!draft.name || !activeMilestone) return;
+    const handleSaveDraftTask = async (draft: TaskDraft) => {
         setDraftTasks(prev => prev.map(d => d.id === draft.id ? { ...d, isSaving: true } : d));
-
         try {
-            const mId = editingMilestoneId || activeMilestone.milestoneId || (activeMilestone as any).id;
+            const mId = activeMilestone?.milestoneId || (activeMilestone as any)?.id || editingMilestoneId;
             const taskPayload = {
                 name: draft.name,
                 description: draft.description,
                 priority: draft.priority,
-                status: draft.status || 1,
+                status: draft.status,
                 memberId: draft.assigneeId,
                 milestoneId: mId,
                 projectId: projectId,
@@ -258,43 +156,6 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
             console.error("Failed to save task:", error);
             showToast(error.message || 'Failed to save task.', 'error');
             setDraftTasks(prev => prev.map(d => d.id === draft.id ? { ...d, isSaving: false } : d));
-        }
-    };
-
-    const handleBulkTaskSave = async () => {
-        const validDrafts = draftTasks.filter(d => d.name.trim() !== '' && d.assigneeId);
-        if (validDrafts.length === 0 || !activeMilestone || isBulkSaving) return;
-
-        setIsBulkSaving(true);
-        setDraftTasks(prev => prev.map(d => ({ ...d, isSaving: true })));
-
-        try {
-            const mId = editingMilestoneId || activeMilestone.milestoneId || (activeMilestone as any).id;
-            const payloads = validDrafts.map(draft => ({
-                name: draft.name,
-                description: draft.description,
-                priority: draft.priority,
-                status: draft.status || 1,
-                memberId: draft.assigneeId,
-                milestoneId: mId,
-                projectId: projectId,
-                startDate: draft.startDate + "T00:00:00.000Z",
-                dueDate: draft.dueDate + "T23:59:59.000Z",
-                supportMembers: draft.collaboratorIds
-            }));
-
-            await taskService.createBulk(payloads);
-            showToast(`Successfully saved ${validDrafts.length} tasks`, 'success');
-
-            setDraftTasks([]);
-            if (mId) fetchMilestoneTasks(mId);
-            if (refreshTasks) refreshTasks();
-        } catch (error: any) {
-            console.error("Failed to save bulk tasks:", error);
-            showToast(error.message || 'Failed to save bulk tasks.', 'error');
-            setDraftTasks(prev => prev.map(d => ({ ...d, isSaving: false })));
-        } finally {
-            setIsBulkSaving(false);
         }
     };
 
@@ -407,13 +268,11 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
         if (activeMilestone && (editingMilestoneId || activeMilestone.milestoneId)) {
             setFormTab('view');
             setDraftTasks([]);
-            setShowMoreOptions(false);
             if (activeMilestone.status === MilestoneStatus.Completed || activeMilestone.status === MilestoneStatus.Cancelled) {
                 setTaskTab('current');
             }
         } else if (viewMode === 'roadmap') {
             setFormTab('add');
-            setShowMoreOptions(false);
 
             // PRE-FILL Add Milestone form with sensible defaults if empty
             if (!newMilestoneData.name && !newMilestoneData.startDate && !newMilestoneData.dueDate) {
@@ -536,6 +395,143 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
         });
     };
 
+    const renderMilestoneActions = (milestone: Milestone) => {
+        if (!canManageMilestones) return null;
+
+        const isClosed = milestone.status === MilestoneStatus.Completed || milestone.status === MilestoneStatus.Cancelled;
+
+        const actionButtonStyle = (color: string, background: string): React.CSSProperties => ({
+            width: '100%',
+            padding: '0.82rem 0.95rem',
+            border: 'none',
+            background,
+            color,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+            fontSize: '0.82rem',
+            fontWeight: 800,
+            textAlign: 'left',
+            borderRadius: '12px',
+            transition: 'all 0.15s ease',
+            boxShadow: 'inset 0 0 0 1px rgba(226, 232, 240, 0.9)'
+        });
+
+        return (
+            <div style={{ width: '100%', background: 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)', border: '1px solid #e2e8f0', borderRadius: '18px', boxShadow: '0 10px 28px rgba(15, 23, 42, 0.06)', overflow: 'hidden' }}>
+                <div style={{ padding: '0.9rem 1rem 0.75rem', borderBottom: '1px solid #eef2f7', background: '#fff' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '0.25rem' }}>
+                        <div style={{ width: '28px', height: '28px', borderRadius: '10px', background: '#eff6ff', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <Target size={14} />
+                        </div>
+                        <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#1e293b' }}>Milestone actions</div>
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: '#64748b', lineHeight: 1.45 }}>
+                        Update the milestone status or remove it from the project.
+                    </div>
+                </div>
+
+                <div style={{ padding: '0.8rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.6rem' }}>
+                    {isClosed ? (
+                        <div style={{ gridColumn: '1 / -1', padding: '0.85rem 0.95rem', borderRadius: '12px', background: milestone.status === MilestoneStatus.Completed ? '#ecfdf5' : '#fff1f2', color: milestone.status === MilestoneStatus.Completed ? '#15803d' : '#be123c', fontSize: '0.78rem', fontWeight: 700 }}>
+                            This milestone is {milestone.status === MilestoneStatus.Completed ? 'completed' : 'cancelled'}. Quick actions are disabled.
+                        </div>
+                    ) : (
+                        <>
+                            {milestone.status == MilestoneStatus.NotStarted && (
+                                <button
+                                    type="button"
+                                    onClick={() => handleUpdateStatus(milestone, MilestoneStatus.InProgress)}
+                                    style={actionButtonStyle('#0284c7', '#f8fafc')}
+                                    onMouseOver={(e) => e.currentTarget.style.background = '#f0f9ff'}
+                                    onMouseOut={(e) => e.currentTarget.style.background = '#f8fafc'}
+                                >
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Target size={14} /> Start milestone</span>
+                                    <ChevronRight size={14} />
+                                </button>
+                            )}
+
+                            {milestone.status == MilestoneStatus.InProgress && (
+                                <>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleUpdateStatus(milestone, MilestoneStatus.Completed)}
+                                        style={actionButtonStyle('#10b981', '#f8fafc')}
+                                        onMouseOver={(e) => e.currentTarget.style.background = '#f0fdf4'}
+                                        onMouseOut={(e) => e.currentTarget.style.background = '#f8fafc'}
+                                    >
+                                        <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><CheckCircle size={14} /> Mark complete</span>
+                                        <ChevronRight size={14} />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleUpdateStatus(milestone, MilestoneStatus.OnHold)}
+                                        style={actionButtonStyle('#f59e0b', '#f8fafc')}
+                                        onMouseOver={(e) => e.currentTarget.style.background = '#fffbeb'}
+                                        onMouseOut={(e) => e.currentTarget.style.background = '#f8fafc'}
+                                    >
+                                        <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Clock size={14} /> Put on hold</span>
+                                        <ChevronRight size={14} />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleUpdateStatus(milestone, MilestoneStatus.Cancelled)}
+                                        style={actionButtonStyle('#ef4444', '#f8fafc')}
+                                        onMouseOver={(e) => e.currentTarget.style.background = '#fef2f2'}
+                                        onMouseOut={(e) => e.currentTarget.style.background = '#f8fafc'}
+                                    >
+                                        <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><X size={14} /> Cancel milestone</span>
+                                        <ChevronRight size={14} />
+                                    </button>
+                                </>
+                            )}
+
+                            {milestone.status == MilestoneStatus.OnHold && (
+                                <>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleUpdateStatus(milestone, MilestoneStatus.InProgress)}
+                                        style={actionButtonStyle('#0284c7', '#f8fafc')}
+                                        onMouseOver={(e) => e.currentTarget.style.background = '#f0f9ff'}
+                                        onMouseOut={(e) => e.currentTarget.style.background = '#f8fafc'}
+                                    >
+                                        <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><ChevronRight size={14} /> Resume milestone</span>
+                                        <ChevronRight size={14} />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleUpdateStatus(milestone, MilestoneStatus.Cancelled)}
+                                        style={actionButtonStyle('#ef4444', '#f8fafc')}
+                                        onMouseOver={(e) => e.currentTarget.style.background = '#fef2f2'}
+                                        onMouseOut={(e) => e.currentTarget.style.background = '#f8fafc'}
+                                    >
+                                        <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><X size={14} /> Cancel milestone</span>
+                                        <ChevronRight size={14} />
+                                    </button>
+                                </>
+                            )}
+
+                            {(milestone.status == MilestoneStatus.NotStarted || milestone.status == MilestoneStatus.OnHold) && (
+                                <button
+                                    type="button"
+                                    onClick={() => handleDeleteConfirm(milestone)}
+                                    style={actionButtonStyle('#e11d48', '#fff1f2')}
+                                    onMouseOver={(e) => e.currentTarget.style.background = '#ffe4e6'}
+                                    onMouseOut={(e) => e.currentTarget.style.background = '#fff1f2'}
+                                >
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Trash2 size={14} /> Delete milestone</span>
+                                    <ChevronRight size={14} />
+                                </button>
+                            )}
+                        </>
+                    )}
+                </div>
+            </div>
+        );
+    };
+
     const handleUpdateStatus = async (milestone: Milestone, newStatus: MilestoneStatus) => {
         // Validation: Cannot complete if there are incomplete tasks
         if (newStatus === MilestoneStatus.Completed) {
@@ -565,7 +561,6 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
             await milestoneService.updateStatus(mId, newStatus);
             showToast('Milestone status updated!', 'success');
             if (refreshMilestones) refreshMilestones();
-            setShowMoreOptions(false);
         } catch (error) {
             console.error('Failed to update milestone status:', error);
             showToast((error as any).message || 'Failed to update status.', 'error');
@@ -596,6 +591,56 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
     })();
 
     const cancelBtnLabel = viewMode === 'detail' ? "Back to List" : "Cancel";
+
+    const formatDate = (d: string | Date | null | undefined): string => {
+        if (!d) return 'N/A';
+        try {
+            const date = typeof d === 'string' ? new Date(d) : d;
+            if (isNaN(date.getTime())) return 'N/A';
+            return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+        } catch {
+            return 'N/A';
+        }
+    };
+
+    const mStartDate = activeMilestone?.startDate ? new Date(activeMilestone.startDate).toLocaleDateString('en-CA') : '';
+    const mDueDate = activeMilestone?.dueDate ? new Date(activeMilestone.dueDate).toLocaleDateString('en-CA') : '';
+    const mDueDateMinus1 = activeMilestone?.dueDate ? (() => { const d = new Date(activeMilestone.dueDate); d.setDate(d.getDate() - 1); return d.toLocaleDateString('en-CA'); })() : '';
+
+    const addDraftSlot = () => {
+        const newDraft: TaskDraft = {
+            id: `draft-${Date.now()}`,
+            name: '',
+            description: '',
+            priority: 2,
+            status: 1,
+            startDate: mStartDate || today,
+            dueDate: mDueDateMinus1 || '',
+            assigneeId: '',
+            collaboratorIds: [],
+            isSaving: false,
+            isExpanded: true
+        };
+        setDraftTasks(prev => [...prev, newDraft]);
+        setTaskTab('draft');
+    };
+
+    const toggleDraftExpand = (id: string) => {
+        setDraftTasks(prev => prev.map(d => d.id === id ? { ...d, isExpanded: !d.isExpanded } : d));
+    };
+
+    const updateDraft = (id: string, field: string, value: any) => {
+        setDraftTasks(prev => prev.map(d => d.id === id ? { ...d, [field]: value } : d));
+    };
+
+    const handleSingleTaskSave = async (draft: TaskDraft) => {
+        await handleSaveDraftTask(draft);
+    };
+
+    const removeDraft = (id: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        setDraftTasks(prev => prev.filter(d => d.id !== id));
+    };
 
     // 📊 Redesigned Stats Logic
     const getMilestoneMetrics = () => {
@@ -773,97 +818,7 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                             </div>
                                             <div><label style={labelStyle}>Goal</label><div style={{ fontSize: '0.8rem', color: '#475569', lineHeight: 1.5, background: '#f8fafc', padding: '0.85rem', borderRadius: '12px' }}>{activeMilestone.description || "No goal defined."}</div></div>
                                             <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                                {/* More Options Dropdown */}
-                                                {/* More Options Dropdown - Accordion Style */}
-                                                {(canManageMilestones &&
-                                                    activeMilestone.status !== MilestoneStatus.Completed &&
-                                                    activeMilestone.status !== MilestoneStatus.Cancelled) && (
-                                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                                                            <button
-                                                                onClick={(e) => { e.stopPropagation(); setShowMoreOptions(!showMoreOptions); }}
-                                                                style={{ ...btnSecondary, background: 'none', border: 'none', textDecoration: 'underline', width: 'auto', padding: '4px 0', fontSize: '0.85rem', fontWeight: 600, color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'flex-start' }}
-                                                            >
-                                                                More options {showMoreOptions ? '▾' : '▸'}
-                                                            </button>
-                                                            {showMoreOptions && (
-                                                                <div style={{ background: '#f8fafc', borderRadius: '10px', marginTop: '4px', overflow: 'hidden', border: '1px solid #f1f5f9', width: '200px' }}>
-                                                                    {/* Status Transitions */}
-                                                                    {activeMilestone.status == MilestoneStatus.NotStarted && (
-                                                                        <button
-                                                                            onClick={() => handleUpdateStatus(activeMilestone, MilestoneStatus.InProgress)}
-                                                                            style={{ display: 'block', width: '100%', padding: '0.65rem 0.85rem', fontSize: '0.8rem', fontWeight: 700, textAlign: 'left', border: 'none', background: 'transparent', color: '#0284c7', cursor: 'pointer' }}
-                                                                            onMouseOver={(e) => e.currentTarget.style.background = '#f0f9ff'}
-                                                                            onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
-                                                                        >
-                                                                            Start
-                                                                        </button>
-                                                                    )}
-
-                                                                    {activeMilestone.status == MilestoneStatus.InProgress && (
-                                                                        <>
-                                                                            <button
-                                                                                onClick={() => handleUpdateStatus(activeMilestone, MilestoneStatus.Completed)}
-                                                                                style={{ display: 'block', width: '100%', padding: '0.65rem 0.85rem', fontSize: '0.8rem', fontWeight: 700, textAlign: 'left', border: 'none', background: 'transparent', color: '#10b981', cursor: 'pointer' }}
-                                                                                onMouseOver={(e) => e.currentTarget.style.background = '#f0fdf4'}
-                                                                                onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
-                                                                            >
-                                                                                Complete
-                                                                            </button>
-                                                                            <button
-                                                                                onClick={() => handleUpdateStatus(activeMilestone, MilestoneStatus.OnHold)}
-                                                                                style={{ display: 'block', width: '100%', padding: '0.65rem 0.85rem', fontSize: '0.8rem', fontWeight: 700, textAlign: 'left', border: 'none', background: 'transparent', color: '#f59e0b', cursor: 'pointer', borderTop: '1px solid #f1f5f9' }}
-                                                                                onMouseOver={(e) => e.currentTarget.style.background = '#fffbeb'}
-                                                                                onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
-                                                                            >
-                                                                                Delay
-                                                                            </button>
-                                                                            <button
-                                                                                onClick={() => handleUpdateStatus(activeMilestone, MilestoneStatus.Cancelled)}
-                                                                                style={{ display: 'block', width: '100%', padding: '0.65rem 0.85rem', fontSize: '0.8rem', fontWeight: 700, textAlign: 'left', border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', borderTop: '1px solid #f1f5f9' }}
-                                                                                onMouseOver={(e) => e.currentTarget.style.background = '#fef2f2'}
-                                                                                onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
-                                                                            >
-                                                                                Cancel
-                                                                            </button>
-                                                                        </>
-                                                                    )}
-
-                                                                    {activeMilestone.status == MilestoneStatus.OnHold && (
-                                                                        <>
-                                                                            <button
-                                                                                onClick={() => handleUpdateStatus(activeMilestone, MilestoneStatus.InProgress)}
-                                                                                style={{ display: 'block', width: '100%', padding: '0.65rem 0.85rem', fontSize: '0.8rem', fontWeight: 700, textAlign: 'left', border: 'none', background: 'transparent', color: '#0284c7', cursor: 'pointer' }}
-                                                                                onMouseOver={(e) => e.currentTarget.style.background = '#f0f9ff'}
-                                                                                onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
-                                                                            >
-                                                                                Resume
-                                                                            </button>
-                                                                            <button
-                                                                                onClick={() => handleUpdateStatus(activeMilestone, MilestoneStatus.Cancelled)}
-                                                                                style={{ display: 'block', width: '100%', padding: '0.65rem 0.85rem', fontSize: '0.8rem', fontWeight: 700, textAlign: 'left', border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', borderTop: '1px solid #f1f5f9' }}
-                                                                                onMouseOver={(e) => e.currentTarget.style.background = '#fef2f2'}
-                                                                                onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
-                                                                            >
-                                                                                Cancel
-                                                                            </button>
-                                                                        </>
-                                                                    )}
-
-                                                                    {/* Delete for NotStarted and OnHold */}
-                                                                    {(activeMilestone.status == MilestoneStatus.NotStarted || activeMilestone.status == MilestoneStatus.OnHold) && (
-                                                                        <button
-                                                                            onClick={() => { handleDeleteConfirm(activeMilestone); setShowMoreOptions(false); }}
-                                                                            style={{ display: 'block', width: '100%', padding: '0.65rem 0.85rem', fontSize: '0.8rem', fontWeight: 700, textAlign: 'left', border: 'none', background: 'transparent', color: '#e11d48', cursor: 'pointer', borderTop: '1px solid #f1f5f9' }}
-                                                                            onMouseOver={(e) => e.currentTarget.style.background = '#fff1f2'}
-                                                                            onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
-                                                                        >
-                                                                            Delete
-                                                                        </button>
-                                                                    )}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    )}
+                                                    {renderMilestoneActions(activeMilestone)}
                                                 <button onClick={protectedCancelEdit} style={{ ...btnSecondary, width: '100%', padding: '0.75rem' }}>{cancelBtnLabel}</button>
                                             </div>
                                         </div>
@@ -903,96 +858,7 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                                 <textarea placeholder="Description..." value={newMilestoneData.description} onChange={(e) => handleMilestoneDataChange('description', e.target.value)} style={{ ...inputStyle, minHeight: '80px', padding: '0.75rem' }} />
                                             </div>
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.5rem' }}>
-                                                {/* More Options Dropdown in Edit Mode - Accordion Style */}
-                                                {canManageMilestones && activeMilestone &&
-                                                    activeMilestone.status !== MilestoneStatus.Completed &&
-                                                    activeMilestone.status !== MilestoneStatus.Cancelled && (
-                                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                                                            <button
-                                                                onClick={(e) => { e.stopPropagation(); setShowMoreOptions(!showMoreOptions); }}
-                                                                style={{ ...btnSecondary, background: 'none', border: 'none', textDecoration: 'underline', width: 'auto', padding: '4px 0', fontSize: '0.85rem', fontWeight: 600, color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'flex-start' }}
-                                                            >
-                                                                More options {showMoreOptions ? '▾' : '▸'}
-                                                            </button>
-                                                            {showMoreOptions && (
-                                                                <div style={{ background: '#f8fafc', borderRadius: '10px', marginTop: '4px', overflow: 'hidden', border: '1px solid #f1f5f9', width: '200px' }}>
-                                                                    {/* Status Transitions */}
-                                                                    {activeMilestone.status == MilestoneStatus.NotStarted && (
-                                                                        <button
-                                                                            onClick={() => handleUpdateStatus(activeMilestone, MilestoneStatus.InProgress)}
-                                                                            style={{ display: 'block', width: '100%', padding: '0.65rem 0.85rem', fontSize: '0.8rem', fontWeight: 700, textAlign: 'left', border: 'none', background: 'transparent', color: '#0284c7', cursor: 'pointer' }}
-                                                                            onMouseOver={(e) => e.currentTarget.style.background = '#f0f9ff'}
-                                                                            onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
-                                                                        >
-                                                                            Start
-                                                                        </button>
-                                                                    )}
-
-                                                                    {activeMilestone.status == MilestoneStatus.InProgress && (
-                                                                        <>
-                                                                            <button
-                                                                                onClick={() => handleUpdateStatus(activeMilestone, MilestoneStatus.Completed)}
-                                                                                style={{ display: 'block', width: '100%', padding: '0.65rem 0.85rem', fontSize: '0.8rem', fontWeight: 700, textAlign: 'left', border: 'none', background: 'transparent', color: '#10b981', cursor: 'pointer' }}
-                                                                                onMouseOver={(e) => e.currentTarget.style.background = '#f0fdf4'}
-                                                                                onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
-                                                                            >
-                                                                                Complete
-                                                                            </button>
-                                                                            <button
-                                                                                onClick={() => handleUpdateStatus(activeMilestone, MilestoneStatus.OnHold)}
-                                                                                style={{ display: 'block', width: '100%', padding: '0.65rem 0.85rem', fontSize: '0.8rem', fontWeight: 700, textAlign: 'left', border: 'none', background: 'transparent', color: '#f59e0b', cursor: 'pointer', borderTop: '1px solid #f1f5f9' }}
-                                                                                onMouseOver={(e) => e.currentTarget.style.background = '#fffbeb'}
-                                                                                onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
-                                                                            >
-                                                                                Delay
-                                                                            </button>
-                                                                            <button
-                                                                                onClick={() => handleUpdateStatus(activeMilestone, MilestoneStatus.Cancelled)}
-                                                                                style={{ display: 'block', width: '100%', padding: '0.65rem 0.85rem', fontSize: '0.8rem', fontWeight: 700, textAlign: 'left', border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', borderTop: '1px solid #f1f5f9' }}
-                                                                                onMouseOver={(e) => e.currentTarget.style.background = '#fef2f2'}
-                                                                                onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
-                                                                            >
-                                                                                Cancel
-                                                                            </button>
-                                                                        </>
-                                                                    )}
-
-                                                                    {activeMilestone.status == MilestoneStatus.OnHold && (
-                                                                        <>
-                                                                            <button
-                                                                                onClick={() => handleUpdateStatus(activeMilestone, MilestoneStatus.InProgress)}
-                                                                                style={{ display: 'block', width: '100%', padding: '0.65rem 0.85rem', fontSize: '0.8rem', fontWeight: 700, textAlign: 'left', border: 'none', background: 'transparent', color: '#0284c7', cursor: 'pointer' }}
-                                                                                onMouseOver={(e) => e.currentTarget.style.background = '#f0f9ff'}
-                                                                                onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
-                                                                            >
-                                                                                Resume
-                                                                            </button>
-                                                                            <button
-                                                                                onClick={() => handleUpdateStatus(activeMilestone, MilestoneStatus.Cancelled)}
-                                                                                style={{ display: 'block', width: '100%', padding: '0.65rem 0.85rem', fontSize: '0.8rem', fontWeight: 700, textAlign: 'left', border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', borderTop: '1px solid #f1f5f9' }}
-                                                                                onMouseOver={(e) => e.currentTarget.style.background = '#fef2f2'}
-                                                                                onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
-                                                                            >
-                                                                                Cancel
-                                                                            </button>
-                                                                        </>
-                                                                    )}
-
-                                                                    {/* Delete for NotStarted and OnHold */}
-                                                                    {(activeMilestone.status == MilestoneStatus.NotStarted || activeMilestone.status == MilestoneStatus.OnHold) && (
-                                                                        <button
-                                                                            onClick={() => { handleDeleteConfirm(activeMilestone); setShowMoreOptions(false); }}
-                                                                            style={{ display: 'block', width: '100%', padding: '0.65rem 0.85rem', fontSize: '0.8rem', fontWeight: 700, textAlign: 'left', border: 'none', background: 'transparent', color: '#e11d48', cursor: 'pointer', borderTop: '1px solid #f1f5f9' }}
-                                                                            onMouseOver={(e) => e.currentTarget.style.background = '#fff1f2'}
-                                                                            onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
-                                                                        >
-                                                                            Delete
-                                                                        </button>
-                                                                    )}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    )}
+                                                {activeMilestone && renderMilestoneActions(activeMilestone)}
                                                 <div style={{ display: 'flex', gap: '0.6rem' }}>
                                                     <button onClick={() => setFormTab('view')} disabled={isMilestoneSaving} style={{ ...btnSecondary, flex: 1, padding: '0.75rem', opacity: isMilestoneSaving ? 0.7 : 1 }}>Cancel</button>
                                                     <button 

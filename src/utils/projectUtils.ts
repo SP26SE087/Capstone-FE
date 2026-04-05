@@ -1,5 +1,7 @@
 import { ProjectStatus } from '@/types';
 
+const VIETNAM_TIME_ZONE = 'Asia/Ho_Chi_Minh';
+
 export interface StatusStyle {
     bg: string;
     color: string;
@@ -53,15 +55,37 @@ export const formatProjectDate = (date: string | Date | null | undefined, fallba
     try {
         const d = new Date(date!);
         if (isNaN(d.getTime())) return fallback;
-        return d.toLocaleDateString('vi-VN');
+        return d.toLocaleDateString('vi-VN', { timeZone: VIETNAM_TIME_ZONE });
     } catch {
         return fallback;
     }
 };
 
+export const getVietnamDateInputValue = (date: Date = new Date()): string => {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: VIETNAM_TIME_ZONE,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    }).formatToParts(date);
+
+    const year = parts.find(part => part.type === 'year')?.value ?? '';
+    const month = parts.find(part => part.type === 'month')?.value ?? '';
+    const day = parts.find(part => part.type === 'day')?.value ?? '';
+
+    return `${year}-${month}-${day}`;
+};
+
 export const toApiDate = (dateStr: string | null | undefined): string | null => {
     if (!dateStr || dateStr === '') return null;
     try {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+            const [year, month, day] = dateStr.split('-').map(Number);
+            if (!year || !month || !day) return null;
+
+            return new Date(Date.UTC(year, month - 1, day, 23, 59, 59)).toISOString();
+        }
+
         const d = new Date(dateStr);
         if (isNaN(d.getTime()) || d.getFullYear() <= 1) return null;
         return d.toISOString();

@@ -1,7 +1,11 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { X, Search, Users, Calendar, CheckSquare, AlignLeft, AlertTriangle, MapPin, AlertOctagon, Plus, Trash2, FileText, File, Eye, Clock } from 'lucide-react';
 import { Priority, TaskStatus, ProjectMember, Task, TaskEvidence, ProjectRoleEnum } from '@/types';
-import MilestoneRoadmapPreview from '../milestones/MilestoneRoadmapPreview';
+import { Document, Page, pdfjs } from 'react-pdf';
+import 'react-pdf/dist/Page/AnnotationLayer.css';
+import 'react-pdf/dist/Page/TextLayer.css';
+
+pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 interface TaskFormModalProps {
     isOpen: boolean;
@@ -217,6 +221,11 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
     const [supportMemberIds, setSupportMemberIds] = useState<string[]>([]);
     const [evidenceFiles, setEvidenceFiles] = useState<File[]>([]);
     const [serverEvidences, setServerEvidences] = useState<TaskEvidence[]>([]);
+    const [showEvidenceViewer, setShowEvidenceViewer] = useState(false);
+    const [evidenceViewerUrl, setEvidenceViewerUrl] = useState<string | null>(null);
+    const [evidenceViewerKind, setEvidenceViewerKind] = useState<'pdf' | 'office' | 'link'>('link');
+    const [evidencePdfPage, setEvidencePdfPage] = useState(1);
+    const [evidencePdfPages, setEvidencePdfPages] = useState(0);
 
     // Bulk creation states
     const [rows, setRows] = useState<TaskRow[]>([]);
@@ -321,12 +330,13 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
         setShowAssigneeWarning(false);
         setEvidenceFiles([]);
         setServerEvidences([]);
+        closeEvidenceViewer();
         // Reset rows for creation mode
         setRows([createNewRow()]);
         setIsBulkMode(true);
     };
 
-    const getFullUrl = (url: string) => {
+    const getAbsoluteUrl = (url: string) => {
         if (!url) return '#';
         let fullUrl = url;
 
@@ -338,14 +348,49 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
             fullUrl = `${baseUrl}${path}`;
         }
 
-        // For Office documents, use Microsoft Online Viewer to "open" instead of download
-        const lowerUrl = fullUrl.toLowerCase();
-        const officeExtensions = ['.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx'];
-        if (officeExtensions.some(ext => lowerUrl.endsWith(ext))) {
-            return `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(fullUrl)}`;
+        return fullUrl;
+    };
+
+    const resolveEvidenceViewer = (rawUrl: string) => {
+        const fullUrl = getAbsoluteUrl(rawUrl);
+        const cleanUrl = fullUrl.split('#')[0].split('?')[0].toLowerCase();
+        const ext = cleanUrl.includes('.') ? cleanUrl.substring(cleanUrl.lastIndexOf('.') + 1) : '';
+        const officeExts = ['doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx'];
+
+        if (ext === 'pdf') {
+            return {
+                kind: 'pdf' as const,
+                url: fullUrl.replace('/raw/upload/', '/raw/upload/fl_attachment:false/')
+            };
         }
 
-        return fullUrl;
+        if (officeExts.includes(ext)) {
+            return {
+                kind: 'office' as const,
+                url: `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(fullUrl)}`
+            };
+        }
+
+        return {
+            kind: 'link' as const,
+            url: fullUrl
+        };
+    };
+
+    const openEvidenceViewer = (rawUrl: string) => {
+        const resolved = resolveEvidenceViewer(rawUrl);
+        setEvidenceViewerKind(resolved.kind);
+        setEvidenceViewerUrl(resolved.url);
+        setEvidencePdfPage(1);
+        setEvidencePdfPages(0);
+        setShowEvidenceViewer(true);
+    };
+
+    const closeEvidenceViewer = () => {
+        setShowEvidenceViewer(false);
+        setEvidenceViewerUrl(null);
+        setEvidencePdfPage(1);
+        setEvidencePdfPages(0);
     };
 
     const handleDeleteEvidence = async (evidenceId: number) => {
@@ -722,45 +767,6 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                     </button>
                 </div>
 
-                {/* Body - Roadmap Preview First */}
-                {!isReadOnly && (() => {
-                    const activeMid = milestoneId || (rows.length > 0 ? rows[0].milestoneId : initialMilestoneId) || "";
-                    const currentMilestoneContext = effectiveMilestones.find(m => String(m.milestoneId || (m as any).id || (m as any).ID || '').toLowerCase() === String(activeMid).toLowerCase());
-                    const roadmapStart = currentMilestoneContext?.startDate || projectStartDate;
-                    const roadmapEnd = currentMilestoneContext?.dueDate || projectEndDate;
-
-                    return (
-                        <MilestoneRoadmapPreview 
-                            existingMilestones={effectiveExistingTasks.filter(t => {
-                                if (!activeMid) return false;
-                                 const tMid = (t as any).milestoneId || (t as any).milestoneID || (t as any).milestone_id || (t as any).milestone?.id || '';
-                                return String(tMid).toLowerCase() === String(activeMid).toLowerCase() && (!task || t.taskId !== task.taskId);
-                            }).map(t => ({
-                                id: t.taskId,
-                                name: t.name,
-                                startDate: t.startDate || "",
-                                dueDate: t.dueDate || "",
-                                description: t.description || "",
-                                status: Number(t.status)
-                            }))}
-                            currentMilestones={isBulkMode && !task ? rows.filter(r => r.name && r.startDate && r.dueDate).map(r => ({
-                                id: r.id,
-                                name: r.name,
-                                startDate: r.startDate || "",
-                                dueDate: r.dueDate || ""
-                            })) : (name && startDate && dueDate ? [{
-                                id: task?.taskId || 'new',
-                                name: name,
-                                startDate: startDate,
-                                dueDate: dueDate
-                            }] : [])}
-                            projectStartDate={roadmapStart}
-                            projectEndDate={roadmapEnd}
-                            highlightId={task?.taskId}
-                        />
-                    );
-                })()}
-
                 {/* Body - Form Layout */}
                 <form id="create-task-form" onSubmit={handleSubmit} style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
                     {isBulkMode && !task ? (
@@ -1090,11 +1096,8 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                                     {serverEvidences.length > 0 && (
                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '10px' }}>
                                             {serverEvidences.map((ev) => (
-                                                <a
+                                                <div
                                                     key={ev.id}
-                                                    href={getFullUrl(ev.fileUrl || ev.url || '')}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
                                                     style={{
                                                         display: 'flex', alignItems: 'center', gap: '14px', padding: '10px 14px',
                                                         background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px',
@@ -1102,6 +1105,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                                                         boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
                                                         textDecoration: 'none'
                                                     }}
+                                                    onClick={() => openEvidenceViewer(ev.fileUrl || ev.url || '')}
                                                     onMouseEnter={(e) => {
                                                         e.currentTarget.style.borderColor = 'var(--primary-color)';
                                                         e.currentTarget.style.transform = 'translateY(-2px)';
@@ -1130,7 +1134,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                                                             type="button"
                                                             onClick={(e) => {
                                                                 e.preventDefault();
-                                                                window.open(getFullUrl(ev.fileUrl || ev.url || ''), '_blank');
+                                                                openEvidenceViewer(ev.fileUrl || ev.url || '');
                                                             }}
                                                             style={{ border: 'none', background: '#f8fafc', color: '#64748b', cursor: 'pointer', padding: '6px', borderRadius: '6px' }}
                                                         ><Eye size={14} /></button>
@@ -1145,8 +1149,77 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                                                             ><Trash2 size={14} /></button>
                                                         )}
                                                     </div>
-                                                </a>
+                                                </div>
                                             ))}
+                                        </div>
+                                    )}
+
+                                    {showEvidenceViewer && evidenceViewerUrl && (
+                                        <div style={{ border: '1px solid #dbeafe', borderRadius: '12px', background: '#eff6ff', overflow: 'hidden' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', borderBottom: '1px solid #bfdbfe' }}>
+                                                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#1e3a8a' }}>Evidence Preview</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={closeEvidenceViewer}
+                                                    style={{ border: 'none', background: 'transparent', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                                                >
+                                                    <X size={14} />
+                                                </button>
+                                            </div>
+                                            <div style={{ background: '#fff', height: '360px', overflow: 'auto' }}>
+                                                {evidenceViewerKind === 'pdf' ? (
+                                                    <div style={{ minHeight: '100%', display: 'flex', flexDirection: 'column' }}>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', borderBottom: '1px solid #e2e8f0', fontSize: '0.72rem', color: '#64748b' }}>
+                                                            <span>PDF</span>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setEvidencePdfPage(prev => Math.max(1, prev - 1))}
+                                                                    disabled={evidencePdfPage <= 1}
+                                                                    style={{ padding: '2px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', background: '#fff', cursor: evidencePdfPage <= 1 ? 'not-allowed' : 'pointer', opacity: evidencePdfPage <= 1 ? 0.5 : 1 }}
+                                                                >
+                                                                    Prev
+                                                                </button>
+                                                                <span>{evidencePdfPage}{evidencePdfPages > 0 ? ` / ${evidencePdfPages}` : ''}</span>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setEvidencePdfPage(prev => Math.min(evidencePdfPages || prev, prev + 1))}
+                                                                    disabled={evidencePdfPages > 0 ? evidencePdfPage >= evidencePdfPages : true}
+                                                                    style={{ padding: '2px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', background: '#fff', cursor: (evidencePdfPages > 0 && evidencePdfPage < evidencePdfPages) ? 'pointer' : 'not-allowed', opacity: (evidencePdfPages > 0 && evidencePdfPage < evidencePdfPages) ? 1 : 0.5 }}
+                                                                >
+                                                                    Next
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                        <div style={{ flex: 1, overflow: 'auto', padding: '8px' }}>
+                                                            <Document
+                                                                file={evidenceViewerUrl}
+                                                                onLoadSuccess={({ numPages }) => {
+                                                                    setEvidencePdfPages(numPages);
+                                                                    setEvidencePdfPage(prev => Math.min(prev, numPages));
+                                                                }}
+                                                            >
+                                                                <Page pageNumber={evidencePdfPage} width={420} />
+                                                            </Document>
+                                                        </div>
+                                                    </div>
+                                                ) : evidenceViewerKind === 'office' ? (
+                                                    <iframe
+                                                        src={evidenceViewerUrl}
+                                                        title="Evidence Preview"
+                                                        style={{ width: '100%', height: '100%', border: 'none' }}
+                                                    />
+                                                ) : (
+                                                    <div style={{ padding: '14px', fontSize: '0.78rem', color: '#64748b' }}>
+                                                        This file type does not support inline preview.
+                                                        <div style={{ marginTop: '6px' }}>
+                                                            <a href={evidenceViewerUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--primary-color)', fontWeight: 700, textDecoration: 'none' }}>
+                                                                Open in new tab
+                                                            </a>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                     )}
 

@@ -48,10 +48,7 @@ const Toast: React.FC<ToastProps> = ({ message, type = 'info', duration = 3000, 
             onMouseEnter={() => setIsPaused(true)}
             onMouseLeave={() => setIsPaused(false)}
             style={{
-                position: 'fixed',
-                top: '24px',
-                right: '24px',
-                zIndex: 10000,
+                position: 'relative',
                 display: 'flex',
                 alignItems: 'center', // Aligned icon and text
                 gap: '16px',
@@ -67,7 +64,7 @@ const Toast: React.FC<ToastProps> = ({ message, type = 'info', duration = 3000, 
                 transition: 'all 0.4s cubic-bezier(0.22, 1, 0.36, 1)',
                 minWidth: '320px',
                 maxWidth: '480px',
-                marginBottom: '4px' // Spacing between stacked items
+                overflow: 'hidden'
             }}
         >
             <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>

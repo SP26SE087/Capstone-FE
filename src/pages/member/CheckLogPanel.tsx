@@ -1,0 +1,245 @@
+import React, { useState, useEffect } from 'react';
+import { ClipboardList, Loader2, X, Plus, Clock, RefreshCw } from 'lucide-react';
+import { userService } from '@/services/userService';
+import { useToastStore } from '@/store/slices/toastSlice';
+
+interface CheckLogPanelProps {
+    email: string;
+    studentId: string;
+    userName: string;
+    onClose: () => void;
+}
+
+const CheckLogPanel: React.FC<CheckLogPanelProps> = ({ email, studentId, userName, onClose }) => {
+    const [logs, setLogs] = useState<any[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [adding, setAdding] = useState(false);
+    const [showAddForm, setShowAddForm] = useState(false);
+    const [checkingTime, setCheckingTime] = useState('');
+    const { addToast } = useToastStore();
+
+    const fetchLogs = async () => {
+        setLoading(true);
+        try {
+            const data = await userService.getCheckingLogs(email);
+            setLogs(Array.isArray(data) ? data : []);
+        } catch {
+            addToast('Failed to load checking logs.', 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (email) fetchLogs();
+    }, [email]);
+
+    const handleAdd = async () => {
+        if (!studentId) { addToast('Student ID is missing.', 'error'); return; }
+        if (!checkingTime) { addToast('Please select a checking time.', 'warning'); return; }
+        setAdding(true);
+        try {
+            await userService.addCheckingLog(studentId, new Date(checkingTime).toISOString());
+            addToast('Checking log added.', 'success');
+            setShowAddForm(false);
+            setCheckingTime('');
+            fetchLogs();
+        } catch {
+            addToast('Failed to add checking log.', 'error');
+        } finally {
+            setAdding(false);
+        }
+    };
+
+    const formatDateTime = (raw: string) => {
+        if (!raw) return '—';
+        try {
+            return new Date(raw).toLocaleString('vi-VN', {
+                day: '2-digit', month: '2-digit', year: 'numeric',
+                hour: '2-digit', minute: '2-digit'
+            });
+        } catch {
+            return raw;
+        }
+    };
+
+    return (
+        <div className="card" style={{
+            border: '1px solid var(--border-color)',
+            backgroundColor: 'var(--card-bg)',
+            boxShadow: 'var(--shadow-lg)',
+            borderRadius: 'var(--radius-lg)',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            animation: 'fadeIn 0.3s ease-out'
+        }}>
+            {/* Header */}
+            <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '0.875rem 1rem',
+                borderBottom: '1px solid var(--border-light)',
+                background: 'rgba(var(--primary-rgb), 0.01)',
+                flexShrink: 0
+            }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <ClipboardList size={15} style={{ color: 'var(--primary-color)' }} />
+                    <h3 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 700, color: 'var(--primary-color)' }}>
+                        Check Log
+                    </h3>
+                </div>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                    <button
+                        onClick={fetchLogs}
+                        style={{
+                            background: 'none', border: 'none', cursor: 'pointer',
+                            color: 'var(--text-muted)', padding: '4px', borderRadius: '50%',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center'
+                        }}
+                        title="Refresh"
+                    >
+                        <RefreshCw size={14} />
+                    </button>
+                    <button
+                        onClick={onClose}
+                        style={{
+                            background: 'none', border: 'none', cursor: 'pointer',
+                            color: 'var(--text-muted)', padding: '4px', borderRadius: '50%',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center'
+                        }}
+                        title="Close"
+                    >
+                        <X size={16} />
+                    </button>
+                </div>
+            </div>
+
+            {/* User info strip */}
+            <div style={{
+                padding: '0.5rem 1rem',
+                background: 'var(--accent-bg)',
+                fontSize: '0.72rem',
+                color: 'var(--text-muted)',
+                borderBottom: '1px solid var(--border-light)'
+            }}>
+                <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{userName}</span>
+                {studentId && <span style={{ marginLeft: '6px', color: 'var(--text-primary)', fontWeight: 700 }}>· Student ID: <span style={{ color: 'var(--text-primary)' }}>{studentId}</span></span>}
+            </div>
+
+            {/* Add log form */}
+            {showAddForm && (
+                <div style={{
+                    padding: '0.75rem 1rem',
+                    borderBottom: '1px solid var(--border-light)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.5rem',
+                    background: '#f0fdf4'
+                }}>
+                    <label style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                        Checking Time
+                    </label>
+                    <input
+                        type="datetime-local"
+                        className="form-input"
+                        value={checkingTime}
+                        onChange={(e) => setCheckingTime(e.target.value)}
+                        style={{ fontSize: '0.78rem', padding: '6px 8px' }}
+                    />
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button
+                            className="btn btn-primary"
+                            onClick={handleAdd}
+                            disabled={adding}
+                            style={{ flex: 1, fontSize: '0.72rem', padding: '5px 8px', gap: '4px' }}
+                        >
+                            {adding ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
+                            Save
+                        </button>
+                        <button
+                            className="btn btn-secondary"
+                            onClick={() => { setShowAddForm(false); setCheckingTime(''); }}
+                            style={{ fontSize: '0.72rem', padding: '5px 10px' }}
+                        >
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Add button */}
+            {!showAddForm && (
+                <div style={{ padding: '0.5rem 1rem', borderBottom: '1px solid var(--border-light)' }}>
+                    <button
+                        className="btn btn-secondary"
+                        onClick={() => {
+                            const now = new Date();
+                            const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+                                .toISOString().slice(0, 16);
+                            setCheckingTime(local);
+                            setShowAddForm(true);
+                        }}
+                        style={{ width: '100%', fontSize: '0.72rem', padding: '5px 8px', gap: '5px' }}
+                    >
+                        <Plus size={13} /> Add Log Entry
+                    </button>
+                </div>
+            )}
+
+            {/* Logs list */}
+            <div className="custom-scrollbar" style={{
+                flex: 1,
+                overflowY: 'auto',
+                maxHeight: 'calc(100vh - 420px)',
+                padding: '0.5rem 0'
+            }}>
+                {loading ? (
+                    <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}>
+                        <Loader2 className="animate-spin" size={24} style={{ color: 'var(--primary-color)' }} />
+                    </div>
+                ) : logs.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--text-muted)' }}>
+                        <Clock size={28} style={{ margin: '0 auto 0.5rem', display: 'block', opacity: 0.4 }} />
+                        <p style={{ fontSize: '0.78rem', margin: 0 }}>No check logs yet</p>
+                    </div>
+                ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        {logs.map((log: any, idx: number) => (
+                            <div key={idx} style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.75rem',
+                                padding: '0.5rem 1rem',
+                                borderBottom: '1px solid var(--border-light)',
+                                fontSize: '0.75rem'
+                            }}>
+                                <div style={{
+                                    width: '28px', height: '28px', borderRadius: '50%',
+                                    background: 'var(--accent-bg)', color: 'var(--accent-color)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    flexShrink: 0, fontSize: '0.6rem', fontWeight: 700
+                                }}>
+                                    {logs.length - idx}
+                                </div>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                                        {formatDateTime(log.checkingTime || log.CheckingTime || log.time || log.timestamp)}
+                                    </div>
+                                    {(log.studentId || log.StudentId) && (
+                                        <div style={{ color: 'var(--text-muted)', fontSize: '0.68rem' }}>
+                                            ID: {log.studentId || log.StudentId}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+export default CheckLogPanel;

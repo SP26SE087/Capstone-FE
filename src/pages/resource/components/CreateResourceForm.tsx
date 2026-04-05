@@ -1,15 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { ResourceType, CreateResourceRequest } from '@/types/booking';
+import { CreateResourceRequest } from '@/types/booking';
 import { resourceService } from '@/services/resourceService';
+import { resourceTypeService, ResourceTypeItem } from '@/services/resourceTypeService';
 import { userService } from '@/services/userService';
 import { useAuth } from '@/hooks/useAuth';
 import {
     Save,
     Loader2,
-    Cpu,
-    HardDrive,
-    Box,
-    Monitor,
     MapPin,
     FileText,
     Plus,
@@ -17,7 +14,8 @@ import {
     Hash,
     Shuffle,
     User,
-    Search
+    Search,
+    Layers
 } from 'lucide-react';
 
 interface CreateResourceFormProps {
@@ -59,12 +57,6 @@ const sectionStyle: React.CSSProperties = {
     marginBottom: '20px'
 };
 
-const resourceTypes = [
-    { value: ResourceType.GPU, label: 'GPU', icon: <Cpu size={16} />, color: '#7c3aed' },
-    { value: ResourceType.Equipment, label: 'Equipment', icon: <HardDrive size={16} />, color: '#2563eb' },
-    { value: ResourceType.Dataset, label: 'Dataset', icon: <Box size={16} />, color: '#059669' },
-    { value: ResourceType.LabStation, label: 'Lab Station', icon: <Monitor size={16} />, color: '#ea580c' }
-];
 
 const generateSerialNumber = (): string => {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -83,7 +75,9 @@ const CreateResourceForm: React.FC<CreateResourceFormProps> = ({
     const [saving, setSaving] = useState(false);
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
-    const [type, setType] = useState<ResourceType>(ResourceType.GPU);
+    const [resourceTypeId, setResourceTypeId] = useState('');
+    const [resourceTypes, setResourceTypes] = useState<ResourceTypeItem[]>([]);
+    const [loadingTypes, setLoadingTypes] = useState(false);
     const [location, setLocation] = useState('');
     const [managedBy, setManagedBy] = useState(user?.userId || '');
     const [selectedManagerName, setSelectedManagerName] = useState(user ? user.name : '');
@@ -120,6 +114,22 @@ const CreateResourceForm: React.FC<CreateResourceFormProps> = ({
             }
         };
         fetchUsers();
+    }, []);
+
+    useEffect(() => {
+        const fetchTypes = async () => {
+            setLoadingTypes(true);
+            try {
+                const data = await resourceTypeService.getAll();
+                setResourceTypes(data);
+                if (data.length > 0) setResourceTypeId(data[0].id);
+            } catch (error) {
+                console.error('Failed to load resource types:', error);
+            } finally {
+                setLoadingTypes(false);
+            }
+        };
+        fetchTypes();
     }, []);
 
     const handleFocus = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -171,8 +181,9 @@ const CreateResourceForm: React.FC<CreateResourceFormProps> = ({
     const validate = (): boolean => {
         const newErrors: Record<string, string> = {};
         if (!name.trim()) newErrors.name = 'Name is required.';
-        if (!managedBy) newErrors.managedBy = 'Please select a manager.';
         if (name.trim().length > 200) newErrors.name = 'Name must be under 200 characters.';
+        if (!resourceTypeId) newErrors.resourceTypeId = 'Please select a resource type.';
+        if (!managedBy) newErrors.managedBy = 'Please select a manager.';
         if (serialNumbers.length === 0) newErrors.serial = 'At least one serial number is required.';
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
@@ -186,9 +197,9 @@ const CreateResourceForm: React.FC<CreateResourceFormProps> = ({
             const request: CreateResourceRequest = {
                 name: name.trim(),
                 description: description.trim() || undefined,
-                type,
+                resourceTypeId,
                 location: location.trim() || undefined,
-                managedBy: managedBy,
+                managedBy,
                 modelSeriesList: serialNumbers
             };
 
@@ -408,32 +419,37 @@ const CreateResourceForm: React.FC<CreateResourceFormProps> = ({
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                         <div>
-                            <label style={{ ...labelStyle, fontSize: '0.68rem' }}>Type *</label>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
-                                {resourceTypes.map(rt => (
-                                    <button
-                                        key={rt.value}
-                                        type="button"
-                                        onClick={() => setType(rt.value)}
-                                        style={{
-                                            padding: '8px 10px',
-                                            borderRadius: '8px',
-                                            border: type === rt.value ? `2px solid ${rt.color}` : '1.5px solid var(--border-color)',
-                                            background: type === rt.value ? `${rt.color}10` : '#fff',
-                                            color: type === rt.value ? rt.color : 'var(--text-secondary)',
-                                            cursor: 'pointer',
-                                            fontSize: '0.75rem',
-                                            fontWeight: 700,
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '6px',
-                                            transition: 'all 0.2s'
-                                        }}
-                                    >
-                                        {rt.icon} {rt.label}
-                                    </button>
-                                ))}
-                            </div>
+                            <label style={{ ...labelStyle, fontSize: '0.68rem' }}><Layers size={12} /> Type *</label>
+                            {loadingTypes ? (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                                    <Loader2 size={14} className="animate-spin" /> Loading types...
+                                </div>
+                            ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                    {resourceTypes.map(rt => (
+                                        <button
+                                            key={rt.id}
+                                            type="button"
+                                            onClick={() => { setResourceTypeId(rt.id); setErrors(prev => ({ ...prev, resourceTypeId: '' })); }}
+                                            style={{
+                                                padding: '7px 10px',
+                                                borderRadius: '8px',
+                                                border: resourceTypeId === rt.id ? '2px solid var(--accent-color)' : '1.5px solid var(--border-color)',
+                                                background: resourceTypeId === rt.id ? 'rgba(232,114,12,0.06)' : '#fff',
+                                                color: resourceTypeId === rt.id ? 'var(--accent-color)' : 'var(--text-secondary)',
+                                                cursor: 'pointer',
+                                                fontSize: '0.75rem',
+                                                fontWeight: 700,
+                                                textAlign: 'left',
+                                                transition: 'all 0.2s'
+                                            }}
+                                        >
+                                            {rt.name}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                            {errors.resourceTypeId && <span style={{ fontSize: '0.72rem', color: '#ef4444', marginTop: '4px', display: 'block' }}>{errors.resourceTypeId}</span>}
                         </div>
 
                         <div>

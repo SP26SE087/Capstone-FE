@@ -102,16 +102,18 @@ const ReportPanel: React.FC<ReportPanelProps> = ({
         return assigneesList.some((a: any) => (a.status === 3 || a.Status === 3));
     }, [report, isAdding]);
 
-    const hasApprovedAssignee = React.useMemo(() => {
-        if (isAdding || !report) return false;
-        const assigneesList = (report as any).assignees || (report as any).Assignees || (report as any).reportReviewers || (report as any).ReportReviewers || [];
-        return assigneesList.some((a: any) => (a.status === 2 || a.Status === 2));
-    }, [report, isAdding]);
 
     const isReviewer = React.useMemo(() => {
         if (isAdding || !report) return false;
         const assigneesList = (report as any).assignees || (report as any).Assignees || [];
         return assigneesList.some((a: any) => a.email === user?.email);
+    }, [report, user?.email, isAdding]);
+
+    const currentUserHasReviewed = React.useMemo(() => {
+        if (isAdding || !report) return false;
+        const assigneesList = (report as any).assignees || (report as any).Assignees || [];
+        const myEntry = assigneesList.find((a: any) => a.email === user?.email);
+        return myEntry && (myEntry.status === 2 || myEntry.status === 3);
     }, [report, user?.email, isAdding]);
 
     useEffect(() => {
@@ -327,6 +329,22 @@ const ReportPanel: React.FC<ReportPanelProps> = ({
         }
     };
 
+    const handleFeedbackSubmit = async (status: number) => {
+        if (!reportId) return;
+        setSubmitting(true);
+        try {
+            await reportService.updateAssignee(reportId, { status, feedback: feedbackText });
+            const msg = `Report ${status === 2 ? 'approved' : 'rejected'}.`;
+            showToast(msg, 'success');
+            fetchReport(reportId);
+            onSaved(false, msg);
+        } catch (error: any) {
+            showToast(error.message || 'Failed to update reviewer status.', 'error');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
     const handleDelete = () => setConfirmAction({type: 'delete'});
 
     const executeDelete = async () => {
@@ -345,23 +363,7 @@ const ReportPanel: React.FC<ReportPanelProps> = ({
         }
     };
 
-    const handleFeedbackSubmit = async (status: number) => {
-        if (!reportId) return;
-        setSubmitting(true);
-        try {
-            await reportService.updateAssignee(reportId, { status, feedback: feedbackText });
-            const msg = `Report ${status === 2 ? 'approved' : 'rejected'}.`;
-            showToast(msg, 'success');
-            fetchReport(reportId);
-            onSaved(false, msg);
-        } catch (error: any) {
-            showToast(error.message || 'Failed to update reviewer status.', 'error');
-        } finally {
-            setSubmitting(false);
-        }
-    };
-
-    const handleAiSuggest = async () => {
+const handleAiSuggest = async () => {
         if (!reportId) return;
         setIsAiLoading(true);
         try {
@@ -659,7 +661,7 @@ const ReportPanel: React.FC<ReportPanelProps> = ({
                     )}
 
                     {/* Reviewer Feedback Section */}
-                    {isReviewer && formData.status === 1 && !isEditMode && (
+                    {isReviewer && !currentUserHasReviewed && formData.status !== 0 && !isEditMode && (
                         <div style={{ marginTop: '1.5rem', padding: '1.25rem', borderRadius: '16px', background: '#fff', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                                 <label style={{ margin: 0, fontSize: '0.75rem', fontWeight: 800, color: '#1e293b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -675,35 +677,13 @@ const ReportPanel: React.FC<ReportPanelProps> = ({
                                     AI Suggest
                                 </button>
                             </div>
-                            <textarea 
+                            <textarea
                                 className="form-input"
                                 value={feedbackText}
                                 onChange={e => setFeedbackText(e.target.value)}
                                 placeholder="Add comments for the author (optional)..."
-                                style={{ minHeight: '100px', fontSize: '0.85rem', marginBottom: '1rem', borderRadius: '12px', border: '1px solid #e2e8f0' }}
+                                style={{ minHeight: '100px', fontSize: '0.85rem', borderRadius: '12px', border: '1px solid #e2e8f0' }}
                             />
-                            <div style={{ display: 'flex', gap: '10px' }}>
-                                <button 
-                                    type="button" 
-                                    onClick={() => handleFeedbackSubmit(3)} 
-                                    disabled={submitting} 
-                                    className="btn btn-secondary" 
-                                    style={{ flex: 1, color: '#ef4444', border: '1px solid #f1f5f9' }}
-                                >
-                                    {submitting ? <Loader2 size={16} className="animate-spin" /> : <X size={16} />} 
-                                    Request Revision
-                                </button>
-                                <button 
-                                    type="button" 
-                                    onClick={() => handleFeedbackSubmit(2)} 
-                                    disabled={submitting} 
-                                    className="btn btn-secondary" 
-                                    style={{ flex: 1, color: '#10b981', border: '1px solid #f1f5f9' }}
-                                >
-                                    {submitting ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />} 
-                                    Approve Report
-                                </button>
-                            </div>
                         </div>
                     )}
                 </div>
@@ -728,16 +708,16 @@ const ReportPanel: React.FC<ReportPanelProps> = ({
                             <Trash2 size={14} /> Delete
                         </button>
                     )}
-                    {!isAdding && !isEditMode && hasApprovedAssignee && (
-                       <button 
+                    {!isAdding && !isEditMode && (formData.status === 1 || formData.status === 2) && (
+                       <button
                             type="button"
-                            onClick={handleIndexing} 
+                            onClick={handleIndexing}
                             disabled={submitting || (report as any)?.hasEmbedding}
-                            className="btn btn-secondary" 
+                            className="btn btn-secondary"
                             style={{ gap: '6px', fontSize: '0.8rem' }}
                         >
                             {(report as any)?.hasEmbedding ? <Check size={14} /> : <RefreshCw size={14} className={submitting ? 'animate-spin' : ''} />}
-                            {(report as any)?.hasEmbedding ? 'AI Indexed' : 'Insert to Semantic Search'}
+                            {(report as any)?.hasEmbedding ? 'Semantic Search' : 'Insert to Semantic Search'}
                        </button>
                     )}
                 </div>
@@ -783,7 +763,19 @@ const ReportPanel: React.FC<ReportPanelProps> = ({
                                     </button>
                                 </>
                             )}
-                            {(formData.status === 1) && isLabDirector && (
+                            {isReviewer && !currentUserHasReviewed && formData.status !== 0 && (
+                                <>
+                                    <button type="button" onClick={() => handleFeedbackSubmit(3)} disabled={submitting} className="btn btn-secondary" style={{ color: '#f59e0b', gap: '6px' }}>
+                                        {submitting ? <Loader2 size={14} className="animate-spin" /> : null}
+                                        Request Revision
+                                    </button>
+                                    <button type="button" onClick={() => handleFeedbackSubmit(2)} disabled={submitting} className="btn btn-primary" style={{ background: '#10b981', gap: '6px' }}>
+                                        {submitting ? <Loader2 size={14} className="animate-spin" /> : null}
+                                        Approve Report
+                                    </button>
+                                </>
+                            )}
+                            {(formData.status === 1) && isLabDirector && !isReviewer && (
                                 <>
                                     <button type="button" onClick={(e) => handleStatusUpdate(3, e)} disabled={submitting} className="btn btn-secondary" style={{ color: '#f59e0b', gap: '6px' }}>
                                         {submitting ? <Loader2 size={14} className="animate-spin" /> : null}
@@ -794,12 +786,6 @@ const ReportPanel: React.FC<ReportPanelProps> = ({
                                         Approve Report
                                     </button>
                                 </>
-                            )}
-                            {formData.status === 2 && isLabDirector && (
-                                <button type="button" onClick={(e) => handleStatusUpdate(0, e)} disabled={submitting} className="btn btn-secondary" style={{ gap: '6px' }}>
-                                    {submitting ? <Loader2 size={14} className="animate-spin" /> : null}
-                                    Revert to Draft
-                                </button>
                             )}
                         </>
                     )}
