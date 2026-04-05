@@ -59,8 +59,7 @@ const PaperSubmissions: React.FC = () => {
     const [addTitle, setAddTitle] = useState('');
     const [addAbstract, setAddAbstract] = useState('');
     const [addConference, setAddConference] = useState('');
-    const [addDocument, setAddDocument] = useState('');
-    const [addDocumentName, setAddDocumentName] = useState('');
+    const [addDocumentFile, setAddDocumentFile] = useState<File | null>(null);
     const [addProjectId, setAddProjectId] = useState('');
     const [addMembers, setAddMembers] = useState<PaperMemberRequest[]>([]);
     const [addLoading, setAddLoading] = useState(false);
@@ -150,44 +149,40 @@ const PaperSubmissions: React.FC = () => {
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, isEdit: boolean) => {
         const file = e.target.files?.[0];
         if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-            if (isEdit) {
-                setEditData((prev: any) => ({ ...prev, document: ev.target?.result as string, documentName: file.name }));
-            } else {
-                setAddDocument(ev.target?.result as string);
-                setAddDocumentName(file.name);
-            }
-        };
-        reader.readAsDataURL(file);
+        if (isEdit) {
+            setEditData((prev: any) => ({ ...prev, documentFile: file }));
+        } else {
+            setAddDocumentFile(file);
+        }
     };
 
-    const validateForm = (data: { title: string, conferenceName: string, document?: string }) => {
+    const validateForm = (data: { title: string, conferenceName: string, hasDocument: boolean, abstract?: string }) => {
         const errs: Record<string, string> = {};
         if (!data.title?.trim()) errs.title = 'Title is required';
         if (!data.conferenceName?.trim()) errs.conferenceName = 'Conference/Journal name is required';
-        if (!data.document?.trim()) errs.document = 'A .doc or .docx file is required';
+        if (!data.hasDocument) errs.document = 'A .doc or .docx file is required';
+        if (!data.abstract?.trim()) errs.abstract = 'Abstract is required';
         setFormErrors(errs);
         return Object.keys(errs).length === 0;
     };
 
     const handleCreatePaper = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!validateForm({ title: addTitle, conferenceName: addConference, document: addDocument })) return;
+        if (!validateForm({ title: addTitle, conferenceName: addConference, hasDocument: !!addDocumentFile, abstract: addAbstract })) return;
         setAddError(null); setAddSuccess(null); setAddLoading(true);
         try {
             let myMembershipId: string | undefined;
             if (addProjectId) { const me = await projectService.getCurrentMember(addProjectId); myMembershipId = me?.membershipId; }
             const payload: CreatePaperRequest = {
                 projectId: addProjectId || null, title: addTitle, abstract: addAbstract,
-                conferenceName: addConference, paperUrl: '', document: addDocument, documentName: addDocumentName, submissionDeadline: null,
+                conferenceName: addConference, paperUrl: '', submissionDeadline: null,
                 members: addMembers.map(m => ({ membershipId: m.membershipId, role: Number(m.role) })),
                 // @ts-ignore
                 createdByMembershipId: myMembershipId || null
             };
-            const newPaper = await paperSubmissionService.create(payload);
+            const newPaper = await paperSubmissionService.create(payload, addDocumentFile || undefined);
             await loadPapers(1, pageSize);
-            setAddTitle(''); setAddAbstract(''); setAddConference(''); setAddDocument(''); setAddDocumentName(''); setAddProjectId(''); setAddMembers([]);
+            setAddTitle(''); setAddAbstract(''); setAddConference(''); setAddDocumentFile(null); setAddProjectId(''); setAddMembers([]);
             setAddSuccess(`Paper "${newPaper.title}" created successfully!`);
             addToast('Draft created successfully!', 'success');
             setTimeout(() => { setAddSuccess(null); setShowAddForm(false); }, 2000);
@@ -197,20 +192,20 @@ const PaperSubmissions: React.FC = () => {
 
     const handleUpdatePaper = async () => {
         if (!editingPaperId) return;
-        if (!validateForm({ title: editData.title || '', conferenceName: editData.conferenceName || '', document: editData.document })) return;
+        if (!validateForm({ title: editData.title || '', conferenceName: editData.conferenceName || '', hasDocument: !!editData.document || !!editData.documentFile, abstract: editData.abstract || '' })) return;
         setEditError(null); setEditLoading(true);
         try {
             let myMembershipId: string | undefined;
             if (editData.projectId) { const me = await projectService.getCurrentMember(editData.projectId); myMembershipId = me?.membershipId; }
             const payload: UpdatePaperRequest = {
                 projectId: editData.projectId || null, title: editData.title || '', abstract: editData.abstract || '',
-                paperUrl: editData.paperUrl || '', document: editData.document || '', documentName: editData.documentName || '', conferenceName: editData.conferenceName || '',
+                paperUrl: editData.paperUrl || '', conferenceName: editData.conferenceName || '',
                 submissionDeadline: editData.submissionDeadline ? editData.submissionDeadline : null,
                 members: editData.members?.map((m: any) => ({ membershipId: m.membershipId, role: Number(m.role) })) || [],
                 // @ts-ignore
                 lastUpdatedByMembershipId: myMembershipId || null
             };
-            const updated = await paperSubmissionService.update(editingPaperId, payload);
+            const updated = await paperSubmissionService.update(editingPaperId, payload, editData.documentFile || undefined);
             setPapers((prev) => prev.map((p) => (p.paperSubmissionId === updated.paperSubmissionId ? updated : p)));
             setEditingPaperId(null);
         } catch (err: any) { setEditError(err.response?.data?.message || 'Failed to update paper.'); }
@@ -326,7 +321,7 @@ const PaperSubmissions: React.FC = () => {
             } catch (err) { console.error('[Paper Edit] getCurrentMember failed:', err); }
         }
         
-        setEditData({ ...paper, members, submissionDeadline: paper.submissionDeadline ? paper.submissionDeadline.split('T')[0] : '', documentName: paper.documentName || '' });
+        setEditData({ ...paper, members, submissionDeadline: paper.submissionDeadline ? paper.submissionDeadline.split('T')[0] : '', documentFile: null });
         setEditError(null);
         if (paper.projectId) handleProjectChange(paper.projectId, true, false);
     };
@@ -473,11 +468,11 @@ const PaperSubmissions: React.FC = () => {
                                     transition: 'all 0.2s',
                                     position: 'relative'
                                 }}>
-                                    {!addDocument ? (
+                                    {!addDocumentFile ? (
                                         <>
                                             <div style={{ color: 'var(--text-muted)', marginBottom: '8px' }}>
                                                 <FileText size={32} style={{ opacity: 0.5, marginBottom: '8px' }} />
-                                                <p style={{ margin: 0, fontSize: '0.9rem' }}>Click or drag to add .doc or .docx (Max 500MB)</p>
+                                                <p style={{ margin: 0, fontSize: '0.9rem' }}>Click or drag to add .doc or .docx (Max 200MB)</p>
                                             </div>
                                             <input 
                                                 type="file" 
@@ -492,12 +487,12 @@ const PaperSubmissions: React.FC = () => {
                                                 <FileText size={24} />
                                             </div>
                                             <div style={{ textAlign: 'left', flex: 1, minWidth: 0 }}>
-                                                <p style={{ margin: 0, fontWeight: 600, fontSize: '0.9rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{addDocumentName}</p>
+                                                <p style={{ margin: 0, fontWeight: 600, fontSize: '0.9rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{addDocumentFile.name}</p>
                                                 <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)' }}>Ready to upload</p>
                                             </div>
                                             <button 
                                                 type="button" 
-                                                onClick={() => { setAddDocument(''); setAddDocumentName(''); }}
+                                                onClick={() => setAddDocumentFile(null)}
                                                 className="btn btn-ghost" 
                                                 style={{ color: '#dc2626', padding: '6px' }}
                                             >
@@ -509,8 +504,9 @@ const PaperSubmissions: React.FC = () => {
                                 {formErrors.document && <span style={{ color: '#dc2626', fontSize: '0.8rem', marginTop: '4px', display: 'block' }}>{formErrors.document}</span>}
                             </div>
                             <div style={{ gridColumn: '1 / -1' }}>
-                                <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Abstract</label>
-                                <textarea placeholder="Provide a brief summary of your research..." value={addAbstract} onChange={(e) => setAddAbstract(e.target.value)} className="form-input" rows={3} />
+                                <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Abstract <span style={{ color: '#dc2626' }}>*</span></label>
+                                <textarea placeholder="Provide a brief summary of your research..." value={addAbstract} onChange={(e) => setAddAbstract(e.target.value)} className="form-input" rows={3} style={formErrors.abstract ? { borderColor: '#dc2626' } : {}} />
+                                {formErrors.abstract && <span style={{ color: '#dc2626', fontSize: '0.8rem', marginTop: '4px', display: 'block' }}>{formErrors.abstract}</span>}
                             </div>
                             <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
                                 <button type="button" className="btn btn-secondary" onClick={() => setShowAddForm(false)}>Cancel</button>
@@ -740,11 +736,11 @@ const PaperSubmissions: React.FC = () => {
                                                                 background: 'var(--surface-color)',
                                                                 position: 'relative'
                                                             }}>
-                                                                {!editData.document ? (
+                                                                {!editData.document && !editData.documentFile ? (
                                                                     <>
                                                                         <div style={{ color: 'var(--text-muted)' }}>
                                                                             <FileText size={24} style={{ opacity: 0.5, marginBottom: '4px' }} />
-                                                                            <p style={{ margin: 0, fontSize: '0.85rem' }}>Upload new version (Max 500MB)</p>
+                                                                            <p style={{ margin: 0, fontSize: '0.85rem' }}>Upload new version (Max 200MB)</p>
                                                                         </div>
                                                                         <input 
                                                                             type="file" 
@@ -759,11 +755,11 @@ const PaperSubmissions: React.FC = () => {
                                                                             <FileText size={20} />
                                                                         </div>
                                                                         <div style={{ textAlign: 'left', flex: 1, minWidth: 0 }}>
-                                                                            <p style={{ margin: 0, fontWeight: 600, fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{editData.documentName || 'File attached'}</p>
+                                                                            <p style={{ margin: 0, fontWeight: 600, fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{editData.documentFile?.name || (editData.document ? editData.document.split('/').pop() : 'File attached')}</p>
                                                                         </div>
                                                                         <button 
                                                                             type="button" 
-                                                                            onClick={() => setEditData((prev: any) => ({ ...prev, document: '', documentName: '' }))}
+                                                                            onClick={() => setEditData((prev: any) => ({ ...prev, document: '', documentFile: null }))}
                                                                             className="btn btn-ghost" 
                                                                             style={{ color: '#dc2626', padding: '4px' }}
                                                                         >
@@ -774,8 +770,9 @@ const PaperSubmissions: React.FC = () => {
                                                             </div>
                                                         </div>
                                                         <div style={{ gridColumn: '1 / -1' }}>
-                                                            <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Abstract</label>
-                                                            <textarea className="form-input" rows={4} value={editData.abstract} onChange={e => setEditData({...editData, abstract: e.target.value})} />
+                                                            <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Abstract <span style={{ color: '#dc2626' }}>*</span></label>
+                                                            <textarea className="form-input" rows={4} value={editData.abstract} onChange={e => setEditData({...editData, abstract: e.target.value})} style={formErrors.abstract ? { borderColor: '#dc2626' } : {}} />
+                                                            {formErrors.abstract && <span style={{ color: '#dc2626', fontSize: '0.8rem', marginTop: '4px', display: 'block' }}>{formErrors.abstract}</span>}
                                                         </div>
                                                         <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
                                                             <button className="btn btn-secondary" onClick={() => setEditingPaperId(null)}>Cancel</button>
@@ -811,10 +808,10 @@ const PaperSubmissions: React.FC = () => {
                                                             <div style={{ background: 'var(--surface-color)', padding: '1rem', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
                                                                 <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '8px', letterSpacing: '0.5px' }}>Evidence / Document</div>
                                                                 {paper.document ? (
-                                                                    <a href={paper.document} download={paper.documentName || `Paper_${paper.title.substring(0, 20)}.docx`}
+                                                                    <a href={import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}${paper.document}` : paper.document} download
                                                                         style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--accent-color)', textDecoration: 'none', fontWeight: 500, fontSize: '0.9rem' }}>
                                                                         <div style={{ background: 'var(--accent-bg)', padding: '8px', borderRadius: '8px' }}><FileText size={18} /></div>
-                                                                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{paper.documentName || 'Download Document'}</span>
+                                                                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{(() => { const raw = paper.document.split('/').pop() || 'Download Document'; const parts = raw.split('_'); return parts.length > 1 ? parts.slice(1).join('_') : raw; })()}</span>
                                                                     </a>
                                                                 ) : <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>No document uploaded</span>}
                                                             </div>

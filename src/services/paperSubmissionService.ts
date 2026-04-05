@@ -30,15 +30,53 @@ export const paperSubmissionService = {
     },
 
     /** Create a new paper */
-    create: async (data: CreatePaperRequest): Promise<PaperSubmissionResponse> => {
-        const response = await api.post(BASE, data);
+    create: async (data: CreatePaperRequest, file?: File): Promise<PaperSubmissionResponse> => {
+        const formData = new FormData();
+        if (data.projectId) formData.append('ProjectId', data.projectId);
+        formData.append('Title', data.title);
+        formData.append('Abstract', data.abstract || '');
+        formData.append('ConferenceName', data.conferenceName || '');
+        formData.append('PaperUrl', data.paperUrl || '');
+        if (data.submissionDeadline) formData.append('SubmissionDeadline', data.submissionDeadline);
+        
+        if (file) {
+            formData.append('Document', file);
+        }
+
+        data.members?.forEach((m, index) => {
+            formData.append(`Members[${index}].MembershipId`, m.membershipId);
+            formData.append(`Members[${index}].Role`, m.role.toString());
+        });
+
+        const response = await api.post(BASE, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+        });
         return response.data.data || response.data;
     },
 
     /** Update an existing paper */
-    update: async (id: string, data: UpdatePaperRequest): Promise<PaperSubmissionResponse> => {
+    update: async (id: string, data: UpdatePaperRequest, file?: File): Promise<PaperSubmissionResponse> => {
         try {
-            const response = await api.put(`${BASE}/${id}`, data);
+            const formData = new FormData();
+            if (data.projectId) formData.append('ProjectId', data.projectId);
+            formData.append('Title', data.title);
+            formData.append('Abstract', data.abstract || '');
+            formData.append('ConferenceName', data.conferenceName || '');
+            formData.append('PaperUrl', data.paperUrl || '');
+            if (data.submissionDeadline) formData.append('SubmissionDeadline', data.submissionDeadline);
+            
+            if (file) {
+                formData.append('Document', file);
+            }
+
+            data.members?.forEach((m, index) => {
+                formData.append(`Members[${index}].MembershipId`, m.membershipId);
+                formData.append(`Members[${index}].Role`, m.role.toString());
+            });
+
+            const response = await api.put(`${BASE}/${id}`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
             return response.data.data || response.data;
         } catch (error: any) {
             console.error('Update paper failed with:', error.response?.data);

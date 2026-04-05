@@ -328,10 +328,10 @@ const PaperReview: React.FC = () => {
                                                     <div style={{ background: 'var(--surface-color)', padding: '1rem', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
                                                         <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '8px', letterSpacing: '0.5px' }}>Evidence / Document</div>
                                                         {paper.document ? (
-                                                            <a href={paper.document} download={paper.documentName || `Paper_${paper.title.substring(0, 20)}.docx`}
+                                                            <a href={import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}${paper.document}` : paper.document} download
                                                                 style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--accent-color)', textDecoration: 'none', fontWeight: 500, fontSize: '0.9rem' }}>
                                                                 <div style={{ background: 'var(--accent-bg)', padding: '8px', borderRadius: '8px' }}><FileText size={18} /></div>
-                                                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{paper.documentName || 'Download Document'}</span>
+                                                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{(() => { const raw = paper.document.split('/').pop() || 'Download Document'; const parts = raw.split('_'); return parts.length > 1 ? parts.slice(1).join('_') : raw; })()}</span>
                                                                 <Download size={16} style={{ flexShrink: 0, opacity: 0.6 }} />
                                                             </a>
                                                         ) : <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>No document uploaded</span>}
