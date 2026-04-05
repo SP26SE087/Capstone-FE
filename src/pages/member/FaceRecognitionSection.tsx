@@ -4,16 +4,16 @@ import FaceScannerModal from './FaceScannerModal';
 import { faceService } from '@/services/faceService';
 
 interface FaceRecognitionSectionProps {
-    userId: string;
+    studentId: string;
     userName: string;
 }
 
-const FaceRecognitionSection: React.FC<FaceRecognitionSectionProps> = ({ userId, userName }) => {
+const FaceRecognitionSection: React.FC<FaceRecognitionSectionProps> = ({ studentId, userName }) => {
     const [isScannerOpen, setIsScannerOpen] = useState(false);
 
     const handleAction = async (action: string) => {
-        if (!userId) {
-            alert('User ID is missing.');
+        if (!studentId) {
+            alert('Student ID is missing.');
             return;
         }
 
@@ -22,13 +22,13 @@ const FaceRecognitionSection: React.FC<FaceRecognitionSectionProps> = ({ userId,
             switch (action) {
                 case 'Remove':
                     if (!window.confirm(`Are you sure you want to remove biometrics for ${userName}?`)) return;
-                    response = await faceService.removeUser(userId);
+                    response = await faceService.removeUser(studentId);
                     break;
                 case 'Ban':
-                    response = await faceService.banUser(userId);
+                    response = await faceService.banUser(studentId);
                     break;
                 case 'Unban':
-                    response = await faceService.unbanUser(userId);
+                    response = await faceService.unbanUser(studentId);
                     break;
                 default:
                     return;
@@ -97,7 +97,7 @@ const FaceRecognitionSection: React.FC<FaceRecognitionSectionProps> = ({ userId,
             <FaceScannerModal
                 isOpen={isScannerOpen}
                 onClose={() => setIsScannerOpen(false)}
-                initialUserId={userId}
+                initialStudentId={studentId}
                 userName={userName}
             />
         </div>

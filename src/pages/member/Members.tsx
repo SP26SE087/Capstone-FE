@@ -23,7 +23,6 @@ const Members: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-    const [isModalOpen, setIsModalOpen] = useState(false);
     const [isInviteFormOpen, setIsInviteFormOpen] = useState(false);
 
     const isLabDirector = user.role === 'Lab Director' || 
@@ -61,9 +60,11 @@ const Members: React.FC = () => {
         );
     }, [members, searchQuery]);
 
+    const isSidePanelOpen = isInviteFormOpen || Boolean(selectedUserId);
+
     const handleMemberClick = (userId: string) => {
         setSelectedUserId(userId);
-        setIsModalOpen(true);
+        setIsInviteFormOpen(false);
     };
 
     return (
@@ -121,7 +122,13 @@ const Members: React.FC = () => {
                                     justifyContent: 'center',
                                     gap: '10px'
                                 }}
-                                onClick={() => setIsInviteFormOpen(!isInviteFormOpen)}
+                                onClick={() => {
+                                    setIsInviteFormOpen((prev) => {
+                                        const next = !prev;
+                                        if (next) setSelectedUserId(null);
+                                        return next;
+                                    });
+                                }}
                             >
                                 {isInviteFormOpen ? <X size={20} /> : <UserPlus size={20} />} 
                                 {isInviteFormOpen ? 'Close' : 'Invite Member'}
@@ -133,13 +140,13 @@ const Members: React.FC = () => {
                 {/* Main Content Area: List + Form */}
                 <div style={{ 
                     display: 'flex', 
-                    gap: isInviteFormOpen ? '2.5rem' : '0', 
+                    gap: isSidePanelOpen ? '2.5rem' : '0', 
                     transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)'
                 }}>
                     {/* Left Column: Members List (70% when open) */}
                     <div style={{ 
-                        flex: isInviteFormOpen ? '0 0 70%' : '0 100%', 
-                        maxWidth: isInviteFormOpen ? '70%' : '100%',
+                        flex: isSidePanelOpen ? '0 0 70%' : '0 100%', 
+                        maxWidth: isSidePanelOpen ? '70%' : '100%',
                         transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)'
                     }}>
                         {/* Status indicators (loading/error) */}
@@ -231,32 +238,33 @@ const Members: React.FC = () => {
                         )}
                     </div>
 
-                    {/* Right Column: Invite Form (30%) */}
+                    {/* Right Column: Side Panel (Invite form OR Member detail) */}
                     <div style={{ 
-                        flex: isInviteFormOpen ? '0 0 30%' : '0 0 0',
-                        maxWidth: isInviteFormOpen ? '30%' : '0',
-                        transform: isInviteFormOpen ? 'translateX(0)' : 'translateX(50px)',
-                        opacity: isInviteFormOpen ? 1 : 0,
-                        visibility: isInviteFormOpen ? 'visible' : 'hidden',
+                        flex: isSidePanelOpen ? '0 0 30%' : '0 0 0',
+                        maxWidth: isSidePanelOpen ? '30%' : '0',
+                        transform: isSidePanelOpen ? 'translateX(0)' : 'translateX(50px)',
+                        opacity: isSidePanelOpen ? 1 : 0,
+                        visibility: isSidePanelOpen ? 'visible' : 'hidden',
                         transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                         zIndex: 10
                     }}>
-                        <InviteMemberForm 
-                            onSuccess={() => {
-                                fetchMembers();
-                                addToast('Member invited successfully!', 'success');
-                            }}
-                            onCancel={() => setIsInviteFormOpen(false)}
-                        />
+                        {isInviteFormOpen ? (
+                            <InviteMemberForm 
+                                onSuccess={() => {
+                                    fetchMembers();
+                                    addToast('Member invited successfully!', 'success');
+                                }}
+                                onCancel={() => setIsInviteFormOpen(false)}
+                            />
+                        ) : (
+                            <UserDetailModal
+                                userId={selectedUserId}
+                                systemRoleMap={SystemRoleMap}
+                                onClose={() => setSelectedUserId(null)}
+                            />
+                        )}
                     </div>
                 </div>
-
-                <UserDetailModal 
-                    isOpen={isModalOpen}
-                    onClose={() => setIsModalOpen(false)}
-                    userId={selectedUserId}
-                    systemRoleMap={SystemRoleMap}
-                />
             </div>
         </MainLayout>
     );
