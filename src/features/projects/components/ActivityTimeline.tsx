@@ -333,42 +333,40 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
 
         return (
             <div style={{ display: 'flex', minHeight: '65px', alignItems: 'center', position: 'relative', width: '100%', borderBottom: '1px solid #f8fafc' }}>
-                {/* Fixed name tag — always visible on the left */}
-                <button
-                    onClick={() => handleTaskClick(task.taskId || (task as any).id)}
-                    onMouseEnter={() => setIsHovered(true)}
-                    onMouseLeave={() => setIsHovered(false)}
-                    style={{
-                        position: 'sticky',
-                        left: '8px',
-                        top: 0,
-                        width: '180px',
-                        minWidth: '180px',
-                        maxWidth: '180px',
-                        flexShrink: 0,
-                        padding: '3px 10px',
-                        background: isHovered ? '#f0f9ff' : 'white',
-                        border: `1px solid ${isHovered ? 'var(--primary-color)' : '#e2e8f0'}`,
-                        borderRadius: '7px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        zIndex: 20,
-                        cursor: 'pointer',
-                        transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-                        boxShadow: isHovered ? '0 6px 14px rgba(0,0,0,0.06)' : '0 2px 4px rgba(0,0,0,0.03)',
-                        outline: 'none',
-                        marginRight: '4px'
-                    }}
-                >
-                    <span style={{ fontSize: '0.7rem', fontWeight: 800, color: isHovered ? 'var(--primary-color)' : '#1e293b', whiteSpace: 'nowrap', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'left' }}>
-                        {task.name}
-                    </span>
-                    <span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 6px', borderRadius: '5px' }}>
-                        {(task as any).performerFullName || (task as any).assignedToFullName || 'U'}
-                    </span>
-                </button>
-                <div style={{ position: 'relative', height: '100%', flex: 1, width: '100%' }}>
+                {/* Zero-width sticky wrapper — overlays timeline without pushing it */}
+                <div style={{ position: 'sticky', left: 0, width: 0, flexShrink: 0, zIndex: 20, alignSelf: 'center' }}>
+                    <button
+                        onClick={() => handleTaskClick(task.taskId || (task as any).id)}
+                        onMouseEnter={() => setIsHovered(true)}
+                        onMouseLeave={() => setIsHovered(false)}
+                        style={{
+                            position: 'absolute',
+                            left: '8px',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            width: '180px',
+                            padding: '3px 10px',
+                            background: isHovered ? '#f0f9ff' : 'white',
+                            border: `1px solid ${isHovered ? 'var(--primary-color)' : '#e2e8f0'}`,
+                            borderRadius: '7px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            cursor: 'pointer',
+                            transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                            boxShadow: isHovered ? '0 6px 14px rgba(0,0,0,0.06)' : '0 2px 4px rgba(0,0,0,0.03)',
+                            outline: 'none',
+                        }}
+                    >
+                        <span style={{ fontSize: '0.7rem', fontWeight: 800, color: isHovered ? 'var(--primary-color)' : '#1e293b', whiteSpace: 'nowrap', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'left' }}>
+                            {task.name}
+                        </span>
+                        <span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 6px', borderRadius: '5px', flexShrink: 0 }}>
+                            {(task as any).performerFullName || (task as any).assignedToFullName || 'U'}
+                        </span>
+                    </button>
+                </div>
+                <div style={{ position: 'relative', height: '100%', width: '100%' }}>
 
                     {/* Thin background line from creation to due (or completion) */}
                     {lineOriginDate && (() => {
