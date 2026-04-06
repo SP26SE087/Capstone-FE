@@ -329,6 +329,7 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
 
         const startPctGlobal = getPositionPercent(task.startDate);
         const duePctGlobal = task.dueDate ? getPositionPercent(task.dueDate) : null;
+        const lineOriginDate: string | null = task.createdAt || task.startDate || (sortedLogs.length > 0 ? sortedLogs[0].createdAt : null);
 
         return (
             <div style={{ display: 'flex', minHeight: '65px', alignItems: 'center', position: 'relative', width: '100%', borderBottom: '1px solid #f8fafc' }}>
@@ -341,6 +342,9 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
                         position: 'sticky',
                         left: '8px',
                         top: 0,
+                        width: '180px',
+                        minWidth: '180px',
+                        maxWidth: '180px',
                         flexShrink: 0,
                         padding: '3px 10px',
                         background: isHovered ? '#f0f9ff' : 'white',
@@ -357,7 +361,7 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
                         marginRight: '4px'
                     }}
                 >
-                    <span style={{ fontSize: '0.7rem', fontWeight: 800, color: isHovered ? 'var(--primary-color)' : '#1e293b', whiteSpace: 'nowrap', maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 800, color: isHovered ? 'var(--primary-color)' : '#1e293b', whiteSpace: 'nowrap', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'left' }}>
                         {task.name}
                     </span>
                     <span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 6px', borderRadius: '5px' }}>
@@ -366,13 +370,13 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
                 </button>
                 <div style={{ position: 'relative', height: '100%', flex: 1, width: '100%' }}>
 
-                    {/* Thin background line from start to due (or completion) */}
-                    {task.startDate && (() => {
+                    {/* Thin background line from creation to due (or completion) */}
+                    {lineOriginDate && (() => {
                         const lineEndPct = task.status === 6 && task.updatedDate
                             ? Math.min(getPositionPercent(task.updatedDate), 100)
                             : (duePctGlobal ?? null);
                         if (lineEndPct === null) return null;
-                        const lineStartPct = Math.max(startPctGlobal, 0);
+                        const lineStartPct = Math.max(getPositionPercent(lineOriginDate), 0);
                         const lineWidth = Math.max(lineEndPct - lineStartPct, 0);
                         if (lineWidth === 0) return null;
                         return <div style={{ position: 'absolute', left: `${lineStartPct}%`, width: `${lineWidth}%`, top: '43px', height: '2px', background: '#e2e8f0', borderRadius: '2px', zIndex: 1, pointerEvents: 'none' }} />;
