@@ -768,8 +768,6 @@ function Dashboard() {
                                 background: 'var(--info-bg)', color: 'var(--info)',
                                 border: '1px solid var(--border-color)', fontSize: '0.82rem'
                             }}>
-                                <ShieldAlert size={16} style={{ flexShrink: 0, marginTop: 1 }} />
-                                <span>Project will be <strong>Active</strong> until approved by an administrator.</span>
                             </div>
 
                             {createError && (

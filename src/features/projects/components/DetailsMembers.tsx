@@ -115,6 +115,35 @@ const DetailsMembers: React.FC<DetailsMembersProps> = ({
                 </div>
             )}
 
+            {/* No Leader Warning — always visible when there's no leader yet */}
+            {!hasLeader && !isSoloDirector && (
+                <div style={{
+                    padding: '1rem 1.25rem',
+                    background: '#fff7ed',
+                    borderRadius: '12px',
+                    border: '1px solid #ffedd5',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                }}>
+                    <div style={{
+                        width: '36px', height: '36px', borderRadius: '10px',
+                        background: '#ffedd5', display: 'flex',
+                        alignItems: 'center', justifyContent: 'center', color: '#c2410c', flexShrink: 0,
+                    }}>
+                        <AlertCircle size={18} />
+                    </div>
+                    <div>
+                        <h4 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 700, color: '#9a3412' }}>
+                            No Project Leader assigned
+                        </h4>
+                        <p style={{ margin: 0, fontSize: '0.78rem', color: '#c2410c', opacity: 0.9 }}>
+                            This project does not have a Leader yet. Assign one to coordinate research tasks.
+                        </p>
+                    </div>
+                </div>
+            )}
+
             {/* Search bar */}
             <div style={{
                 display: 'flex', gap: '12px',

@@ -450,11 +450,6 @@ const Projects: React.FC = () => {
                                     </div>
                                 </div>
 
-                                <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', padding: '0.85rem', borderRadius: '12px', background: 'var(--background-color)', color: 'var(--text-secondary)', border: '1px solid var(--border-light)', fontSize: '0.82rem', marginBottom: '16px' }}>
-                                    <ShieldAlert size={16} style={{ flexShrink: 0, marginTop: 1, color: 'var(--accent-color)' }} />
-                                    <span>Project will be <strong>Active</strong> until approved by an administrator.</span>
-                                </div>
-
                                 {createError && (
                                     <div style={{ padding: '0.75rem 1rem', borderRadius: '12px', background: 'var(--danger-bg)', color: 'var(--danger)', fontSize: '0.85rem', fontWeight: 500, border: '1px solid rgba(239,68,68,0.2)', marginBottom: '16px' }}>
                                         {createError}

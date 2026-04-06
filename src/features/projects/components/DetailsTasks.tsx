@@ -36,6 +36,7 @@ interface DetailsTasksProps {
     currentMember: any;
     refreshTasks: () => void;
     onEditTask?: (task: Task) => void;
+    showToast: (message: string, type: 'success' | 'error' | 'info' | 'warning') => void;
 }
 
 const getStatusColor = (status: TaskStatus) => {
@@ -95,6 +96,16 @@ const resolveEvidenceViewer = (evidence?: { fileName?: string; fileUrl?: string 
     return { mode: 'none' as const, url: normalizedUrl };
 };
 
+const ALLOWED_EXTENSIONS = new Set([
+    '.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg',
+    '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+    '.txt', '.csv',
+    '.zip', '.rar', '.7z',
+    '.mp4', '.avi', '.mov', '.mkv', '.flv',
+]);
+
+const ALLOWED_ACCEPT = Array.from(ALLOWED_EXTENSIONS).join(',');
+
 // getPriorityStyle removed as it was unused
 
 const DetailsTasks: React.FC<DetailsTasksProps> = ({
@@ -103,7 +114,7 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
     taskMilestoneFilter, setTaskMilestoneFilter, viewMode, setViewMode,
     canManageTasks, isArchived,
     newTasks, handleAddTaskForm, handleRemoveTaskForm, handleNewTaskChange, handleSaveNewTask,
-    milestones, projectMembers, project, formatProjectDate, currentMember, refreshTasks
+    milestones, projectMembers, project, formatProjectDate, currentMember, refreshTasks, showToast
 }) => {
     const [personalTasks, setPersonalTasks] = useState<Task[]>([]);
     const [loadingTasks, setLoadingTasks] = useState(false);
@@ -123,8 +134,11 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
     const [previewEvidence, setPreviewEvidence] = useState<any>(null);
     const [pendingDelete, setPendingDelete] = useState<{ taskId: string, evidenceId: number } | null>(null);
     const [pendingSubmitTaskId, setPendingSubmitTaskId] = useState<string | null>(null);
+    const [pendingApproveTaskId, setPendingApproveTaskId] = useState<string | null>(null);
+    const [pendingAdjustTaskId, setPendingAdjustTaskId] = useState<string | null>(null);
     const [selectedTaskMilestone, setSelectedTaskMilestone] = useState<Milestone | null>(null);
 
+    const [fileInputKey, setFileInputKey] = useState(0);
     const [isEditMode, setIsEditMode] = useState(false);
     const [editForm, setEditForm] = useState({
         name: '', description: '', priority: Priority.Medium as number,
@@ -257,12 +271,11 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
     const normalizeId = (value: any): string => value === undefined || value === null ? '' : String(value);
     const toDateInput = (value: any): string => {
         if (!value) return '';
+        if (typeof value === 'string' && value.includes('T')) return value.split('T')[0];
+        if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
         const d = new Date(value);
         if (Number.isNaN(d.getTime())) return '';
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        return `${y}-${m}-${day}`;
+        return d.toISOString().split('T')[0];
     };
     const resolveMilestone = (rawId: any): Milestone | undefined => {
         const target = normalizeId(rawId).toLowerCase();
@@ -336,7 +349,7 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
         (activeTask as any)?.milestoneName ||
         (typeof (activeTask as any)?.milestone === 'string' ? (activeTask as any).milestone : '') ||
         '';
-    const originalMilestoneId = resolveMilestone(rawActiveMilestoneId)?.milestoneId || '';
+    const originalMilestoneId = getMilestoneOptionId(resolveMilestone(rawActiveMilestoneId)) || '';
 
     // Only validate if a field was actually modified by the user
     const isStartDirty = editForm.startDate !== originalStart;
@@ -375,16 +388,29 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
             const MAX_SIZE = 10 * 1024 * 1024; // 10MB
             const MAX_FILES = 5;
 
+            // Check file extensions
+            const invalidFiles = newFiles.filter(f => {
+                const ext = '.' + (f.name.split('.').pop() || '').toLowerCase();
+                return !ALLOWED_EXTENSIONS.has(ext);
+            });
+            if (invalidFiles.length > 0) {
+                showToast(`File type not allowed: ${invalidFiles.map(f => f.name).join(', ')}. Accepted: images, documents, text, archives, videos.`, 'error');
+                e.target.value = '';
+                return;
+            }
+
             // Check total files (drafts + already uploaded)
             const alreadyUploadedCount = (uploadedEvidences[taskId] || []).length;
             if (currentFiles.length + newFiles.length + alreadyUploadedCount > MAX_FILES) {
-                setErrorMessages(prev => ({ ...prev, [taskId]: `You can only have a maximum of ${MAX_FILES} evidence files total. (Currently have ${alreadyUploadedCount} uploaded and ${currentFiles.length} drafts).` }));
+                showToast(`Maximum ${MAX_FILES} files allowed. You already have ${alreadyUploadedCount} uploaded and ${currentFiles.length} pending.`, 'warning');
+                e.target.value = '';
                 return;
             }
 
             const largeFiles = newFiles.filter(f => f.size > MAX_SIZE);
             if (largeFiles.length > 0) {
-                setErrorMessages(prev => ({ ...prev, [taskId]: `Some files exceed the 10MB limit: ${largeFiles.map(f => f.name).join(', ')}` }));
+                showToast(`Files exceed 10MB limit: ${largeFiles.map(f => f.name).join(', ')}`, 'error');
+                e.target.value = '';
                 return;
             }
 
@@ -392,7 +418,6 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                 ...prev,
                 [taskId]: [...currentFiles, ...newFiles]
             }));
-            setErrorMessages(prev => ({ ...prev, [taskId]: null }));
         }
     };
 
@@ -424,7 +449,7 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
         const drafts = evidenceFiles[taskId] || [];
 
         if (drafts.length === 0) {
-            setErrorMessages(prev => ({ ...prev, [taskId]: 'Please select at least 1 file first.' }));
+            showToast('Please select at least 1 file first.', 'warning');
             return;
         }
 
@@ -439,10 +464,10 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                 return next;
             });
             await refreshSelectedTaskViews(taskId);
-            setSuccessMessages(prev => ({ ...prev, [taskId]: 'Evidence uploaded successfully.' }));
+            showToast('Evidence uploaded successfully.', 'success');
         } catch (error: any) {
             console.error('Failed to upload evidence:', error);
-            setErrorMessages(prev => ({ ...prev, [taskId]: error.message || 'Failed to upload evidence.' }));
+            showToast(error.message || 'Failed to upload evidence.', 'error');
         } finally {
             setSubmittingId(null);
         }
@@ -454,13 +479,14 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
         try {
             await taskService.deleteEvidence(taskId, evidenceId);
             await fetchEvidences(taskId);
+            setFileInputKey(k => k + 1);
             // If the deleted evidence was being previewed, clear it
             if (previewEvidence?.id === evidenceId) {
                 setPreviewEvidence(null);
             }
         } catch (error: any) {
             console.error('Failed to delete evidence:', error);
-            setErrorMessages(prev => ({ ...prev, [taskId]: error.message || 'Failed to delete file.' }));
+            showToast(error.message || 'Failed to delete file.', 'error');
         } finally {
             setPendingDelete(null);
         }
@@ -471,7 +497,7 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
         const uploadedCount = (uploadedEvidences[taskId] || []).length;
 
         if (uploadedCount === 0) {
-            setErrorMessages(prev => ({ ...prev, [taskId]: 'Upload evidence successfully before submitting.' }));
+            showToast('Please upload evidence before submitting for review.', 'warning');
             return;
         }
 
@@ -483,10 +509,10 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
             await refreshSelectedTaskViews(taskId);
             refreshTasks();
             if (viewContext === 'personal') fetchPersonalTasks();
-            setSuccessMessages(prev => ({ ...prev, [taskId]: 'Task submitted for review successfully.' }));
+            showToast('Task submitted for review successfully.', 'success');
         } catch (error: any) {
             console.error('Failed to submit for review:', error);
-            setErrorMessages(prev => ({ ...prev, [taskId]: error.message || 'Failed to submit.' }));
+            showToast(error.message || 'Failed to submit.', 'error');
         } finally {
             setSubmittingId(null);
         }
@@ -501,7 +527,7 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
             if (viewContext === 'personal') fetchPersonalTasks();
         } catch (error: any) {
             console.error('Failed to approve task:', error);
-            setErrorMessages(prev => ({ ...prev, [taskId]: error.message || 'Failed to approve task.' }));
+            showToast(error.message || 'Failed to approve task.', 'error');
         } finally {
             setSubmittingId(null);
         }
@@ -516,7 +542,7 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
             if (viewContext === 'personal') fetchPersonalTasks();
         } catch (error: any) {
             console.error('Failed to request adjusting:', error);
-            setErrorMessages(prev => ({ ...prev, [taskId]: error.message || 'Failed to request adjusting.' }));
+            showToast(error.message || 'Failed to request adjusting.', 'error');
         } finally {
             setSubmittingId(null);
         }
@@ -1104,7 +1130,7 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                                     </div>
                                 </div>
                                 {/* Edit toggle — Lab Director & Leader only */}
-                                {isSpecialRole && !isEditMode && (
+                                {isSpecialRole && !isEditMode && activeTask.status === TaskStatus.Todo && (
                                     <button
                                         onClick={() => {
                                             const rawMilestoneId =
@@ -1117,7 +1143,7 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                                                 (activeTask as any).milestoneName ||
                                                 (typeof (activeTask as any).milestone === 'string' ? (activeTask as any).milestone : '') ||
                                                 '';
-                                            const normalizedMilestoneId = resolveMilestone(rawMilestoneId)?.milestoneId || '';
+                                            const normalizedMilestoneId = getMilestoneOptionId(resolveMilestone(rawMilestoneId)) || '';
 
                                             const rawAssignee =
                                                 (activeTask as any).member?.fullName ||
@@ -1476,8 +1502,10 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                                                         pointerEvents: ((submittingId === taskId) || (drafts.length + uploaded.length) >= 5) ? 'none' : 'auto'
                                                     }}>
                                                         <input
+                                                            key={fileInputKey}
                                                             type="file"
                                                             multiple
+                                                            accept={ALLOWED_ACCEPT}
                                                             disabled={(submittingId === taskId) || (drafts.length + uploaded.length) >= 5}
                                                             onChange={(e) => handleFileChange(taskId, e)}
                                                             style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }}
@@ -1614,22 +1642,22 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                                     {isSpecialRole && !(activeTask as any).isAssignee && activeTask.status === TaskStatus.Submitted && (
                                         <div style={{ display: 'flex', gap: '10px', width: '100%', marginBottom: '1rem' }}>
                                             <button
-                                                onClick={() => handleRequestAdjusting(activeTask.taskId || (activeTask as any).id)}
+                                                onClick={() => setPendingAdjustTaskId(activeTask.taskId || (activeTask as any).id)}
                                                 disabled={submittingId !== null}
-                                                style={{ flex: 1, padding: '0.85rem', background: '#fff1f2', color: '#e11d48', border: '1.5px solid #fecdd3', borderRadius: '12px', fontWeight: 800, fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s' }}
-                                                onMouseOver={(e) => e.currentTarget.style.background = '#ffe4e6'}
+                                                style={{ flex: 1, padding: '0.85rem', background: '#fff1f2', color: '#e11d48', border: '1.5px solid #fecdd3', borderRadius: '12px', fontWeight: 800, fontSize: '0.75rem', cursor: submittingId !== null ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s', opacity: submittingId !== null ? 0.6 : 1 }}
+                                                onMouseOver={(e) => { if (!submittingId) e.currentTarget.style.background = '#ffe4e6'; }}
                                                 onMouseOut={(e) => e.currentTarget.style.background = '#fff1f2'}
                                             >
-                                                <RotateCw size={14} /> REQUEST ADJUST
+                                                {submittingId === (activeTask.taskId || (activeTask as any).id) ? <Loader2 size={14} className="animate-spin" /> : <RotateCw size={14} />} REQUEST ADJUST
                                             </button>
                                             <button
-                                                onClick={() => handleApproveTask(activeTask.taskId || (activeTask as any).id)}
+                                                onClick={() => setPendingApproveTaskId(activeTask.taskId || (activeTask as any).id)}
                                                 disabled={submittingId !== null}
-                                                style={{ flex: 1, padding: '0.85rem', background: '#f0fdf4', color: '#16a34a', border: '1.5px solid #bbf7d0', borderRadius: '12px', fontWeight: 800, fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s' }}
-                                                onMouseOver={(e) => e.currentTarget.style.background = '#dcfce7'}
+                                                style={{ flex: 1, padding: '0.85rem', background: '#f0fdf4', color: '#16a34a', border: '1.5px solid #bbf7d0', borderRadius: '12px', fontWeight: 800, fontSize: '0.75rem', cursor: submittingId !== null ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s', opacity: submittingId !== null ? 0.6 : 1 }}
+                                                onMouseOver={(e) => { if (!submittingId) e.currentTarget.style.background = '#dcfce7'; }}
                                                 onMouseOut={(e) => e.currentTarget.style.background = '#f0fdf4'}
                                             >
-                                                <CheckCircle2 size={14} /> APPROVE TASK
+                                                {submittingId === (activeTask.taskId || (activeTask as any).id) ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} APPROVE TASK
                                             </button>
                                         </div>
                                     )}
@@ -1860,6 +1888,36 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                 confirmText="Submit"
                 cancelText="Cancel"
                 variant="info"
+            />
+            <ConfirmModal
+                isOpen={!!pendingApproveTaskId}
+                onClose={() => setPendingApproveTaskId(null)}
+                onConfirm={async () => {
+                    const id = pendingApproveTaskId;
+                    setPendingApproveTaskId(null);
+                    if (!id) return;
+                    await handleApproveTask(id);
+                }}
+                title="Approve Task"
+                message="Are you sure you want to mark this task as completed? This action cannot be undone."
+                confirmText="Approve"
+                cancelText="Cancel"
+                variant="success"
+            />
+            <ConfirmModal
+                isOpen={!!pendingAdjustTaskId}
+                onClose={() => setPendingAdjustTaskId(null)}
+                onConfirm={async () => {
+                    const id = pendingAdjustTaskId;
+                    setPendingAdjustTaskId(null);
+                    if (!id) return;
+                    await handleRequestAdjusting(id);
+                }}
+                title="Request Adjustment"
+                message="Send this task back to the assignee for adjustments? They will need to re-submit once revised."
+                confirmText="Request Adjust"
+                cancelText="Cancel"
+                variant="danger"
             />
 
             {/* Simple Delete Confirmation Overlay */}

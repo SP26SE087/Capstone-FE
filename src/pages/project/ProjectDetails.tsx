@@ -308,11 +308,6 @@ const ProjectDetails: React.FC = () => {
 
         if (!dataToSave.name || !id) return;
 
-        if (checkOverlap(dataToSave.startDate, dataToSave.dueDate)) {
-            showToast('This timeframe overlaps with another existing milestone.', 'warning');
-            return;
-        }
-
         setIsMilestoneSaving(true);
         try {
             if (editingMilestoneId) {
@@ -347,8 +342,8 @@ const ProjectDetails: React.FC = () => {
             }
             // Refetch list
             await refetchMilestones();
-        } catch (error) {
-            showToast(`Failed to ${editingMilestoneId ? 'update' : 'create'} milestone.`, 'error');
+        } catch (error: any) {
+            showToast(error?.message || `Failed to ${editingMilestoneId ? 'update' : 'create'} milestone.`, 'error');
         } finally {
             setIsMilestoneSaving(false);
         }
@@ -420,11 +415,16 @@ const ProjectDetails: React.FC = () => {
 
     const handleSettingsSubmit = async () => {
         if (!id) return;
+        const trimmedProjectName = (formData.projectName ?? '').trim();
+        if (!trimmedProjectName) {
+            showToast('Project name is required.', 'warning');
+            return;
+        }
         setSubmitting(true);
         try {
             await projectService.update({
                 projectId: id,
-                projectName: formData.projectName,
+                projectName: trimmedProjectName,
                 projectDescription: formData.projectDescription,
                 startDate: toApiDate(formData.startDate),
                 endDate: toApiDate(formData.endDate),
@@ -528,6 +528,8 @@ const ProjectDetails: React.FC = () => {
     const isSoloDirector = members.length === 1 &&
         (Number(members[0].projectRole) === ProjectRoleEnum.LabDirector ||
             members[0].projectRoleName === 'Lab Director');
+    const hasLeader = members.some(m => Number(m.projectRole) === ProjectRoleEnum.Leader);
+    const showMemberWarning = isSoloDirector || !hasLeader;
 
     return (
         <MainLayout
@@ -585,7 +587,7 @@ const ProjectDetails: React.FC = () => {
                             label: (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                     Members
-                                    {isSoloDirector && (
+                                    {showMemberWarning && (
                                         <div
                                             className="pulse-alert"
                                             title="This project has no active Project Leader. Only the Lab Director is currently assigned."
@@ -712,6 +714,7 @@ const ProjectDetails: React.FC = () => {
                                 projectStartDate={project.startDate}
                                 projectEndDate={project.endDate}
                                 isMilestoneSaving={isMilestoneSaving}
+                                allTasks={tasks}
                             />
                         )}
 
@@ -722,7 +725,7 @@ const ProjectDetails: React.FC = () => {
                                 setMemberSearchQuery={setMemberSearchQuery}
                                 canManageProject={canManageProject}
                                 projectId={id || ''}
-                                hasLeader={members.some(m => Number(m.projectRole) === ProjectRoleEnum.Leader)}
+                                hasLeader={hasLeader}
                                 existingMemberIds={members.map(m => m.email).filter(Boolean)}
                                 currentProjectRole={Number(projectRoleValue)}
                                 currentUser={currentUser}
@@ -760,6 +763,7 @@ const ProjectDetails: React.FC = () => {
                                 currentMember={currentMember}
                                 refreshTasks={refetchTasks}
                                 onEditTask={(task) => { setEditingTask(task); setIsTaskModalOpen(true); }}
+                                showToast={showToast}
                             />
                         )}
 
@@ -779,6 +783,16 @@ const ProjectDetails: React.FC = () => {
                                 submitting={submitting}
                                 canDeleteProject={canDeleteProject}
                                 setIsDeleteConfirmOpen={setIsDeleteConfirmOpen}
+                                latestMilestoneDueDate={
+                                    milestones.length > 0
+                                        ? new Date(Math.max(...milestones.map(m => new Date(m.dueDate).getTime()))).toISOString().split('T')[0]
+                                        : undefined
+                                }
+                                earliestMilestoneStartDate={
+                                    milestones.length > 0
+                                        ? new Date(Math.min(...milestones.map(m => new Date(m.startDate).getTime()))).toISOString().split('T')[0]
+                                        : undefined
+                                }
                             />
                         )}
                     </div>

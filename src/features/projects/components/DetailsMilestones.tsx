@@ -2,7 +2,7 @@ import React from 'react';
 import {
     Plus, Search, Calendar, Target, Edit3, X,
     Clock, Activity, CheckCircle2, User, Users, Info,
-    Save, Trash2, ChevronRight, ChevronDown, CheckCircle, Timer
+    Save, Trash2, ChevronRight, ChevronDown, CheckCircle, Timer, AlertTriangle
 } from 'lucide-react';
 import { Milestone, MilestoneStatus, Task } from '@/types';
 import MilestoneItem from '@/components/milestone/MilestoneItem';
@@ -53,6 +53,7 @@ interface DetailsMilestonesProps {
     projectStartDate?: string | null;
     projectEndDate?: string | null;
     isMilestoneSaving?: boolean;
+    allTasks?: any[];
 }
 
 type FormTab = 'view' | 'edit' | 'add';
@@ -84,12 +85,21 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
     showToast,
     projectStartDate,
     projectEndDate,
-    isMilestoneSaving = false
+    isMilestoneSaving = false,
+    allTasks = []
 }) => {
+    const milestoneIdsWithTasks = React.useMemo(() => {
+        const s = new Set<string>();
+        allTasks.forEach((t: any) => {
+            const mid = t.milestoneId || t.milestoneID || t.milestone_id || t.milestone?.milestoneId || t.milestone?.id || '';
+            if (mid) s.add(String(mid).toLowerCase());
+        });
+        return s;
+    }, [allTasks]);
     // Standardize TODAY string using local time (YYYY-MM-DD)
     const today = new Date().toLocaleDateString('en-CA');
-    const pStartFormatted = projectStartDate ? new Date(projectStartDate).toLocaleDateString('en-CA') : today;
-    const pEndFormatted = projectEndDate ? new Date(projectEndDate).toLocaleDateString('en-CA') : '';
+    const pStartFormatted = projectStartDate ? projectStartDate.split('T')[0] : today;
+    const pEndFormatted = projectEndDate ? projectEndDate.split('T')[0] : '';
     const [formTab, setFormTab] = React.useState<FormTab>('view');
     const [draftTasks, setDraftTasks] = React.useState<TaskDraft[]>([]);
     const [confirmState, setConfirmState] = React.useState<{
@@ -98,6 +108,7 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
         message: string;
         confirmLabel: string;
         cancelLabel: string;
+        variant: 'danger' | 'success' | 'warning' | 'info';
         onConfirm: () => void;
     }>({
         isOpen: false,
@@ -105,6 +116,7 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
         message: '',
         confirmLabel: 'Confirm',
         cancelLabel: 'Cancel',
+        variant: 'info',
         onConfirm: () => { }
     });
     const [milestoneTasks, setMilestoneTasks] = React.useState<Task[]>([]);
@@ -121,7 +133,23 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
         setLoadingTasks(true);
         try {
             const tasks = await milestoneService.getTasksByMilestone(mId);
-            setMilestoneTasks(Array.isArray(tasks) ? tasks : []);
+            const taskArr = Array.isArray(tasks) ? tasks : [];
+            // Enrich with assignedToName from the members prop when the milestone
+            // tasks endpoint does not return that field directly.
+            const enriched = taskArr.map((t: any) => {
+                // Normalize id → taskId so all downstream code uses task.taskId consistently
+                const normalized = t.taskId ? t : { ...t, taskId: t.id || t.taskId };
+                if (normalized.assignedToName) return normalized;
+                const assigneeId = normalized.memberId || normalized.assignedToId;
+                if (!assigneeId) return normalized;
+                const found = members.find((m: any) =>
+                    (m.id || m.memberId || m.membershipId || m.userId || '') === assigneeId
+                );
+                return found
+                    ? { ...normalized, assignedToName: found.fullName || found.userName || normalized.assignedToName }
+                    : normalized;
+            });
+            setMilestoneTasks(enriched);
         } catch (error) {
             console.error('Failed to fetch milestone tasks:', error);
         } finally {
@@ -181,8 +209,10 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
             };
 
             // Requirements: always send both start and due date
-            updatePayload.startDate = task.startDate.includes('T') ? task.startDate : task.startDate + "T00:00:00.000Z";
-            updatePayload.dueDate = task.dueDate.includes('T') ? task.dueDate : task.dueDate + "T23:59:59.000Z";
+            const startDateOnly = task.startDate.includes('T') ? task.startDate.split('T')[0] : task.startDate;
+            const dueDateOnly = task.dueDate.includes('T') ? task.dueDate.split('T')[0] : task.dueDate;
+            updatePayload.startDate = startDateOnly + "T00:00:00.000Z";
+            updatePayload.dueDate = dueDateOnly + "T23:59:59.000Z";
 
             await taskService.update(taskId, updatePayload);
             showToast('Changes saved successfully', 'success');
@@ -210,6 +240,7 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
             message: 'Are you sure you want to permanently delete this task?',
             confirmLabel: 'Delete',
             cancelLabel: 'Cancel',
+            variant: 'danger',
             onConfirm: async () => {
                 try {
                     await taskService.delete(taskId);
@@ -253,15 +284,51 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
         }
     };
 
+    // Pure UTC date arithmetic — avoids timezone shift from new Date(isoString)
+    const addDays = (dateStr: string, days: number): string => {
+        const plain = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr;
+        const [y, m, d] = plain.split('-').map(Number);
+        return new Date(Date.UTC(y, m - 1, d + days)).toISOString().split('T')[0];
+    };
+    const maxDate = (a: string, b: string) => (a >= b ? a : b);
+
     const latestMilestoneDate = React.useMemo(() => {
         if (!milestones || milestones.length === 0) return null;
-        let latest = new Date(0);
+        let latest = '';
         milestones.forEach(m => {
-            const d = new Date(m.dueDate);
-            if (d > latest) latest = d;
+            const d = m.dueDate ? m.dueDate.split('T')[0] : '';
+            if (d && (!m.dueDate.startsWith('0001')) && d > latest) latest = d;
         });
-        return latest.getTime() === 0 ? null : latest;
+        return latest || null;
     }, [milestones]);
+
+    // Find first available non-overlapping start date for a new milestone (duration = 30 days)
+    const getSmartDefaultStart = React.useCallback(() => {
+        const DURATION = 30;
+        const sorted = [...milestones]
+            .filter(m => m.startDate && !m.startDate.startsWith('0001') && m.dueDate && !m.dueDate.startsWith('0001'))
+            .sort((a, b) => (a.startDate.split('T')[0] > b.startDate.split('T')[0] ? 1 : -1));
+
+        const base = maxDate(today, pStartFormatted);
+
+        // Try to find a gap between existing milestones
+        for (let i = 0; i < sorted.length; i++) {
+            const gapStart = i === 0 ? base : maxDate(addDays(sorted[i - 1].dueDate, 1), base);
+            const gapEnd = sorted[i].startDate.split('T')[0];
+            const candidate = maxDate(gapStart, base);
+            const candidateEnd = addDays(candidate, DURATION);
+            if (candidateEnd <= gapEnd) {
+                return candidate;
+            }
+        }
+
+        // No gap found — start after the latest due date
+        if (latestMilestoneDate) {
+            return maxDate(addDays(latestMilestoneDate, 1), base);
+        }
+
+        return base;
+    }, [milestones, today, pStartFormatted, latestMilestoneDate]);
 
     // State Syncing
     React.useEffect(() => {
@@ -271,31 +338,17 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
             if (activeMilestone.status === MilestoneStatus.Completed || activeMilestone.status === MilestoneStatus.Cancelled) {
                 setTaskTab('current');
             }
+            const mId = activeMilestone.milestoneId || (activeMilestone as any).id || editingMilestoneId;
+            if (mId) fetchMilestoneTasks(mId);
         } else if (viewMode === 'roadmap') {
             setFormTab('add');
 
-            // PRE-FILL Add Milestone form with sensible defaults if empty
-            if (!newMilestoneData.name && !newMilestoneData.startDate && !newMilestoneData.dueDate) {
-                let defaultStart = pStartFormatted;
+            // PRE-FILL Add Milestone form with smart non-overlapping defaults
+            if (!newMilestoneData.name) {
+                const defaultStart = getSmartDefaultStart();
 
-                // If there are existing milestones, start after the last one
-                if (latestMilestoneDate) {
-                    const nextDay = new Date(latestMilestoneDate);
-                    nextDay.setDate(nextDay.getDate() + 1);
-                    defaultStart = nextDay.toLocaleDateString('en-CA');
-                }
-
-                // If today is later than the calculated next available slot, use today
-                if (new Date(today) > new Date(defaultStart)) {
-                    defaultStart = today;
-                }
-
-                const defaultDue = new Date(defaultStart);
-                defaultDue.setDate(defaultDue.getDate() + 30); // Default to 1 month duration
-                const defaultDueStr = defaultDue.toLocaleDateString('en-CA');
-
-                // Respect project end date if available
-                const finalDueStr = (pEndFormatted && new Date(defaultDueStr) > new Date(pEndFormatted))
+                const defaultDueStr = addDays(defaultStart, 30);
+                const finalDueStr = (pEndFormatted && defaultDueStr > pEndFormatted)
                     ? pEndFormatted
                     : defaultDueStr;
 
@@ -306,6 +359,17 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
     }, [activeMilestone?.milestoneId, editingMilestoneId, viewMode, activeMilestone?.status, latestMilestoneDate, pStartFormatted, pEndFormatted]);
 
 
+
+    const handleNewStartDateChange = (newStart: string) => {
+        handleMilestoneDataChange('startDate', newStart);
+        if (newStart) {
+            const proposedStr = addDays(newStart, 30);
+            const finalDue = (pEndFormatted && proposedStr > pEndFormatted)
+                ? pEndFormatted
+                : proposedStr;
+            handleMilestoneDataChange('dueDate', finalDue);
+        }
+    };
 
     const hasUnsavedChanges = React.useCallback(() => {
         if (formTab === 'view') return false;
@@ -325,6 +389,7 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                     message: 'Your unsaved changes will be lost. Return to list anyway?',
                     confirmLabel: 'Discard',
                     cancelLabel: 'Stay',
+                    variant: 'warning',
                     onConfirm: () => onCancelEdit()
                 });
                 return;
@@ -378,6 +443,7 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
             message: `Are you sure you want to delete "${milestone.name}"? All associated data will be lost.`,
             confirmLabel: 'Delete',
             cancelLabel: 'Keep',
+            variant: 'danger',
             onConfirm: async () => {
                 try {
                     const mId = milestone.milestoneId || (milestone as any).id;
@@ -465,26 +531,6 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                         <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><CheckCircle size={14} /> Mark complete</span>
                                         <ChevronRight size={14} />
                                     </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => handleUpdateStatus(milestone, MilestoneStatus.OnHold)}
-                                        style={actionButtonStyle('#f59e0b', '#f8fafc')}
-                                        onMouseOver={(e) => e.currentTarget.style.background = '#fffbeb'}
-                                        onMouseOut={(e) => e.currentTarget.style.background = '#f8fafc'}
-                                    >
-                                        <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Clock size={14} /> Put on hold</span>
-                                        <ChevronRight size={14} />
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => handleUpdateStatus(milestone, MilestoneStatus.Cancelled)}
-                                        style={actionButtonStyle('#ef4444', '#f8fafc')}
-                                        onMouseOver={(e) => e.currentTarget.style.background = '#fef2f2'}
-                                        onMouseOut={(e) => e.currentTarget.style.background = '#f8fafc'}
-                                    >
-                                        <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><X size={14} /> Cancel milestone</span>
-                                        <ChevronRight size={14} />
-                                    </button>
                                 </>
                             )}
 
@@ -498,16 +544,6 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                         onMouseOut={(e) => e.currentTarget.style.background = '#f8fafc'}
                                     >
                                         <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><ChevronRight size={14} /> Resume milestone</span>
-                                        <ChevronRight size={14} />
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => handleUpdateStatus(milestone, MilestoneStatus.Cancelled)}
-                                        style={actionButtonStyle('#ef4444', '#f8fafc')}
-                                        onMouseOver={(e) => e.currentTarget.style.background = '#fef2f2'}
-                                        onMouseOut={(e) => e.currentTarget.style.background = '#f8fafc'}
-                                    >
-                                        <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><X size={14} /> Cancel milestone</span>
                                         <ChevronRight size={14} />
                                     </button>
                                 </>
@@ -543,6 +579,7 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                     message: `You cannot complete this milestone because "${incompleteTask.name}" is not yet finished. Please complete all tasks first.`,
                     confirmLabel: 'GO TO TASK',
                     cancelLabel: 'CANCEL',
+                    variant: 'warning',
                     onConfirm: () => {
                         setTaskTab('current');
                         setExpandedTasks([incompleteTask.taskId]);
@@ -555,16 +592,59 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
             }
         }
 
-        try {
-            const mId = milestone.milestoneId || (milestone as any).id;
-            if (!mId) return;
-            await milestoneService.updateStatus(mId, newStatus);
-            showToast('Milestone status updated!', 'success');
-            if (refreshMilestones) refreshMilestones();
-        } catch (error) {
-            console.error('Failed to update milestone status:', error);
-            showToast((error as any).message || 'Failed to update status.', 'error');
+        if (newStatus === MilestoneStatus.Completed) {
+            setConfirmState({
+                isOpen: true,
+                title: 'Complete Milestone',
+                message: `Are you sure you want to mark "${milestone.name}" as completed? This action cannot be undone.`,
+                confirmLabel: 'MARK COMPLETE',
+                cancelLabel: 'CANCEL',
+                variant: 'success',
+                onConfirm: async () => {
+                    try {
+                        const mId = milestone.milestoneId || (milestone as any).id;
+                        if (!mId) return;
+                        await milestoneService.updateStatus(mId, newStatus);
+                        showToast('Milestone marked as completed!', 'success');
+                        if (refreshMilestones) refreshMilestones();
+                    } catch (error) {
+                        console.error('Failed to update milestone status:', error);
+                        showToast((error as any).message || 'Failed to update status.', 'error');
+                    }
+                }
+            });
+            return;
         }
+
+        const isResume = milestone.status === MilestoneStatus.OnHold;
+        const isStart = milestone.status === MilestoneStatus.NotStarted && newStatus === MilestoneStatus.InProgress;
+        const confirmTitle = isStart ? 'Start Milestone?' : isResume ? 'Resume Milestone?' : 'Update Status?';
+        const confirmMsg = isStart
+            ? `Are you sure you want to start "${milestone.name}"?`
+            : isResume
+                ? `Are you sure you want to resume "${milestone.name}"?`
+                : `Update status of "${milestone.name}"?`;
+
+        setConfirmState({
+            isOpen: true,
+            title: confirmTitle,
+            message: confirmMsg,
+            confirmLabel: isStart ? 'START' : isResume ? 'RESUME' : 'CONFIRM',
+            cancelLabel: 'CANCEL',
+            variant: 'info',
+            onConfirm: async () => {
+                try {
+                    const mId = milestone.milestoneId || (milestone as any).id;
+                    if (!mId) return;
+                    await milestoneService.updateStatus(mId, newStatus);
+                    showToast('Milestone status updated!', 'success');
+                    if (refreshMilestones) refreshMilestones();
+                } catch (error) {
+                    console.error('Failed to update milestone status:', error);
+                    showToast((error as any).message || 'Failed to update status.', 'error');
+                }
+            }
+        });
     };
 
     const protectedMilestoneClick = (milestone: Milestone) => {
@@ -595,19 +675,22 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
     const formatDate = (d: string | Date | null | undefined): string => {
         if (!d) return 'N/A';
         try {
-            const date = typeof d === 'string' ? new Date(d) : d;
-            if (isNaN(date.getTime())) return 'N/A';
-            return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+            const plain = typeof d === 'string' ? d.split('T')[0] : d.toISOString().split('T')[0];
+            const [year, month, day] = plain.split('-').map(Number);
+            if (!year || !month || !day) return 'N/A';
+            const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            return `${months[month - 1]} ${day}, ${year}`;
         } catch {
             return 'N/A';
         }
     };
 
-    const mStartDate = activeMilestone?.startDate ? new Date(activeMilestone.startDate).toLocaleDateString('en-CA') : '';
-    const mDueDate = activeMilestone?.dueDate ? new Date(activeMilestone.dueDate).toLocaleDateString('en-CA') : '';
-    const mDueDateMinus1 = activeMilestone?.dueDate ? (() => { const d = new Date(activeMilestone.dueDate); d.setDate(d.getDate() - 1); return d.toLocaleDateString('en-CA'); })() : '';
+    const mStartDate = activeMilestone?.startDate ? activeMilestone.startDate.split('T')[0] : '';
+    const mDueDate = activeMilestone?.dueDate ? activeMilestone.dueDate.split('T')[0] : '';
+    const mDueDateMinus1 = activeMilestone?.dueDate ? (() => { const plain = activeMilestone.dueDate.split('T')[0]; const [y, mo, d] = plain.split('-').map(Number); return new Date(Date.UTC(y, mo - 1, d - 1)).toISOString().split('T')[0]; })() : '';
 
     const addDraftSlot = () => {
+        if (draftTasks.length >= 5) return;
         const newDraft: TaskDraft = {
             id: `draft-${Date.now()}`,
             name: '',
@@ -621,7 +704,7 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
             isSaving: false,
             isExpanded: true
         };
-        setDraftTasks(prev => [...prev, newDraft]);
+        setDraftTasks(prev => [newDraft, ...prev.map(d => ({ ...d, isExpanded: false }))]);
         setTaskTab('draft');
     };
 
@@ -715,7 +798,6 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                             <div style={{ display: 'flex', flexDirection: 'column' }}>
                                 <StatRow icon={<Activity />} label="Total" count={metrics.total} color="#0284c7" bg="#f0f9ff" tooltip="Total number of strategic milestones in this project." />
                                 <StatRow icon={<Timer />} label="Running" count={metrics.inProgress} color="#4f46e5" bg="#eef2ff" tooltip="Milestones currently active and in progress." />
-                                <StatRow icon={<Clock />} label="Delayed" count={metrics.onHold} color="#d97706" bg="#fffbeb" tooltip="Milestones that are currently on hold or delayed." />
                             </div>
 
                             <div style={{ width: '1px', alignSelf: 'stretch', background: '#f1f5f9' }}></div>
@@ -724,7 +806,6 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                             <div style={{ display: 'flex', flexDirection: 'column' }}>
                                 <StatRow icon={<Target />} label="Not Start" count={metrics.notStarted} color="#475569" bg="#f1f5f9" tooltip="Planned milestones that haven't been initiated yet." />
                                 <StatRow icon={<CheckCircle2 />} label="Done" count={metrics.completed} color="#059669" bg="#ecfdf5" tooltip="Milestones that have been successfully completed." />
-                                <StatRow icon={<Trash2 />} label="Cancelled" count={metrics.cancelled} color="#e11d48" bg="#fff1f2" tooltip="Milestones that have been cancelled or terminated." />
                             </div>
 
                             <div style={{ width: '1px', alignSelf: 'stretch', background: '#f1f5f9' }}></div>
@@ -789,6 +870,7 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                 key={`ml-${milestone.milestoneId || idx}`}
                                 milestone={getLiveMilestoneItem(milestone)}
                                 onClick={protectedMilestoneClick}
+                                hasNoTasks={!milestoneIdsWithTasks.has(String(milestone.milestoneId || (milestone as any).id || '').toLowerCase()) && milestone.status !== MilestoneStatus.NotStarted && milestone.status !== MilestoneStatus.Completed}
                             />
                         ))}
                     </div>
@@ -804,7 +886,7 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                 </div>
                                 <div style={{ display: 'flex', background: '#f1f5f9', padding: '4px', borderRadius: '12px', border: '1px solid #e2e8f0', height: '36px', boxSizing: 'border-box' }}>
                                     <button onClick={() => setFormTab('view')} style={{ ...tabStyle, flex: 1, height: '100%', ...(formTab === 'view' ? activeTabStyle : inactiveTabStyle) }}>View</button>
-                                    {(canManageMilestones && activeMilestone?.status !== MilestoneStatus.Completed && activeMilestone?.status !== MilestoneStatus.Cancelled) && (
+                                    {(canManageMilestones && activeMilestone?.status === MilestoneStatus.NotStarted) && (
                                         <button onClick={handleSwitchToEdit} style={{ ...tabStyle, flex: 1, height: '100%', ...(formTab === 'edit' ? activeTabStyle : inactiveTabStyle) }}>Edit</button>
                                     )}
                                 </div>
@@ -830,8 +912,8 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                                     <label style={labelStyle}>Start</label>
                                                     <input
                                                         type="date" min={today} value={newMilestoneData.startDate}
-                                                        onChange={(e) => handleMilestoneDataChange('startDate', e.target.value)}
-                                                        style={{ ...inputStyle, padding: '0.65rem', border: (checkOverlap(newMilestoneData.startDate, newMilestoneData.dueDate) || (newMilestoneData.startDate && newMilestoneData.dueDate && new Date(newMilestoneData.startDate) > new Date(newMilestoneData.dueDate))) ? '1.5px solid #ef4444' : '1.5px solid #e2e8f0' }}
+                                                        onChange={(e) => handleNewStartDateChange(e.target.value)}
+                                                        style={{ ...inputStyle, padding: '0.65rem' }}
                                                     />
                                                 </div>
                                                 <div>
@@ -839,20 +921,10 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                                     <input
                                                         type="date" min={newMilestoneData.startDate || today} value={newMilestoneData.dueDate}
                                                         onChange={(e) => handleMilestoneDataChange('dueDate', e.target.value)}
-                                                        style={{ ...inputStyle, padding: '0.65rem', border: (checkOverlap(newMilestoneData.startDate, newMilestoneData.dueDate) || (newMilestoneData.startDate && newMilestoneData.dueDate && new Date(newMilestoneData.startDate) > new Date(newMilestoneData.dueDate))) ? '1.5px solid #ef4444' : '1.5px solid #e2e8f0' }}
+                                                        style={{ ...inputStyle, padding: '0.65rem' }}
                                                     />
                                                 </div>
                                             </div>
-                                            {newMilestoneData.startDate && newMilestoneData.dueDate && (
-                                                <div style={{ marginBottom: '0.5rem' }}>
-                                                    {new Date(newMilestoneData.startDate) > new Date(newMilestoneData.dueDate) && (
-                                                        <div style={{ color: '#ef4444', fontSize: '0.65rem', fontWeight: 600 }}>⚠ Start date cannot be after due date.</div>
-                                                    )}
-                                                    {checkOverlap(newMilestoneData.startDate, newMilestoneData.dueDate) && (
-                                                        <div style={{ color: '#ef4444', fontSize: '0.65rem', fontWeight: 600 }}>⚠ This time frame overlaps with another milestone.</div>
-                                                    )}
-                                                </div>
-                                            )}
                                             <div>
                                                 <label style={labelStyle}>Goal</label>
                                                 <textarea placeholder="Description..." value={newMilestoneData.description} onChange={(e) => handleMilestoneDataChange('description', e.target.value)} style={{ ...inputStyle, minHeight: '80px', padding: '0.75rem' }} />
@@ -904,8 +976,8 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                                 min={pStartFormatted}
                                                 max={pEndFormatted || undefined}
                                                 value={newMilestoneData.startDate}
-                                                onChange={(e) => handleMilestoneDataChange('startDate', e.target.value)}
-                                                style={{ ...inputStyle, padding: '0.65rem', border: (checkOverlap(newMilestoneData.startDate, newMilestoneData.dueDate) || (newMilestoneData.startDate && newMilestoneData.dueDate && new Date(newMilestoneData.startDate) > new Date(newMilestoneData.dueDate))) ? '1.5px solid #ef4444' : '1.5px solid #e2e8f0' }}
+                                                onChange={(e) => handleNewStartDateChange(e.target.value)}
+                                                style={{ ...inputStyle, padding: '0.65rem' }}
                                             />
                                         </div>
                                         <div>
@@ -916,20 +988,10 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                                 max={pEndFormatted || undefined}
                                                 value={newMilestoneData.dueDate}
                                                 onChange={(e) => handleMilestoneDataChange('dueDate', e.target.value)}
-                                                style={{ ...inputStyle, padding: '0.65rem', border: (checkOverlap(newMilestoneData.startDate, newMilestoneData.dueDate) || (newMilestoneData.startDate && newMilestoneData.dueDate && new Date(newMilestoneData.startDate) > new Date(newMilestoneData.dueDate))) ? '1.5px solid #ef4444' : '1.5px solid #e2e8f0' }}
+                                                style={{ ...inputStyle, padding: '0.65rem' }}
                                             />
                                         </div>
                                     </div>
-                                    {newMilestoneData.startDate && newMilestoneData.dueDate && (
-                                        <div style={{ marginBottom: '0.5rem' }}>
-                                            {new Date(newMilestoneData.startDate) > new Date(newMilestoneData.dueDate) && (
-                                                <div style={{ color: '#ef4444', fontSize: '0.65rem', fontWeight: 600 }}>⚠ Start date cannot be after due date.</div>
-                                            )}
-                                            {checkOverlap(newMilestoneData.startDate, newMilestoneData.dueDate) && (
-                                                <div style={{ color: '#ef4444', fontSize: '0.65rem', fontWeight: 600 }}>⚠ This time frame overlaps with another milestone.</div>
-                                            )}
-                                        </div>
-                                    )}
                                     <div>
                                         <label style={labelStyle}>Goal</label>
                                         <textarea placeholder="Description..." value={newMilestoneData.description} onChange={(e) => handleMilestoneDataChange('description', e.target.value)} style={{ ...inputStyle, minHeight: '80px', padding: '0.75rem' }} />
@@ -972,9 +1034,9 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                 )}
 
                 <div style={{ flex: viewMode === 'detail' ? 7 : 0, display: 'flex', flexDirection: 'column', gap: '1rem', opacity: viewMode === 'detail' ? 1 : 0, pointerEvents: viewMode === 'detail' ? 'auto' : 'none', transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)', width: viewMode === 'detail' ? 'auto' : 0, overflow: 'hidden', minHeight: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', paddingBottom: '0.5rem', borderBottom: '2px solid #1e293b', width: '100%' }}>
-                        <Target size={16} style={{ color: '#1e293b' }} />
-                        <h4 style={{ margin: '0 0 0 8px', fontSize: '0.85rem', fontWeight: 800, color: '#1e293b', textTransform: 'uppercase' }}>Milestone Tasks: {header.name}</h4>
+                    <div style={{ display: 'flex', alignItems: 'center', paddingBottom: '0.5rem', borderBottom: '2px solid #1e293b', width: '100%', overflow: 'hidden', minWidth: 0 }}>
+                        <Target size={16} style={{ color: '#1e293b', flexShrink: 0 }} />
+                        <h4 style={{ margin: '0 0 0 8px', fontSize: '0.85rem', fontWeight: 800, color: '#1e293b', textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>Milestone Tasks: {header.name}</h4>
                     </div>
 
                     <div style={{ display: 'flex', gap: '4px', background: '#f1f5f9', padding: '4px', borderRadius: '12px', border: '1px solid #e2e8f0', height: '36px', boxSizing: 'border-box' }}>
@@ -1000,13 +1062,15 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                 <Calendar size={14} /><span style={{ fontSize: '0.72rem', fontWeight: 750 }}>{header.startDate ? `${formatDate(header.startDate)} - ${formatDate(header.dueDate)}` : "TBD"}</span>
                             </div>
                             <div style={{ display: 'flex', gap: '8px' }}>
-                                {canManageProject && activeMilestone?.status !== MilestoneStatus.Completed && activeMilestone?.status !== MilestoneStatus.Cancelled && (
+                                {canManageProject && taskTab === 'draft' && activeMilestone?.status !== MilestoneStatus.Completed && activeMilestone?.status !== MilestoneStatus.Cancelled && (
                                     <React.Fragment>
                                         <button
                                             onClick={addDraftSlot}
-                                            style={{ ...btnPrimary, padding: '7px 15px', fontSize: '0.75rem', borderRadius: '10px' }}
+                                            disabled={draftTasks.length >= 5}
+                                            title={draftTasks.length >= 5 ? 'Maximum 5 drafts allowed' : undefined}
+                                            style={{ ...btnPrimary, padding: '7px 15px', fontSize: '0.75rem', borderRadius: '10px', opacity: draftTasks.length >= 5 ? 0.45 : 1, cursor: draftTasks.length >= 5 ? 'not-allowed' : 'pointer' }}
                                         >
-                                            <Plus size={14} /> New Task
+                                            <Plus size={14} /> New Task {draftTasks.length >= 5 ? '(5/5)' : `(${draftTasks.length}/5)`}
                                         </button>
                                     </React.Fragment>
                                 )}
@@ -1208,8 +1272,14 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                                 const isEx = expandedTasks.includes(task.taskId);
                                                 const sColors = getStatusColor(task.status);
                                                 const aId = task.memberId || (task as any).assignedToId;
-                                                const match = members.find(m => (m.id || m.memberId || m.membershipId || "") === aId);
-                                                const collabCount = ((task as any).collaboratorIds || []).filter((id: string) => id !== aId).length;
+                                                const rawAssigneeName = (task as any).assigneeName || task.assignedToName || task.member?.fullName;
+                                                const matchById = members.find(m => (m.id || m.memberId || m.membershipId || '') === aId);
+                                                const matchByName = !matchById && rawAssigneeName
+                                                    ? members.find(m => (m.fullName || m.userName || '') === rawAssigneeName)
+                                                    : undefined;
+                                                const match = matchById || matchByName;
+                                                const assigneeDisplayName = match?.fullName || match?.userName || rawAssigneeName;
+                                                const collabCount = ((task as any).collaborators || (task as any).collaboratorIds || []).length;
 
                                                 return (
                                                     <div
@@ -1238,7 +1308,7 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                                                 {isEx ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
                                                             </div>
                                                             <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
-                                                                {isEx && (canManageProject && !isArchived && task.status !== 3 && task.status !== 6 && activeMilestone?.status !== MilestoneStatus.Completed && activeMilestone?.status !== MilestoneStatus.Cancelled) ? (
+                                                                {isEx && (canManageProject && !isArchived && task.status === 1 && activeMilestone?.status !== MilestoneStatus.Completed && activeMilestone?.status !== MilestoneStatus.Cancelled) ? (
                                                                     <input
                                                                         type="text" value={task.name} placeholder="Task Name"
                                                                         onChange={(e) => handleUpdateTaskField(task.taskId, 'name', e.target.value)}
@@ -1264,7 +1334,7 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'var(--surface-hover)', padding: '2px 8px', borderRadius: '20px', border: '1px solid var(--border-color)' }}>
                                                                     <User size={12} style={{ color: 'var(--text-muted)' }} />
                                                                     <span style={{ maxWidth: '80px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600 }}>
-                                                                        {!aId ? "Unassigned" : (match?.fullName || match?.userName || task.member?.fullName || task.assignedToName || (task as any).assigneeName || "Member")}
+                                                                        {assigneeDisplayName || 'Unassigned'}
                                                                     </span>
                                                                 </div>
                                                                 {collabCount > 0 && (
@@ -1297,7 +1367,7 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                                             </div>
 
                                                             <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                                                                {(canManageProject && !isArchived && task.status !== 3 && task.status !== 6) && (
+                                                                {(canManageProject && !isArchived && activeMilestone?.status !== MilestoneStatus.Completed && activeMilestone?.status !== MilestoneStatus.Cancelled) && (
                                                                     <button
                                                                         onClick={(e) => { e.stopPropagation(); handleSaveExistingTask(task); }}
                                                                         disabled={savingTaskId === task.taskId}
@@ -1319,7 +1389,7 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                                                         {savingTaskId === task.taskId ? <Clock className="animate-spin-slow" size={14} /> : <Save size={14} />}
                                                                     </button>
                                                                 )}
-                                                                {activeMilestone?.status !== MilestoneStatus.Completed && activeMilestone?.status !== MilestoneStatus.Cancelled && (
+                                                                {task.status === 1 && activeMilestone?.status !== MilestoneStatus.Completed && activeMilestone?.status !== MilestoneStatus.Cancelled && (
                                                                     <button onClick={(e) => handleDeleteTask(task.taskId || (task as any).id, e)} disabled={savingTaskId === task.taskId} style={{ width: '28px', height: '28px', borderRadius: '8px', border: 'none', color: 'var(--danger)', background: 'var(--danger-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', opacity: savingTaskId === task.taskId ? 0.5 : 1 }}><Trash2 size={14} /></button>
                                                                 )}
                                                             </div>
@@ -1327,33 +1397,32 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                                         {isEx && (
                                                             <React.Fragment>
                                                                 {(() => {
-                                                                    const canEditAny = canManageProject && !isArchived && task.status !== 3 && task.status !== 6 && activeMilestone?.status !== MilestoneStatus.Completed && activeMilestone?.status !== MilestoneStatus.Cancelled;
-                                                                    const canEditDates = canEditAny && task.status === 1; // Only To Do (1) can change dates
-
-                                                                    if (!canEditAny) {
-                                                                        return (
-                                                                            <div style={{ padding: '0.85rem 1rem', background: 'var(--warning-bg)', color: 'var(--warning)', borderRadius: 'var(--radius-md)', fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: '10px', border: '1px solid var(--warning)22' }} onClick={(e) => e.stopPropagation()}>
-                                                                                <Info size={16} />
-                                                                                <span style={{ fontWeight: 600 }}>This task is locked for editing due to its status or your project role.</span>
-                                                                            </div>
-                                                                        );
-                                                                    }
+                                                                    const canEditFull = canManageProject && !isArchived && task.status === 1 && activeMilestone?.status !== MilestoneStatus.Completed && activeMilestone?.status !== MilestoneStatus.Cancelled;
+                                                                    const canEditCollab = canManageProject && !isArchived && activeMilestone?.status !== MilestoneStatus.Completed && activeMilestone?.status !== MilestoneStatus.Cancelled;
 
                                                                     return (
                                                                         <React.Fragment>
+                                                                            {!canEditFull && (
+                                                                                <div style={{ padding: '0.6rem 0.85rem', background: '#f8fafc', color: '#64748b', borderRadius: 'var(--radius-md)', fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid #e2e8f0' }} onClick={(e) => e.stopPropagation()}>
+                                                                                    <Info size={14} />
+                                                                                    <span style={{ fontWeight: 600 }}>View only — task fields are locked.{canEditCollab ? ' You can still update collaborators.' : ''}</span>
+                                                                                </div>
+                                                                            )}
                                                                             <textarea
                                                                                 placeholder="Add a detailed description..."
                                                                                 value={task.description || ''}
                                                                                 onChange={(e) => handleUpdateTaskField(task.taskId, 'description', e.target.value)}
                                                                                 onClick={(e) => e.stopPropagation()}
+                                                                                readOnly={!canEditFull}
                                                                                 style={{
                                                                                     ...inputStyle,
                                                                                     minHeight: '70px',
                                                                                     padding: '10px 14px',
                                                                                     fontSize: '0.8rem',
-                                                                                    background: 'var(--surface-hover)',
+                                                                                    background: canEditFull ? 'var(--surface-hover)' : '#f8fafc',
                                                                                     border: '1px solid var(--border-color)',
-                                                                                    borderRadius: '12px'
+                                                                                    borderRadius: '12px',
+                                                                                    cursor: canEditFull ? 'text' : 'default'
                                                                                 }}
                                                                             />
                                                                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }} onClick={(e) => e.stopPropagation()}>
@@ -1363,11 +1432,11 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                                                                         <input
                                                                                             type="date"
                                                                                             value={task.startDate ? new Date(task.startDate).toISOString().split('T')[0] : ''}
-                                                                                            disabled={!canEditDates}
+                                                                                            disabled={!canEditFull}
                                                                                             min={mStartDate || undefined}
                                                                                             max={task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : undefined}
                                                                                             onChange={(e) => handleUpdateTaskField(task.taskId, 'startDate', e.target.value)}
-                                                                                            style={{ ...compactInput, width: '100%', fontSize: '0.75rem', padding: '10px', background: canEditDates ? 'white' : 'var(--border-light)', borderRadius: '10px' }}
+                                                                                            style={{ ...compactInput, width: '100%', fontSize: '0.75rem', padding: '10px', background: canEditFull ? 'white' : 'var(--border-light)', borderRadius: '10px' }}
                                                                                         />
                                                                                     </div>
                                                                                     <span style={{ color: 'var(--text-muted)' }}>→</span>
@@ -1376,17 +1445,17 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                                                                         <input
                                                                                             type="date"
                                                                                             value={task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : ''}
-                                                                                            disabled={!canEditDates}
+                                                                                            disabled={!canEditFull}
                                                                                             min={task.startDate ? new Date(task.startDate).toISOString().split('T')[0] : undefined}
                                                                                             max={mDueDate || undefined}
                                                                                             onChange={(e) => handleUpdateTaskField(task.taskId, 'dueDate', e.target.value)}
-                                                                                            style={{ ...compactInput, width: '100%', fontSize: '0.75rem', padding: '10px', background: canEditDates ? 'white' : 'var(--border-light)', borderRadius: '10px' }}
+                                                                                            style={{ ...compactInput, width: '100%', fontSize: '0.75rem', padding: '10px', background: canEditFull ? 'white' : 'var(--border-light)', borderRadius: '10px' }}
                                                                                         />
                                                                                     </div>
                                                                                 </div>
                                                                                 <div style={{ position: 'relative' }}>
                                                                                     <label style={{ position: 'absolute', top: '-8px', left: '10px', background: 'white', padding: '0 4px', fontSize: '0.6rem', fontWeight: 800, color: 'var(--text-muted)' }}>PRIORITY</label>
-                                                                                    <select value={task.priority} onChange={(e) => handleUpdateTaskField(task.taskId, 'priority', parseInt(e.target.value))} style={{ ...compactInput, width: '100%', fontSize: '0.75rem', padding: '10px', borderRadius: '10px' }}>
+                                                                                    <select value={task.priority} disabled={!canEditFull} onChange={(e) => handleUpdateTaskField(task.taskId, 'priority', parseInt(e.target.value))} style={{ ...compactInput, width: '100%', fontSize: '0.75rem', padding: '10px', borderRadius: '10px' }}>
                                                                                         <option value="1">Low</option>
                                                                                         <option value="2">Medium</option>
                                                                                         <option value="3">High</option>
@@ -1398,7 +1467,16 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                                                                 <div style={{ position: 'relative' }}>
                                                                                     <label style={{ position: 'absolute', top: '-8px', left: '10px', background: 'white', padding: '0 4px', fontSize: '0.6rem', fontWeight: 800, color: 'var(--text-muted)' }}>ASSIGNEE</label>
                                                                                     <select
-                                                                                        value={task.memberId || (task as any).assignedToId || ''}
+                                                                                        value={(() => {
+                                                                                            if (match) return match.id || match.memberId || match.membershipId || '';
+                                                                                            const assigneeId = task.memberId || (task as any).assignedToId || '';
+                                                                                            if (!assigneeId) return '';
+                                                                                            const found = members.find((m: any) =>
+                                                                                                (m.id || m.memberId || m.membershipId || m.userId || '') === assigneeId
+                                                                                            );
+                                                                                            return found ? (found.id || found.memberId || found.membershipId || assigneeId) : assigneeId;
+                                                                                        })()}
+                                                                                        disabled={!canEditFull}
                                                                                         onChange={(e) => {
                                                                                             const val = e.target.value;
                                                                                             handleUpdateTaskField(task.taskId, 'memberId', val);
@@ -1417,9 +1495,13 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                                                                     </select>
                                                                                 </div>
                                                                                 <div style={{ position: 'relative' }}>
-                                                                                    <label style={{ position: 'absolute', top: '-8px', left: '10px', background: 'white', padding: '0 4px', fontSize: '0.6rem', fontWeight: 800, color: 'var(--text-muted)' }}>COLLABORATORS</label>
+                                                                                    <label style={{ position: 'absolute', top: '-8px', left: '10px', background: 'white', padding: '0 4px', fontSize: '0.6rem', fontWeight: 800, color: canEditCollab && !canEditFull ? '#6366f1' : 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                                                                        COLLABORATORS{canEditCollab && !canEditFull && <span style={{ fontSize: '0.55rem', background: '#eef2ff', color: '#6366f1', borderRadius: '4px', padding: '1px 4px', fontWeight: 900 }}>EDITABLE</span>}
+                                                                                    </label>
                                                                                     <select
                                                                                         value=""
+                                                                                        disabled={!canEditCollab}
+                                                                                        style={{ ...compactInput, width: '100%', fontSize: '0.75rem', padding: '10px', borderRadius: '10px', background: canEditCollab ? 'var(--surface-hover)' : '#f8fafc', ...(canEditCollab && !canEditFull ? { borderColor: '#6366f1', borderWidth: '1.5px' } : {}) }}
                                                                                         onChange={(e) => {
                                                                                             const val = e.target.value;
                                                                                             if (!val) return;
@@ -1427,7 +1509,6 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                                                                             const next = current.includes(val) ? current.filter((id: string) => id !== val) : [...current, val];
                                                                                             handleUpdateTaskField(task.taskId, 'collaboratorIds', next);
                                                                                         }}
-                                                                                        style={{ ...compactInput, width: '100%', fontSize: '0.75rem', padding: '10px', borderRadius: '10px', background: 'var(--surface-hover)' }}
                                                                                     >
                                                                                         <option value="">Add Collaborators ({((task as any).collaboratorIds || []).length})</option>
                                                                                         {members.filter(m => Number(m.projectRole) !== 1 && (m.id || m.memberId || m.membershipId) !== (task.memberId || (task as any).assignedToId)).map(m => (
@@ -1465,23 +1546,32 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                 </div>
             </div>
 
-            {confirmState.isOpen && (
-                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(255, 255, 255, 0.3)', backdropFilter: 'blur(10px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'fadeIn 0.2s ease-out' }}>
-                    <div style={{ background: 'white', padding: '1.25rem', borderRadius: '12px', boxShadow: '0 20px 50px rgba(0,0,0,0.12)', border: '1px solid #e2e8f0', maxWidth: '300px', width: '90%', textAlign: 'center', animation: 'popIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.75rem' }}>
-                            <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: confirmState.title.includes('Delete') ? '#fff1f2' : '#f0f9ff', color: confirmState.title.includes('Delete') ? '#e11d48' : '#0369a1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                {confirmState.title.includes('Delete') ? <Trash2 size={20} /> : <Info size={20} />}
+            {confirmState.isOpen && (() => {
+                const variantMap = {
+                    danger:  { bg: '#fff1f2', color: '#e11d48', btnBg: '#e11d48', icon: <Trash2 size={20} /> },
+                    success: { bg: '#f0fdf4', color: '#16a34a', btnBg: '#16a34a', icon: <CheckCircle size={20} /> },
+                    warning: { bg: '#fffbeb', color: '#d97706', btnBg: '#d97706', icon: <AlertTriangle size={20} /> },
+                    info:    { bg: '#f0f9ff', color: '#0369a1', btnBg: '#0369a1', icon: <Info size={20} /> },
+                };
+                const v = variantMap[confirmState.variant] ?? variantMap.info;
+                return (
+                    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(255, 255, 255, 0.3)', backdropFilter: 'blur(10px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'fadeIn 0.2s ease-out' }}>
+                        <div style={{ background: 'white', padding: '1.25rem', borderRadius: '12px', boxShadow: '0 20px 50px rgba(0,0,0,0.12)', border: '1px solid #e2e8f0', maxWidth: '300px', width: '90%', textAlign: 'center', animation: 'popIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.75rem' }}>
+                                <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: v.bg, color: v.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    {v.icon}
+                                </div>
+                            </div>
+                            <div style={{ fontWeight: 800, color: '#1e293b', marginBottom: '0.4rem', fontSize: '0.9rem' }}>{confirmState.title}</div>
+                            <p style={{ fontSize: '0.75rem', color: '#64748b', margin: '0 0 1.25rem 0', lineHeight: 1.5 }}>{confirmState.message}</p>
+                            <div style={{ display: 'flex', gap: '0.6rem' }}>
+                                <button onClick={() => setConfirmState(prev => ({ ...prev, isOpen: false }))} style={{ ...btnSecondary, flex: 1, padding: '0.6rem', fontSize: '0.75rem', borderRadius: '10px' }}>{confirmState.cancelLabel}</button>
+                                <button onClick={() => { confirmState.onConfirm(); setConfirmState(prev => ({ ...prev, isOpen: false })); }} style={{ ...btnPrimary, flex: 1, padding: '0.6rem', fontSize: '0.75rem', background: v.btnBg, borderRadius: '10px' }}>{confirmState.confirmLabel}</button>
                             </div>
                         </div>
-                        <div style={{ fontWeight: 800, color: '#1e293b', marginBottom: '0.4rem', fontSize: '0.9rem' }}>{confirmState.title}</div>
-                        <p style={{ fontSize: '0.75rem', color: '#64748b', margin: '0 0 1.25rem 0', lineHeight: 1.5 }}>{confirmState.message}</p>
-                        <div style={{ display: 'flex', gap: '0.6rem' }}>
-                            <button onClick={() => setConfirmState(prev => ({ ...prev, isOpen: false }))} style={{ ...btnSecondary, flex: 1, padding: '0.6rem', fontSize: '0.75rem', borderRadius: '10px' }}>{confirmState.cancelLabel}</button>
-                            <button onClick={() => { confirmState.onConfirm(); setConfirmState(prev => ({ ...prev, isOpen: false })); }} style={{ ...btnPrimary, flex: 1, padding: '0.6rem', fontSize: '0.75rem', background: confirmState.title.includes('Delete') ? '#e11d48' : '#0369a1', borderRadius: '10px' }}>{confirmState.confirmLabel}</button>
-                        </div>
                     </div>
-                </div>
-            )}
+                );
+            })()}
 
             <style>{`
                 @keyframes slideIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
