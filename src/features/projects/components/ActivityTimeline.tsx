@@ -13,6 +13,7 @@ interface TimelineActivity {
     createdAt: string;
     performedByFullName: string;
     performedByEmail: string;
+    taskStatus?: number;
 }
 
 interface TaskWithActivities extends Task {
@@ -300,11 +301,12 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
         sortedLogs.forEach((log) => {
             const logTime = new Date(log.createdAt);
             const nextStatus = getStatusFromLog(log);
-            if (logTime > currentPos || nextStatus !== currentStatus) {
-                transitions.push({ from: new Date(currentPos), to: new Date(logTime), status: currentStatus });
+            if (logTime > currentPos) {
+                transitions.push({ from: new Date(currentPos), to: logTime, status: currentStatus });
                 currentPos = logTime;
-                currentStatus = nextStatus;
             }
+            // Always update status (handles same-timestamp status changes)
+            currentStatus = nextStatus;
         });
 
         const actualEndDate = (task.status === 6) ? new Date(task.updatedDate || now) : now;
@@ -327,7 +329,6 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
             }
         }
 
-        const startPctGlobal = getPositionPercent(task.startDate);
         const duePctGlobal = task.dueDate ? getPositionPercent(task.dueDate) : null;
         const lineOriginDate: string | null = task.createdAt || task.startDate || (sortedLogs.length > 0 ? sortedLogs[0].createdAt : null);
 
