@@ -368,12 +368,11 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
                 </div>
                 <div style={{ position: 'relative', height: '100%', width: '100%' }}>
 
-                    {/* Thin background line from creation to due (or completion) */}
+                    {/* Thin background line from creation to due (or now if no dueDate, or completion) */}
                     {lineOriginDate && (() => {
                         const lineEndPct = task.status === 6 && task.updatedDate
                             ? Math.min(getPositionPercent(task.updatedDate), 100)
-                            : (duePctGlobal ?? null);
-                        if (lineEndPct === null) return null;
+                            : Math.min(duePctGlobal ?? getPositionPercent(new Date().toISOString()), 100);
                         const lineStartPct = Math.max(getPositionPercent(lineOriginDate), 0);
                         const lineWidth = Math.max(lineEndPct - lineStartPct, 0);
                         if (lineWidth === 0) return null;
