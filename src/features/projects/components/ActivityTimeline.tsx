@@ -294,7 +294,7 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
         const timelineEnd = timelineRange.end;
 
         const transitions: { from: Date, to: Date, status: number }[] = [];
-        let currentPos = new Date(task.startDate || (sortedLogs.length > 0 ? sortedLogs[0].createdAt : task.updatedDate || now));
+        let currentPos = new Date(task.createdAt || task.startDate || (sortedLogs.length > 0 ? sortedLogs[0].createdAt : task.updatedDate || now));
         let currentStatus = 1;
 
         sortedLogs.forEach((log) => {
