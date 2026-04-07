@@ -202,6 +202,18 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
         }
     };
 
+    const getStatusName = (status: number) => {
+        switch (status) {
+            case 1: return 'Todo';
+            case 2: return 'In Progress';
+            case 3: return 'Submitted';
+            case 4: return 'Missed';
+            case 5: return 'Adjusting';
+            case 6: return 'Completed';
+            default: return '';
+        }
+    };
+
     const getPositionPercent = (dateStr: string | undefined | null) => {
         if (!timelineRange || !dateStr) return 0;
         const date = new Date(dateStr);
@@ -295,7 +307,7 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
         const timelineEnd = timelineRange.end;
 
         const transitions: { from: Date, to: Date, status: number }[] = [];
-        let currentPos = new Date(task.createdAt || task.startDate || (sortedLogs.length > 0 ? sortedLogs[0].createdAt : task.updatedDate || now));
+        let currentPos = new Date(task.createdAt || (sortedLogs.length > 0 ? sortedLogs[0].createdAt : null) || timelineRange.start);
         let currentStatus = 1;
 
         sortedLogs.forEach((log) => {
@@ -330,7 +342,7 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
         }
 
         const duePctGlobal = task.dueDate ? getPositionPercent(task.dueDate) : null;
-        const lineOriginDate: string | null = task.createdAt || task.startDate || (sortedLogs.length > 0 ? sortedLogs[0].createdAt : null);
+        const lineOriginDate: string | null = task.createdAt || (sortedLogs.length > 0 ? sortedLogs[0].createdAt : null) || timelineRange.start.toISOString();
 
         return (
             <div style={{ display: 'flex', minHeight: '65px', alignItems: 'center', position: 'relative', width: '100%', borderBottom: '1px solid #f8fafc' }}>
@@ -343,7 +355,7 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
                         style={{
                             position: 'absolute',
                             left: '8px',
-                            top: '50%',
+                            top: '20px',
                             transform: 'translateY(-50%)',
                             width: '180px',
                             padding: '3px 10px',
@@ -361,9 +373,6 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
                     >
                         <span style={{ fontSize: '0.7rem', fontWeight: 800, color: isHovered ? 'var(--primary-color)' : '#1e293b', whiteSpace: 'nowrap', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'left' }}>
                             {task.name}
-                        </span>
-                        <span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 6px', borderRadius: '5px', flexShrink: 0 }}>
-                            {(task as any).performerFullName || (task as any).assignedToFullName || 'U'}
                         </span>
                     </button>
                 </div>
@@ -408,7 +417,10 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
                         const posPct = getPositionPercent(log.createdAt);
                         const status = getStatusFromLog(log);
                         return (
-                            <div key={log.id} style={{ position: 'absolute', left: `${posPct}%`, top: '40px', width: '12px', height: '12px', borderRadius: '50%', background: getStatusColor(status), transform: 'translate(-50%, -2.5px)', zIndex: 15, cursor: 'help', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} title={`${log.performedByFullName}: ${log.action}\nTime: ${new Date(log.createdAt).toLocaleString()}`} />
+                            <React.Fragment key={log.id}>
+                                <div style={{ position: 'absolute', left: `${posPct}%`, top: '40px', width: '12px', height: '12px', borderRadius: '50%', background: getStatusColor(status), transform: 'translate(-50%, -2.5px)', zIndex: 15, cursor: 'help', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} title={`${log.performedByFullName}: ${log.action}\nTime: ${new Date(log.createdAt).toLocaleString()}`} />
+                                <span style={{ position: 'absolute', left: `${posPct}%`, top: '52px', transform: 'translateX(-50%)', zIndex: 15, fontSize: '0.45rem', fontWeight: 900, color: getStatusColor(status), whiteSpace: 'nowrap', background: 'white', padding: '0 2px', lineHeight: 1.2, borderRadius: '3px', pointerEvents: 'none' }}>{getStatusName(status)}</span>
+                            </React.Fragment>
                         );
                     })}
 
