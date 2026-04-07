@@ -30,6 +30,9 @@ interface SeminarPanelProps {
     onToggleAINote?: () => void;
     showAINote?: boolean;
     onGetTranscribe?: () => void;
+    initialData?: SeminarMeetingResponse;
+    isCreating?: boolean;
+    projectsMap?: Record<string, string>;
 }
 
 const inputStyle: React.CSSProperties = {
@@ -97,7 +100,8 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
     emailsMap,
     onToggleAINote,
     onGetTranscribe,
-    showAINote
+    showAINote,
+    initialData
 }) => {
     const { user } = useAuth();
     const [meeting, setMeeting] = useState<SeminarMeetingResponse | null>(null);
@@ -120,21 +124,31 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
 
     useEffect(() => {
         if (meetingId) {
-            setMeeting(null);
-            setTitle('');
-            setDescription('');
-            setSlideUrl('');
-            setShowSwapForm(false);
-            setAllMeetings([]);
-            setSwapTargetId('');
-            setSwapReason('');
-            setSwapExpiry('');
-            loadMeetingFromList(meetingId);
+            // If we have initial data, use it immediately to avoid "loading..." flicker
+            if (initialData && initialData.seminarMeetingId === meetingId) {
+                setMeeting(initialData);
+                setTitle(initialData.title || '');
+                setDescription(initialData.description || '');
+                setSlideUrl(initialData.slideUrl || '');
+                onTitleChange?.(initialData.title || 'Seminar');
+                loadMeetingFromList(meetingId, true); // Silent load in background
+            } else {
+                setMeeting(null);
+                setTitle('');
+                setDescription('');
+                setSlideUrl('');
+                setShowSwapForm(false);
+                setAllMeetings([]);
+                setSwapTargetId('');
+                setSwapReason('');
+                setSwapExpiry('');
+                loadMeetingFromList(meetingId, false); // Normal load with spinner
+            }
         }
     }, [meetingId]);
 
-    const loadMeetingFromList = async (id: string) => {
-        setLoading(true);
+    const loadMeetingFromList = async (id: string, silent: boolean = false) => {
+        if (!silent) setLoading(true);
         try {
             // Try to find in My Meetings first
             let allMeetings = await seminarService.getMySeminarMeetings();
@@ -156,7 +170,7 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
         } catch (err) {
             console.error('Failed to load seminar meeting:', err);
         } finally {
-            setLoading(false);
+            if (!silent) setLoading(false);
         }
     };
 

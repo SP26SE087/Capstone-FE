@@ -35,7 +35,9 @@ interface ScheduleTab {
     id: string;
     type: 'create' | 'view';
     meetingId?: string;
+    actualMeetingId?: string;
     title: string;
+    initialData?: MeetingResponse;
 }
 
 const Schedules: React.FC = () => {
@@ -56,6 +58,9 @@ const Schedules: React.FC = () => {
     // Panel system
     const [activePanel, setActivePanel] = useState<ScheduleTab | null>(null);
     const [showTranscription, setShowTranscription] = useState(false);
+    const [isTranscriptionProcessing, setIsTranscriptionProcessing] = useState(false);
+    const [showConfirmSwitch, setShowConfirmSwitch] = useState(false);
+    const [pendingTab, setPendingTab] = useState<ListTabType | null>(null);
     const [transcriptionMode, setTranscriptionMode] = useState<'full' | 'view'>('full');
 
     // Fetch metadata
@@ -115,7 +120,14 @@ const Schedules: React.FC = () => {
 
     const handleOpenViewTab = (meeting: MeetingResponse) => {
         const eventId = meeting.googleCalendarEventId || meeting.id;
-        setActivePanel({ id: `view-${eventId}`, type: 'view', meetingId: eventId, title: meeting.title || 'Schedule' });
+        setActivePanel({
+            id: `view-${eventId}`,
+            type: 'view',
+            meetingId: eventId,
+            actualMeetingId: meeting.id,
+            title: meeting.title || 'Schedule',
+            initialData: meeting
+        });
     };
 
     const handleClosePanel = () => {
@@ -123,7 +135,30 @@ const Schedules: React.FC = () => {
     };
 
     const handleTitleChange = (newTitle: string) => {
-        if (activePanel) setActivePanel({ ...activePanel, title: newTitle });
+        if (activePanel && activePanel.title !== newTitle) {
+            setActivePanel({ ...activePanel, title: newTitle });
+        }
+    };
+
+    const handleTabSwitch = (tabId: ListTabType) => {
+        if (isTranscriptionProcessing) {
+            setPendingTab(tabId);
+            setShowConfirmSwitch(true);
+        } else {
+            setActiveListTab(tabId);
+            setShowTranscription(false);
+            setActivePanel(null);
+        }
+    };
+
+    const handleConfirmTabSwitch = () => {
+        if (pendingTab) {
+            setActiveListTab(pendingTab);
+            setShowTranscription(false);
+            setActivePanel(null);
+            setPendingTab(null);
+        }
+        setShowConfirmSwitch(false);
     };
 
     // Filtered meetings
@@ -134,6 +169,7 @@ const Schedules: React.FC = () => {
                 (m.title?.toLowerCase().includes(query)) ||
                 (m.description?.toLowerCase().includes(query));
             const matchesStatus = filterStatus === '' || m.status === Number(filterStatus);
+
             const matchesProject = !filterProjectId || m.projectId === filterProjectId;
             return matchesQuery && matchesStatus && matchesProject;
         }).sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
@@ -353,7 +389,7 @@ const Schedules: React.FC = () => {
                             ].map(tab => (
                                 <button
                                     key={tab.id}
-                                    onClick={() => setActiveListTab(tab.id as ListTabType)}
+                                    onClick={() => handleTabSwitch(tab.id as ListTabType)}
                                     style={{
                                         padding: '12px 10px',
                                         display: 'flex',
@@ -451,14 +487,16 @@ const Schedules: React.FC = () => {
                                 transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
                             }}>
                                 <SchedulePanel
+                                    key={activePanel.meetingId || activePanel.id}
                                     meetingId={activePanel.type === 'view' ? activePanel.meetingId! : null}
+                                    initialData={activePanel.initialData}
                                     isCreating={activePanel.type === 'create'}
                                     onClose={() => { handleClosePanel(); setShowTranscription(false); }}
                                     onSaved={(shouldClose = false, message?: string, newEventId?: string) => {
                                         fetchMeetings();
                                         if (message) showToast(message, 'success');
                                         if (activePanel.type === 'create' && newEventId) {
-                                            setActivePanel({ id: `view-${newEventId}`, type: 'view', meetingId: newEventId, title: 'Schedule Detail' });
+                                            setActivePanel({ id: `view-${newEventId}`, type: 'view', meetingId: newEventId, actualMeetingId: newEventId, title: 'Schedule Detail' });
                                         } else if (shouldClose) {
                                             handleClosePanel();
                                         }
@@ -481,8 +519,10 @@ const Schedules: React.FC = () => {
                             }}>
                                 <TranscriptionPanel
                                     onClose={() => setShowTranscription(false)}
-                                    meetingId={activePanel?.type === 'view' ? activePanel.meetingId : undefined}
+                                    meetingId={activePanel?.type === 'view' ? activePanel.actualMeetingId : undefined}
+                                    meetingName={activePanel?.title}
                                     mode={transcriptionMode}
+                                    onProcessingChange={setIsTranscriptionProcessing}
                                 />
                             </div>
                         )}
@@ -490,8 +530,69 @@ const Schedules: React.FC = () => {
                 )}
             </div>
 
+
+            {/* Custom Confirmation Modal */}
+            {showConfirmSwitch && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(8px)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    zIndex: 10000, animation: 'fadeIn 0.2s ease-out'
+                }}>
+                    <div style={{
+                        background: '#fff', borderRadius: '24px', padding: '32px',
+                        width: '90%', maxWidth: '400px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
+                        textAlign: 'center', animation: 'slideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)'
+                    }}>
+                        <div style={{
+                            width: '64px', height: '64px', borderRadius: '20px',
+                            background: '#fff7ed', color: '#f97316',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            margin: '0 auto 20px auto', border: '1px solid #ffedd5'
+                        }}>
+                            <AlertTriangle size={32} />
+                        </div>
+                        <h3 style={{ margin: '0 0 10px 0', fontSize: '1.3rem', fontWeight: 900, color: '#1e293b' }}>
+                            Process in Progress
+                        </h3>
+                        <p style={{ margin: '0 0 28px 0', fontSize: '1rem', color: '#64748b', lineHeight: '1.6' }}>
+                            AI is currently working on your task. Switching tabs now will stop the process and you might lose the results.
+                        </p>
+                        <div style={{ display: 'flex', gap: '14px' }}>
+                            <button
+                                onClick={() => setShowConfirmSwitch(false)}
+                                style={{
+                                    flex: 1, padding: '14px', borderRadius: '14px', border: '2px solid #f1f5f9',
+                                    background: '#fff', color: '#64748b', fontWeight: 800, fontSize: '0.9rem', cursor: 'pointer',
+                                    transition: 'all 0.2s'
+                                }}
+                                onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+                                onMouseLeave={e => e.currentTarget.style.background = '#fff'}
+                            >
+                                Stay Here
+                            </button>
+                            <button
+                                onClick={handleConfirmTabSwitch}
+                                style={{
+                                    flex: 1, padding: '14px', borderRadius: '14px', border: 'none',
+                                    background: 'linear-gradient(135deg, #ef4444, #dc2626)', color: '#fff', fontWeight: 800, fontSize: '0.9rem',
+                                    cursor: 'pointer', boxShadow: '0 8px 16px rgba(239,68,68,0.25)',
+                                    transition: 'all 0.2s'
+                                }}
+                                onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+                                onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+                            >
+                                Yes, Switch
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <style>{`
                 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+                @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+                @keyframes slideUp { from { transform: translateY(24px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
                 .animate-spin { animation: spin 1s linear infinite; }
             `}</style>
         </MainLayout>

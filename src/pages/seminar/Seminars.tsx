@@ -37,6 +37,7 @@ interface SeminarTab {
     type: 'create' | 'view';
     meetingId?: string;
     title: string;
+    initialData?: SeminarMeetingResponse;
 }
 
 const Seminars: React.FC = () => {
@@ -58,6 +59,9 @@ const Seminars: React.FC = () => {
     // Panel system
     const [activePanel, setActivePanel] = useState<SeminarTab | null>(null);
     const [showTranscription, setShowTranscription] = useState(false);
+    const [isTranscriptionProcessing, setIsTranscriptionProcessing] = useState(false);
+    const [showConfirmSwitch, setShowConfirmSwitch] = useState(false);
+    const [pendingTab, setPendingTab] = useState<TabType | null>(null);
     const [transcriptionMode, setTranscriptionMode] = useState<'full' | 'view'>('full');
 
     const isLabDirector = React.useMemo(() => {
@@ -65,6 +69,27 @@ const Seminars: React.FC = () => {
         const role = Number(user.role);
         return role === 1 || role === 2;
     }, [user?.role]);
+
+    const handleTabSwitch = (tabId: TabType) => {
+        if (isTranscriptionProcessing) {
+            setPendingTab(tabId);
+            setShowConfirmSwitch(true);
+        } else {
+            setActiveTab(tabId);
+            setShowTranscription(false);
+            setActivePanel(null);
+        }
+    };
+
+    const handleConfirmTabSwitch = () => {
+        if (pendingTab) {
+            setActiveTab(pendingTab);
+            setShowTranscription(false);
+            setActivePanel(null);
+            setPendingTab(null);
+        }
+        setShowConfirmSwitch(false);
+    };
 
     // Fetch metadata
     useEffect(() => {
@@ -132,11 +157,12 @@ const Seminars: React.FC = () => {
     };
 
     const handleOpenViewTab = (meeting: SeminarMeetingResponse) => {
-        setActivePanel({ 
-            id: `view-${meeting.seminarMeetingId}`, 
-            type: 'view', 
-            meetingId: meeting.seminarMeetingId, 
-            title: meeting.title || 'Seminar' 
+        setActivePanel({
+            id: `view-${meeting.seminarMeetingId}`,
+            type: 'view',
+            meetingId: meeting.seminarMeetingId,
+            title: meeting.title || 'Seminar',
+            initialData: meeting
         });
     };
 
@@ -145,7 +171,9 @@ const Seminars: React.FC = () => {
     };
 
     const handleTitleChange = (newTitle: string) => {
-        if (activePanel) setActivePanel({ ...activePanel, title: newTitle });
+        if (activePanel && activePanel.title !== newTitle) {
+            setActivePanel({ ...activePanel, title: newTitle });
+        }
     };
 
     // Derive seasons from meetings (since there's no GET recurring API)
@@ -394,7 +422,7 @@ const Seminars: React.FC = () => {
                             ].map(tab => (
                                 <button
                                     key={tab.id}
-                                    onClick={() => setActiveTab(tab.id as TabType)}
+                                    onClick={() => handleTabSwitch(tab.id as TabType)}
                                     style={{
                                         padding: '12px 10px',
                                         display: 'flex',
@@ -529,14 +557,18 @@ const Seminars: React.FC = () => {
                                 />
                             ) : (
                                 <SeminarPanel
-                                    meetingId={activePanel.meetingId!}
-                                    onClose={handleClosePanel}
+                                    key={activePanel.meetingId || activePanel.id}
+                                    meetingId={activePanel.type === 'view' ? activePanel.meetingId! : null}
+                                    initialData={activePanel.initialData}
+                                    isCreating={false}
+                                    onClose={() => { handleClosePanel(); setShowTranscription(false); }}
                                     onSaved={(shouldClose = false, message?: string) => {
                                         fetchSeminars();
                                         if (message) showToast(message, 'success');
                                         if (shouldClose) handleClosePanel();
                                     }}
                                     onTitleChange={handleTitleChange}
+                                    projectsMap={projectsMap}
                                     usersMap={usersMap}
                                     emailsMap={emailsMap}
                                     onToggleAINote={() => { setTranscriptionMode('full'); setShowTranscription(v => !v); }}
@@ -557,7 +589,9 @@ const Seminars: React.FC = () => {
                             <TranscriptionPanel
                                 onClose={() => setShowTranscription(false)}
                                 meetingId={activePanel?.type === 'view' ? activePanel.meetingId : undefined}
+                                meetingName={activePanel?.title}
                                 mode={transcriptionMode}
+                                onProcessingChange={setIsTranscriptionProcessing}
                             />
                         </div>
                     )}
@@ -565,8 +599,69 @@ const Seminars: React.FC = () => {
                 )}
             </div>
 
+
+            {/* Custom Confirmation Modal */}
+            {showConfirmSwitch && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(8px)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    zIndex: 10000, animation: 'fadeIn 0.2s ease-out'
+                }}>
+                    <div style={{
+                        background: '#fff', borderRadius: '24px', padding: '32px',
+                        width: '90%', maxWidth: '400px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
+                        textAlign: 'center', animation: 'slideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)'
+                    }}>
+                        <div style={{
+                            width: '64px', height: '64px', borderRadius: '20px',
+                            background: '#fff7ed', color: '#f97316',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            margin: '0 auto 20px auto', border: '1px solid #ffedd5'
+                        }}>
+                            <AlertTriangle size={32} />
+                        </div>
+                        <h3 style={{ margin: '0 0 10px 0', fontSize: '1.3rem', fontWeight: 900, color: '#1e293b' }}>
+                            Process in Progress
+                        </h3>
+                        <p style={{ margin: '0 0 28px 0', fontSize: '1rem', color: '#64748b', lineHeight: '1.6' }}>
+                            AI is currently working on your task. Switching tabs now will stop the process and you might lose the results.
+                        </p>
+                        <div style={{ display: 'flex', gap: '14px' }}>
+                            <button
+                                onClick={() => setShowConfirmSwitch(false)}
+                                style={{
+                                    flex: 1, padding: '14px', borderRadius: '14px', border: '2px solid #f1f5f9',
+                                    background: '#fff', color: '#64748b', fontWeight: 800, fontSize: '0.9rem', cursor: 'pointer',
+                                    transition: 'all 0.2s'
+                                }}
+                                onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+                                onMouseLeave={e => e.currentTarget.style.background = '#fff'}
+                            >
+                                Stay Here
+                            </button>
+                            <button
+                                onClick={handleConfirmTabSwitch}
+                                style={{
+                                    flex: 1, padding: '14px', borderRadius: '14px', border: 'none',
+                                    background: 'linear-gradient(135deg, #ef4444, #dc2626)', color: '#fff', fontWeight: 800, fontSize: '0.9rem',
+                                    cursor: 'pointer', boxShadow: '0 8px 16px rgba(239,68,68,0.25)',
+                                    transition: 'all 0.2s'
+                                }}
+                                onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+                                onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+                            >
+                                Yes, Switch
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <style>{`
                 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+                @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+                @keyframes slideUp { from { transform: translateY(24px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
                 .animate-spin { animation: spin 1s linear infinite; }
             `}</style>
         </MainLayout>

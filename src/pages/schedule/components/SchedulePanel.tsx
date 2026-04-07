@@ -42,6 +42,7 @@ interface SchedulePanelProps {
     onToggleAINote?: () => void;
     showAINote?: boolean;
     onGetTranscribe?: () => void;
+    initialData?: MeetingResponse;
 }
 
 const getStatusInfo = (status: MeetingStatus) => {
@@ -115,7 +116,8 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
     projectsMap,
     onToggleAINote,
     showAINote,
-    onGetTranscribe
+    onGetTranscribe,
+    initialData
 }) => {
     const { user } = useAuth();
     const [meeting, setMeeting] = useState<MeetingResponse | null>(null);
@@ -134,16 +136,23 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
     // Detail sections collapse
     const [showAttendees, setShowAttendees] = useState(true);
     const [dateError, setDateError] = useState('');
+    const [attendeeError, setAttendeeError] = useState('');
 
     // Load meeting details
     useEffect(() => {
         if (!isCreating && meetingId) {
-            loadMeeting(meetingId);
+            if (initialData && (initialData.googleCalendarEventId === meetingId || initialData.id === meetingId)) {
+                setMeeting(initialData);
+                populateForm(initialData);
+                loadMeeting(meetingId, true); // Silent load
+            } else {
+                loadMeeting(meetingId, false); // Normal load with spinner
+            }
         }
     }, [meetingId, isCreating]);
 
-    const loadMeeting = async (eventId: string) => {
-        setLoading(true);
+    const loadMeeting = async (eventId: string, silent: boolean = false) => {
+        if (!silent) setLoading(true);
         try {
             const data = await meetingService.getMeetingById(eventId);
             setMeeting(data);
@@ -151,7 +160,7 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
         } catch (err) {
             console.error('Failed to load meeting:', err);
         } finally {
-            setLoading(false);
+            if (!silent) setLoading(false);
         }
     };
 
@@ -209,6 +218,11 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
     const handleSave = async () => {
         if (!title.trim()) return;
         if (!validateDates()) return;
+        if (isCreating && selectedAttendees.length === 0) {
+            setAttendeeError('Please select at least one attendee.');
+            return;
+        }
+        setAttendeeError('');
 
         setSaving(true);
         try {
@@ -222,7 +236,7 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                     attendeeEmails: selectedAttendees.length > 0 ? selectedAttendees.map(a => a.email) : null
                 };
                 const created = await meetingService.createMeeting(req);
-                onSaved(false, 'Schedule created successfully.', created.id || created.googleCalendarEventId || '');
+                onSaved(false, 'Schedule created successfully.', created.id || '');
             } else if (meetingId) {
                 const req: UpdateMeetingRequest = {
                     title: title.trim(),
@@ -568,15 +582,26 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                                 fontSize: '0.7rem', fontWeight: 600, color: '#065f46'
                             }}>
                                 <span style={{ fontSize: '0.85rem' }}>✓</span>
-                                You are the organiser and already included — invite others below.
+                                You are the organizer and already included — invite others below.
                             </div>
                         )}
                         <AttendeeSelector
                             selectedAttendees={selectedAttendees}
-                            onChange={setSelectedAttendees}
+                            onChange={attendees => { setSelectedAttendees(attendees); if (attendees.length > 0) setAttendeeError(''); }}
                             projectsMap={projectsMap}
                             excludeEmails={user?.email ? [user.email] : []}
                         />
+                        {attendeeError && (
+                            <div style={{
+                                display: 'flex', alignItems: 'center', gap: '6px',
+                                color: '#ef4444', fontSize: '0.75rem', fontWeight: 600,
+                                marginTop: '8px', padding: '8px 12px',
+                                background: '#fef2f2', borderRadius: '8px',
+                                border: '1px solid #fecaca'
+                            }}>
+                                <AlertCircle size={14} /> {attendeeError}
+                            </div>
+                        )}
                     </div>
                 </div>
 
