@@ -20,7 +20,7 @@ const ProfilePage: React.FC = () => {
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
     // Edit state
-    const [editData, setEditData] = useState({ studentId: '', phoneNumber: '', orcid: '', googleScholarUrl: '', githubUrl: '' });
+    const [editData, setEditData] = useState({ fullName: '', studentId: '', phoneNumber: '', orcid: '', googleScholarUrl: '', githubUrl: '' });
 
     useEffect(() => { fetchProfile(); }, []);
     useEffect(() => {
@@ -36,6 +36,7 @@ const ProfilePage: React.FC = () => {
             const data = await userService.getProfile();
             setProfile(data);
             setEditData({
+                fullName: data.fullName || '',
                 studentId: data.studentId || '',
                 phoneNumber: data.phoneNumber || '',
                 orcid: data.orcid || '',
@@ -49,6 +50,7 @@ const ProfilePage: React.FC = () => {
 
     const handleSave = async () => {
         const hasChanges =
+            editData.fullName.trim() !== (profile?.fullName || '') ||
             editData.studentId.trim() !== (profile?.studentId || '') ||
             editData.phoneNumber.trim() !== (profile?.phoneNumber || '') ||
             editData.orcid.trim() !== (profile?.orcid || '') ||
@@ -63,6 +65,7 @@ const ProfilePage: React.FC = () => {
         setSubmitting(true);
         try {
             await userService.updateProfile({
+                fullName: editData.fullName.trim() || undefined,
                 studentId: editData.studentId.trim() || null,
                 phoneNumber: editData.phoneNumber.trim() || null,
                 orcid: editData.orcid.trim() || null,
@@ -81,6 +84,7 @@ const ProfilePage: React.FC = () => {
 
     const handleCancelEdit = () => {
         setEditData({
+            fullName: profile?.fullName || '',
             studentId: profile?.studentId || '',
             phoneNumber: profile?.phoneNumber || '',
             orcid: profile?.orcid || '',
@@ -216,14 +220,33 @@ const ProfilePage: React.FC = () => {
                                     textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '8px'
                                 }}>
                                     <User size={14} /> Full Name
+                                    {isEditMode && <span style={{ color: 'var(--accent-color)', fontSize: '0.65rem', fontWeight: 600, textTransform: 'none' }}>(editable)</span>}
                                 </label>
-                                <p style={{
-                                    margin: 0, fontSize: '0.95rem', fontWeight: 600,
-                                    color: isEditMode ? 'var(--text-muted)' : 'var(--text-primary)',
-                                    padding: '10px 0'
-                                }}>
-                                    {profile?.fullName || '—'}
-                                </p>
+                                {isEditMode ? (
+                                    <input
+                                        type="text"
+                                        value={editData.fullName}
+                                        onChange={(e) => setEditData({ ...editData, fullName: e.target.value })}
+                                        className="form-input"
+                                        placeholder="Your full name"
+                                        style={{
+                                            width: '100%', padding: '10px 14px', fontSize: '0.95rem',
+                                            borderRadius: '10px', border: '1px solid var(--border-color)',
+                                            outline: 'none', fontWeight: 600,
+                                            transition: 'border-color 0.2s',
+                                            background: '#f8fafc'
+                                        }}
+                                        onFocus={(e) => e.target.style.borderColor = 'var(--accent-color)'}
+                                        onBlur={(e) => e.target.style.borderColor = 'var(--border-color)'}
+                                    />
+                                ) : (
+                                    <p style={{
+                                        margin: 0, fontSize: '0.95rem', fontWeight: 600,
+                                        color: 'var(--text-primary)', padding: '10px 0'
+                                    }}>
+                                        {profile?.fullName || '—'}
+                                    </p>
+                                )}
                             </div>
 
                             {/* Email */}
