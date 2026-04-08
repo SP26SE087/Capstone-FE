@@ -93,8 +93,9 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
     // Step 4 – Suggest tasks
     const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
     const [selectedProjectId, setSelectedProjectId] = useState('');
-    const [milestones, setMilestones] = useState<{ id: string; name: string }[]>([]);
+    const [milestones, setMilestones] = useState<{ id: string; name: string; startDate?: string; dueDate?: string }[]>([]);
     const [selectedMilestoneId, setSelectedMilestoneId] = useState('');
+    const selectedMilestone = milestones.find(m => m.id === selectedMilestoneId) || null;
     const [suggesting, setSuggesting] = useState(false);
     const [suggestedTasks, setSuggestedTasks] = useState<SuggestedTask[]>([]);
     const [allUsers, setAllUsers] = useState<{ id: string; name: string; email: string }[]>([]);
@@ -236,7 +237,12 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
             return;
         }
         milestoneService.getByProject(selectedProjectId).then((list: any[]) => {
-            setMilestones(list.map((m: any) => ({ id: m.milestoneId || m.id, name: m.name || m.title || 'Milestone' })));
+            setMilestones(list.map((m: any) => ({
+                id: m.milestoneId || m.id,
+                name: m.name || m.title || 'Milestone',
+                startDate: m.startDate || null,
+                dueDate: m.dueDate || null,
+            })));
         });
         
         projectService.getCurrentMember(selectedProjectId).then(member => {
@@ -341,7 +347,19 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                 selectedProjectId,
                 selectedMilestoneId || undefined
             );
-            setSuggestedTasks(list.map(t => ({ ...t, _expanded: false, _assigneeId: '', _saving: false, _saved: false })));
+            const msStart = selectedMilestone?.startDate ? selectedMilestone.startDate.split('T')[0] : null;
+            const msEnd = selectedMilestone?.dueDate ? selectedMilestone.dueDate.split('T')[0] : null;
+            const isInRange = (date: string | null | undefined) => {
+                if (!date || !msStart || !msEnd) return false;
+                const d = date.split('T')[0];
+                return d >= msStart && d <= msEnd;
+            };
+            setSuggestedTasks(list.map(t => ({
+                ...t,
+                startDate: isInRange(t.startDate) ? t.startDate : (msStart || t.startDate),
+                dueDate: isInRange(t.dueDate) ? t.dueDate : (msEnd || t.dueDate),
+                _expanded: false, _assigneeId: '', _saving: false, _saved: false,
+            })));
             addToast(`${list.length} tasks suggested!`, 'success');
         } catch (err: any) {
             const msg = err?.response?.data?.message || 'Failed to suggest tasks.';
@@ -367,7 +385,7 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                 name: task.name,
                 description: task.description || '',
                 priority: task.priority ?? 2,
-                status: task.status ?? 1,
+                status: task.status || 1,
                 memberId: task._assigneeId || task.assigneeId || null,
                 projectId: selectedProjectId,
                 milestoneId: task.milestoneId || selectedMilestoneId || null,
@@ -927,7 +945,7 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                                                             </div>
                                                             <div style={{ flex: 1 }}>
                                                                 <label style={{ ...labelStyle, fontSize: '0.62rem', marginBottom: '4px' }}>Status</label>
-                                                                <select value={task.status ?? 1} disabled onChange={e => updateTaskField(idx, 'status', parseInt(e.target.value))} style={{ ...inputStyle, height: '34px', background: '#f8fafc', color: '#94a3b8' }}>
+                                                                <select value={1} disabled onChange={undefined} style={{ ...inputStyle, height: '34px', background: '#f8fafc', color: '#94a3b8' }}>
                                                                     <option value={1}>Todo</option>
                                                                     <option value={2}>In Progress</option>
                                                                     <option value={3}>Submitted</option>
