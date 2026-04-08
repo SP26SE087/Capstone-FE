@@ -3,7 +3,7 @@ import { CreateRecurringSeminarRequest, DateOfWeek } from '@/types/seminar';
 import { PresenterInfo } from '@/types/meeting';
 import seminarService from '@/services/seminarService';
 import { userService, membershipService } from '@/services';
-import Toast, { ToastType } from '@/components/common/Toast';
+import { useToastStore } from '@/store/slices/toastSlice';
 import DateTimePicker from '@/components/common/DateTimePicker';
 import {
     Save,
@@ -86,7 +86,7 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
     const [dateError, setDateError] = useState('');
-    const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+    const { addToast } = useToastStore();
 
     // Core
     const [title, setTitle] = useState('');
@@ -211,6 +211,7 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
     const handleDateChange = (value: string) => {
         setFirstSessionStartTime(value);
         validateDate(value);
+        if (value) setDayOfWeek(new Date(value).getDay() as DateOfWeek);
     };
 
     const handleSave = async () => {
@@ -238,7 +239,7 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
             };
             await seminarService.createRecurringSeminar(req);
             // Show success toast, clear form, lock button
-            setToast({ message: 'Recurring seminar created successfully.', type: 'success' });
+            addToast('Recurring seminar created successfully.', 'success');
             setSaved(true);
             setTitle('');
             setDescription('');
@@ -262,7 +263,7 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
         } catch (err: any) {
             console.error('Create recurring seminar failed:', err);
             const msg = err?.response?.data?.message || err?.response?.data?.title || 'Failed to create recurring seminar.';
-            setToast({ message: msg, type: 'error' });
+            addToast(msg, 'error');
         } finally {
             setSaving(false);
         }
@@ -270,7 +271,6 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-            {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
             {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', paddingBottom: '12px', borderBottom: '1px solid var(--border-light)' }}>
                 <div style={{
@@ -351,38 +351,43 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
                 <div style={sectionStyle}>
                     <div style={labelStyle}><Repeat size={12} /> Recurring Schedule</div>
 
-                    <div style={{ marginBottom: '18px' }}>
-                        <label style={{ ...labelStyle, fontSize: '0.68rem' }}>First Session *</label>
+                    {/* First session */}
+                    <div style={{ marginBottom: '14px' }}>
+                        <label style={{ ...labelStyle, fontSize: '0.68rem' }}>
+                            <Calendar size={12} /> First Session Date &amp; Time *
+                        </label>
                         <DateTimePicker
                             value={firstSessionStartTime}
                             onChange={v => handleDateChange(v)}
                             min={getMinDatetime()}
                         />
                         {dateError && (
-                            <div style={{
-                                display: 'flex', alignItems: 'center', gap: '4px',
-                                color: '#ef4444', fontSize: '0.72rem', fontWeight: 600,
-                                marginTop: '6px'
-                            }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#ef4444', fontSize: '0.72rem', fontWeight: 600, marginTop: '6px' }}>
                                 <AlertCircle size={12} /> {dateError}
                             </div>
                         )}
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '18px' }}>
-                        <div>
-                            <label style={{ ...labelStyle, fontSize: '0.68rem' }}><Calendar size={12} /> Day of Week</label>
-                            <select style={inputStyle} value={dayOfWeek} onChange={e => setDayOfWeek(Number(e.target.value))}>
-                                {dayNames.map((name, idx) => (
-                                    <option key={idx} value={idx}>{name}</option>
-                                ))}
-                            </select>
+                    {/* Repeats-on pill — auto derived */}
+                    {firstSessionStartTime && (
+                        <div style={{
+                            display: 'flex', alignItems: 'center', gap: '8px',
+                            padding: '8px 12px', borderRadius: '8px', marginBottom: '14px',
+                            background: '#f5f3ff', border: '1px solid #e9d5ff'
+                        }}>
+                            <Repeat size={13} color="#7c3aed" style={{ flexShrink: 0 }} />
+                            <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#5b21b6' }}>
+                                Repeats every&nbsp;
+                                <strong>{dayNames[new Date(firstSessionStartTime).getDay()]}</strong>
+                            </span>
+                            <span style={{ fontSize: '0.7rem', color: '#7c3aed', marginLeft: 'auto' }}>auto-detected</span>
                         </div>
-                    </div>
+                    )}
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                        {/* Duration */}
                         <div>
-                            <label style={{ ...labelStyle, fontSize: '0.68rem' }}><Clock size={12} /> Duration (minutes)</label>
+                            <label style={{ ...labelStyle, fontSize: '0.68rem' }}><Clock size={12} /> Each Session Duration</label>
                             <input
                                 type="number"
                                 style={inputStyle}
@@ -393,9 +398,16 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
                                 onFocus={e => { e.currentTarget.style.borderColor = 'var(--accent-color)'; }}
                                 onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; }}
                             />
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px', fontWeight: 600 }}>
+                                {durationMinutes >= 60
+                                    ? `${Math.floor(durationMinutes / 60)}h ${durationMinutes % 60 > 0 ? `${durationMinutes % 60}m` : ''}`.trim()
+                                    : `${durationMinutes} minutes`}
+                            </div>
                         </div>
+
+                        {/* Number of weeks */}
                         <div>
-                            <label style={{ ...labelStyle, fontSize: '0.68rem' }}><Hash size={12} /> Number of Weeks</label>
+                            <label style={{ ...labelStyle, fontSize: '0.68rem' }}><Hash size={12} /> Total Sessions</label>
                             <input
                                 type="number"
                                 style={inputStyle}
@@ -406,6 +418,13 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
                                 onFocus={e => { e.currentTarget.style.borderColor = 'var(--accent-color)'; }}
                                 onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; }}
                             />
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px', fontWeight: 600 }}>
+                                {firstSessionStartTime && numberOfWeeks > 0 ? (() => {
+                                    const end = new Date(firstSessionStartTime);
+                                    end.setDate(end.getDate() + (numberOfWeeks - 1) * 7);
+                                    return `Ends ${end.getDate().toString().padStart(2, '0')}/${(end.getMonth() + 1).toString().padStart(2, '0')}/${end.getFullYear()}`;
+                                })() : `${numberOfWeeks} week${numberOfWeeks !== 1 ? 's' : ''}`}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -443,10 +462,10 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
 
                     <div style={{ display: 'flex', gap: '8px' }}>
                         <input
-                            style={{ 
-                                ...inputStyle, 
-                                fontSize: '0.8rem', 
-                                padding: '8px 12px', 
+                            style={{
+                                ...inputStyle,
+                                fontSize: '0.8rem',
+                                padding: '8px 12px',
                                 flex: 1,
                                 background: weeklyTopics.length >= numberOfWeeks ? '#f8fafc' : '#fff',
                                 cursor: weeklyTopics.length >= numberOfWeeks ? 'not-allowed' : 'text'
@@ -497,7 +516,6 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
                         background: '#f0fdf4', border: '1px solid #bbf7d0',
                         fontSize: '0.72rem', fontWeight: 600, color: '#065f46', lineHeight: 1.5
                     }}>
-                        <span style={{ fontSize: '1rem', flexShrink: 0 }}>💡</span>
                         <span>Each person can only hold <strong>one role</strong>: either a <strong>Presenter</strong> or an <strong>Attendee</strong>. Selecting someone in one role automatically hides them in the other.</span>
                     </div>
 
@@ -544,241 +562,241 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
 
                         {presenterOpen && (<>
 
-                        {/* Selected presenter chips */}
-                        {presenters.length > 0 && (
-                            <div style={{
-                                display: 'flex', flexDirection: 'column', gap: '6px',
-                                marginBottom: '10px'
-                            }}>
-                                {presenters.map((p, idx) => (
-                                    <div key={idx} style={{
-                                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                                        padding: '8px 10px', borderRadius: '8px',
-                                        background: '#fff', border: '1px solid #c7d2fe'
-                                    }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
-                                            <div style={{
-                                                width: '28px', height: '28px', borderRadius: '50%',
-                                                background: 'linear-gradient(135deg, #6366f1, #818cf8)',
-                                                color: '#fff', display: 'flex', alignItems: 'center',
-                                                justifyContent: 'center', fontSize: '0.65rem', fontWeight: 700,
-                                                flexShrink: 0
-                                            }}>
-                                                {(p.name || p.email || 'P')[0].toUpperCase()}
-                                            </div>
-                                            <div style={{ flex: 1, minWidth: 0 }}>
-                                                <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                    {p.name || p.email}
+                            {/* Selected presenter chips */}
+                            {presenters.length > 0 && (
+                                <div style={{
+                                    display: 'flex', flexDirection: 'column', gap: '6px',
+                                    marginBottom: '10px'
+                                }}>
+                                    {presenters.map((p, idx) => (
+                                        <div key={idx} style={{
+                                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                            padding: '8px 10px', borderRadius: '8px',
+                                            background: '#fff', border: '1px solid #c7d2fe'
+                                        }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
+                                                <div style={{
+                                                    width: '28px', height: '28px', borderRadius: '50%',
+                                                    background: 'linear-gradient(135deg, #6366f1, #818cf8)',
+                                                    color: '#fff', display: 'flex', alignItems: 'center',
+                                                    justifyContent: 'center', fontSize: '0.65rem', fontWeight: 700,
+                                                    flexShrink: 0
+                                                }}>
+                                                    {(p.name || p.email || 'P')[0].toUpperCase()}
                                                 </div>
-                                                {p.name && <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{p.email}</div>}
+                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                    <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                        {p.name || p.email}
+                                                    </div>
+                                                    {p.name && <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{p.email}</div>}
+                                                </div>
+                                                <input
+                                                    style={{
+                                                        ...inputStyle,
+                                                        width: '130px', flexShrink: 0,
+                                                        padding: '5px 9px', fontSize: '0.75rem',
+                                                        border: '1px solid #e0e7ff'
+                                                    }}
+                                                    placeholder="Topic (optional)"
+                                                    value={p.topic || ''}
+                                                    onChange={e => updatePresenterTopic(p.email!, e.target.value)}
+                                                    onClick={e => e.stopPropagation()}
+                                                />
                                             </div>
-                                            <input
+                                            <button
+                                                onClick={() => removePresenter(p.email!)}
                                                 style={{
-                                                    ...inputStyle,
-                                                    width: '130px', flexShrink: 0,
-                                                    padding: '5px 9px', fontSize: '0.75rem',
-                                                    border: '1px solid #e0e7ff'
+                                                    background: 'none', border: 'none', cursor: 'pointer',
+                                                    color: '#ef4444', padding: '4px', marginLeft: '6px', flexShrink: 0
                                                 }}
-                                                placeholder="Topic (optional)"
-                                                value={p.topic || ''}
-                                                onChange={e => updatePresenterTopic(p.email!, e.target.value)}
-                                                onClick={e => e.stopPropagation()}
+                                            >
+                                                <X size={13} />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Presenter picker — tabbed (mirrors AttendeeSelector) */}
+                            <div style={{
+                                background: '#fff', borderRadius: '10px',
+                                border: '1px solid #e0e7ff', padding: '12px'
+                            }}>
+                                {/* Tabs */}
+                                <div style={{ display: 'flex', gap: '6px', marginBottom: '10px' }}>
+                                    {(['users', 'project', 'manual'] as const).map(tab => {
+                                        const labels = { users: 'From Users', project: 'From Project', manual: 'Manual' };
+                                        const icons = { users: <Users size={13} />, project: <Briefcase size={13} />, manual: <Mail size={13} /> };
+                                        const active = presenterTab === tab;
+                                        return (
+                                            <button key={tab} onClick={() => setPresenterTab(tab)} style={{
+                                                padding: '6px 11px', borderRadius: '7px', cursor: 'pointer',
+                                                fontSize: '0.72rem', fontWeight: 700,
+                                                display: 'flex', alignItems: 'center', gap: '5px',
+                                                border: active ? '1.5px solid #6366f1' : '1px solid #e0e7ff',
+                                                background: active ? '#ede9fe' : '#fff',
+                                                color: active ? '#4338ca' : 'var(--text-secondary)',
+                                                transition: 'all 0.15s'
+                                            }}>
+                                                {icons[tab]} {labels[tab]}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+
+                                {/* Exclusion hint */}
+                                {selectedAttendees.length > 0 && (
+                                    <div style={{
+                                        display: 'flex', alignItems: 'center', gap: '6px',
+                                        padding: '5px 9px', borderRadius: '7px', marginBottom: '8px',
+                                        background: '#fffbeb', border: '1px solid #fde68a',
+                                        fontSize: '0.68rem', fontWeight: 600, color: '#92400e'
+                                    }}>
+                                        <span>⚠</span>
+                                        {selectedAttendees.length} {selectedAttendees.length === 1 ? 'person is' : 'people are'} hidden — already an attendee
+                                    </div>
+                                )}
+
+                                {/* Tab: From Users */}
+                                {presenterTab === 'users' && (
+                                    <div>
+                                        <div style={{ position: 'relative', marginBottom: '6px' }}>
+                                            <Search size={13} style={{ position: 'absolute', left: '9px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+                                            <input
+                                                style={{ width: '100%', padding: '7px 9px 7px 28px', borderRadius: '7px', border: '1.5px solid #e0e7ff', fontSize: '0.8rem', fontFamily: 'inherit', outline: 'none' }}
+                                                placeholder="Search by name or email…"
+                                                value={presenterSearch}
+                                                onChange={e => setPresenterSearch(e.target.value)}
+                                                onFocus={e => { e.currentTarget.style.borderColor = '#6366f1'; }}
+                                                onBlur={e => { e.currentTarget.style.borderColor = '#e0e7ff'; }}
                                             />
                                         </div>
-                                        <button
-                                            onClick={() => removePresenter(p.email!)}
-                                            style={{
-                                                background: 'none', border: 'none', cursor: 'pointer',
-                                                color: '#ef4444', padding: '4px', marginLeft: '6px', flexShrink: 0
-                                            }}
-                                        >
-                                            <X size={13} />
-                                        </button>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-
-                        {/* Presenter picker — tabbed (mirrors AttendeeSelector) */}
-                        <div style={{
-                            background: '#fff', borderRadius: '10px',
-                            border: '1px solid #e0e7ff', padding: '12px'
-                        }}>
-                            {/* Tabs */}
-                            <div style={{ display: 'flex', gap: '6px', marginBottom: '10px' }}>
-                                {(['users', 'project', 'manual'] as const).map(tab => {
-                                    const labels = { users: 'From Users', project: 'From Project', manual: 'Manual' };
-                                    const icons = { users: <Users size={13} />, project: <Briefcase size={13} />, manual: <Mail size={13} /> };
-                                    const active = presenterTab === tab;
-                                    return (
-                                        <button key={tab} onClick={() => setPresenterTab(tab)} style={{
-                                            padding: '6px 11px', borderRadius: '7px', cursor: 'pointer',
-                                            fontSize: '0.72rem', fontWeight: 700,
-                                            display: 'flex', alignItems: 'center', gap: '5px',
-                                            border: active ? '1.5px solid #6366f1' : '1px solid #e0e7ff',
-                                            background: active ? '#ede9fe' : '#fff',
-                                            color: active ? '#4338ca' : 'var(--text-secondary)',
-                                            transition: 'all 0.15s'
-                                        }}>
-                                            {icons[tab]} {labels[tab]}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-
-                            {/* Exclusion hint */}
-                            {selectedAttendees.length > 0 && (
-                                <div style={{
-                                    display: 'flex', alignItems: 'center', gap: '6px',
-                                    padding: '5px 9px', borderRadius: '7px', marginBottom: '8px',
-                                    background: '#fffbeb', border: '1px solid #fde68a',
-                                    fontSize: '0.68rem', fontWeight: 600, color: '#92400e'
-                                }}>
-                                    <span>⚠</span>
-                                    {selectedAttendees.length} {selectedAttendees.length === 1 ? 'person is' : 'people are'} hidden — already an attendee
-                                </div>
-                            )}
-
-                            {/* Tab: From Users */}
-                            {presenterTab === 'users' && (
-                                <div>
-                                    <div style={{ position: 'relative', marginBottom: '6px' }}>
-                                        <Search size={13} style={{ position: 'absolute', left: '9px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
-                                        <input
-                                            style={{ width: '100%', padding: '7px 9px 7px 28px', borderRadius: '7px', border: '1.5px solid #e0e7ff', fontSize: '0.8rem', fontFamily: 'inherit', outline: 'none' }}
-                                            placeholder="Search by name or email…"
-                                            value={presenterSearch}
-                                            onChange={e => setPresenterSearch(e.target.value)}
-                                            onFocus={e => { e.currentTarget.style.borderColor = '#6366f1'; }}
-                                            onBlur={e => { e.currentTarget.style.borderColor = '#e0e7ff'; }}
-                                        />
-                                    </div>
-                                    <div style={{ maxHeight: '180px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '3px' }} className="custom-scrollbar">
-                                        {usersLoading ? (
-                                            <div style={{ textAlign: 'center', padding: '1rem' }}><Loader2 size={18} className="animate-spin" style={{ color: '#6366f1' }} /></div>
-                                        ) : filteredPresenterUsers.length === 0 ? (
-                                            <div style={{ textAlign: 'center', padding: '0.75rem', color: 'var(--text-muted)', fontSize: '0.75rem' }}>No users found</div>
-                                        ) : filteredPresenterUsers.map(u => {
-                                            const email = u.email || ''; const name = u.fullName || '';
-                                            const selected = isPresenterSelected(email);
-                                            return (
-                                                <div key={u.userId || email} onClick={() => togglePresenter(email, name)}
-                                                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 9px', borderRadius: '7px', cursor: 'pointer', background: selected ? '#ede9fe' : '#fff', border: selected ? '1px solid #c7d2fe' : '1px solid transparent', transition: 'all 0.12s' }}
-                                                    onMouseEnter={e => { if (!selected) e.currentTarget.style.background = '#f5f3ff'; }}
-                                                    onMouseLeave={e => { if (!selected) e.currentTarget.style.background = '#fff'; }}
-                                                >
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                        <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: selected ? '#6366f1' : 'var(--primary-color)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700 }}>
-                                                            {name[0]?.toUpperCase() || '?'}
-                                                        </div>
-                                                        <div>
-                                                            <div style={{ fontSize: '0.77rem', fontWeight: 700, color: 'var(--text-primary)' }}>{name}</div>
-                                                            <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{email}</div>
-                                                        </div>
-                                                    </div>
-                                                    {selected ? <Check size={14} color="#6366f1" /> : <Plus size={13} color="var(--text-muted)" style={{ opacity: 0.4 }} />}
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Tab: From Project */}
-                            {presenterTab === 'project' && (
-                                <div>
-                                    <select
-                                        style={{ width: '100%', padding: '7px 10px', borderRadius: '7px', border: '1.5px solid #e0e7ff', fontSize: '0.8rem', fontFamily: 'inherit', outline: 'none', marginBottom: '6px' }}
-                                        value={presenterProjectId}
-                                        onChange={e => setPresenterProjectId(e.target.value)}
-                                    >
-                                        <option value="">Choose a project…</option>
-                                        {Object.entries(projectsMap).map(([id, name]) => (
-                                            <option key={id} value={id}>{name}</option>
-                                        ))}
-                                    </select>
-                                    <div style={{ maxHeight: '180px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '3px' }} className="custom-scrollbar">
-                                        {presenterProjectLoading ? (
-                                            <div style={{ textAlign: 'center', padding: '1rem' }}><Loader2 size={18} className="animate-spin" style={{ color: '#6366f1' }} /></div>
-                                        ) : !presenterProjectId ? (
-                                            <div style={{ textAlign: 'center', padding: '0.75rem', color: 'var(--text-muted)', fontSize: '0.75rem' }}>Select a project above</div>
-                                        ) : presenterProjectMembers.length === 0 ? (
-                                            <div style={{ textAlign: 'center', padding: '0.75rem', color: 'var(--text-muted)', fontSize: '0.75rem' }}>No members in this project</div>
-                                        ) : presenterProjectMembers
-                                            .filter(m => !selectedAttendees.some(a => a.email.toLowerCase() === (m.email || m.userEmail || '').toLowerCase()))
-                                            .map(m => {
-                                                const email = m.email || m.userEmail || ''; const name = m.fullName || m.userName || ''; const role = m.projectRoleName || '';
+                                        <div style={{ maxHeight: '180px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '3px' }} className="custom-scrollbar">
+                                            {usersLoading ? (
+                                                <div style={{ textAlign: 'center', padding: '1rem' }}><Loader2 size={18} className="animate-spin" style={{ color: '#6366f1' }} /></div>
+                                            ) : filteredPresenterUsers.length === 0 ? (
+                                                <div style={{ textAlign: 'center', padding: '0.75rem', color: 'var(--text-muted)', fontSize: '0.75rem' }}>No users found</div>
+                                            ) : filteredPresenterUsers.map(u => {
+                                                const email = u.email || ''; const name = u.fullName || '';
                                                 const selected = isPresenterSelected(email);
                                                 return (
-                                                    <div key={m.memberId || m.userId || email} onClick={() => email && togglePresenter(email, name)}
-                                                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 9px', borderRadius: '7px', cursor: email ? 'pointer' : 'default', opacity: email ? 1 : 0.5, background: selected ? '#ede9fe' : '#fff', border: selected ? '1px solid #c7d2fe' : '1px solid transparent', transition: 'all 0.12s' }}
-                                                        onMouseEnter={e => { if (!selected && email) e.currentTarget.style.background = '#f5f3ff'; }}
-                                                        onMouseLeave={e => { if (!selected && email) e.currentTarget.style.background = '#fff'; }}
+                                                    <div key={u.userId || email} onClick={() => togglePresenter(email, name)}
+                                                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 9px', borderRadius: '7px', cursor: 'pointer', background: selected ? '#ede9fe' : '#fff', border: selected ? '1px solid #c7d2fe' : '1px solid transparent', transition: 'all 0.12s' }}
+                                                        onMouseEnter={e => { if (!selected) e.currentTarget.style.background = '#f5f3ff'; }}
+                                                        onMouseLeave={e => { if (!selected) e.currentTarget.style.background = '#fff'; }}
                                                     >
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                             <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: selected ? '#6366f1' : 'var(--primary-color)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700 }}>
                                                                 {name[0]?.toUpperCase() || '?'}
                                                             </div>
                                                             <div>
-                                                                <div style={{ fontSize: '0.77rem', fontWeight: 700, color: 'var(--text-primary)' }}>{name || 'Unknown'}</div>
-                                                                <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{email || 'No email'}{role ? ` · ${role}` : ''}</div>
+                                                                <div style={{ fontSize: '0.77rem', fontWeight: 700, color: 'var(--text-primary)' }}>{name}</div>
+                                                                <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{email}</div>
                                                             </div>
                                                         </div>
                                                         {selected ? <Check size={14} color="#6366f1" /> : <Plus size={13} color="var(--text-muted)" style={{ opacity: 0.4 }} />}
                                                     </div>
                                                 );
                                             })}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Tab: Manual */}
-                            {presenterTab === 'manual' && (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                    {presenterManualInputs.map((val, idx) => (
-                                        <div key={idx} style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                                            <input
-                                                style={{ flex: 1, padding: '7px 10px', borderRadius: '7px', border: '1.5px solid #e0e7ff', fontSize: '0.8rem', fontFamily: 'inherit', outline: 'none' }}
-                                                value={val}
-                                                onChange={e => { const u = [...presenterManualInputs]; u[idx] = e.target.value; setPresenterManualInputs(u); }}
-                                                placeholder="Enter email address…"
-                                                onFocus={e => { e.currentTarget.style.borderColor = '#6366f1'; }}
-                                                onBlur={e => { e.currentTarget.style.borderColor = '#e0e7ff'; }}
-                                                onKeyDown={e => {
-                                                    if (e.key !== 'Enter') return;
-                                                    const trimmed = val.trim();
-                                                    if (!trimmed || isPresenterSelected(trimmed) || selectedAttendees.some(a => a.email.toLowerCase() === trimmed.toLowerCase())) return;
-                                                    togglePresenter(trimmed, trimmed);
-                                                    const u = [...presenterManualInputs]; u[idx] = ''; setPresenterManualInputs(u);
-                                                }}
-                                            />
-                                            <button
-                                                disabled={!val.trim()}
-                                                onClick={() => {
-                                                    const trimmed = val.trim();
-                                                    if (!trimmed || isPresenterSelected(trimmed) || selectedAttendees.some(a => a.email.toLowerCase() === trimmed.toLowerCase())) return;
-                                                    togglePresenter(trimmed, trimmed);
-                                                    const u = [...presenterManualInputs]; u[idx] = ''; setPresenterManualInputs(u);
-                                                }}
-                                                style={{ padding: '7px 11px', borderRadius: '7px', border: 'none', background: val.trim() ? '#6366f1' : '#94a3b8', color: '#fff', cursor: val.trim() ? 'pointer' : 'not-allowed', fontSize: '0.72rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '3px', flexShrink: 0 }}
-                                            >
-                                                Add
-                                            </button>
-                                            {presenterManualInputs.length > 1 && (
-                                                <button onClick={() => setPresenterManualInputs(presenterManualInputs.filter((_, i) => i !== idx))}
-                                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: '4px', display: 'flex', flexShrink: 0 }}>
-                                                    <X size={13} />
-                                                </button>
-                                            )}
                                         </div>
-                                    ))}
-                                    <button onClick={() => setPresenterManualInputs([...presenterManualInputs, ''])}
-                                        style={{ alignSelf: 'flex-start', padding: '5px 10px', borderRadius: '7px', border: '1px dashed #c7d2fe', background: 'none', color: '#6366f1', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                        <Plus size={12} /> Add another
-                                    </button>
-                                </div>
-                            )}
-                        </div>
+                                    </div>
+                                )}
+
+                                {/* Tab: From Project */}
+                                {presenterTab === 'project' && (
+                                    <div>
+                                        <select
+                                            style={{ width: '100%', padding: '7px 10px', borderRadius: '7px', border: '1.5px solid #e0e7ff', fontSize: '0.8rem', fontFamily: 'inherit', outline: 'none', marginBottom: '6px' }}
+                                            value={presenterProjectId}
+                                            onChange={e => setPresenterProjectId(e.target.value)}
+                                        >
+                                            <option value="">Choose a project…</option>
+                                            {Object.entries(projectsMap).map(([id, name]) => (
+                                                <option key={id} value={id}>{name}</option>
+                                            ))}
+                                        </select>
+                                        <div style={{ maxHeight: '180px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '3px' }} className="custom-scrollbar">
+                                            {presenterProjectLoading ? (
+                                                <div style={{ textAlign: 'center', padding: '1rem' }}><Loader2 size={18} className="animate-spin" style={{ color: '#6366f1' }} /></div>
+                                            ) : !presenterProjectId ? (
+                                                <div style={{ textAlign: 'center', padding: '0.75rem', color: 'var(--text-muted)', fontSize: '0.75rem' }}>Select a project above</div>
+                                            ) : presenterProjectMembers.length === 0 ? (
+                                                <div style={{ textAlign: 'center', padding: '0.75rem', color: 'var(--text-muted)', fontSize: '0.75rem' }}>No members in this project</div>
+                                            ) : presenterProjectMembers
+                                                .filter(m => !selectedAttendees.some(a => a.email.toLowerCase() === (m.email || m.userEmail || '').toLowerCase()))
+                                                .map(m => {
+                                                    const email = m.email || m.userEmail || ''; const name = m.fullName || m.userName || ''; const role = m.projectRoleName || '';
+                                                    const selected = isPresenterSelected(email);
+                                                    return (
+                                                        <div key={m.memberId || m.userId || email} onClick={() => email && togglePresenter(email, name)}
+                                                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 9px', borderRadius: '7px', cursor: email ? 'pointer' : 'default', opacity: email ? 1 : 0.5, background: selected ? '#ede9fe' : '#fff', border: selected ? '1px solid #c7d2fe' : '1px solid transparent', transition: 'all 0.12s' }}
+                                                            onMouseEnter={e => { if (!selected && email) e.currentTarget.style.background = '#f5f3ff'; }}
+                                                            onMouseLeave={e => { if (!selected && email) e.currentTarget.style.background = '#fff'; }}
+                                                        >
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                                <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: selected ? '#6366f1' : 'var(--primary-color)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700 }}>
+                                                                    {name[0]?.toUpperCase() || '?'}
+                                                                </div>
+                                                                <div>
+                                                                    <div style={{ fontSize: '0.77rem', fontWeight: 700, color: 'var(--text-primary)' }}>{name || 'Unknown'}</div>
+                                                                    <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{email || 'No email'}{role ? ` · ${role}` : ''}</div>
+                                                                </div>
+                                                            </div>
+                                                            {selected ? <Check size={14} color="#6366f1" /> : <Plus size={13} color="var(--text-muted)" style={{ opacity: 0.4 }} />}
+                                                        </div>
+                                                    );
+                                                })}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Tab: Manual */}
+                                {presenterTab === 'manual' && (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                        {presenterManualInputs.map((val, idx) => (
+                                            <div key={idx} style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                                <input
+                                                    style={{ flex: 1, padding: '7px 10px', borderRadius: '7px', border: '1.5px solid #e0e7ff', fontSize: '0.8rem', fontFamily: 'inherit', outline: 'none' }}
+                                                    value={val}
+                                                    onChange={e => { const u = [...presenterManualInputs]; u[idx] = e.target.value; setPresenterManualInputs(u); }}
+                                                    placeholder="Enter email address…"
+                                                    onFocus={e => { e.currentTarget.style.borderColor = '#6366f1'; }}
+                                                    onBlur={e => { e.currentTarget.style.borderColor = '#e0e7ff'; }}
+                                                    onKeyDown={e => {
+                                                        if (e.key !== 'Enter') return;
+                                                        const trimmed = val.trim();
+                                                        if (!trimmed || isPresenterSelected(trimmed) || selectedAttendees.some(a => a.email.toLowerCase() === trimmed.toLowerCase())) return;
+                                                        togglePresenter(trimmed, trimmed);
+                                                        const u = [...presenterManualInputs]; u[idx] = ''; setPresenterManualInputs(u);
+                                                    }}
+                                                />
+                                                <button
+                                                    disabled={!val.trim()}
+                                                    onClick={() => {
+                                                        const trimmed = val.trim();
+                                                        if (!trimmed || isPresenterSelected(trimmed) || selectedAttendees.some(a => a.email.toLowerCase() === trimmed.toLowerCase())) return;
+                                                        togglePresenter(trimmed, trimmed);
+                                                        const u = [...presenterManualInputs]; u[idx] = ''; setPresenterManualInputs(u);
+                                                    }}
+                                                    style={{ padding: '7px 11px', borderRadius: '7px', border: 'none', background: val.trim() ? '#6366f1' : '#94a3b8', color: '#fff', cursor: val.trim() ? 'pointer' : 'not-allowed', fontSize: '0.72rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '3px', flexShrink: 0 }}
+                                                >
+                                                    Add
+                                                </button>
+                                                {presenterManualInputs.length > 1 && (
+                                                    <button onClick={() => setPresenterManualInputs(presenterManualInputs.filter((_, i) => i !== idx))}
+                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: '4px', display: 'flex', flexShrink: 0 }}>
+                                                        <X size={13} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ))}
+                                        <button onClick={() => setPresenterManualInputs([...presenterManualInputs, ''])}
+                                            style={{ alignSelf: 'flex-start', padding: '5px 10px', borderRadius: '7px', border: '1px dashed #c7d2fe', background: 'none', color: '#6366f1', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                            <Plus size={12} /> Add another
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
                         </>)}
                     </div>
 

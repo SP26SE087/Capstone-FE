@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { SeminarSwapRequestResponse, SeminarSwapRequestStatus } from '@/types/seminar';
 import seminarService from '@/services/seminarService';
 import { useAuth } from '@/hooks/useAuth';
-import Toast, { ToastType } from '@/components/common/Toast';
+import { useToastStore } from '@/store/slices/toastSlice';
 import {
     ArrowLeftRight,
     Clock,
@@ -58,7 +58,7 @@ const SwapRequests: React.FC<SwapRequestsProps> = ({ usersMap, emailsMap, onActi
     const [respondNote, setRespondNote] = useState('');
     const [actionLoading, setActionLoading] = useState(false);
     const [tab, setTab] = useState<'incoming' | 'sent'>('incoming');
-    const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+    const { addToast } = useToastStore();
 
     useEffect(() => {
         fetchSwapRequests();
@@ -85,12 +85,12 @@ const SwapRequests: React.FC<SwapRequestsProps> = ({ usersMap, emailsMap, onActi
             });
             setRespondingId(null);
             setRespondNote('');
-            setToast({ message: accept ? 'Swap request accepted.' : 'Swap request declined.', type: accept ? 'success' : 'info' });
+            addToast(accept ? 'Swap request accepted.' : 'Swap request declined.', accept ? 'success' : 'info');
             fetchSwapRequests();
             onActionComplete();
         } catch (err: any) {
             const msg = err?.response?.data?.message || err?.response?.data?.title || 'Failed to respond to swap request.';
-            setToast({ message: msg, type: 'error' });
+            addToast(msg, 'error');
         } finally {
             setActionLoading(false);
         }
@@ -115,8 +115,6 @@ const SwapRequests: React.FC<SwapRequestsProps> = ({ usersMap, emailsMap, onActi
 
     return (
         <div>
-            {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-
             {/* Tabs */}
             <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
                 {([

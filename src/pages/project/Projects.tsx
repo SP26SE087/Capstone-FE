@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import MainLayout from '@/layout/MainLayout';
 import { useNavigate } from 'react-router-dom';
 import { projectService, researchFieldService } from '@/services';
@@ -15,10 +15,16 @@ import {
     Save,
     Briefcase,
     FileText,
-    Check,
-    ShieldAlert
+    Check
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+
+const PROJECT_SORT_ORDER: Record<number, number> = {
+    [ProjectStatus.Inactive as number]: 0,
+    [ProjectStatus.Active as number]: 1,
+    [ProjectStatus.Completed as number]: 2,
+    [ProjectStatus.Archived as number]: 3,
+};
 
 const Projects: React.FC = () => {
     const navigate = useNavigate();
@@ -123,6 +129,7 @@ const Projects: React.FC = () => {
                 projectDescription: createForm.projectDescription,
                 startDate: toApiDate(startDate),
                 endDate: toApiDate(createForm.endDate),
+                status: 2, // 2 is Inactive/Pending
                 researchFieldIds: selectedFieldIds
             });
             setShowPanel(false);
@@ -134,12 +141,15 @@ const Projects: React.FC = () => {
         }
     };
 
-    const filteredProjects = projects.filter(p => {
-        const name = (p.projectName || '').toLowerCase();
-        const matchesSearch = name.includes(searchTerm.toLowerCase());
-        const matchesStatus = statusFilter === 'All' || p.status === statusFilter;
-        return matchesSearch && matchesStatus;
-    });
+    const filteredProjects = useMemo(() => projects
+        .filter(p => {
+            const name = (p.projectName || '').toLowerCase();
+            const matchesSearch = name.includes(searchTerm.toLowerCase());
+            const matchesStatus = statusFilter === 'All' || p.status === statusFilter;
+            return matchesSearch && matchesStatus;
+        })
+        .sort((a, b) => (PROJECT_SORT_ORDER[a.status as unknown as number] ?? 1) - (PROJECT_SORT_ORDER[b.status as unknown as number] ?? 1)),
+    [projects, searchTerm, statusFilter]);
 
     return (
         <MainLayout role={user.role} userName={user.name}>
@@ -206,117 +216,192 @@ const Projects: React.FC = () => {
                 </div>
 
                 {/* Project Grid + Create Project Panel */}
-                <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'stretch', minHeight: showPanel ? 680 : 'auto' }}>
+                <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
                     <div style={{ flex: showPanel ? 3 : 10, minWidth: 0, transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)' }}>
                         {loading ? (
                             <div style={{ display: 'flex', justifyContent: 'center', padding: '5rem' }}>
                                 <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
                             </div>
                         ) : filteredProjects.length > 0 ? (
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))', gap: '1.5rem' }}>
-                                {filteredProjects.map((project) => {
-                                    const statusStyle = getProjectStatusStyle(project.status);
-                                    const totalTasks = project.totalTasks || 0;
-                                    const completedTasks = project.completedTasks || 0;
-                                    const progress = project.progress !== undefined ? project.progress : (totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0);
+                            showPanel ? (
+                                /* ── Compact list when panel is open ── */
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                    {filteredProjects.map((project) => {
+                                        const statusStyle = getProjectStatusStyle(project.status);
+                                        const totalTasks = project.totalTasks || 0;
+                                        const completedTasks = project.completedTasks || 0;
+                                        const progress = project.progress !== undefined ? project.progress : (totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0);
+                                        const projectName = project.projectName || (project as any).name || 'Untitled Project';
+                                        const formatDate = (dateString?: string | null) => {
+                                            if (!dateString) return 'TBD';
+                                            const d = new Date(dateString);
+                                            if (isNaN(d.getTime()) || d.getFullYear() < 1970) return 'TBD';
+                                            return `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
+                                        };
 
-                                    const formatDate = (dateString?: string | null) => {
-                                        if (!dateString) return 'TBD';
-                                        const d = new Date(dateString);
-                                        if (isNaN(d.getTime()) || d.getFullYear() < 1970) return 'TBD';
-                                        return `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
-                                    };
+                                        return (
+                                            <div
+                                                key={project.projectId}
+                                                className="card card-interactive"
+                                                onClick={() => navigate(`/projects/${project.projectId}`)}
+                                                style={{
+                                                    padding: '0.85rem 1rem',
+                                                    display: 'flex',
+                                                    flexDirection: 'column',
+                                                    gap: '0.5rem',
+                                                    border: '1px solid var(--border-color)',
+                                                    transition: 'all 0.2s',
+                                                    cursor: 'pointer',
+                                                }}
+                                            >
+                                                {/* Row 1: name + badges */}
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                                                    <span title={projectName} style={{
+                                                        fontSize: '0.9rem', fontWeight: 700, flex: 1,
+                                                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+                                                    }}>
+                                                        {projectName}
+                                                    </span>
+                                                    <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                                                        <span className="badge" style={{ background: statusStyle.bg, color: statusStyle.color, border: 'none', padding: '2px 7px', fontSize: '0.6rem', fontWeight: 700 }}>
+                                                            {statusStyle.label}
+                                                        </span>
+                                                        {project.roleName && (
+                                                            <span className="badge" style={{ background: 'var(--accent-bg)', color: 'var(--accent-color)', border: 'none', padding: '2px 7px', fontSize: '0.6rem', fontWeight: 700 }}>
+                                                                {project.roleName}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
 
-                                    const projectName = project.projectName || (project as any).name || 'Untitled Project';
-                                    const projectDescription = project.projectDescription || (project as any).description;
-                                    const creatorName = project.nameProjectCreator || project.NameProjectCreator || 'Lab Manager';
+                                                {/* Row 2: date + members */}
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                        <Calendar size={11} /> {formatDate(project.startDate)} – {formatDate(project.endDate)}
+                                                    </span>
+                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                        <Users size={11} /> {project.membersCount || 0}
+                                                    </span>
+                                                </div>
 
-                                    return (
-                                        <div
-                                            key={project.projectId}
-                                            className="card card-interactive"
-                                            onClick={() => navigate(`/projects/${project.projectId}`)}
-                                            style={{
-                                                padding: '1.25rem',
-                                                display: 'flex',
-                                                flexDirection: 'column',
-                                                gap: '1rem',
-                                                border: '1px solid var(--border-color)',
-                                                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
-                                            }}
-                                        >
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
-                                                <h3 title={projectName} style={{ fontSize: '1.25rem', margin: 0, fontWeight: 700, lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', flex: 1 }}>
-                                                    {projectName}
-                                                </h3>
-                                                <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
-                                                    <span className="badge" style={{ background: statusStyle.bg, color: statusStyle.color, border: 'none', padding: '2px 8px', fontSize: '0.65rem', fontWeight: 600 }}>
+                                                {/* Row 3: progress */}
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <div style={{ flex: 1, height: '4px', borderRadius: '2px', background: 'var(--border-light)', overflow: 'hidden' }}>
+                                                        <div style={{ width: `${progress}%`, height: '100%', borderRadius: '2px', background: 'var(--primary-color)' }} />
+                                                    </div>
+                                                    <span style={{ fontSize: '0.67rem', fontWeight: 800, color: 'var(--primary-color)', minWidth: '28px', textAlign: 'right' }}>{progress}%</span>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            ) : (
+                                /* ── Full list view when panel is closed ── */
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                                    {filteredProjects.map((project) => {
+                                        const statusStyle = getProjectStatusStyle(project.status);
+                                        const totalTasks = project.totalTasks || 0;
+                                        const completedTasks = project.completedTasks || 0;
+                                        const progress = project.progress !== undefined ? project.progress : (totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0);
+
+                                        const formatDate = (dateString?: string | null) => {
+                                            if (!dateString) return 'TBD';
+                                            const d = new Date(dateString);
+                                            if (isNaN(d.getTime()) || d.getFullYear() < 1970) return 'TBD';
+                                            return `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
+                                        };
+
+                                        const projectName = project.projectName || (project as any).name || 'Untitled Project';
+                                        const projectDescription = project.projectDescription || (project as any).description;
+                                        const creatorName = project.nameProjectCreator || project.NameProjectCreator || 'Lab Manager';
+
+                                        return (
+                                            <div
+                                                key={project.projectId}
+                                                className="card card-interactive"
+                                                onClick={() => navigate(`/projects/${project.projectId}`)}
+                                                style={{
+                                                    padding: '1rem 1.25rem',
+                                                    display: 'grid',
+                                                    gridTemplateColumns: '1fr 180px 160px 140px',
+                                                    gap: '1.25rem',
+                                                    alignItems: 'center',
+                                                    border: '1px solid var(--border-color)',
+                                                    transition: 'all 0.2s',
+                                                    cursor: 'pointer',
+                                                }}
+                                            >
+                                                {/* Col 1: Name + description + meta */}
+                                                <div style={{ minWidth: 0 }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                                                        <div className="avatar avatar-sm avatar-accent" style={{ width: '30px', height: '30px', fontSize: '0.72rem', flexShrink: 0 }}>
+                                                            {projectName[0]}
+                                                        </div>
+                                                        <span title={projectName} style={{ fontSize: '0.95rem', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                            {projectName}
+                                                        </span>
+                                                    </div>
+                                                    <p style={{ margin: '0 0 6px 38px', fontSize: '0.78rem', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>
+                                                        {projectDescription || 'No description provided.'}
+                                                    </p>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: '38px' }}>
+                                                        {project.researchFields?.slice(0, 2).map((f, idx) => (
+                                                            <span key={f.researchFieldId || `rf-${idx}`} className="tag" style={{ margin: 0, fontSize: '0.62rem', padding: '1px 7px', borderRadius: '4px', fontWeight: 600 }}>{f.name}</span>
+                                                        ))}
+                                                        {project.researchFields && project.researchFields.length > 2 && (
+                                                            <span className="tag" style={{ margin: 0, fontSize: '0.62rem', padding: '1px 7px', background: 'var(--surface-hover)', borderRadius: '4px', fontWeight: 600 }}>
+                                                                +{project.researchFields.length - 2}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                {/* Col 2: Progress */}
+                                                <div>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                                                        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                            <ClipboardList size={11} /> Progress
+                                                        </span>
+                                                        <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--primary-color)' }}>{progress}%</span>
+                                                    </div>
+                                                    <div className="progress-bar-track" style={{ height: '5px', borderRadius: '3px', background: 'var(--border-light)', overflow: 'hidden' }}>
+                                                        <div className="progress-bar-fill" style={{ width: `${progress}%`, height: '100%', borderRadius: '3px' }} />
+                                                    </div>
+                                                    <div style={{ marginTop: '6px', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                                                        <Users size={11} /> {project.membersCount || 0} members
+                                                    </div>
+                                                </div>
+
+                                                {/* Col 3: Timeline + creator */}
+                                                <div style={{ lineHeight: 1.4 }}>
+                                                    <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '3px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                        <Calendar size={11} /> Timeline
+                                                    </div>
+                                                    <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '6px' }}>
+                                                        {formatDate(project.startDate)}
+                                                    </div>
+                                                    <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginBottom: '2px' }}>→ {formatDate(project.endDate)}</div>
+                                                    <div style={{ fontSize: '0.67rem', color: 'var(--text-muted)', fontWeight: 600, marginTop: '4px' }}>
+                                                        by {creatorName}
+                                                    </div>
+                                                </div>
+
+                                                {/* Col 4: Status + role badges */}
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-end' }}>
+                                                    <span className="badge" style={{ background: statusStyle.bg, color: statusStyle.color, border: 'none', padding: '3px 10px', fontSize: '0.65rem', fontWeight: 700 }}>
                                                         {statusStyle.label}
                                                     </span>
                                                     {project.roleName && (
-                                                        <span className="badge badge-accent" style={{ background: 'var(--accent-bg)', color: 'var(--accent-color)', padding: '2px 8px', fontSize: '0.65rem', fontWeight: 600 }}>
+                                                        <span className="badge" style={{ background: 'var(--accent-bg)', color: 'var(--accent-color)', border: 'none', padding: '3px 10px', fontSize: '0.65rem', fontWeight: 700 }}>
                                                             {project.roleName}
                                                         </span>
                                                     )}
                                                 </div>
                                             </div>
-
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--background-color)', padding: '10px 14px', borderRadius: '12px', border: '1px solid var(--border-light)' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                                    <div className="avatar avatar-sm avatar-accent" style={{ width: '28px', height: '28px', fontSize: '0.7rem' }}>
-                                                        {creatorName[0]}
-                                                    </div>
-                                                    <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
-                                                        <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 600 }}>Created by</span>
-                                                        <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>{creatorName}</span>
-                                                    </div>
-                                                </div>
-                                                <div style={{ textAlign: 'right', lineHeight: 1.2 }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '4px', fontSize: '0.65rem', color: 'var(--accent-color)', fontWeight: 700, marginBottom: '2px' }}>
-                                                        <Calendar size={12} /> TIMELINE
-                                                    </div>
-                                                    <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                                                        {formatDate(project.startDate)} - {formatDate(project.endDate)}
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <p style={{ margin: '0.25rem 0', fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', height: '3.8rem', fontWeight: 500 }}>
-                                                {projectDescription || 'No detailed research protocol or description provided for this work stream.'}
-                                            </p>
-
-                                            <div style={{ paddingTop: '0.75rem', borderTop: '1px solid var(--border-light)' }}>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                                                        <ClipboardList size={14} style={{ color: 'var(--primary-color)' }} /> Milestones
-                                                    </div>
-                                                    <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--primary-color)' }}>({progress}%)</span>
-                                                </div>
-                                                <div className="progress-bar-track" style={{ height: '6px', borderRadius: '3px', background: 'var(--border-light)', overflow: 'hidden' }}>
-                                                    <div className="progress-bar-fill" style={{ width: `${progress}%`, height: '100%', borderRadius: '3px' }} />
-                                                </div>
-                                            </div>
-
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', paddingTop: '0.5rem' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
-                                                    <Users size={14} />
-                                                    <span style={{ fontWeight: 700 }}>{project.membersCount || 0} Team Members</span>
-                                                </div>
-                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', justifyContent: 'flex-end', maxWidth: '160px' }}>
-                                                    {project.researchFields?.slice(0, 2).map((f, idx) => (
-                                                        <span key={f.researchFieldId || `rf-${idx}`} className="tag" style={{ margin: 0, fontSize: '0.65rem', padding: '2px 8px', borderRadius: '4px', fontWeight: 600 }}>{f.name}</span>
-                                                    ))}
-                                                    {project.researchFields && project.researchFields.length > 2 && (
-                                                        <span className="tag" style={{ margin: 0, fontSize: '0.65rem', padding: '2px 8px', background: 'var(--surface-hover)', borderRadius: '4px', fontWeight: 600 }}>
-                                                            +{project.researchFields.length - 2}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )
                         ) : (
                             <div className="empty-state card" style={{ padding: '6rem 2rem', borderStyle: 'dashed' }}>
                                 <TrendingUp size={48} color="var(--text-muted)" style={{ marginBottom: '1rem' }} />
@@ -332,7 +417,7 @@ const Projects: React.FC = () => {
                     </div>
 
                     {showPanel && (
-                        <div style={{ flex: 4, minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: '#fff', borderRadius: '16px', border: '1px solid var(--border-color)', padding: '1.5rem', boxShadow: 'var(--shadow-sm)' }}>
+                        <div style={{ flex: 4, minWidth: 0, display: 'flex', flexDirection: 'column', background: '#fff', borderRadius: '16px', border: '1px solid var(--border-color)', padding: '1.5rem', boxShadow: 'var(--shadow-sm)', position: 'sticky', top: '80px', maxHeight: 'calc(100vh - 120px)', overflow: 'hidden' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', marginBottom: '1.25rem' }}>
                                 <div>
                                     <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800 }}>New Project</h3>
@@ -347,7 +432,7 @@ const Projects: React.FC = () => {
                                 </button>
                             </div>
 
-                            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflowY: 'auto', paddingRight: '2px' }} className="custom-scrollbar">
+                            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflowY: 'auto', paddingRight: '4px', gap: '0.5rem' }} className="custom-scrollbar">
                                 <div style={sectionStyle}>
                                     <label style={labelStyle}>Project Name</label>
                                     <div style={{ position: 'relative' }}>
@@ -372,7 +457,7 @@ const Projects: React.FC = () => {
                                             value={createForm.projectDescription}
                                             onChange={e => setCreateForm(p => ({ ...p, projectDescription: e.target.value }))}
                                             required
-                                            style={{ ...inputStyle, paddingLeft: '36px', minHeight: 100, resize: 'vertical' }}
+                                            style={{ ...inputStyle, paddingLeft: '36px', minHeight: 72, resize: 'vertical' }}
                                         />
                                     </div>
                                 </div>
@@ -425,7 +510,7 @@ const Projects: React.FC = () => {
                                             style={{ ...inputStyle, paddingLeft: '32px', height: '38px', fontSize: '0.875rem' }}
                                         />
                                     </div>
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', padding: '0.85rem', background: '#fff', borderRadius: '12px', border: '1px solid var(--border-light)', maxHeight: 180, overflowY: 'auto' }} className="custom-scrollbar">
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', padding: '0.85rem', background: '#fff', borderRadius: '12px', border: '1px solid var(--border-light)', maxHeight: 120, overflowY: 'auto' }} className="custom-scrollbar">
                                         {availableFields
                                             .filter(f => f.name.toLowerCase().includes(fieldSearch.toLowerCase()))
                                             .map(field => (

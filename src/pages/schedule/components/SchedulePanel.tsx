@@ -135,6 +135,7 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
 
     // Detail sections collapse
     const [showAttendees, setShowAttendees] = useState(true);
+    const [showInviteSection, setShowInviteSection] = useState(true);
     const [dateError, setDateError] = useState('');
     const [attendeeError, setAttendeeError] = useState('');
 
@@ -572,38 +573,71 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                         </div>
                     )}
 
-                    <div>
-                        <label style={labelStyle}><Users size={12} /> Invite Attendees</label>
-                        {user?.email && (
-                            <div style={{
-                                display: 'flex', alignItems: 'center', gap: '6px',
-                                padding: '6px 10px', borderRadius: '8px', marginBottom: '8px',
-                                background: '#f0fdf4', border: '1px solid #bbf7d0',
-                                fontSize: '0.7rem', fontWeight: 600, color: '#065f46'
-                            }}>
-                                <span style={{ fontSize: '0.85rem' }}>✓</span>
-                                You are the organizer and already included — invite others below.
-                            </div>
-                        )}
-                        <AttendeeSelector
-                            selectedAttendees={selectedAttendees}
-                            onChange={attendees => { setSelectedAttendees(attendees); if (attendees.length > 0) setAttendeeError(''); }}
-                            projectsMap={projectsMap}
-                            excludeEmails={user?.email ? [user.email] : []}
-                        />
-                        {attendeeError && (
-                            <div style={{
-                                display: 'flex', alignItems: 'center', gap: '6px',
-                                color: '#ef4444', fontSize: '0.75rem', fontWeight: 600,
-                                marginTop: '8px', padding: '8px 12px',
-                                background: '#fef2f2', borderRadius: '8px',
-                                border: '1px solid #fecaca'
-                            }}>
-                                <AlertCircle size={14} /> {attendeeError}
-                            </div>
+                </div>
+
+                {/* Invite Attendees — collapsible */}
+                {canEdit && (
+                    <div style={sectionStyle}>
+                        <button
+                            type="button"
+                            onClick={() => setShowInviteSection(v => !v)}
+                            style={{
+                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                                marginBottom: showInviteSection ? '12px' : 0
+                            }}
+                        >
+                            <span style={{ ...labelStyle, marginBottom: 0 }}>
+                                <Users size={12} /> Invite Attendees
+                                {selectedAttendees.length > 0 && (
+                                    <span style={{
+                                        marginLeft: '6px', fontSize: '0.65rem', fontWeight: 700,
+                                        background: 'var(--accent-color)', color: '#fff',
+                                        padding: '1px 7px', borderRadius: '10px'
+                                    }}>
+                                        {selectedAttendees.length}
+                                    </span>
+                                )}
+                            </span>
+                            {showInviteSection
+                                ? <ChevronUp size={14} color="var(--text-muted)" />
+                                : <ChevronDown size={14} color="var(--text-muted)" />}
+                        </button>
+
+                        {showInviteSection && (
+                            <>
+                                {user?.email && (
+                                    <div style={{
+                                        display: 'flex', alignItems: 'center', gap: '6px',
+                                        padding: '6px 10px', borderRadius: '8px', marginBottom: '10px',
+                                        background: '#f0fdf4', border: '1px solid #bbf7d0',
+                                        fontSize: '0.7rem', fontWeight: 600, color: '#065f46'
+                                    }}>
+                                        <span style={{ fontSize: '0.85rem' }}>✓</span>
+                                        You are the organizer and already included — invite others below.
+                                    </div>
+                                )}
+                                <AttendeeSelector
+                                    selectedAttendees={selectedAttendees}
+                                    onChange={attendees => { setSelectedAttendees(attendees); if (attendees.length > 0) setAttendeeError(''); }}
+                                    projectsMap={projectsMap}
+                                    excludeEmails={user?.email ? [user.email] : []}
+                                />
+                                {attendeeError && (
+                                    <div style={{
+                                        display: 'flex', alignItems: 'center', gap: '6px',
+                                        color: '#ef4444', fontSize: '0.75rem', fontWeight: 600,
+                                        marginTop: '8px', padding: '8px 12px',
+                                        background: '#fef2f2', borderRadius: '8px',
+                                        border: '1px solid #fecaca'
+                                    }}>
+                                        <AlertCircle size={14} /> {attendeeError}
+                                    </div>
+                                )}
+                            </>
                         )}
                     </div>
-                </div>
+                )}
 
                 {/* Attendee List (view mode) */}
                 {!isCreating && meeting?.attendees && meeting.attendees.length > 0 && (

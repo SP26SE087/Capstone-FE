@@ -2,15 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { ClipboardList, Loader2, X, Plus, Clock, RefreshCw } from 'lucide-react';
 import { userService } from '@/services/userService';
 import { useToastStore } from '@/store/slices/toastSlice';
+import FaceRecognitionSection from './FaceRecognitionSection';
 
 interface CheckLogPanelProps {
     email: string;
     studentId: string;
     userName: string;
     onClose: () => void;
+    onScanFace: (studentId: string, userName: string) => void;
 }
 
-const CheckLogPanel: React.FC<CheckLogPanelProps> = ({ email, studentId, userName, onClose }) => {
+const CheckLogPanel: React.FC<CheckLogPanelProps> = ({ email, studentId, userName, onClose, onScanFace }) => {
     const [logs, setLogs] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [adding, setAdding] = useState(false);
@@ -125,7 +127,16 @@ const CheckLogPanel: React.FC<CheckLogPanelProps> = ({ email, studentId, userNam
                 borderBottom: '1px solid var(--border-light)'
             }}>
                 <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{userName}</span>
-                {studentId && <span style={{ marginLeft: '6px', color: 'var(--text-primary)', fontWeight: 700 }}>· Student ID: <span style={{ color: 'var(--text-primary)' }}>{studentId}</span></span>}
+                {studentId && <span style={{ marginLeft: '6px', fontWeight: 700, color: 'var(--text-primary)' }}>· ID: {studentId}</span>}
+            </div>
+
+            {/* Face Recognition */}
+            <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--border-light)' }}>
+                <FaceRecognitionSection
+                    studentId={studentId}
+                    userName={userName}
+                    onScanFace={onScanFace}
+                />
             </div>
 
             {/* Add log form */}

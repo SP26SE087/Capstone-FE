@@ -21,6 +21,7 @@ const ProfilePage: React.FC = () => {
 
     // Edit state
     const [editData, setEditData] = useState({ fullName: '', studentId: '', phoneNumber: '', orcid: '', googleScholarUrl: '', githubUrl: '' });
+    const [studentIdError, setStudentIdError] = useState('');
 
     useEffect(() => { fetchProfile(); }, []);
     useEffect(() => {
@@ -61,6 +62,13 @@ const ProfilePage: React.FC = () => {
             setIsEditMode(false);
             return;
         }
+
+        const sid = editData.studentId.trim();
+        if (sid && !/^[A-Za-z]{2}\d{4}$/.test(sid)) {
+            setStudentIdError('Student ID must be in format CCXXXX (2 letters + 4 digits, e.g. SE1234).');
+            return;
+        }
+        setStudentIdError('');
 
         setSubmitting(true);
         try {
@@ -282,22 +290,33 @@ const ProfilePage: React.FC = () => {
                                     {isEditMode && <span style={{ color: 'var(--accent-color)', fontSize: '0.65rem', fontWeight: 600, textTransform: 'none' }}>(editable)</span>}
                                 </label>
                                 {isEditMode ? (
-                                    <input
-                                        type="text"
-                                        value={editData.studentId}
-                                        onChange={(e) => setEditData({ ...editData, studentId: e.target.value })}
-                                        className="form-input"
-                                        placeholder="Your student ID"
-                                        style={{
-                                            width: '100%', padding: '10px 14px', fontSize: '0.95rem',
-                                            borderRadius: '10px', border: '1px solid var(--border-color)',
-                                            outline: 'none', fontWeight: 600,
-                                            transition: 'border-color 0.2s',
-                                            background: '#f8fafc'
-                                        }}
-                                        onFocus={(e) => e.target.style.borderColor = 'var(--accent-color)'}
-                                        onBlur={(e) => e.target.style.borderColor = 'var(--border-color)'}
-                                    />
+                                    <>
+                                        <input
+                                            type="text"
+                                            value={editData.studentId}
+                                            onChange={(e) => {
+                                                setEditData({ ...editData, studentId: e.target.value });
+                                                const v = e.target.value.trim();
+                                                setStudentIdError(v && !/^[A-Za-z]{2}\d{4}$/.test(v) ? 'Format: 2 letters + 4 digits (e.g. SE1234)' : '');
+                                            }}
+                                            className="form-input"
+                                            placeholder="e.g. SE1234"
+                                            style={{
+                                                width: '100%', padding: '10px 14px', fontSize: '0.95rem',
+                                                borderRadius: '10px', border: `1px solid ${studentIdError ? '#ef4444' : 'var(--border-color)'}`,
+                                                outline: 'none', fontWeight: 600,
+                                                transition: 'border-color 0.2s',
+                                                background: '#f8fafc'
+                                            }}
+                                            onFocus={(e) => e.target.style.borderColor = studentIdError ? '#ef4444' : 'var(--accent-color)'}
+                                            onBlur={(e) => e.target.style.borderColor = studentIdError ? '#ef4444' : 'var(--border-color)'}
+                                        />
+                                        {studentIdError && (
+                                            <div style={{ fontSize: '0.72rem', color: '#ef4444', fontWeight: 600, marginTop: '4px' }}>
+                                                {studentIdError}
+                                            </div>
+                                        )}
+                                    </>
                                 ) : (
                                     <p style={{
                                         margin: 0, fontSize: '0.95rem', fontWeight: 600,

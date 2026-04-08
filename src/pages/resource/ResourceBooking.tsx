@@ -645,7 +645,8 @@ const ResourceBooking: React.FC = () => {
                             flex: 6, transition: 'flex 0.4s cubic-bezier(0.4,0,0.2,1)',
                             overflow: 'hidden', display: 'flex', flexDirection: 'column',
                             background: '#fff', borderRadius: '16px',
-                            border: '1px solid var(--border-color)', padding: '1.5rem'
+                            border: '1px solid var(--border-color)', padding: '1.5rem',
+                            alignSelf: activePanel.type === 'resource_type_form' ? 'flex-start' : 'stretch'
                         }}>
                             {activePanel.type === 'create_resource' && (
                                 <CreateResourceForm onClose={handleClosePanel} onSaved={handlePanelSaved} onTitleChange={handleTitleChange} />

@@ -1,27 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { userService } from '@/services/userService';
-import { Mail, Loader2, X, Phone, BookOpen, Github, GraduationCap, ClipboardList, Clock, CheckCircle, XCircle } from 'lucide-react';
-import FaceRecognitionSection from './FaceRecognitionSection';
+import { formatProjectDate } from '@/utils/projectUtils';
+import { Mail, Loader2, X, Phone, BookOpen, GraduationCap, ClipboardList, Clock, CheckCircle, XCircle, ExternalLink } from 'lucide-react';
 
 interface UserDetailModalProps {
     onClose: () => void;
     userId: string | null;
     systemRoleMap: Record<number | string, string>;
-    onScanFace: (studentId: string, userName: string) => void;
     onCheckLog: (email: string, studentId: string, userName: string) => void;
     isCheckLogOpen: boolean;
 }
 
-const UserDetailModal: React.FC<UserDetailModalProps> = ({ onClose, userId, systemRoleMap, onScanFace, onCheckLog, isCheckLogOpen }) => {
+const UserDetailModal: React.FC<UserDetailModalProps> = ({ onClose, userId, systemRoleMap, onCheckLog, isCheckLogOpen }) => {
     const [userData, setUserData] = useState<any>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        if (userId) {
-            fetchUserDetails();
-            return;
-        }
+        if (userId) { fetchUserDetails(); return; }
         setUserData(null);
         setError(null);
     }, [userId]);
@@ -33,7 +29,6 @@ const UserDetailModal: React.FC<UserDetailModalProps> = ({ onClose, userId, syst
             const data = await userService.getById(userId!);
             setUserData(data);
         } catch (err) {
-            console.error('Failed to fetch user details:', err);
             setError('Could not load user details.');
         } finally {
             setLoading(false);
@@ -42,168 +37,184 @@ const UserDetailModal: React.FC<UserDetailModalProps> = ({ onClose, userId, syst
 
     if (!userId) return null;
 
+    const name = userData?.fullName || userData?.userName || '';
+    const initials = name.split(' ').filter(Boolean).map((n: string) => n[0]).join('').toUpperCase().slice(0, 2) || 'U';
+    const isActive = userData?.isActive === true || userData?.status === 1;
+    const roleName = systemRoleMap[userData?.role] || userData?.role || 'Member';
+    const studentId = String(userData?.studentId ?? userData?.StudentId ?? userData?.studentID ?? userData?.student_id ?? '').trim();
+
     return (
-        <div className="card" style={{
-            marginBottom: '2rem',
+        <div style={{
             border: '1px solid var(--border-color)',
-            backgroundColor: 'var(--card-bg)',
-            boxShadow: 'var(--shadow-lg)',
-            borderRadius: 'var(--radius-lg)',
+            borderRadius: '16px',
             overflow: 'hidden',
-            animation: 'fadeIn 0.3s ease-out',
+            background: 'var(--card-bg)',
+            boxShadow: 'var(--shadow-lg)',
             display: 'flex',
-            flexDirection: 'column'
+            flexDirection: 'column',
+            animation: 'fadeIn 0.25s ease-out'
         }}>
-            <div className="card-header" style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '1.25rem 1.5rem',
-                borderBottom: '1px solid var(--border-light)',
-                background: 'rgba(var(--primary-rgb), 0.01)'
+            {/* ── Hero ── */}
+            <div style={{
+                background: 'linear-gradient(135deg, var(--primary-color) 0%, var(--accent-color) 100%)',
+                padding: '1.25rem 1.25rem 1rem',
+                position: 'relative'
             }}>
-                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: 'var(--primary-color)' }}>
-                    User Profile
-                </h3>
+                {/* Close */}
                 <button
                     onClick={onClose}
                     style={{
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                        color: 'var(--text-muted)',
-                        padding: '4px',
-                        borderRadius: '50%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
+                        position: 'absolute', top: '10px', right: '10px',
+                        width: '28px', height: '28px', borderRadius: '50%',
+                        background: 'rgba(255,255,255,0.2)', border: 'none',
+                        color: '#fff', cursor: 'pointer', display: 'flex',
+                        alignItems: 'center', justifyContent: 'center',
                         transition: 'background 0.2s'
                     }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--accent-bg)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'none'}
-                    title="Close"
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.35)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
                 >
-                    <X size={18} />
+                    <X size={15} />
                 </button>
-            </div>
 
-            {loading ? (
-                <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
-                    <Loader2 className="animate-spin" size={32} style={{ color: 'var(--primary-color)' }} />
-                </div>
-            ) : error ? (
-                <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--error-color)' }}>
-                    <p style={{ color: 'var(--danger)', marginBottom: '1rem' }}>{error}</p>
-                    <button className="btn btn-secondary" onClick={fetchUserDetails}>Retry</button>
-                </div>
-            ) : userData ? (
-                <div style={{ padding: '0.875rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', overflowY: 'auto' }}>
-                    {/* Avatar + name row */}
-                    <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                {loading ? (
+                    <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem 0' }}>
+                        <Loader2 className="animate-spin" size={28} style={{ color: '#fff' }} />
+                    </div>
+                ) : error ? null : userData ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
+                        {/* Avatar */}
                         <div style={{
-                            width: '52px', height: '52px', borderRadius: 'var(--radius-md)',
-                            background: 'var(--accent-bg)', color: 'var(--accent-color)',
+                            width: '56px', height: '56px', borderRadius: '14px',
+                            background: 'rgba(255,255,255,0.25)',
+                            border: '2px solid rgba(255,255,255,0.5)',
+                            color: '#fff', fontSize: '1.2rem', fontWeight: 800,
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontSize: '1.1rem', fontWeight: 800, flexShrink: 0,
-                            overflow: 'hidden'
+                            flexShrink: 0, overflow: 'hidden'
                         }}>
                             {(userData.avatarUrl || userData.AvatarUrl) ? (
                                 <img
                                     src={userData.avatarUrl || userData.AvatarUrl}
-                                    alt={userData.fullName || 'avatar'}
+                                    alt={name}
                                     referrerPolicy="no-referrer"
                                     style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; (e.currentTarget.parentElement as HTMLElement).textContent = (userData.fullName || userData.userName || 'U')[0]; }}
+                                    onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
                                 />
-                            ) : (
-                                (userData.fullName || userData.userName || 'U')[0]
-                            )}
+                            ) : initials}
                         </div>
+
+                        {/* Name + role */}
                         <div style={{ minWidth: 0 }}>
-                            <h2 style={{ margin: 0, fontSize: '0.92rem', fontWeight: 700 }}>{userData.fullName || userData.userName}</h2>
-                            <p style={{ margin: '2px 0 0', fontSize: '0.72rem', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{userData.email}</p>
+                            <h2 style={{ margin: '0 0 4px', fontSize: '1rem', fontWeight: 800, color: '#fff', lineHeight: 1.2 }}>
+                                {name || 'Unknown'}
+                            </h2>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                <span style={{
+                                    fontSize: '0.65rem', fontWeight: 700, color: 'rgba(255,255,255,0.9)',
+                                    background: 'rgba(255,255,255,0.2)', padding: '2px 8px',
+                                    borderRadius: '999px', border: '1px solid rgba(255,255,255,0.3)'
+                                }}>
+                                    {roleName}
+                                </span>
+                                {isActive ? (
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '0.62rem', fontWeight: 700, color: '#bbf7d0', background: 'rgba(16,185,129,0.25)', padding: '2px 7px', borderRadius: '999px' }}>
+                                        <CheckCircle size={9} /> Active
+                                    </span>
+                                ) : (
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '0.62rem', fontWeight: 700, color: '#fca5a5', background: 'rgba(239,68,68,0.25)', padding: '2px 7px', borderRadius: '999px' }}>
+                                        <XCircle size={9} /> Inactive
+                                    </span>
+                                )}
+                            </div>
                         </div>
                     </div>
+                ) : null}
+            </div>
 
-                    {/* Status badges row */}
-                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                        <span className="badge badge-muted" style={{ fontSize: '0.65rem', fontWeight: 700 }}>
-                            {systemRoleMap[userData.role] || userData.role || 'Member'}
-                        </span>
-                        {(userData.isActive === true || userData.status === 1) ? (
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '0.65rem', fontWeight: 700, color: '#16a34a', background: '#f0fdf4', padding: '2px 8px', borderRadius: '999px' }}>
-                                <CheckCircle size={10} /> Active
-                            </span>
-                        ) : (userData.isActive === false || userData.status === 0) ? (
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '0.65rem', fontWeight: 700, color: '#dc2626', background: '#fef2f2', padding: '2px 8px', borderRadius: '999px' }}>
-                                <XCircle size={10} /> Inactive
-                            </span>
-                        ) : null}
-                    </div>
+            {/* ── Body ── */}
+            {error ? (
+                <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--danger)' }}>
+                    <p style={{ marginBottom: '1rem' }}>{error}</p>
+                    <button className="btn btn-secondary" onClick={fetchUserDetails}>Retry</button>
+                </div>
+            ) : userData ? (
+                <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', overflowY: 'auto' }} className="custom-scrollbar">
 
-                    {/* Fields grid */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                        {([
-                            { icon: <Mail size={13} />, label: 'Email', value: userData.email },
-                            { icon: <Phone size={13} />, label: 'Phone', value: userData.phoneNumber || userData.PhoneNumber },
-                            { icon: <GraduationCap size={13} />, label: 'Student ID', value: userData.studentId || userData.StudentId || userData.studentID || userData.student_id },
-                            { icon: <BookOpen size={13} />, label: 'ORCID', value: userData.orcid || userData.Orcid },
-                            { icon: <BookOpen size={13} />, label: 'Google Scholar', value: userData.googleScholarUrl || userData.GoogleScholarUrl },
-                            { icon: <Github size={13} />, label: 'GitHub', value: userData.githubUrl || userData.GithubUrl },
-                            { icon: <Clock size={13} />, label: 'Joined', value: userData.createdAt ? new Date(userData.createdAt).toLocaleDateString('vi-VN') : null },
-                            { icon: <Clock size={13} />, label: 'Updated', value: userData.updatedAt ? new Date(userData.updatedAt).toLocaleDateString('vi-VN') : null },
-                        ] as { icon: React.ReactNode; label: string; value: string | null | undefined }[]).map((field, i) => (
-                            <div key={i} style={{
-                                display: 'flex', alignItems: 'flex-start', gap: '0.5rem',
-                                padding: '0.4rem 0.625rem',
-                                background: 'var(--background-color)',
-                                borderRadius: 'var(--radius-sm)',
-                                minWidth: 0
-                            }}>
-                                <span style={{ color: 'var(--text-muted)', flexShrink: 0, marginTop: '1px' }}>{field.icon}</span>
-                                <div style={{ minWidth: 0, flex: 1 }}>
-                                    <div style={{ fontSize: '0.58rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '1px' }}>{field.label}</div>
-                                    {field.value ? (
-                                        (field.label === 'Google Scholar' || field.label === 'GitHub') ? (
-                                            <a href={field.value} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.75rem', color: 'var(--primary-color)', wordBreak: 'break-all' }}>
-                                                {field.value}
-                                            </a>
-                                        ) : (
-                                            <div style={{ fontSize: '0.75rem', color: 'var(--text-primary)', wordBreak: 'break-all' }}>{field.value}</div>
-                                        )
-                                    ) : (
-                                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>—</div>
-                                    )}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+                    {/* ── Contact section ── */}
+                    <Section label="Contact">
+                        <Field icon={<Mail size={12} />} label="Email" value={userData.email} />
+                        <Field icon={<Phone size={12} />} label="Phone" value={userData.phoneNumber || userData.PhoneNumber} />
+                    </Section>
 
-                    {/* Check Log button */}
+                    {/* ── Academic section ── */}
+                    <Section label="Academic">
+                        <Field icon={<GraduationCap size={12} />} label="Student ID" value={studentId || null} />
+                        <Field icon={<BookOpen size={12} />} label="ORCID" value={userData.orcid || userData.Orcid} />
+                        <Field icon={<BookOpen size={12} />} label="Google Scholar" value={userData.googleScholarUrl || userData.GoogleScholarUrl} link />
+                        <Field icon={<BookOpen size={12} />} label="GitHub" value={userData.githubUrl || userData.GithubUrl} link />
+                    </Section>
+
+                    {/* ── Dates section ── */}
+                    <Section label="Activity">
+                        <Field icon={<Clock size={12} />} label="Joined" value={formatProjectDate(userData.createdAt, '—')} />
+                        <Field icon={<Clock size={12} />} label="Updated" value={formatProjectDate(userData.updatedAt, '—')} />
+                    </Section>
+
+                    {/* ── Actions ── */}
                     <button
-                        className="btn btn-secondary"
-                        onClick={() => onCheckLog(userData.email, String(userData.studentId || userData.StudentId || userData.studentID || userData.student_id || ''), userData.fullName || userData.userName)}
+                        onClick={() => onCheckLog(userData.email, studentId, name)}
                         style={{
-                            width: '100%', gap: '6px', fontSize: '0.75rem', padding: '6px',
-                            color: isCheckLogOpen ? 'var(--primary-color)' : 'var(--text-primary)',
-                            border: isCheckLogOpen ? '1px solid var(--primary-color)' : undefined
+                            width: '100%', padding: '8px', borderRadius: '10px', border: 'none', cursor: 'pointer',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                            fontSize: '0.78rem', fontWeight: 700,
+                            background: isCheckLogOpen ? 'var(--primary-color)' : 'var(--surface-hover)',
+                            color: isCheckLogOpen ? '#fff' : 'var(--text-primary)',
+                            transition: 'all 0.2s'
                         }}
                     >
-                        <ClipboardList size={14} /> {isCheckLogOpen ? 'Viewing Check Log' : 'Check Log'}
+                        <ClipboardList size={14} />
+                        {isCheckLogOpen ? 'Viewing Check Log' : 'Check Log'}
                     </button>
 
-                    <FaceRecognitionSection
-                        studentId={String(
-                            userData?.studentId ?? userData?.StudentId ??
-                            userData?.studentID ?? userData?.student_id ?? ''
-                        ).trim()}
-                        userName={userData.fullName || userData.userName}
-                        onScanFace={onScanFace}
-                    />
+
                 </div>
             ) : null}
         </div>
     );
 };
+
+/* ── Helpers ── */
+const Section: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
+    <div style={{ background: 'var(--background-color)', borderRadius: '10px', border: '1px solid var(--border-light)', overflow: 'hidden' }}>
+        <div style={{ padding: '5px 10px', fontSize: '0.6rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--text-muted)', borderBottom: '1px solid var(--border-light)', background: 'var(--surface-hover)' }}>
+            {label}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {children}
+        </div>
+    </div>
+);
+
+const Field: React.FC<{ icon: React.ReactNode; label: string; value: string | null | undefined; link?: boolean }> = ({ icon, label, value, link }) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderBottom: '1px solid var(--border-light)', minWidth: 0 }}>
+        <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>{icon}</span>
+        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', minWidth: '70px', flexShrink: 0 }}>{label}</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+            {value ? (
+                link ? (
+                    <a href={value} target="_blank" rel="noopener noreferrer"
+                        style={{ fontSize: '0.75rem', color: 'var(--primary-color)', display: 'inline-flex', alignItems: 'center', gap: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</span>
+                        <ExternalLink size={10} style={{ flexShrink: 0 }} />
+                    </a>
+                ) : (
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>{value}</span>
+                )
+            ) : (
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>—</span>
+            )}
+        </div>
+    </div>
+);
 
 export default UserDetailModal;

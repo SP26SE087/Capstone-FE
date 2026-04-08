@@ -15,7 +15,11 @@ export const resourceTypeService = {
   },
 
   create: async (name: string, description?: string): Promise<ResourceTypeItem> => {
-    const response = await api.post('/api/resource-types', { name, description });
+    const response = await api.post('/api/resource-types', {
+      name,
+      description: description ?? null,
+      isActive: true
+    });
     return response.data.data || response.data;
   },
 

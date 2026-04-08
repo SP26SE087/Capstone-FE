@@ -75,7 +75,9 @@ export interface SeminarMeetingResponse {
 export interface UpdateSeminarMeetingRequest {
     title: string | null;
     description: string | null;
+    location: string | null;
     slideUrl: string | null;
+    file?: File | null;
 }
 
 export interface CreateSeminarSwapRequest {

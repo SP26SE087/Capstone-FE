@@ -21,7 +21,7 @@ import {
 import seminarService from '@/services/seminarService';
 import { SeminarMeetingResponse } from '@/types/seminar';
 import { projectService, userService } from '@/services';
-import Toast, { ToastType } from '@/components/common/Toast';
+import { useToastStore } from '@/store/slices/toastSlice';
 
 import SeminarList from './components/SeminarList';
 import SeminarPanel from './components/SeminarPanel';
@@ -52,7 +52,7 @@ const Seminars: React.FC = () => {
     const [projectsMap, setProjectsMap] = useState<Record<string, string>>({});
     const [usersMap, setUsersMap] = useState<Record<string, string>>({});
     const [emailsMap, setEmailsMap] = useState<Record<string, string>>({});
-    const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+    const { addToast } = useToastStore();
     const [viewMode, setViewMode] = useState<'list' | 'timetable'>('list');
     const [filterSeason, setFilterSeason] = useState<string>('');
 
@@ -146,8 +146,8 @@ const Seminars: React.FC = () => {
         }
     };
 
-    const showToast = (message: string, type: ToastType = 'info') => {
-        setToast({ message, type });
+    const showToast = (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => {
+        addToast(message, type);
     };
 
     // Panel handlers
@@ -247,8 +247,6 @@ const Seminars: React.FC = () => {
     return (
         <MainLayout role={user?.role} userName={user?.name}>
             <div className="page-container" style={{ padding: '1.5rem 2rem', maxWidth: '1600px', margin: '0 auto' }}>
-                {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-
                 {/* Header */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
                     <div>

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { SeminarMeetingResponse, UpdateSeminarMeetingRequest, CreateSeminarSwapRequest } from '@/types/seminar';
 import seminarService from '@/services/seminarService';
 import { useAuth } from '@/hooks/useAuth';
-import Toast, { ToastType } from '@/components/common/Toast';
+import { useToastStore } from '@/store/slices/toastSlice';
 import DateTimePicker from '@/components/common/DateTimePicker';
 import {
     Save,
@@ -17,7 +17,10 @@ import {
     Lock,
     ArrowLeftRight,
     Mic,
-    FileSearch
+    FileSearch,
+    Upload,
+    Download,
+    X
 } from 'lucide-react';
 
 interface SeminarPanelProps {
@@ -107,12 +110,14 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
     const [meeting, setMeeting] = useState<SeminarMeetingResponse | null>(null);
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
-    const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+    const { addToast } = useToastStore();
 
     // Editable fields
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
+    const [location, setLocation] = useState('');
     const [slideUrl, setSlideUrl] = useState('');
+    const [slideFile, setSlideFile] = useState<File | null>(null);
 
     // Swap request
     const [showSwapForm, setShowSwapForm] = useState(false);
@@ -129,14 +134,18 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
                 setMeeting(initialData);
                 setTitle(initialData.title || '');
                 setDescription(initialData.description || '');
+                setLocation(initialData.location || '');
                 setSlideUrl(initialData.slideUrl || '');
+                setSlideFile(null);
                 onTitleChange?.(initialData.title || 'Seminar');
-                loadMeetingFromList(meetingId, true); // Silent load in background
+                loadMeetingFromList(meetingId, true);
             } else {
                 setMeeting(null);
                 setTitle('');
                 setDescription('');
+                setLocation('');
                 setSlideUrl('');
+                setSlideFile(null);
                 setShowSwapForm(false);
                 setAllMeetings([]);
                 setSwapTargetId('');
@@ -164,7 +173,9 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
                 setMeeting(found);
                 setTitle(found.title || '');
                 setDescription(found.description || '');
+                setLocation(found.location || '');
                 setSlideUrl(found.slideUrl || '');
+                setSlideFile(null);
                 onTitleChange?.(found.title || 'Seminar');
             }
         } catch (err) {
@@ -191,7 +202,7 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
     const handleSubmitSwap = async () => {
         if (!meetingId || !swapTargetId) return;
         if (swapExpiry && new Date(swapExpiry) <= new Date()) {
-            setToast({ message: 'Expiry date must be in the future.', type: 'error' });
+            addToast('Expiry date must be in the future.', 'error');
             return;
         }
         setSubmittingSwap(true);
@@ -210,7 +221,7 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
             onSaved(false, 'Swap request submitted successfully.');
         } catch (err: any) {
             const msg = err?.response?.data?.message || err?.response?.data?.title || 'Failed to submit swap request.';
-            setToast({ message: msg, type: 'error' });
+            addToast(msg, 'error');
         } finally {
             setSubmittingSwap(false);
         }
@@ -223,7 +234,9 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
             const req: UpdateSeminarMeetingRequest = {
                 title: title.trim() || null,
                 description: description.trim() || null,
-                slideUrl: slideUrl.trim() || null
+                location: location.trim() || null,
+                slideUrl: slideUrl.trim() || null,
+                file: slideFile || null
             };
             await seminarService.updateSeminarMeeting(meetingId, req);
             onSaved(false, 'Seminar meeting updated successfully.');
@@ -231,7 +244,7 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
         } catch (err: any) {
             console.error('Save failed:', err);
             const msg = err?.response?.data?.message || err?.response?.data?.title || 'Failed to update seminar meeting.';
-            setToast({ message: msg, type: 'error' });
+            addToast(msg, 'error');
         } finally {
             setSaving(false);
         }
@@ -260,7 +273,6 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-            {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
             {/* Panel Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '12px', borderBottom: '1px solid var(--border-light)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -509,36 +521,140 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
                         />
                     </div>
 
-                    <div>
-                        <label style={{ ...labelStyle, fontSize: '0.68rem' }}>
-                            <Link2 size={12} /> Slide URL
-                        </label>
+                    {/* Location (editable) */}
+                    <div style={{ marginBottom: '14px' }}>
+                        <label style={{ ...labelStyle, fontSize: '0.68rem' }}><MapPin size={12} /> Location</label>
                         <input
                             style={{ ...inputStyle, ...(canEdit ? {} : { background: '#f8fafc', color: 'var(--text-secondary)', cursor: 'default' }) }}
-                            value={slideUrl}
-                            onChange={e => { if (canEdit) setSlideUrl(e.target.value); }}
+                            value={location}
+                            onChange={e => { if (canEdit) setLocation(e.target.value); }}
                             readOnly={!canEdit}
-                            placeholder="https://docs.google.com/presentation/..."
+                            placeholder="Room 101, Building A..."
                             onFocus={e => { if (canEdit) { e.currentTarget.style.borderColor = 'var(--accent-color)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,114,12,0.08)'; } }}
                             onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.boxShadow = 'none'; }}
                         />
-                        {slideUrl && (
-                            <a
-                                href={slideUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '4px',
-                                    fontSize: '0.72rem',
-                                    color: '#6366f1',
-                                    fontWeight: 700,
-                                    marginTop: '6px',
-                                    textDecoration: 'underline'
-                                }}
-                            >
-                                <ExternalLink size={12} /> Open Slides
+                    </div>
+
+                    {/* Slide Document */}
+                    <div>
+                        <label style={{ ...labelStyle, fontSize: '0.68rem' }}>
+                            <FileText size={12} /> Slide Document
+                        </label>
+
+                        {/* Existing slide link */}
+                        {meeting.slideUrl && !slideFile && (() => {
+                            const isCloudinary = meeting.slideUrl!.includes('cloudinary.com');
+                            return (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: isCloudinary ? '#f5f3ff' : '#eff6ff', border: `1px solid ${isCloudinary ? '#e9d5ff' : '#bfdbfe'}`, borderRadius: '8px', marginBottom: '8px' }}>
+                                    <FileText size={14} color={isCloudinary ? '#7c3aed' : '#3b82f6'} style={{ flexShrink: 0 }} />
+                                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: isCloudinary ? '#6d28d9' : '#1d4ed8', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {isCloudinary ? 'Current slide file' : meeting.slideUrl}
+                                    </span>
+                                    {isCloudinary ? (
+                                        <button
+                                            type="button"
+                                            onClick={async () => {
+                                                try {
+                                                    const token = localStorage.getItem('token');
+                                                    let res = await fetch(
+                                                        `/api/Seminars/meetings/${meetingId}/slide-document/download`,
+                                                        { headers: { Authorization: `Bearer ${token}` } }
+                                                    );
+                                                    if (res.status === 401 && res.url) {
+                                                        res = await fetch(res.url);
+                                                    }
+                                                    if (!res.ok) throw new Error('Download failed');
+                                                    const blob = await res.blob();
+                                                    const url = URL.createObjectURL(blob);
+                                                    const a = document.createElement('a');
+                                                    a.href = url;
+                                                    const cd = res.headers.get('content-disposition');
+                                                    a.download = cd?.match(/filename="?([^"]+)"?/)?.[1]
+                                                        || meeting.slideUrl!.split('/').pop() || 'slide';
+                                                    a.click();
+                                                    URL.revokeObjectURL(url);
+                                                } catch {
+                                                    addToast('Failed to download slide.', 'error');
+                                                }
+                                            }}
+                                            style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', color: '#7c3aed', fontWeight: 700, background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0, padding: 0 }}
+                                        >
+                                            <Download size={12} /> Download
+                                        </button>
+                                    ) : (
+                                        <a
+                                            href={meeting.slideUrl!}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', color: '#3b82f6', fontWeight: 700, textDecoration: 'none', flexShrink: 0 }}
+                                        >
+                                            <ExternalLink size={12} /> Open
+                                        </a>
+                                    )}
+                                </div>
+                            );
+                        })()}
+
+                        {/* File picker (edit only) */}
+                        {canEdit && (
+                            <>
+                                {slideFile ? (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: '#ecfdf5', border: '1px solid #bbf7d0', borderRadius: '8px', marginBottom: '8px' }}>
+                                        <Upload size={14} color="#10b981" style={{ flexShrink: 0 }} />
+                                        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#065f46', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                            {slideFile.name}
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={() => setSlideFile(null)}
+                                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#10b981', display: 'flex', alignItems: 'center', padding: 0, flexShrink: 0 }}
+                                        >
+                                            <X size={14} />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <label style={{
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                                        padding: '11px', borderRadius: '10px', border: '2px dashed var(--border-color)',
+                                        cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)',
+                                        background: 'var(--background-color)', transition: 'all 0.2s', marginBottom: '8px'
+                                    }}
+                                        onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent-color)'; e.currentTarget.style.color = 'var(--accent-color)'; }}
+                                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+                                    >
+                                        <Upload size={16} /> Upload slide file (PDF, PPTX...)
+                                        <input type="file" accept=".pdf,.ppt,.pptx" style={{ display: 'none' }} onChange={e => {
+                                                        const file = e.target.files?.[0] || null;
+                                                        if (file && file.size > 10485760) {
+                                                            addToast('File must be under 10 MB.', 'error');
+                                                            e.target.value = '';
+                                                            return;
+                                                        }
+                                                        setSlideFile(file);
+                                                    }} />
+                                    </label>
+                                )}
+
+                                {/* Optional external link */}
+                                <label style={{ ...labelStyle, fontSize: '0.65rem', marginBottom: '4px' }}>
+                                    <Link2 size={11} /> Or link to external slides (optional)
+                                </label>
+                                <input
+                                    style={inputStyle}
+                                    value={slideUrl}
+                                    onChange={e => setSlideUrl(e.target.value)}
+                                    placeholder="https://docs.google.com/presentation/..."
+                                    onFocus={e => { e.currentTarget.style.borderColor = 'var(--accent-color)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,114,12,0.08)'; }}
+                                    onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.boxShadow = 'none'; }}
+                                />
+                            </>
+                        )}
+
+                        {/* Read-only: show external link if any */}
+                        {!canEdit && slideUrl && (
+                            <a href={slideUrl} target="_blank" rel="noopener noreferrer"
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', color: '#6366f1', fontWeight: 700, textDecoration: 'underline' }}>
+                                <ExternalLink size={12} /> Open External Slides
                             </a>
                         )}
                     </div>

@@ -89,7 +89,7 @@ const ResourceTypePanel: React.FC<ResourceTypePanelProps> = ({ editing, onClose,
     };
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
             {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', paddingBottom: '12px', borderBottom: '1px solid var(--border-light)' }}>
                 <div style={{
@@ -110,7 +110,7 @@ const ResourceTypePanel: React.FC<ResourceTypePanelProps> = ({ editing, onClose,
             </div>
 
             {/* Form */}
-            <div style={{ flex: 1, overflowY: 'auto' }} className="custom-scrollbar">
+            <div>
                 <div style={{ padding: '20px', background: 'var(--background-color)', borderRadius: '12px', border: '1px solid var(--border-light)', marginBottom: '16px' }}>
                     <div style={labelStyle}><Tag size={12} /> Details</div>
 
@@ -174,7 +174,7 @@ const ResourceTypePanel: React.FC<ResourceTypePanelProps> = ({ editing, onClose,
             </div>
 
             {/* Footer */}
-            <div style={{ paddingTop: '14px', borderTop: '1px solid var(--border-light)', display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: 'auto' }}>
+            <div style={{ paddingTop: '14px', borderTop: '1px solid var(--border-light)', display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '8px' }}>
                 <button onClick={onClose} style={{ padding: '8px 20px', borderRadius: '10px', border: '1px solid var(--border-color)', background: '#fff', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 700 }}>
                     Cancel
                 </button>

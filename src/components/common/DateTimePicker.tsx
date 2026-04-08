@@ -49,7 +49,7 @@ const Drum: React.FC<DrumProps> = ({ inputVal, max, label, accent, disabled, onU
             onClick={onClick}
             disabled={disabled}
             style={{
-                width: '28px', height: '22px', border: 'none', borderRadius: '6px',
+                width: '24px', height: '18px', border: 'none', borderRadius: '5px',
                 background: focused ? `${accent}18` : '#f1f5f9',
                 color: focused ? accent : '#94a3b8',
                 cursor: disabled ? 'not-allowed' : 'pointer',
@@ -74,13 +74,13 @@ const Drum: React.FC<DrumProps> = ({ inputVal, max, label, accent, disabled, onU
     );
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
-            <span style={{ fontSize: '0.58rem', fontWeight: 700, color: focused ? accent : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.6px', transition: 'color 0.2s' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+            <span style={{ fontSize: '0.55rem', fontWeight: 700, color: focused ? accent : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.6px', transition: 'color 0.2s' }}>
                 {label}
             </span>
-            {btn(onUp, <ChevronUp size={13} strokeWidth={3} />, true)}
+            {btn(onUp, <ChevronUp size={11} strokeWidth={3} />, true)}
             <div style={{
-                width: '50px', height: '44px', borderRadius: '10px',
+                width: '42px', height: '36px', borderRadius: '8px',
                 border: `2px solid ${focused ? accent : '#e2e8f0'}`,
                 background: focused ? `${accent}08` : '#fafafa',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -103,7 +103,7 @@ const Drum: React.FC<DrumProps> = ({ inputVal, max, label, accent, disabled, onU
                     }}
                     style={{
                         width: '100%', height: '100%', border: 'none', background: 'transparent',
-                        textAlign: 'center', fontSize: '1.15rem', fontWeight: 800,
+                        textAlign: 'center', fontSize: '0.95rem', fontWeight: 800,
                         fontFamily: "'SF Mono','Fira Code','Courier New',monospace",
                         color: focused ? accent : '#1e293b',
                         outline: 'none', cursor: disabled ? 'not-allowed' : 'text',
@@ -111,8 +111,8 @@ const Drum: React.FC<DrumProps> = ({ inputVal, max, label, accent, disabled, onU
                     }}
                 />
             </div>
-            {btn(onDown, <ChevronDown size={13} strokeWidth={3} />, false)}
-            <span style={{ fontSize: '0.6rem', color: '#64748b', fontWeight: 700 }}>0–{max}</span>
+            {btn(onDown, <ChevronDown size={11} strokeWidth={3} />, false)}
+            <span style={{ fontSize: '0.55rem', color: '#64748b', fontWeight: 700 }}>0–{max}</span>
         </div>
     );
 };
@@ -204,9 +204,9 @@ const DateTimePicker: React.FC<DateTimePickerProps> = ({ value, onChange, min, d
                     disabled={disabled}
                     onChange={e => handleDateChange(e.target.value)}
                     style={{
-                        width: '100%', height: '42px', padding: '0 12px',
-                        borderRadius: '10px', border: `1.5px solid #e2e8f0`,
-                        fontSize: '0.875rem', fontWeight: 600, fontFamily: 'inherit',
+                        width: '100%', height: '36px', padding: '0 10px',
+                        borderRadius: '8px', border: `1.5px solid #e2e8f0`,
+                        fontSize: '0.8rem', fontWeight: 600, fontFamily: 'inherit',
                         outline: 'none', background: disabled ? '#f8fafc' : '#fff',
                         color: date ? '#1e293b' : '#94a3b8',
                         cursor: disabled ? 'not-allowed' : 'pointer',
@@ -218,7 +218,7 @@ const DateTimePicker: React.FC<DateTimePickerProps> = ({ value, onChange, min, d
             </div>
 
             {/* Divider */}
-            <div style={{ width: '1px', height: '32px', background: '#e2e8f0', flexShrink: 0 }} />
+            <div style={{ width: '1px', height: '28px', background: '#e2e8f0', flexShrink: 0 }} />
 
             {/* Hour + Minute drums */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>

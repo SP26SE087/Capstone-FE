@@ -22,7 +22,7 @@ import {
 import meetingService from '@/services/meetingService';
 import { MeetingResponse, MeetingStatus } from '@/types/meeting';
 import { projectService, userService } from '@/services';
-import Toast, { ToastType } from '@/components/common/Toast';
+import { useToastStore } from '@/store/slices/toastSlice';
 
 import ScheduleList from './components/ScheduleList';
 import SchedulePanel from './components/SchedulePanel';
@@ -52,7 +52,7 @@ const Schedules: React.FC = () => {
     const [filterProjectId, setFilterProjectId] = useState<string>('');
     const [projectsMap, setProjectsMap] = useState<Record<string, string>>({});
     const [usersMap, setUsersMap] = useState<Record<string, string>>({});
-    const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+    const { addToast } = useToastStore();
     const [viewMode, setViewMode] = useState<'list' | 'timetable'>('list');
 
     // Panel system
@@ -108,8 +108,8 @@ const Schedules: React.FC = () => {
         }
     };
 
-    const showToast = (message: string, type: ToastType = 'info') => {
-        setToast({ message, type });
+    const showToast = (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => {
+        addToast(message, type);
     };
 
     // Panel handlers
@@ -200,8 +200,6 @@ const Schedules: React.FC = () => {
     return (
         <MainLayout role={user?.role} userName={user?.name}>
             <div className="page-container" style={{ padding: '1.5rem 2rem', maxWidth: '1600px', margin: '0 auto' }}>
-                {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-
                 {/* Header */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
                     <div>

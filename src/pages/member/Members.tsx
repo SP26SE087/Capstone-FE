@@ -62,7 +62,7 @@ const Members: React.FC = () => {
             return members.filter(member =>
                 (member.fullName || member.userName || '').toLowerCase().includes(query) ||
                 (member.email || '').toLowerCase().includes(query) ||
-                (member.role || '').toLowerCase().includes(query) ||
+                (SystemRoleMap[member.role] || String(member.role || '')).toLowerCase().includes(query) ||
                 (member.studentId || member.StudentId || '').toLowerCase().includes(query)
             );
         })();
@@ -179,9 +179,12 @@ const Members: React.FC = () => {
                     transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)'
                 }}>
                     {/* Left Column: Members List */}
-                    <div style={{ 
-                        flex: !isSidePanelOpen ? '1' : isCheckLogOpen ? '0 0 42%' : '0 0 60%',
-                        maxWidth: !isSidePanelOpen ? '100%' : isCheckLogOpen ? '42%' : '60%',
+                    <div style={{
+                        flex: isCheckLogOpen ? '0 0 0' : (!isSidePanelOpen ? '1' : '0 0 60%'),
+                        maxWidth: isCheckLogOpen ? '0' : (!isSidePanelOpen ? '100%' : '60%'),
+                        opacity: isCheckLogOpen ? 0 : 1,
+                        visibility: isCheckLogOpen ? 'hidden' : 'visible',
+                        overflow: 'hidden',
                         transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
                         minWidth: 0
                     }}>
@@ -288,9 +291,9 @@ const Members: React.FC = () => {
                     </div>
 
                     {/* Middle Column: User detail / Invite form */}
-                    <div style={{ 
-                        flex: isSidePanelOpen ? (isCheckLogOpen ? '0 0 25%' : '0 0 40%') : '0 0 0',
-                        maxWidth: isSidePanelOpen ? (isCheckLogOpen ? '25%' : '40%') : '0',
+                    <div style={{
+                        flex: isSidePanelOpen ? (isCheckLogOpen ? '0 0 38%' : '0 0 40%') : '0 0 0',
+                        maxWidth: isSidePanelOpen ? (isCheckLogOpen ? '38%' : '40%') : '0',
                         transform: isSidePanelOpen ? 'translateX(0)' : 'translateX(50px)',
                         opacity: isSidePanelOpen ? 1 : 0,
                         visibility: isSidePanelOpen ? 'visible' : 'hidden',
@@ -311,7 +314,6 @@ const Members: React.FC = () => {
                                 userId={selectedUserId}
                                 systemRoleMap={SystemRoleMap}
                                 onClose={() => { setSelectedUserId(null); setCheckLogData(null); }}
-                                onScanFace={(studentId, userName) => setFaceScanData({ studentId, userName })}
                                 onCheckLog={(email, studentId, userName) => {
                                     if (isCheckLogOpen && checkLogData?.email === email) {
                                         setCheckLogData(null);
@@ -326,8 +328,8 @@ const Members: React.FC = () => {
 
                     {/* Right Column: Check Log panel */}
                     <div style={{
-                        flex: isCheckLogOpen ? '0 0 33%' : '0 0 0',
-                        maxWidth: isCheckLogOpen ? '33%' : '0',
+                        flex: isCheckLogOpen ? '0 0 62%' : '0 0 0',
+                        maxWidth: isCheckLogOpen ? '62%' : '0',
                         transform: isCheckLogOpen ? 'translateX(0)' : 'translateX(50px)',
                         opacity: isCheckLogOpen ? 1 : 0,
                         visibility: isCheckLogOpen ? 'visible' : 'hidden',
@@ -341,6 +343,7 @@ const Members: React.FC = () => {
                                 studentId={checkLogData.studentId}
                                 userName={checkLogData.userName}
                                 onClose={() => setCheckLogData(null)}
+                                onScanFace={(studentId, userName) => setFaceScanData({ studentId, userName })}
                             />
                         )}
                     </div>
