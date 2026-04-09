@@ -78,7 +78,6 @@ const PaperSubmissions: React.FC = () => {
     const [addConference, setAddConference] = useState('');
     const [addPaperUrl, setAddPaperUrl] = useState('');
     const [addProjectId, setAddProjectId] = useState('');
-    const [addDeadline, setAddDeadline] = useState('');
     const [addMembers, setAddMembers] = useState<PaperMemberRequest[]>([]);
     const [addDocument, setAddDocument] = useState<File | null>(null);
     const [addLoading, setAddLoading] = useState(false);
@@ -202,8 +201,9 @@ const PaperSubmissions: React.FC = () => {
         }
     };
 
-    const validateForm = (data: { title: string; conferenceName: string; paperUrl?: string }) => {
+    const validateForm = (data: { projectId?: string | null; title: string; conferenceName: string; paperUrl?: string }) => {
         const errs: Record<string, string> = {};
+        if (!data.projectId || String(data.projectId).trim() === '') errs.projectId = 'Project is required';
         if (!data.title?.trim()) errs.title = 'Title is required';
         if (!data.conferenceName?.trim()) errs.conferenceName = 'Conference / Journal name is required';
         if (data.paperUrl?.trim() && !data.paperUrl.match(/^https?:\/\/.+/)) {
@@ -215,7 +215,7 @@ const PaperSubmissions: React.FC = () => {
 
     const handleCreate = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!validateForm({ title: addTitle, conferenceName: addConference, paperUrl: addPaperUrl })) return;
+        if (!validateForm({ projectId: addProjectId, title: addTitle, conferenceName: addConference, paperUrl: addPaperUrl })) return;
         if (isPdfFile(addDocument)) {
             showToast('PDF upload is currently disabled.', 'error');
             return;
@@ -232,7 +232,6 @@ const PaperSubmissions: React.FC = () => {
                 projectId: addProjectId || null,
                 title: addTitle, abstract: addAbstract,
                 conferenceName: addConference, paperUrl: addPaperUrl,
-                submissionDeadline: addDeadline ? new Date(addDeadline).toISOString() : null,
                 document: addDocument,
                 members: addMembers.map(m => ({ membershipId: m.membershipId, role: Number(m.role) })),
                 createdByMembershipId: myMembershipId
@@ -240,7 +239,7 @@ const PaperSubmissions: React.FC = () => {
             const newPaper = await paperSubmissionService.create(payload);
             await loadPapers(1);
             showToast(`Paper "${newPaper.title}" created successfully!`, 'success');
-            setAddTitle(''); setAddAbstract(''); setAddConference(''); setAddPaperUrl(''); setAddProjectId(''); setAddDeadline(''); setAddMembers([]); setAddDocument(null);
+            setAddTitle(''); setAddAbstract(''); setAddConference(''); setAddPaperUrl(''); setAddProjectId(''); setAddMembers([]); setAddDocument(null);
             setActivePanel(null);
         } catch (err: any) {
             showToast(err.response?.data?.message || 'Failed to create paper.', 'error');
@@ -251,7 +250,7 @@ const PaperSubmissions: React.FC = () => {
 
     const handleUpdate = async () => {
         if (!selectedPaper) return;
-        if (!validateForm({ title: editData.title || '', conferenceName: editData.conferenceName || '', paperUrl: editData.paperUrl })) return;
+        if (!validateForm({ projectId: editData.projectId, title: editData.title || '', conferenceName: editData.conferenceName || '', paperUrl: editData.paperUrl })) return;
         if (isPdfFile(editDocument)) {
             showToast('PDF upload is currently disabled.', 'error');
             return;
@@ -268,7 +267,6 @@ const PaperSubmissions: React.FC = () => {
                 projectId: editData.projectId || null, title: editData.title || '',
                 abstract: editData.abstract || '', paperUrl: editData.paperUrl || '',
                 conferenceName: editData.conferenceName || '',
-                submissionDeadline: editData.submissionDeadline ? new Date(editData.submissionDeadline).toISOString() : null,
                 document: editDocument,
                 members: editData.members?.map((m: any) => ({ membershipId: m.membershipId, role: Number(m.role) })) || [],
                 lastUpdatedByMembershipId: myMembershipId
@@ -411,7 +409,7 @@ const PaperSubmissions: React.FC = () => {
 
     const openEdit = (paper: PaperSubmissionResponse) => {
         setSelectedPaper(paper);
-        setEditData({ ...paper, submissionDeadline: paper.submissionDeadline ? paper.submissionDeadline.split('T')[0] : '' });
+        setEditData({ ...paper });
         setEditDocument(null);
         setFormErrors({});
         if (paper.projectId) handleProjectChange(paper.projectId, true, false);
@@ -421,7 +419,7 @@ const PaperSubmissions: React.FC = () => {
     const openCreate = () => {
         setSelectedPaper(null);
         setAddTitle(''); setAddAbstract(''); setAddConference(''); setAddPaperUrl('');
-        setAddProjectId(''); setAddDeadline(''); setAddMembers([]); setAddDocument(null); setFormErrors({});
+        setAddProjectId(''); setAddMembers([]); setAddDocument(null); setFormErrors({});
         setActivePanel('create');
     };
 
@@ -750,13 +748,12 @@ const PaperSubmissions: React.FC = () => {
                             {activePanel === 'create' && (
                                 <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                                     <PaperFormFields
-                                        data={{ title: addTitle, abstract: addAbstract, conferenceName: addConference, paperUrl: addPaperUrl, projectId: addProjectId, deadline: addDeadline, members: addMembers, document: addDocument }}
+                                        data={{ title: addTitle, abstract: addAbstract, conferenceName: addConference, paperUrl: addPaperUrl, projectId: addProjectId, members: addMembers, document: addDocument }}
                                         onChange={(field, val) => {
                                             if (field === 'title') setAddTitle(val);
                                             else if (field === 'abstract') setAddAbstract(val);
                                             else if (field === 'conferenceName') setAddConference(val);
                                             else if (field === 'paperUrl') setAddPaperUrl(val);
-                                            else if (field === 'deadline') setAddDeadline(val);
                                         }}
                                         onDocumentChange={handleAddDocumentChange}
                                         onProjectChange={pid => handleProjectChange(pid)}
@@ -783,10 +780,10 @@ const PaperSubmissions: React.FC = () => {
                                         data={{
                                             title: editData.title || '', abstract: editData.abstract || '',
                                             conferenceName: editData.conferenceName || '', paperUrl: editData.paperUrl || '',
-                                            projectId: editData.projectId || '', deadline: editData.submissionDeadline || '',
+                                            projectId: editData.projectId || '',
                                             members: editData.members || [], document: editDocument
                                         }}
-                                        onChange={(field, val) => setEditData((p: any) => ({ ...p, [field === 'deadline' ? 'submissionDeadline' : field]: val }))}
+                                        onChange={(field, val) => setEditData((p: any) => ({ ...p, [field]: val }))}
                                         onDocumentChange={handleEditDocumentChange}
                                         onProjectChange={pid => handleProjectChange(pid, true)}
                                         onMembersChange={m => setEditData((p: any) => ({ ...p, members: m }))}
@@ -813,7 +810,6 @@ const PaperSubmissions: React.FC = () => {
                                         {[
                                             { label: 'Conference / Journal', value: selectedPaper.conferenceName },
                                             { label: 'Project', value: getProjectName(selectedPaper.projectId) },
-                                            { label: 'Deadline', value: selectedPaper.submissionDeadline ? new Date(selectedPaper.submissionDeadline).toLocaleDateString() : '—' },
                                             { label: 'Created', value: new Date(selectedPaper.createdAt).toLocaleDateString() },
                                         ].map(item => (
                                             <div key={item.label} style={{ background: '#f8fafc', borderRadius: '10px', padding: '10px 12px', border: '1px solid #e2e8f0' }}>
@@ -1065,7 +1061,7 @@ const fieldLabelStyle: React.CSSProperties = { fontSize: '0.72rem', fontWeight: 
 const fieldInputStyle: React.CSSProperties = { width: '100%', padding: '9px 12px', borderRadius: '9px', border: '1.5px solid #e2e8f0', fontSize: '0.85rem', fontFamily: 'inherit', outline: 'none', background: '#fff', boxSizing: 'border-box' };
 
 interface PaperFormFieldsProps {
-    data: { title: string; abstract: string; conferenceName: string; paperUrl: string; projectId: string; deadline?: string; members: PaperMemberRequest[]; document?: File | null };
+    data: { title: string; abstract: string; conferenceName: string; paperUrl: string; projectId: string; members: PaperMemberRequest[]; document?: File | null };
     onChange: (field: string, val: string) => void;
     onProjectChange: (pid: string) => void;
     onMembersChange: (m: PaperMemberRequest[]) => void;
@@ -1144,12 +1140,6 @@ const PaperFormFields: React.FC<PaperFormFieldsProps> = ({
                     onChange={e => onDocumentChange(e.target.files?.[0] ?? null)}
                 />
             </label>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <label style={fieldLabelStyle}>Submission Deadline</label>
-            <input type="date" className="form-input" style={fieldInputStyle}
-                value={data.deadline || ''}
-                onChange={e => onChange('deadline', e.target.value)} />
         </div>
         {extraField}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>

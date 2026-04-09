@@ -264,6 +264,7 @@ const ProfilePage: React.FC = () => {
                                         value={editData.studentId}
                                         onChange={(e) => setEditData({ ...editData, studentId: e.target.value })}
                                         className="form-input"
+                                        maxLength={50}
                                         placeholder="Your student ID"
                                         style={{
                                             width: '100%', padding: '10px 14px', fontSize: '0.95rem',
@@ -301,6 +302,9 @@ const ProfilePage: React.FC = () => {
                                         value={editData.phoneNumber}
                                         onChange={(e) => setEditData({ ...editData, phoneNumber: e.target.value })}
                                         className="form-input"
+                                        maxLength={20}
+                                        pattern="^[0-9]{10,11}$"
+                                        title="Phone number must be 10-11 digits"
                                         style={{
                                             width: '100%', padding: '10px 14px', fontSize: '0.95rem',
                                             borderRadius: '10px', border: '1px solid var(--border-color)',
@@ -378,6 +382,9 @@ const ProfilePage: React.FC = () => {
                                         onChange={(e) => setEditData({ ...editData, orcid: e.target.value })}
                                         placeholder="xxxx-xxxx-xxxx-xxxx"
                                         className="form-input"
+                                        maxLength={50}
+                                        pattern="^\d{4}-\d{4}-\d{4}-\d{3}[0-9X]$"
+                                        title="Format: 0000-0000-0000-0000"
                                         style={{
                                             width: '100%', padding: '10px 14px', fontSize: '0.95rem',
                                             borderRadius: '10px', border: '1px solid var(--border-color)',
@@ -419,6 +426,7 @@ const ProfilePage: React.FC = () => {
                                         onChange={(e) => setEditData({ ...editData, googleScholarUrl: e.target.value })}
                                         className="form-input"
                                         placeholder="https://scholar.google.com/..."
+                                        maxLength={255}
                                         style={{
                                             width: '100%', padding: '10px 14px', fontSize: '0.95rem',
                                             borderRadius: '10px', border: '1px solid var(--border-color)',
@@ -461,6 +469,7 @@ const ProfilePage: React.FC = () => {
                                         onChange={(e) => setEditData({ ...editData, githubUrl: e.target.value })}
                                         className="form-input"
                                         placeholder="https://github.com/..."
+                                        maxLength={255}
                                         style={{
                                             width: '100%', padding: '10px 14px', fontSize: '0.95rem',
                                             borderRadius: '10px', border: '1px solid var(--border-color)',

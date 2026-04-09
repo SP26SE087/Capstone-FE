@@ -265,11 +265,11 @@ const UserManagement: React.FC = () => {
                         <form onSubmit={handleAddUser} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', alignItems: 'flex-end' }}>
                             <div>
                                 <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.85rem', fontWeight: 600 }}>Email Address</label>
-                                <input className="form-input" required type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} />
+                                <input className="form-input" required type="email" maxLength={255} value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} />
                             </div>
                             <div>
                                 <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.85rem', fontWeight: 600 }}>Full Name</label>
-                                <input className="form-input" required type="text" value={formData.fullName} onChange={e => setFormData({ ...formData, fullName: e.target.value })} />
+                                <input className="form-input" required type="text" maxLength={255} value={formData.fullName} onChange={e => setFormData({ ...formData, fullName: e.target.value })} />
                             </div>
                             <div>
                                 <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.85rem', fontWeight: 600 }}>Role</label>
@@ -437,19 +437,19 @@ const UserManagement: React.FC = () => {
 
                                                     <div>
                                                         <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Student ID</label>
-                                                        <input className="form-input" type="text" value={editData.studentId} onChange={e => setEditData({ ...editData, studentId: e.target.value })} placeholder="Student ID" />
+                                                        <input className="form-input" type="text" maxLength={50} value={editData.studentId} onChange={e => setEditData({ ...editData, studentId: e.target.value })} placeholder="Student ID" />
                                                     </div>
                                                     <div>
                                                         <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>ORCID</label>
-                                                        <input className="form-input" type="text" value={editData.orcid} onChange={e => setEditData({ ...editData, orcid: e.target.value })} placeholder="xxxx-xxxx-xxxx-xxxx" />
+                                                        <input className="form-input" type="text" maxLength={50} pattern="^\d{4}-\d{4}-\d{4}-\d{3}[0-9X]$" title="Format: 0000-0000-0000-0000" value={editData.orcid} onChange={e => setEditData({ ...editData, orcid: e.target.value })} placeholder="xxxx-xxxx-xxxx-xxxx" />
                                                     </div>
                                                     <div>
                                                         <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Google Scholar URL</label>
-                                                        <input className="form-input" type="url" value={editData.googleScholarUrl} onChange={e => setEditData({ ...editData, googleScholarUrl: e.target.value })} placeholder="https://scholar.google.com/..." />
+                                                        <input className="form-input" type="url" maxLength={255} value={editData.googleScholarUrl} onChange={e => setEditData({ ...editData, googleScholarUrl: e.target.value })} placeholder="https://scholar.google.com/..." />
                                                     </div>
                                                     <div>
                                                         <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>GitHub URL</label>
-                                                        <input className="form-input" type="url" value={editData.githubUrl} onChange={e => setEditData({ ...editData, githubUrl: e.target.value })} placeholder="https://github.com/..." />
+                                                        <input className="form-input" type="url" maxLength={255} value={editData.githubUrl} onChange={e => setEditData({ ...editData, githubUrl: e.target.value })} placeholder="https://github.com/..." />
                                                     </div>
                                                     <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '0.5rem' }}>
                                                         <button type="button" className="btn btn-secondary" onClick={() => setEditingUserId(null)}>Cancel</button>
