@@ -104,7 +104,7 @@ export const userService = {
         archivedProjects: number;
         completedProjects: number;
     }> => {
-        const response = await api.get(`/api/user-projects/${encodeURIComponent(email)}/projects`);
+        const response = await api.get(`/api/users/${encodeURIComponent(email)}/projects`);
         const data = response.data.data || response.data;
         return {
             projects: data.projects || [],

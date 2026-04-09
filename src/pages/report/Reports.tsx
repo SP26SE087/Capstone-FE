@@ -114,6 +114,13 @@ const Reports: React.FC = () => {
         fetchMetadata();
     }, []);
 
+    // Set default tab to all_reports for Lab Director
+    useEffect(() => {
+        if (isLabDirector) {
+            setActiveTab('all_reports');
+        }
+    }, [isLabDirector]);
+
     useEffect(() => {
         fetchReports();
     }, [activeTab]);
@@ -375,7 +382,7 @@ const Reports: React.FC = () => {
                     <div style={{ flex: 1, borderBottom: '1px solid #e2e8f0', overflowX: 'auto', whiteSpace: 'nowrap' }} className="custom-scrollbar">
                         <div style={{ display: 'flex', gap: '1rem' }}>
                             {[
-                                { id: 'my_reports', label: 'My Reports', icon: <FileText size={16} /> },
+                                { id: 'my_reports', label: 'My Reports', icon: <FileText size={16} />, hidden: isLabDirector },
                                 { id: 'all_reports', label: 'All Reports', icon: <LayoutGrid size={16} />, hidden: !isLabDirector },
                                 { id: 'my_assignee', label: 'Review Requests', icon: <CheckCircle size={16} /> }
                             ].map(tab => !tab.hidden && (
@@ -396,18 +403,20 @@ const Reports: React.FC = () => {
                         </div>
                     </div>
                     {/* Right: Actions */}
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-end', paddingBottom: '4px' }}>
-                        <button
-                            className="btn btn-primary"
-                            onClick={handleAddCreateTab}
-                            style={{
-                                display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, padding: '10px 20px', borderRadius: '12px', fontSize: '0.85rem',
-                                boxShadow: '0 4px 12px rgba(99, 102, 241, 0.2)', whiteSpace: 'nowrap'
-                            }}
-                        >
-                            <Plus size={18} /> New Report
-                        </button>
-                    </div>
+                    {!isLabDirector && (
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-end', paddingBottom: '4px' }}>
+                            <button
+                                className="btn btn-primary"
+                                onClick={handleAddCreateTab}
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, padding: '10px 20px', borderRadius: '12px', fontSize: '0.85rem',
+                                    boxShadow: '0 4px 12px rgba(99, 102, 241, 0.2)', whiteSpace: 'nowrap'
+                                }}
+                            >
+                                <Plus size={18} /> New Report
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 <div style={{ display: 'flex', gap: '2rem', height: 'calc(100vh - 250px)', minHeight: '650px', marginTop: '1rem' }}>

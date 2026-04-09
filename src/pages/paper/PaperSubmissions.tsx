@@ -13,6 +13,8 @@ import {
     type CreatePaperRequest,
     type UpdatePaperRequest,
     type PaperMemberRequest,
+    type ExternalUserCreateDto,
+    type ExternalUserResponse,
 } from '@/types/paperSubmission';
 import Toast, { ToastType } from '@/components/common/Toast';
 import {
@@ -80,8 +82,18 @@ const PaperSubmissions: React.FC = () => {
     const [addProjectId, setAddProjectId] = useState('');
     const [addDeadline, setAddDeadline] = useState('');
     const [addMembers, setAddMembers] = useState<PaperMemberRequest[]>([]);
+    const [addExternalUsers, setAddExternalUsers] = useState<ExternalUserCreateDto[]>([]);
     const [addDocument, setAddDocument] = useState<File | null>(null);
     const [addLoading, setAddLoading] = useState(false);
+
+    // External users management (view/edit panel)
+    const [showAddExternalUser, setShowAddExternalUser] = useState(false);
+    const blankExternalForm = { fullName: '', email: '', phoneNumber: '', studentId: '', orcid: '', googleScholarUrl: '', githubUrl: '' };
+    const [externalUserNewForm, setExternalUserNewForm] = useState(blankExternalForm);
+    const [externalUserSaving, setExternalUserSaving] = useState(false);
+    const [editingExternalUserId, setEditingExternalUserId] = useState<string | null>(null);
+    const [externalUserEditForm, setExternalUserEditForm] = useState(blankExternalForm);
+    const [externalUserEditSaving, setExternalUserEditSaving] = useState(false);
 
     // Edit form
     const [editData, setEditData] = useState<any>({});
@@ -213,8 +225,7 @@ const PaperSubmissions: React.FC = () => {
         return Object.keys(errs).length === 0;
     };
 
-    const handleCreate = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleCreate = async () => {
         if (!validateForm({ title: addTitle, conferenceName: addConference, paperUrl: addPaperUrl })) return;
         if (isPdfFile(addDocument)) {
             showToast('PDF upload is currently disabled.', 'error');
@@ -235,6 +246,7 @@ const PaperSubmissions: React.FC = () => {
                 submissionDeadline: addDeadline ? new Date(addDeadline).toISOString() : null,
                 document: addDocument,
                 members: addMembers.map(m => ({ membershipId: m.membershipId, role: Number(m.role) })),
+                externalUsers: addExternalUsers,
                 createdByMembershipId: myMembershipId
             };
             const newPaper = await paperSubmissionService.create(payload);
@@ -421,7 +433,7 @@ const PaperSubmissions: React.FC = () => {
     const openCreate = () => {
         setSelectedPaper(null);
         setAddTitle(''); setAddAbstract(''); setAddConference(''); setAddPaperUrl('');
-        setAddProjectId(''); setAddDeadline(''); setAddMembers([]); setAddDocument(null); setFormErrors({});
+        setAddProjectId(''); setAddDeadline(''); setAddMembers([]); setAddExternalUsers([]); setAddDocument(null); setFormErrors({});
         setActivePanel('create');
     };
 
@@ -430,6 +442,90 @@ const PaperSubmissions: React.FC = () => {
         setSelectedPaper(null);
         setShowPdfViewer(false);
         setViewerUrl(null);
+        setShowAddExternalUser(false);
+        setEditingExternalUserId(null);
+    };
+
+    const handleAddExternalUsers = async () => {
+        if (!selectedPaper || !externalUserNewForm.fullName.trim()) return;
+        setExternalUserSaving(true);
+        try {
+            const added = await paperSubmissionService.addExternalUsers(
+                selectedPaper.paperSubmissionId,
+                [{
+                    fullName: externalUserNewForm.fullName.trim(),
+                    email: externalUserNewForm.email.trim() || null,
+                    phoneNumber: externalUserNewForm.phoneNumber.trim() || null,
+                    studentId: externalUserNewForm.studentId.trim() || null,
+                    orcid: externalUserNewForm.orcid.trim() || null,
+                    googleScholarUrl: externalUserNewForm.googleScholarUrl.trim() || null,
+                    githubUrl: externalUserNewForm.githubUrl.trim() || null,
+                    isActive: true,
+                }]
+            );
+            const updated = { ...selectedPaper, externalUsers: [...(selectedPaper.externalUsers ?? []), ...added] };
+            setSelectedPaper(updated);
+            setPapers(prev => prev.map(p => p.paperSubmissionId === updated.paperSubmissionId ? updated : p));
+            setExternalUserNewForm(blankExternalForm);
+            setShowAddExternalUser(false);
+            showToast('External author added.', 'success');
+        } catch (err: any) {
+            showToast(err.response?.data?.message || 'Failed to add external author.', 'error');
+        } finally {
+            setExternalUserSaving(false);
+        }
+    };
+
+    const handleUpdateExternalUser = async (eu: ExternalUserResponse) => {
+        if (!selectedPaper) return;
+        setExternalUserEditSaving(true);
+        try {
+            const updated_eu = await paperSubmissionService.updateExternalUser(
+                selectedPaper.paperSubmissionId,
+                eu.externalUserId,
+                {
+                    fullName: externalUserEditForm.fullName.trim(),
+                    email: externalUserEditForm.email.trim() || null,
+                    phoneNumber: externalUserEditForm.phoneNumber.trim() || null,
+                    studentId: externalUserEditForm.studentId.trim() || null,
+                    orcid: externalUserEditForm.orcid.trim() || null,
+                    googleScholarUrl: externalUserEditForm.googleScholarUrl.trim() || null,
+                    githubUrl: externalUserEditForm.githubUrl.trim() || null,
+                    isActive: eu.isActive,
+                }
+            );
+            const updatedPaper = {
+                ...selectedPaper,
+                externalUsers: (selectedPaper.externalUsers ?? []).map(x => x.externalUserId === eu.externalUserId ? updated_eu : x)
+            };
+            setSelectedPaper(updatedPaper);
+            setPapers(prev => prev.map(p => p.paperSubmissionId === updatedPaper.paperSubmissionId ? updatedPaper : p));
+            setEditingExternalUserId(null);
+            showToast('External author updated.', 'success');
+        } catch (err: any) {
+            showToast(err.response?.data?.message || 'Failed to update external author.', 'error');
+        } finally {
+            setExternalUserEditSaving(false);
+        }
+    };
+
+    const handleDeleteExternalUser = async (externalUserId: string) => {
+        if (!selectedPaper) return;
+        setActionLoading(externalUserId);
+        try {
+            await paperSubmissionService.deleteExternalUser(selectedPaper.paperSubmissionId, externalUserId);
+            const updatedPaper = {
+                ...selectedPaper,
+                externalUsers: (selectedPaper.externalUsers ?? []).filter(x => x.externalUserId !== externalUserId)
+            };
+            setSelectedPaper(updatedPaper);
+            setPapers(prev => prev.map(p => p.paperSubmissionId === updatedPaper.paperSubmissionId ? updatedPaper : p));
+            showToast('External author removed.', 'success');
+        } catch (err: any) {
+            showToast(err.response?.data?.message || 'Failed to remove external author.', 'error');
+        } finally {
+            setActionLoading(null);
+        }
     };
 
     const getProjectName = (id?: string | null) => {
@@ -748,7 +844,7 @@ const PaperSubmissions: React.FC = () => {
 
                             {/* ── CREATE FORM ── */}
                             {activePanel === 'create' && (
-                                <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                                     <PaperFormFields
                                         data={{ title: addTitle, abstract: addAbstract, conferenceName: addConference, paperUrl: addPaperUrl, projectId: addProjectId, deadline: addDeadline, members: addMembers, document: addDocument }}
                                         onChange={(field, val) => {
@@ -767,13 +863,20 @@ const PaperSubmissions: React.FC = () => {
                                         formErrors={formErrors}
                                         hidePaperUrl
                                     />
+
+                                    {/* External Authors — tách riêng, không nằm trong form */}
+                                    <CreateExternalAuthors
+                                        externalUsers={addExternalUsers}
+                                        onChange={setAddExternalUsers}
+                                    />
+
                                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '8px', borderTop: '1px solid #f1f5f9' }}>
-                                        <button type="button" onClick={closePanel} style={{ padding: '8px 18px', borderRadius: '10px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 700 }}>Cancel</button>
-                                        <button type="submit" disabled={addLoading} className="btn btn-primary" style={{ padding: '8px 20px', borderRadius: '10px', fontWeight: 700, fontSize: '0.82rem' }}>
+                                        <button onClick={closePanel} style={{ padding: '8px 18px', borderRadius: '10px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 700 }}>Cancel</button>
+                                        <button onClick={handleCreate} disabled={addLoading} className="btn btn-primary" style={{ padding: '8px 20px', borderRadius: '10px', fontWeight: 700, fontSize: '0.82rem' }}>
                                             {addLoading ? <><Loader2 size={14} className="animate-spin" /> Creating...</> : 'Create Paper'}
                                         </button>
                                     </div>
-                                </form>
+                                </div>
                             )}
 
                             {/* ── EDIT FORM ── */}
@@ -873,6 +976,93 @@ const PaperSubmissions: React.FC = () => {
                                             </div>
                                         </div>
                                     )}
+
+                                    {/* External Authors */}
+                                    <div>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                                            <div style={{ fontSize: '0.62rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' as const, letterSpacing: '0.6px' }}>External Authors</div>
+                                            <button
+                                                onClick={() => { setShowAddExternalUser(v => !v); setEditingExternalUserId(null); }}
+                                                style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 9px', borderRadius: '7px', border: '1px solid #e2e8f0', background: '#f8fafc', color: '#475569', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700 }}
+                                            >
+                                                <Plus size={11} /> Add
+                                            </button>
+                                        </div>
+
+                                        {/* Existing external users */}
+                                        {(selectedPaper.externalUsers ?? []).length > 0 && (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '6px' }}>
+                                                {(selectedPaper.externalUsers ?? []).map(eu => (
+                                                    <div key={eu.externalUserId}>
+                                                        {editingExternalUserId === eu.externalUserId ? (
+                                                            <div style={{ padding: '10px', background: '#f0fdf4', borderRadius: '10px', border: '1px solid #bbf7d0', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                                                                    <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem' }} placeholder="Full name *" value={externalUserEditForm.fullName} onChange={e => setExternalUserEditForm(f => ({ ...f, fullName: e.target.value }))} />
+                                                                    <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem' }} placeholder="Email" value={externalUserEditForm.email} onChange={e => setExternalUserEditForm(f => ({ ...f, email: e.target.value }))} />
+                                                                    <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem' }} placeholder="Phone number" value={externalUserEditForm.phoneNumber} onChange={e => setExternalUserEditForm(f => ({ ...f, phoneNumber: e.target.value }))} />
+                                                                    <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem' }} placeholder="Student ID" value={externalUserEditForm.studentId} onChange={e => setExternalUserEditForm(f => ({ ...f, studentId: e.target.value }))} />
+                                                                    <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem' }} placeholder="ORCID" value={externalUserEditForm.orcid} onChange={e => setExternalUserEditForm(f => ({ ...f, orcid: e.target.value }))} />
+                                                                    <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem' }} placeholder="Google Scholar URL" value={externalUserEditForm.googleScholarUrl} onChange={e => setExternalUserEditForm(f => ({ ...f, googleScholarUrl: e.target.value }))} />
+                                                                    <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem', gridColumn: '1 / -1' }} placeholder="GitHub URL" value={externalUserEditForm.githubUrl} onChange={e => setExternalUserEditForm(f => ({ ...f, githubUrl: e.target.value }))} />
+                                                                </div>
+                                                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
+                                                                    <button onClick={() => setEditingExternalUserId(null)} style={{ padding: '5px 12px', borderRadius: '6px', border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', color: '#64748b', fontSize: '0.75rem', fontWeight: 700 }}>Cancel</button>
+                                                                    <button onClick={() => handleUpdateExternalUser(eu)} disabled={externalUserEditSaving || !externalUserEditForm.fullName.trim()} style={{ padding: '5px 12px', borderRadius: '6px', border: 'none', background: '#16a34a', color: '#fff', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}>
+                                                                        {externalUserEditSaving ? <Loader2 size={12} className="animate-spin" /> : 'Save'}
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <div style={{ padding: '8px 10px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                                                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+                                                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                                                        <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1e293b' }}>{eu.fullName || '—'}</div>
+                                                                        <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: '8px', marginTop: '4px' }}>
+                                                                            {eu.email && <span style={{ fontSize: '0.72rem', color: '#64748b' }}>✉ {eu.email}</span>}
+                                                                            {eu.phoneNumber && <span style={{ fontSize: '0.72rem', color: '#64748b' }}>☎ {eu.phoneNumber}</span>}
+                                                                            {eu.studentId && <span style={{ fontSize: '0.72rem', color: '#64748b' }}>ID: {eu.studentId}</span>}
+                                                                            {eu.orcid && <span style={{ fontSize: '0.72rem', color: '#64748b' }}>ORCID: {eu.orcid}</span>}
+                                                                            {eu.googleScholarUrl && <a href={eu.googleScholarUrl} target="_blank" rel="noreferrer" style={{ fontSize: '0.72rem', color: 'var(--accent-color)', textDecoration: 'none' }}>Google Scholar ↗</a>}
+                                                                            {eu.githubUrl && <a href={eu.githubUrl} target="_blank" rel="noreferrer" style={{ fontSize: '0.72rem', color: 'var(--accent-color)', textDecoration: 'none' }}>GitHub ↗</a>}
+                                                                        </div>
+                                                                    </div>
+                                                                    <button onClick={() => { setEditingExternalUserId(eu.externalUserId); setExternalUserEditForm({ fullName: eu.fullName ?? '', email: eu.email ?? '', phoneNumber: eu.phoneNumber ?? '', studentId: eu.studentId ?? '', orcid: eu.orcid ?? '', googleScholarUrl: eu.googleScholarUrl ?? '', githubUrl: eu.githubUrl ?? '' }); setShowAddExternalUser(false); }} style={{ padding: '3px 7px', borderRadius: '5px', border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', color: '#64748b', flexShrink: 0 }}><Edit2 size={11} /></button>
+                                                                    <button onClick={() => handleDeleteExternalUser(eu.externalUserId)} disabled={actionLoading === eu.externalUserId} style={{ padding: '3px 7px', borderRadius: '5px', border: '1px solid #fecaca', background: '#fef2f2', cursor: 'pointer', color: '#ef4444', flexShrink: 0 }}>
+                                                                        {actionLoading === eu.externalUserId ? <Loader2 size={11} className="animate-spin" /> : <Trash2 size={11} />}
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {/* Add new external user form */}
+                                        {showAddExternalUser && (
+                                            <div style={{ padding: '10px', background: '#eff6ff', borderRadius: '10px', border: '1px solid #bfdbfe', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                                                    <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem' }} placeholder="Full name *" value={externalUserNewForm.fullName} onChange={e => setExternalUserNewForm(f => ({ ...f, fullName: e.target.value }))} />
+                                                    <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem' }} placeholder="Email" value={externalUserNewForm.email} onChange={e => setExternalUserNewForm(f => ({ ...f, email: e.target.value }))} />
+                                                    <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem' }} placeholder="Phone number" value={externalUserNewForm.phoneNumber} onChange={e => setExternalUserNewForm(f => ({ ...f, phoneNumber: e.target.value }))} />
+                                                    <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem' }} placeholder="Student ID" value={externalUserNewForm.studentId} onChange={e => setExternalUserNewForm(f => ({ ...f, studentId: e.target.value }))} />
+                                                    <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem' }} placeholder="ORCID" value={externalUserNewForm.orcid} onChange={e => setExternalUserNewForm(f => ({ ...f, orcid: e.target.value }))} />
+                                                    <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem' }} placeholder="Google Scholar URL" value={externalUserNewForm.googleScholarUrl} onChange={e => setExternalUserNewForm(f => ({ ...f, googleScholarUrl: e.target.value }))} />
+                                                    <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem', gridColumn: '1 / -1' }} placeholder="GitHub URL" value={externalUserNewForm.githubUrl} onChange={e => setExternalUserNewForm(f => ({ ...f, githubUrl: e.target.value }))} />
+                                                </div>
+                                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
+                                                    <button onClick={() => setShowAddExternalUser(false)} style={{ padding: '5px 12px', borderRadius: '6px', border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', color: '#64748b', fontSize: '0.75rem', fontWeight: 700 }}>Cancel</button>
+                                                    <button onClick={handleAddExternalUsers} disabled={externalUserSaving || !externalUserNewForm.fullName.trim()} style={{ padding: '5px 12px', borderRadius: '6px', border: 'none', background: 'var(--accent-color)', color: '#fff', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}>
+                                                        {externalUserSaving ? <Loader2 size={12} className="animate-spin" /> : 'Add Author'}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {(selectedPaper.externalUsers ?? []).length === 0 && !showAddExternalUser && (
+                                            <p style={{ fontSize: '0.78rem', color: '#94a3b8', margin: 0, fontStyle: 'italic' }}>No external authors added.</p>
+                                        )}
+                                    </div>
 
                                     {/* Actions */}
                                     <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '14px', display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '4px' }}>
@@ -1194,5 +1384,111 @@ const PaperFormFields: React.FC<PaperFormFieldsProps> = ({
         </div>
     </>
 );
+
+// ─── CreateExternalAuthors ─────────────────────────────────────────────────────
+const blankEu = { fullName: '', email: '', phoneNumber: '', studentId: '', orcid: '', googleScholarUrl: '', githubUrl: '' };
+
+interface CreateExternalAuthorsProps {
+    externalUsers: ExternalUserCreateDto[];
+    onChange: (users: ExternalUserCreateDto[]) => void;
+}
+
+const CreateExternalAuthors: React.FC<CreateExternalAuthorsProps> = ({ externalUsers, onChange }) => {
+    const [draft, setDraft] = React.useState(blankEu);
+    const [showForm, setShowForm] = React.useState(false);
+    const [editIdx, setEditIdx] = React.useState<number | null>(null);
+    const [editDraft, setEditDraft] = React.useState(blankEu);
+
+    const addAuthor = () => {
+        if (!draft.fullName.trim()) return;
+        onChange([...externalUsers, { ...draft, fullName: draft.fullName.trim(), email: draft.email.trim() || null, phoneNumber: draft.phoneNumber.trim() || null, studentId: draft.studentId.trim() || null, orcid: draft.orcid.trim() || null, googleScholarUrl: draft.googleScholarUrl.trim() || null, githubUrl: draft.githubUrl.trim() || null, isActive: true }]);
+        setDraft(blankEu);
+        setShowForm(false);
+    };
+
+    const saveEdit = () => {
+        if (editIdx === null || !editDraft.fullName.trim()) return;
+        onChange(externalUsers.map((eu, i) => i === editIdx ? { ...editDraft, fullName: editDraft.fullName.trim(), email: editDraft.email.trim() || null, phoneNumber: editDraft.phoneNumber.trim() || null, studentId: editDraft.studentId.trim() || null, orcid: editDraft.orcid.trim() || null, googleScholarUrl: editDraft.googleScholarUrl.trim() || null, githubUrl: editDraft.githubUrl.trim() || null, isActive: true } : eu));
+        setEditIdx(null);
+    };
+
+    const EuGrid = ({ val, set }: { val: typeof blankEu; set: React.Dispatch<React.SetStateAction<typeof blankEu>> }) => (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+            <input className="form-input" style={{ ...fieldInputStyle }} placeholder="Full name *" value={val.fullName} onChange={e => set(d => ({ ...d, fullName: e.target.value }))} />
+            <input className="form-input" style={{ ...fieldInputStyle }} placeholder="Email" value={val.email} onChange={e => set(d => ({ ...d, email: e.target.value }))} />
+            <input className="form-input" style={{ ...fieldInputStyle }} placeholder="Phone number" value={val.phoneNumber} onChange={e => set(d => ({ ...d, phoneNumber: e.target.value }))} />
+            <input className="form-input" style={{ ...fieldInputStyle }} placeholder="Student ID" value={val.studentId} onChange={e => set(d => ({ ...d, studentId: e.target.value }))} />
+            <input className="form-input" style={{ ...fieldInputStyle }} placeholder="ORCID" value={val.orcid} onChange={e => set(d => ({ ...d, orcid: e.target.value }))} />
+            <input className="form-input" style={{ ...fieldInputStyle }} placeholder="Google Scholar URL" value={val.googleScholarUrl} onChange={e => set(d => ({ ...d, googleScholarUrl: e.target.value }))} />
+            <input className="form-input" style={{ ...fieldInputStyle, gridColumn: '1 / -1' } as React.CSSProperties} placeholder="GitHub URL" value={val.githubUrl} onChange={e => set(d => ({ ...d, githubUrl: e.target.value }))} />
+        </div>
+    );
+
+    return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <label style={fieldLabelStyle}>External Authors</label>
+                {!showForm && editIdx === null && (
+                    <button type="button" onClick={() => setShowForm(true)}
+                        style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', borderRadius: '7px', border: '1px solid #e2e8f0', background: '#f8fafc', color: '#475569', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700 }}>
+                        <Plus size={11} /> Add
+                    </button>
+                )}
+            </div>
+
+            {/* Existing list */}
+            {externalUsers.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    {externalUsers.map((eu, idx) => (
+                        <div key={idx}>
+                            {editIdx === idx ? (
+                                <div style={{ padding: '10px', background: '#f0fdf4', borderRadius: '10px', border: '1px solid #bbf7d0', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    <EuGrid val={editDraft} set={setEditDraft} />
+                                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
+                                        <button type="button" onClick={() => setEditIdx(null)} style={{ padding: '5px 12px', borderRadius: '7px', border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', color: '#64748b', fontSize: '0.78rem', fontWeight: 700 }}>Cancel</button>
+                                        <button type="button" onClick={saveEdit} disabled={!editDraft.fullName.trim()} style={{ padding: '5px 12px', borderRadius: '7px', border: 'none', background: '#16a34a', color: '#fff', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700 }}>Save</button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div style={{ padding: '8px 10px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1e293b' }}>{eu.fullName}</div>
+                                        <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: '8px', marginTop: '3px' }}>
+                                            {eu.email && <span style={{ fontSize: '0.71rem', color: '#64748b' }}>✉ {eu.email}</span>}
+                                            {eu.phoneNumber && <span style={{ fontSize: '0.71rem', color: '#64748b' }}>☎ {eu.phoneNumber}</span>}
+                                            {eu.studentId && <span style={{ fontSize: '0.71rem', color: '#64748b' }}>ID: {eu.studentId}</span>}
+                                            {eu.orcid && <span style={{ fontSize: '0.71rem', color: '#64748b' }}>ORCID: {eu.orcid}</span>}
+                                            {eu.googleScholarUrl && <span style={{ fontSize: '0.71rem', color: '#64748b' }}>Google Scholar</span>}
+                                            {eu.githubUrl && <span style={{ fontSize: '0.71rem', color: '#64748b' }}>GitHub</span>}
+                                        </div>
+                                    </div>
+                                    <button type="button" onClick={() => { setEditIdx(idx); setEditDraft({ fullName: eu.fullName ?? '', email: eu.email ?? '', phoneNumber: eu.phoneNumber ?? '', studentId: eu.studentId ?? '', orcid: eu.orcid ?? '', googleScholarUrl: eu.googleScholarUrl ?? '', githubUrl: eu.githubUrl ?? '' }); setShowForm(false); }}
+                                        style={{ padding: '3px 7px', borderRadius: '5px', border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', color: '#64748b', flexShrink: 0 }}><Edit2 size={11} /></button>
+                                    <button type="button" onClick={() => onChange(externalUsers.filter((_, i) => i !== idx))}
+                                        style={{ padding: '3px 7px', borderRadius: '5px', border: '1px solid #fecaca', background: '#fef2f2', cursor: 'pointer', color: '#ef4444', flexShrink: 0 }}><Trash2 size={11} /></button>
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {/* Add new form */}
+            {showForm && (
+                <div style={{ padding: '10px', background: '#eff6ff', borderRadius: '10px', border: '1px solid #bfdbfe', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <EuGrid val={draft} set={setDraft} />
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
+                        <button type="button" onClick={() => { setShowForm(false); setDraft(blankEu); }} style={{ padding: '5px 12px', borderRadius: '7px', border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', color: '#64748b', fontSize: '0.78rem', fontWeight: 700 }}>Cancel</button>
+                        <button type="button" onClick={addAuthor} disabled={!draft.fullName.trim()} style={{ padding: '5px 12px', borderRadius: '7px', border: 'none', background: 'var(--accent-color)', color: '#fff', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700 }}>Add Author</button>
+                    </div>
+                </div>
+            )}
+
+            {externalUsers.length === 0 && !showForm && (
+                <p style={{ fontSize: '0.78rem', color: '#94a3b8', margin: 0, fontStyle: 'italic' }}>No external authors added.</p>
+            )}
+        </div>
+    );
+};
 
 export default PaperSubmissions;

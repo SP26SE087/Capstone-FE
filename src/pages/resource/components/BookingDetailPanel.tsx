@@ -23,6 +23,7 @@ interface BookingDetailPanelProps {
     onSaved: (shouldClose?: boolean, message?: string) => void;
     onTitleChange?: (title: string) => void;
     isLabDirector: boolean;
+    isManagedView?: boolean;
 }
 
 const labelStyle: React.CSSProperties = {
@@ -73,7 +74,8 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
     onClose,
     onSaved,
     onTitleChange,
-    isLabDirector
+    isLabDirector,
+    isManagedView = false
 }) => {
     const { user } = useAuth();
     const [booking, setBooking] = useState<Booking | null>(null);
@@ -214,8 +216,12 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
     const statusConfig = getStatusConfig(booking.status);
     const currentUserEmail = (user?.email || '').trim().toLowerCase();
     const bookingUserEmail = (booking.userEmail || '').trim().toLowerCase();
-    const isRequester = !!currentUserEmail && !!bookingUserEmail && currentUserEmail === bookingUserEmail;
-    const canApproveReject = booking.status === BookingStatus.Pending && !!currentUserEmail && !!bookingUserEmail && !isRequester;
+    const isRequesterByEmail = !!currentUserEmail && !!bookingUserEmail && currentUserEmail === bookingUserEmail;
+    const isRequesterById = !!user?.userId && !!booking.userId && String(user.userId) === String(booking.userId);
+    const isRequester = isRequesterByEmail || isRequesterById;
+    const canApproveReject = isManagedView
+        ? booking.status === BookingStatus.Pending
+        : false;
     const canCancel = (booking.status === BookingStatus.Pending || booking.status === BookingStatus.Approved);
     const canLogEquipment = isLabDirector || isRequester;
     const canCheckOut = canLogEquipment && booking.status === BookingStatus.Approved;

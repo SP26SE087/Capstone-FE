@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { X, Search, Users, Calendar, CheckSquare, AlignLeft, AlertTriangle, MapPin, AlertOctagon, Plus, Trash2, FileText, File, Eye, Clock } from 'lucide-react';
 import { Priority, TaskStatus, ProjectMember, Task, TaskEvidence, ProjectRoleEnum } from '@/types';
+import { validateSpecialChars } from '@/utils/validation';
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
@@ -410,7 +411,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
         if (isBulkMode && !task) {
             // Bulk Create Mode
             const today = new Date().toISOString().split('T')[0];
-            
+
             // Validate all rows first
             for (let i = 0; i < rows.length; i++) {
                 const row = rows[i];
@@ -418,6 +419,10 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                     alert(`Task #${i + 1} must have a name.`);
                     return;
                 }
+                const nameErr = validateSpecialChars(row.name);
+                if (nameErr) { alert(`Task #${i + 1} name: ${nameErr}`); return; }
+                const descErr = row.description ? validateSpecialChars(row.description) : '';
+                if (descErr) { alert(`Task #${i + 1} description: ${descErr}`); return; }
 
                 if (row.milestoneId) {
                     const milestone = effectiveMilestones.find(m => String(m.milestoneId || (m as any).id) === String(row.milestoneId));
@@ -472,6 +477,11 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                 }
             }
         }
+
+        const singleNameErr = validateSpecialChars(name);
+        if (singleNameErr) { alert(`Task name: ${singleNameErr}`); return; }
+        const singleDescErr = description ? validateSpecialChars(description) : '';
+        if (singleDescErr) { alert(`Task description: ${singleDescErr}`); return; }
 
         const taskData = {
             name,

@@ -56,9 +56,9 @@ const ReportList: React.FC<ReportListProps> = ({
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                     <h3 style={{
                                         margin: 0,
-                                        fontSize: isSplit ? '1rem' : '1.15rem',
+                                        fontSize: isSplit ? '0.875rem' : '1rem',
                                         color: isSelected ? 'var(--primary-color)' : '#1e293b',
-                                        fontWeight: 800,
+                                        fontWeight: 600,
                                         display: '-webkit-box',
                                         WebkitLineClamp: isSplit ? 1 : 2,
                                         WebkitBoxOrient: 'vertical',
@@ -76,7 +76,7 @@ const ReportList: React.FC<ReportListProps> = ({
                                             background: hasEmbedding ? 'linear-gradient(135deg, #f0fdf4, #dcfce7)' : '#f1f5f9',
                                             color: hasEmbedding ? '#166534' : '#64748b',
                                             fontSize: '0.65rem',
-                                            fontWeight: 800,
+                                            fontWeight: 500,
                                             letterSpacing: '0.02em',
                                             border: `1px solid ${hasEmbedding ? '#bbf7d0' : '#e2e8f0'}`
                                         }}>
@@ -88,17 +88,17 @@ const ReportList: React.FC<ReportListProps> = ({
                                 <div style={{
                                     display: 'flex',
                                     gap: isSplit ? '10px' : '20px',
-                                    fontSize: isSplit ? '0.75rem' : '0.9rem',
+                                    fontSize: isSplit ? '0.7rem' : '0.8rem',
                                     color: '#64748b',
                                     flexWrap: 'wrap',
-                                    fontWeight: 500
+                                    fontWeight: 400
                                 }}>
                                     {(() => {
                                         const pId = report.projectId || (report as any).ProjectId;
                                         return pId ? (
                                             <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                                 <Briefcase size={isSplit ? 12 : 14} />
-                                                <span style={{ color: '#1e293b', fontWeight: 700 }}>{projectsMap[pId] || 'No project assigned'}</span>
+                                                <span style={{ color: '#1e293b', fontWeight: 500 }}>{projectsMap[pId] || 'No project assigned'}</span>
                                             </span>
                                         ) : <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#94a3b8' }}><Briefcase size={isSplit ? 12 : 14} /> No project assigned</span>;
                                     })()}
@@ -107,7 +107,7 @@ const ReportList: React.FC<ReportListProps> = ({
                                         return author ? (
                                             <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                                 <User size={isSplit ? 12 : 14} />
-                                                <span style={{ color: '#1e293b', fontWeight: 700 }}>{author}</span>
+                                                <span style={{ color: '#1e293b', fontWeight: 500 }}>{author}</span>
                                             </span>
                                         ) : null;
                                     })()}
@@ -115,7 +115,7 @@ const ReportList: React.FC<ReportListProps> = ({
                                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', maxWidth: '280px' }}>
                                             <FileText size={14} style={{ flexShrink: 0 }} />
                                             <span style={{ flexShrink: 0 }}>Reviewers:</span>
-                                            <span style={{ color: '#1e293b', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                            <span style={{ color: '#1e293b', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                                 {(() => {
                                                     const r = report as any;
                                                     const members = r.assignees || r.Assignees || r.members || r.Members;
@@ -147,7 +147,7 @@ const ReportList: React.FC<ReportListProps> = ({
                                 backgroundColor: isSelected ? 'white' : `${statusInfo.color}10`,
                                 color: statusInfo.color,
                                 fontSize: '0.7rem',
-                                fontWeight: 800,
+                                fontWeight: 500,
                                 border: `1px solid ${statusInfo.color}25`
                             }}>
                                 {statusInfo.icon}
@@ -157,7 +157,7 @@ const ReportList: React.FC<ReportListProps> = ({
 
                         {!isSplit && (
                             <div style={{ marginTop: '0.25rem', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                <p style={{ margin: 0, fontSize: '0.9rem', color: '#475569', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.6, fontWeight: 400 }}>
+                                <p style={{ margin: 0, fontSize: '0.8rem', color: '#475569', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.6, fontWeight: 400 }}>
                                     {report.description || (report as any).Description || report.goals || (report as any).Goals || 'Documentation in progress for this research entity.'}
                                 </p>
                                 {(() => {
@@ -165,8 +165,8 @@ const ReportList: React.FC<ReportListProps> = ({
                                     if (!dateStr) return null;
                                     const d = new Date(dateStr);
                                     return (
-                                        <span style={{ fontSize: '0.8rem', color: '#64748b', display: 'flex', alignItems: 'center', marginTop: '2px' }}>
-                                            <strong style={{ fontWeight: 600, marginRight: '6px', color: '#94a3b8' }}>Submit date:</strong>
+                                        <span style={{ fontSize: '0.75rem', color: '#64748b', display: 'flex', alignItems: 'center', marginTop: '2px' }}>
+                                            <strong style={{ fontWeight: 500, marginRight: '6px', color: '#94a3b8' }}>Submit date:</strong>
                                             {d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                                         </span>
                                     );

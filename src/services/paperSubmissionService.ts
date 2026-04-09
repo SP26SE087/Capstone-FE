@@ -5,6 +5,9 @@ import type {
     UpdatePaperRequest,
     SemanticSearchRequest,
     SubmissionStatus,
+    ExternalUserCreateDto,
+    ExternalUserUpdateDto,
+    ExternalUserResponse,
 } from '@/types/paperSubmission';
 import type { PagedResult } from '@/types/pagination';
 
@@ -28,6 +31,18 @@ function buildFormData(data: CreatePaperRequest | UpdatePaperRequest, extra?: Re
         fd.append(`Members[${i}][membershipId]`, m.membershipId);
         fd.append(`Members[${i}][role]`, String(m.role));
     });
+    if ('externalUsers' in data) {
+        ((data as CreatePaperRequest).externalUsers ?? []).forEach((eu, i) => {
+            if (eu.fullName) fd.append(`ExternalUsers[${i}][fullName]`, eu.fullName);
+            if (eu.email) fd.append(`ExternalUsers[${i}][email]`, eu.email);
+            if (eu.phoneNumber) fd.append(`ExternalUsers[${i}][phoneNumber]`, eu.phoneNumber);
+            if (eu.studentId) fd.append(`ExternalUsers[${i}][studentId]`, eu.studentId);
+            if (eu.orcid) fd.append(`ExternalUsers[${i}][orcid]`, eu.orcid);
+            if (eu.googleScholarUrl) fd.append(`ExternalUsers[${i}][googleScholarUrl]`, eu.googleScholarUrl);
+            if (eu.githubUrl) fd.append(`ExternalUsers[${i}][githubUrl]`, eu.githubUrl);
+            fd.append(`ExternalUsers[${i}][isActive]`, String(eu.isActive ?? true));
+        });
+    }
     return fd;
 }
 
@@ -118,5 +133,22 @@ export const paperSubmissionService = {
     changeStatus: async (id: string, newStatus: SubmissionStatus): Promise<PaperSubmissionResponse> => {
         const response = await api.patch(`${BASE}/${id}/status`, { newStatus });
         return response.data.data || response.data;
+    },
+
+    /** Add external users to an existing paper */
+    addExternalUsers: async (id: string, users: ExternalUserCreateDto[]): Promise<ExternalUserResponse[]> => {
+        const response = await api.post(`${BASE}/${id}/external-users`, users);
+        return response.data.data ?? response.data ?? [];
+    },
+
+    /** Update an external user */
+    updateExternalUser: async (id: string, externalUserId: string, data: ExternalUserUpdateDto): Promise<ExternalUserResponse> => {
+        const response = await api.put(`${BASE}/${id}/external-users/${externalUserId}`, data);
+        return response.data.data || response.data;
+    },
+
+    /** Delete an external user */
+    deleteExternalUser: async (id: string, externalUserId: string): Promise<void> => {
+        await api.delete(`${BASE}/${id}/external-users/${externalUserId}`);
     },
 };

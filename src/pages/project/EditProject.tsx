@@ -4,6 +4,7 @@ import MainLayout from '@/layout/MainLayout';
 import { projectService, researchFieldService } from '@/services';
 import { ResearchField, ProjectStatus, Project, ProjectRoleEnum } from '@/types';
 import { getProjectStatusStyle, isDefaultDate, toApiDate, formatProjectDate } from '@/utils/projectUtils';
+import { validateSpecialChars } from '@/utils/validation';
 
 import Modal from '@/components/common/Modal';
 import Toast, { ToastType } from '@/components/common/Toast';
@@ -50,6 +51,7 @@ const EditProject: React.FC = () => {
     const [availableFields, setAvailableFields] = useState<ResearchField[]>([]);
     const [selectedFieldIds, setSelectedFieldIds] = useState<string[]>([]);
     const [fieldSearchTerm, setFieldSearchTerm] = useState('');
+    const [fieldErrors, setFieldErrors] = useState<{ projectName?: string; projectDescription?: string }>({});
 
     const [formData, setFormData] = useState({
         projectName: '',
@@ -118,6 +120,9 @@ const EditProject: React.FC = () => {
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
+        if (name === 'projectName' || name === 'projectDescription') {
+            setFieldErrors(prev => ({ ...prev, [name]: validateSpecialChars(value) }));
+        }
     };
 
     const isValidTransition = (currentStatus: ProjectStatus, newStatus: ProjectStatus): boolean => {
@@ -182,6 +187,12 @@ const EditProject: React.FC = () => {
         if (!id) return;
         if (isReadOnly) {
             showToast(`You do not have permission to modify this project's settings.`, 'warning');
+            return;
+        }
+        const nameError = validateSpecialChars(formData.projectName);
+        const descError = validateSpecialChars(formData.projectDescription);
+        if (nameError || descError) {
+            setFieldErrors({ projectName: nameError, projectDescription: descError });
             return;
         }
         setSubmitting(true);
@@ -404,7 +415,7 @@ const EditProject: React.FC = () => {
                                         <Briefcase size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                                         <input
                                             className="form-input"
-                                            style={{ paddingLeft: '40px' }}
+                                            style={{ paddingLeft: '40px', borderColor: fieldErrors.projectName ? 'var(--danger)' : undefined }}
                                             type="text"
                                             id="projectName"
                                             name="projectName"
@@ -414,6 +425,9 @@ const EditProject: React.FC = () => {
                                             disabled={isReadOnly}
                                         />
                                     </div>
+                                    {fieldErrors.projectName && (
+                                        <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: 'var(--danger)' }}>{fieldErrors.projectName}</p>
+                                    )}
                                 </div>
 
                                 <div className="form-group" style={{ marginBottom: 0 }}>
@@ -422,7 +436,7 @@ const EditProject: React.FC = () => {
                                         <FileText size={18} style={{ position: 'absolute', left: '12px', top: '12px', color: 'var(--text-muted)' }} />
                                         <textarea
                                             className="form-input"
-                                            style={{ paddingLeft: '40px', minHeight: '120px', resize: 'vertical' }}
+                                            style={{ paddingLeft: '40px', minHeight: '120px', resize: 'vertical', borderColor: fieldErrors.projectDescription ? 'var(--danger)' : undefined }}
                                             id="projectDescription"
                                             name="projectDescription"
                                             value={formData.projectDescription}
@@ -431,6 +445,9 @@ const EditProject: React.FC = () => {
                                             disabled={isReadOnly}
                                         />
                                     </div>
+                                    {fieldErrors.projectDescription && (
+                                        <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: 'var(--danger)' }}>{fieldErrors.projectDescription}</p>
+                                    )}
                                 </div>
                             </div>
                         </section>

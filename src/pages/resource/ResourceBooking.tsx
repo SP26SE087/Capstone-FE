@@ -164,7 +164,7 @@ const ResourceBooking: React.FC = () => {
                     break;
                 }
                 case 'equipment_logs': {
-                    const data = await equipmentLogService.getAll(1, 200);
+                    const data = await equipmentLogService.getAll(1, 20);
                     setEquipmentLogs(data.items || []);
                     break;
                 }
@@ -670,6 +670,7 @@ const ResourceBooking: React.FC = () => {
                                     bookingId={activePanel.targetId} onClose={handleClosePanel}
                                     onSaved={handlePanelSaved} onTitleChange={handleTitleChange}
                                     isLabDirector={isLabDirector}
+                                    isManagedView={activeTab === 'managed_bookings'}
                                 />
                             )}
                             {activePanel.type === 'resource_type_form' && (

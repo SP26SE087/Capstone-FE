@@ -8,6 +8,7 @@ import { Milestone, MilestoneStatus, Task } from '@/types';
 import MilestoneItem from '@/components/milestone/MilestoneItem';
 import { taskService } from '@/services/taskService';
 import { milestoneService } from '@/services/milestoneService';
+import { validateSpecialChars } from '@/utils/validation';
 
 
 interface TaskDraft {
@@ -158,6 +159,10 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
     };
 
     const handleSaveDraftTask = async (draft: TaskDraft) => {
+        const nameErr = validateSpecialChars(draft.name);
+        if (nameErr) { showToast(`Task name: ${nameErr}`, 'error'); return; }
+        const descErr = draft.description ? validateSpecialChars(draft.description) : '';
+        if (descErr) { showToast(`Task description: ${descErr}`, 'error'); return; }
         setDraftTasks(prev => prev.map(d => d.id === draft.id ? { ...d, isSaving: true } : d));
         try {
             const mId = activeMilestone?.milestoneId || (activeMilestone as any)?.id || editingMilestoneId;
@@ -192,6 +197,10 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
     };
 
     const handleSaveExistingTask = async (task: any) => {
+        const nameErr = validateSpecialChars(task.name || '');
+        if (nameErr) { showToast(`Task name: ${nameErr}`, 'error'); return; }
+        const descErr = task.description ? validateSpecialChars(task.description) : '';
+        if (descErr) { showToast(`Task description: ${descErr}`, 'error'); return; }
         const taskId = task.taskId || task.id;
         if (savingTaskId === taskId) return;
         setSavingTaskId(taskId);

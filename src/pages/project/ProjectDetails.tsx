@@ -4,6 +4,7 @@ import MainLayout from '@/layout/MainLayout';
 import { projectService, milestoneService, membershipService, taskService, researchFieldService } from '@/services';
 import { Project, ProjectStatus, ProjectRoleEnum, Milestone, Task, ResearchField } from '@/types';
 import { getProjectStatusStyle, isDefaultDate, formatProjectDate, toApiDate } from '@/utils/projectUtils';
+import { validateSpecialChars } from '@/utils/validation';
 import Modal from '@/components/common/Modal';
 import Toast, { ToastType } from '@/components/common/Toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -305,6 +306,12 @@ const ProjectDetails: React.FC = () => {
             showToast('Both start and due dates are required.', 'warning');
             return;
         }
+        const nameError = validateSpecialChars(dataToSave.name);
+        const descError = dataToSave.description ? validateSpecialChars(dataToSave.description) : '';
+        if (nameError || descError) {
+            showToast(nameError || descError, 'error');
+            return;
+        }
 
         if (!dataToSave.name || !id) return;
 
@@ -420,6 +427,10 @@ const ProjectDetails: React.FC = () => {
             showToast('Project name is required.', 'warning');
             return;
         }
+        const nameErr = validateSpecialChars(formData.projectName ?? '');
+        if (nameErr) { showToast(`Project name: ${nameErr}`, 'error'); return; }
+        const descErr = validateSpecialChars(formData.projectDescription ?? '');
+        if (descErr) { showToast(`Description: ${descErr}`, 'error'); return; }
         setSubmitting(true);
         try {
             await projectService.update({

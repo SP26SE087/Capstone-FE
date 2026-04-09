@@ -42,6 +42,20 @@ export interface PaperMemberResponse {
     role: PaperRoleEnum;
 }
 
+export interface ExternalUserResponse {
+    externalUserId: string;
+    email?: string | null;
+    fullName?: string | null;
+    avatarUrl?: string | null;
+    phoneNumber?: string | null;
+    studentId?: string | null;
+    orcid?: string | null;
+    googleScholarUrl?: string | null;
+    githubUrl?: string | null;
+    isActive: boolean;
+    createdAt: string;
+}
+
 export interface PaperSubmissionResponse {
     paperSubmissionId: string;
     projectId?: string | null;
@@ -58,6 +72,7 @@ export interface PaperSubmissionResponse {
     createdByMembershipId?: string | null;
     lastUpdatedByMembershipId?: string | null;
     members: PaperMemberResponse[];
+    externalUsers?: ExternalUserResponse[] | null;
 }
 
 // ---- Request DTOs ----
@@ -65,6 +80,30 @@ export interface PaperSubmissionResponse {
 export interface PaperMemberRequest {
     membershipId: string;
     role: PaperRoleEnum;
+}
+
+export interface ExternalUserCreateDto {
+    email?: string | null;
+    fullName?: string | null;
+    avatarUrl?: string | null;
+    phoneNumber?: string | null;
+    studentId?: string | null;
+    orcid?: string | null;
+    googleScholarUrl?: string | null;
+    githubUrl?: string | null;
+    isActive?: boolean;
+}
+
+export interface ExternalUserUpdateDto {
+    email?: string | null;
+    fullName?: string | null;
+    avatarUrl?: string | null;
+    phoneNumber?: string | null;
+    studentId?: string | null;
+    orcid?: string | null;
+    googleScholarUrl?: string | null;
+    githubUrl?: string | null;
+    isActive?: boolean;
 }
 
 export interface CreatePaperRequest {
@@ -78,6 +117,7 @@ export interface CreatePaperRequest {
     submissionDeadline: string | null;
     createdByMembershipId?: string | null;
     members: PaperMemberRequest[];
+    externalUsers?: ExternalUserCreateDto[];
 }
 
 export interface UpdatePaperRequest {

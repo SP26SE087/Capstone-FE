@@ -15,7 +15,9 @@ import {
     ShieldAlert
 } from 'lucide-react';
 import { getVietnamDateInputValue, toApiDate } from '@/utils/projectUtils';
+import { validateSpecialChars } from '@/utils/validation';
 import { useAuth } from '@/hooks/useAuth';
+
 
 const CreateProject: React.FC = () => {
     const navigate = useNavigate();
@@ -24,6 +26,7 @@ const CreateProject: React.FC = () => {
     const [availableFields, setAvailableFields] = useState<ResearchField[]>([]);
     const [selectedFieldIds, setSelectedFieldIds] = useState<string[]>([]);
     const [fieldSearchTerm, setFieldSearchTerm] = useState('');
+    const [fieldErrors, setFieldErrors] = useState<{ projectName?: string; projectDescription?: string }>({});
 
     const [formData, setFormData] = useState({
         projectName: '',
@@ -43,6 +46,9 @@ const CreateProject: React.FC = () => {
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
+        if (name === 'projectName' || name === 'projectDescription') {
+            setFieldErrors(prev => ({ ...prev, [name]: validateSpecialChars(value) }));
+        }
     };
 
     const toggleField = (fieldId: string) => {
@@ -55,6 +61,12 @@ const CreateProject: React.FC = () => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        const nameError = validateSpecialChars(formData.projectName);
+        const descError = validateSpecialChars(formData.projectDescription);
+        if (nameError || descError) {
+            setFieldErrors({ projectName: nameError, projectDescription: descError });
+            return;
+        }
         try {
             const todayVn = getVietnamDateInputValue();
             const startDate = formData.startDate || todayVn;
@@ -124,7 +136,7 @@ const CreateProject: React.FC = () => {
                                 <Briefcase size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                                 <input
                                     className="form-input"
-                                    style={{ paddingLeft: '38px' }}
+                                    style={{ paddingLeft: '38px', borderColor: fieldErrors.projectName ? 'var(--danger)' : undefined }}
                                     type="text"
                                     id="projectName"
                                     name="projectName"
@@ -134,6 +146,9 @@ const CreateProject: React.FC = () => {
                                     required
                                 />
                             </div>
+                            {fieldErrors.projectName && (
+                                <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: 'var(--danger)' }}>{fieldErrors.projectName}</p>
+                            )}
                         </div>
 
                         {/* Description */}
@@ -143,7 +158,7 @@ const CreateProject: React.FC = () => {
                                 <FileText size={16} style={{ position: 'absolute', left: '12px', top: '11px', color: 'var(--text-muted)' }} />
                                 <textarea
                                     className="form-input"
-                                    style={{ paddingLeft: '38px', minHeight: '90px', resize: 'vertical' }}
+                                    style={{ paddingLeft: '38px', minHeight: '90px', resize: 'vertical', borderColor: fieldErrors.projectDescription ? 'var(--danger)' : undefined }}
                                     id="projectDescription"
                                     name="projectDescription"
                                     placeholder="Briefly describe the goals and scope of the project..."
@@ -152,6 +167,9 @@ const CreateProject: React.FC = () => {
                                     required
                                 />
                             </div>
+                            {fieldErrors.projectDescription && (
+                                <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: 'var(--danger)' }}>{fieldErrors.projectDescription}</p>
+                            )}
                         </div>
 
                         {/* Timeline */}

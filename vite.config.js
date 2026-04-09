@@ -30,7 +30,12 @@ export default defineConfig(function (_a) {
                     target: getTarget('https://localhost:7215'),
                     changeOrigin: true,
                     secure: false,
-                    rewrite: function (path) { return path.replace(/^\/api\/user-projects/, '/api/users'); },
+                    rewrite: function (path) { return path.replace('/api/users'); },
+                },
+                '^/api/users/[^/]+/projects': {
+                    target: getTarget('https://localhost:7215'),
+                    changeOrigin: true,
+                    secure: false,
                 },
                 '/api/users': {
                     target: getTarget('https://localhost:7268'),

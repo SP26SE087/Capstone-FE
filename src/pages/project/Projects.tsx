@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { projectService, researchFieldService } from '@/services';
 import { Project, ProjectStatus, ResearchField } from '@/types';
 import { getProjectStatusStyle, getVietnamDateInputValue, toApiDate } from '@/utils/projectUtils';
+import { validateSpecialChars } from '@/utils/validation';
 import {
     Plus,
     Search,
@@ -121,6 +122,11 @@ const Projects: React.FC = () => {
                 setCreateError('End date cannot be earlier than start date.');
                 return;
             }
+
+            const nameErr = validateSpecialChars(createForm.projectName);
+            if (nameErr) { setCreateError(`Project name: ${nameErr}`); return; }
+            const descErr = validateSpecialChars(createForm.projectDescription);
+            if (descErr) { setCreateError(`Description: ${descErr}`); return; }
 
             setSubmitting(true);
 
