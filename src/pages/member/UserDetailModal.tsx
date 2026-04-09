@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { userService } from '@/services/userService';
 import { formatProjectDate } from '@/utils/projectUtils';
-import { Mail, Loader2, X, Phone, BookOpen, GraduationCap, ClipboardList, Clock, CheckCircle, XCircle, ExternalLink } from 'lucide-react';
+import { Mail, Loader2, X, Phone, BookOpen, GraduationCap, ClipboardList, Clock, CheckCircle, XCircle, ExternalLink, Trash2, Briefcase } from 'lucide-react';
+import ConfirmModal from '@/components/common/ConfirmModal';
+import { useToastStore } from '@/store/slices/toastSlice';
 
 interface UserDetailModalProps {
     onClose: () => void;
@@ -9,12 +11,19 @@ interface UserDetailModalProps {
     systemRoleMap: Record<number | string, string>;
     onCheckLog: (email: string, studentId: string, userName: string) => void;
     isCheckLogOpen: boolean;
+    isLabDirector?: boolean;
+    onDeleted?: () => void;
+    onViewProjects?: (email: string, userName: string) => void;
+    isProjectPanelOpen?: boolean;
 }
 
-const UserDetailModal: React.FC<UserDetailModalProps> = ({ onClose, userId, systemRoleMap, onCheckLog, isCheckLogOpen }) => {
+const UserDetailModal: React.FC<UserDetailModalProps> = ({ onClose, userId, systemRoleMap, onCheckLog, isCheckLogOpen, isLabDirector, onDeleted, onViewProjects, isProjectPanelOpen }) => {
     const [userData, setUserData] = useState<any>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [deleting, setDeleting] = useState(false);
+    const { addToast } = useToastStore();
 
     useEffect(() => {
         if (userId) { fetchUserDetails(); return; }
@@ -32,6 +41,23 @@ const UserDetailModal: React.FC<UserDetailModalProps> = ({ onClose, userId, syst
             setError('Could not load user details.');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!userData?.email) return;
+        setDeleting(true);
+        try {
+            await userService.deleteByEmail(userData.email);
+            setShowDeleteConfirm(false);
+            onDeleted?.();
+            onClose();
+        } catch (err: any) {
+            setShowDeleteConfirm(false);
+            const msg = err?.response?.data?.message || err?.message || 'Failed to delete user.';
+            addToast(msg, 'error');
+        } finally {
+            setDeleting(false);
         }
     };
 
@@ -161,24 +187,71 @@ const UserDetailModal: React.FC<UserDetailModalProps> = ({ onClose, userId, syst
                     </Section>
 
                     {/* ── Actions ── */}
-                    <button
-                        onClick={() => onCheckLog(userData.email, studentId, name)}
-                        style={{
-                            width: '100%', padding: '8px', borderRadius: '10px', border: 'none', cursor: 'pointer',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-                            fontSize: '0.78rem', fontWeight: 700,
-                            background: isCheckLogOpen ? 'var(--primary-color)' : 'var(--surface-hover)',
-                            color: isCheckLogOpen ? '#fff' : 'var(--text-primary)',
-                            transition: 'all 0.2s'
-                        }}
-                    >
-                        <ClipboardList size={14} />
-                        {isCheckLogOpen ? 'Viewing Check Log' : 'Check Log'}
-                    </button>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <button
+                            onClick={() => onCheckLog(userData.email, studentId, name)}
+                            style={{
+                                width: '100%', padding: '8px', borderRadius: '10px', border: 'none', cursor: 'pointer',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                                fontSize: '0.78rem', fontWeight: 700,
+                                background: isCheckLogOpen ? 'var(--primary-color)' : 'var(--surface-hover)',
+                                color: isCheckLogOpen ? '#fff' : 'var(--text-primary)',
+                                transition: 'all 0.2s'
+                            }}
+                        >
+                            <ClipboardList size={14} />
+                            {isCheckLogOpen ? 'Viewing Check Log' : 'Check Log'}
+                        </button>
 
+                        {onViewProjects && (
+                            <button
+                                onClick={() => onViewProjects(userData.email, name)}
+                                style={{
+                                    width: '100%', padding: '8px', borderRadius: '10px', border: 'none', cursor: 'pointer',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                                    fontSize: '0.78rem', fontWeight: 700,
+                                    background: isProjectPanelOpen ? '#6366f1' : 'var(--surface-hover)',
+                                    color: isProjectPanelOpen ? '#fff' : 'var(--text-primary)',
+                                    transition: 'all 0.2s'
+                                }}
+                            >
+                                <Briefcase size={14} />
+                                {isProjectPanelOpen ? 'Viewing Projects' : 'View Projects'}
+                            </button>
+                        )}
+                    </div>
 
+                    {isLabDirector && (
+                        <button
+                            onClick={() => setShowDeleteConfirm(true)}
+                            disabled={deleting}
+                            style={{
+                                width: '100%', padding: '8px', borderRadius: '10px', cursor: 'pointer',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                                fontSize: '0.78rem', fontWeight: 700, marginTop: '6px',
+                                background: '#fef2f2', color: '#ef4444',
+                                border: '1.5px solid #fecaca', transition: 'all 0.2s'
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.background = '#fee2e2'; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = '#fef2f2'; }}
+                        >
+                            {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                            Delete User
+                        </button>
+                    )}
                 </div>
             ) : null}
+
+            <ConfirmModal
+                isOpen={showDeleteConfirm}
+                onClose={() => setShowDeleteConfirm(false)}
+                onConfirm={handleDelete}
+                title="Delete User"
+                message={`Permanently delete ${name || 'this user'} from the system? This action cannot be undone.`}
+                confirmText="Delete"
+                cancelText="Cancel"
+                variant="danger"
+            />
         </div>
     );
 };

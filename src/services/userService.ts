@@ -92,6 +92,30 @@ export const userService = {
         return response.data.data || response.data;
     },
 
+    deleteByEmail: async (email: string): Promise<void> => {
+        await api.delete(`/api/users/email/${encodeURIComponent(email)}`);
+    },
+
+    getProjectsByEmail: async (email: string): Promise<{
+        projects: any[];
+        totalProjects: number;
+        activeProjects: number;
+        inactiveProjects: number;
+        archivedProjects: number;
+        completedProjects: number;
+    }> => {
+        const response = await api.get(`/api/user-projects/${encodeURIComponent(email)}/projects`);
+        const data = response.data.data || response.data;
+        return {
+            projects: data.projects || [],
+            totalProjects: data.totalProjects ?? 0,
+            activeProjects: data.activeProjects ?? 0,
+            inactiveProjects: data.inactiveProjects ?? 0,
+            archivedProjects: data.archivedProjects ?? 0,
+            completedProjects: data.completedProjects ?? 0,
+        };
+    },
+
     updateUser: async (userId: string, data: UpdateUserRequest): Promise<UserResponse> => {
         const response = await api.put(`/api/users/${userId}`, data);
         return response.data.data || response.data;

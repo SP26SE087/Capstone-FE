@@ -1,4 +1,5 @@
 import React from 'react';
+import ReactDOM from 'react-dom';
 import { X } from 'lucide-react';
 
 interface ModalProps {
@@ -15,7 +16,7 @@ interface ModalProps {
 const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, footer, variant = 'info', maxWidth = '480px', disableBackdropClose = false }) => {
     if (!isOpen) return null;
 
-    return (
+    return ReactDOM.createPortal(
         <div style={{
             position: 'fixed',
             top: 0, left: 0, right: 0, bottom: 0,
@@ -109,7 +110,8 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, footer,
                     to { transform: scale(1); opacity: 1; }
                 }
             `}</style>
-        </div>
+        </div>,
+        document.body
     );
 };
 

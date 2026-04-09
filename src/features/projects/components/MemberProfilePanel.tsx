@@ -5,6 +5,8 @@ import {
 } from 'lucide-react';
 import { membershipService, projectService, userService } from '@/services';
 import { ProjectRoleEnum } from '@/types/project';
+import ConfirmModal from '@/components/common/ConfirmModal';
+import { useToastStore } from '@/store/slices/toastSlice';
 
 interface MemberProfilePanelProps {
     member: any;
@@ -60,6 +62,7 @@ const MemberProfilePanel: React.FC<MemberProfilePanelProps> = ({
     onSuccess,
     onClose,
 }) => {
+    const { addToast } = useToastStore();
     const [roles, setRoles] = useState<any[]>([]);
     const [loadingRoles, setLoadingRoles] = useState(false);
     const [selectedRoleId, setSelectedRoleId] = useState<string>('');
@@ -169,8 +172,10 @@ const MemberProfilePanel: React.FC<MemberProfilePanelProps> = ({
             onSuccess();
             onClose();
         } catch (err: any) {
-            setRemoveError(err.message || 'Failed to remove member.');
+            const msg = err?.response?.data?.message || err?.message || 'Failed to remove member.';
+            setRemoveError(msg);
             setShowDeleteConfirm(false);
+            addToast(msg, 'error');
         } finally {
             setRemoving(false);
         }
@@ -317,21 +322,26 @@ const MemberProfilePanel: React.FC<MemberProfilePanelProps> = ({
                         </div>
                     )}
 
-                    {/* Active/Banned status badge */}
-                    <div style={{
-                        display: 'inline-flex', alignItems: 'center', gap: '5px',
-                        padding: '2px 8px',
-                        background: selectedStatus === 1 ? '#ecfdf5' : '#fef2f2',
-                        color: selectedStatus === 1 ? '#10b981' : '#ef4444',
-                        borderRadius: '20px', fontSize: '0.65rem', fontWeight: 700,
-                        textTransform: 'uppercase', letterSpacing: '0.04em',
-                    }}>
-                        <div style={{
-                            width: '5px', height: '5px', borderRadius: '50%',
-                            background: 'currentColor',
-                        }} />
-                        {selectedStatus === 1 ? 'Active' : 'Banned'}
-                    </div>
+                    {/* Status badge */}
+                    {(() => {
+                        const badgeMap: Record<number, { label: string; bg: string; color: string }> = {
+                            1: { label: 'Active',   bg: '#ecfdf5', color: '#10b981' },
+                            2: { label: 'Inactive', bg: '#fffbeb', color: '#f59e0b' },
+                            3: { label: 'Banned',   bg: '#fef2f2', color: '#ef4444' },
+                        };
+                        const b = badgeMap[selectedStatus] ?? { label: 'Unknown', bg: '#f1f5f9', color: '#64748b' };
+                        return (
+                            <div style={{
+                                display: 'inline-flex', alignItems: 'center', gap: '5px',
+                                padding: '2px 8px', background: b.bg, color: b.color,
+                                borderRadius: '20px', fontSize: '0.65rem', fontWeight: 700,
+                                textTransform: 'uppercase', letterSpacing: '0.04em',
+                            }}>
+                                <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'currentColor' }} />
+                                {b.label}
+                            </div>
+                        );
+                    })()}
 
                     {isSelf && (
                         <div style={{
@@ -450,6 +460,7 @@ const MemberProfilePanel: React.FC<MemberProfilePanelProps> = ({
                                 </p>
                                 <div style={{ display: 'flex', gap: '6px', marginBottom: pendingStatus !== null ? '0.6rem' : 0 }}>
                                     {([{ value: 1, label: 'Active', color: '#10b981', bg: '#ecfdf5', border: '#6ee7b7' },
+                                       { value: 2, label: 'Inactive', color: '#f59e0b', bg: '#fffbeb', border: '#fcd34d' },
                                        { value: 3, label: 'Banned', color: '#ef4444', bg: '#fef2f2', border: '#fca5a5' },
                                     ] as const).map(opt => (
                                         <button
@@ -478,35 +489,6 @@ const MemberProfilePanel: React.FC<MemberProfilePanelProps> = ({
                                         </button>
                                     ))}
                                 </div>
-                                {/* Status confirm box */}
-                                {pendingStatus !== null && (() => {
-                                    const opts = { 1: { label: 'Active', color: '#10b981', bg: '#f0fdf4', border: '#bbf7d0' }, 3: { label: 'Banned', color: '#e11d48', bg: '#fff1f2', border: '#fda4af' } } as const;
-                                    const o = opts[pendingStatus as 1|3];
-                                    return (
-                                        <div style={{ padding: '0.75rem', background: o.bg, borderRadius: '10px', border: `1.5px solid ${o.border}`, animation: 'slideInPanel 0.15s ease-out' }}>
-                                            <p style={{ margin: '0 0 0.6rem', fontSize: '0.78rem', color: o.color, fontWeight: 600, lineHeight: 1.4 }}>
-                                                Set <strong>{member.fullName || member.userName}</strong> to <strong>{o.label}</strong>?
-                                            </p>
-                                            {statusError && <p style={{ margin: '0 0 6px', fontSize: '0.72rem', color: '#ef4444' }}>{statusError}</p>}
-                                            <div style={{ display: 'flex', gap: '8px' }}>
-                                                <button
-                                                    onClick={() => handleUpdateStatus(pendingStatus)}
-                                                    disabled={updatingStatus}
-                                                    style={{ flex: 1, padding: '7px', background: o.color, color: 'white', border: 'none', borderRadius: '8px', fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
-                                                >
-                                                    {updatingStatus ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} Confirm
-                                                </button>
-                                                <button
-                                                    onClick={() => { setPendingStatus(null); setStatusError(null); }}
-                                                    disabled={updatingStatus}
-                                                    style={{ flex: 1, padding: '7px', background: 'white', color: '#475569', border: '1.5px solid #cbd5e1', borderRadius: '8px', fontWeight: 600, fontSize: '0.75rem', cursor: 'pointer' }}
-                                                >
-                                                    Cancel
-                                                </button>
-                                            </div>
-                                        </div>
-                                    );
-                                })()}
                             </div>
 
                             {/* Remove member */}
@@ -590,6 +572,28 @@ const MemberProfilePanel: React.FC<MemberProfilePanelProps> = ({
                 .animate-spin { animation: spin 1s linear infinite; }
                 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
             `}</style>
+
+            {/* Status change confirm modal */}
+            {pendingStatus !== null && (() => {
+                const meta: Record<number, { label: string; variant: 'danger' | 'info' | 'success'; confirmText: string }> = {
+                    1: { label: 'Active',   variant: 'success', confirmText: 'Set Active'   },
+                    2: { label: 'Inactive', variant: 'info',    confirmText: 'Set Inactive' },
+                    3: { label: 'Banned',   variant: 'danger',  confirmText: 'Ban Member'   },
+                };
+                const m = meta[pendingStatus] ?? meta[1];
+                return (
+                    <ConfirmModal
+                        isOpen
+                        onClose={() => { setPendingStatus(null); setStatusError(null); }}
+                        onConfirm={() => handleUpdateStatus(pendingStatus)}
+                        title={`Change status to ${m.label}`}
+                        message={`Are you sure you want to set ${member.fullName || member.userName} as ${m.label}?`}
+                        confirmText={m.confirmText}
+                        cancelText="Cancel"
+                        variant={m.variant}
+                    />
+                );
+            })()}
         </div>
     );
 };
