@@ -125,6 +125,27 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
     const [taskTab, setTaskTab] = React.useState<'draft' | 'current'>('current');
     const [expandedTasks, setExpandedTasks] = React.useState<string[]>([]);
     const [savingTaskId, setSavingTaskId] = React.useState<string | null>(null);
+    const [openAssigneeDropdownId, setOpenAssigneeDropdownId] = React.useState<string | null>(null);
+    const [openCollabDropdownId, setOpenCollabDropdownId] = React.useState<string | null>(null);
+    const [memberSearchQuery, setMemberSearchQuery] = React.useState('');
+
+    const closeAllMemberDropdowns = () => {
+        setOpenAssigneeDropdownId(null);
+        setOpenCollabDropdownId(null);
+        setMemberSearchQuery('');
+    };
+
+    React.useEffect(() => {
+        const anyOpen = openAssigneeDropdownId !== null || openCollabDropdownId !== null;
+        if (!anyOpen) return;
+        const handler = (e: MouseEvent | TouchEvent) => {
+            const target = e.target as HTMLElement;
+            if (target && target.closest('[data-dropdown-list]')) return;
+            closeAllMemberDropdowns();
+        };
+        window.addEventListener('mousedown', handler);
+        return () => window.removeEventListener('mousedown', handler);
+    }, [openAssigneeDropdownId, openCollabDropdownId]);
 
     // API Stats State
     const [milestoneStats, _setMilestoneStats] = React.useState<any>(null);
@@ -729,11 +750,6 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
         await handleSaveDraftTask(draft);
     };
 
-    const removeDraft = (id: string, e: React.MouseEvent) => {
-        e.stopPropagation();
-        setDraftTasks(prev => prev.filter(d => d.id !== id));
-    };
-
     // 📊 Redesigned Stats Logic
     const getMilestoneMetrics = () => {
         if (milestoneStats) return {
@@ -1119,7 +1135,7 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                                     className="task-draft-card"
                                                 >
                                                     {draft.isExpanded && <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--primary-color)' }} />}
-                                                    <div style={{ display: 'grid', gridTemplateColumns: '24px minmax(0, 1fr) auto auto auto', gap: '12px', alignItems: 'center' }}>
+                                                    <div style={{ display: 'grid', gridTemplateColumns: '24px minmax(0, 1fr) auto auto', gap: '12px', alignItems: 'center' }}>
                                                         <div style={{ color: draft.isExpanded ? 'var(--primary-color)' : 'var(--text-muted)', display: 'flex', alignItems: 'center' }}>
                                                             {draft.isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
                                                         </div>
@@ -1169,26 +1185,9 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                                                 </>
                                                             )}
                                                         </div>
-                                                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                                                            <button 
-                                                                onClick={(e) => { e.stopPropagation(); handleSingleTaskSave(draft); }} 
-                                                                disabled={draft.isSaving}
-                                                                style={{ 
-                                                                    width: '30px', height: '30px', borderRadius: '8px', border: 'none', 
-                                                                    color: draft.isSaving ? 'var(--text-muted)' : 'var(--success)', 
-                                                                    background: 'var(--success-bg)', 
-                                                                    display: 'flex', alignItems: 'center', justifyContent: 'center', 
-                                                                    cursor: draft.isSaving ? 'not-allowed' : 'pointer', transition: 'all 0.2s',
-                                                                    opacity: draft.isSaving ? 0.6 : 1
-                                                                }}
-                                                            >
-                                                                {draft.isSaving ? <Clock className="animate-spin-slow" size={14} /> : <Save size={14} />}
-                                                            </button>
-                                                            <button onClick={(e) => removeDraft(draft.id, e)} disabled={draft.isSaving} style={{ width: '30px', height: '30px', borderRadius: '8px', border: 'none', color: 'var(--danger)', background: 'var(--danger-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.2s', opacity: draft.isSaving ? 0.5 : 1 }}><Trash2 size={14} /></button>
-                                                        </div>
                                                     </div>
                                                     {draft.isExpanded && (
-                                                        <React.Fragment>
+                                                            <React.Fragment>
                                                             <textarea
                                                                 placeholder="Description..." value={draft.description}
                                                                 onChange={(e) => updateDraft(draft.id, 'description', e.target.value)}
@@ -1221,41 +1220,144 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                                                 </select>
                                                             </div>
                                                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }} onClick={(e) => e.stopPropagation()}>
-                                                                <select
-                                                                    value={draft.assigneeId}
-                                                                    onChange={(e) => {
-                                                                        const val = e.target.value;
-                                                                        updateDraft(draft.id, 'assigneeId', val);
-                                                                        if (val) {
-                                                                            const next = (draft.collaboratorIds || []).filter(id => id !== val);
-                                                                            updateDraft(draft.id, 'collaboratorIds', next);
-                                                                        }
-                                                                    }}
-                                                                    style={{ ...compactInput, fontSize: '0.65rem' }}
+                                                                {/* Draft Assignee custom dropdown */}
+                                                                {(() => {
+                                                                    const key = `__draft_assignee__${draft.id}`;
+                                                                    const isOpen = openAssigneeDropdownId === key;
+                                                                    const eligible = members.filter(m => Number(m.projectRole) !== 1);
+                                                                    const selectedMember = eligible.find(m => (m.id || m.memberId || m.membershipId) === draft.assigneeId);
+                                                                    const filtered = eligible.filter(m => {
+                                                                        if (!memberSearchQuery) return true;
+                                                                        return (m.fullName || m.userName || '').toLowerCase().includes(memberSearchQuery.toLowerCase());
+                                                                    });
+                                                                    return (
+                                                                        <div style={{ position: 'relative' }}>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => { setOpenAssigneeDropdownId(isOpen ? null : key); setMemberSearchQuery(''); }}
+                                                                                style={{ ...compactInput, width: '100%', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', background: 'white', paddingLeft: '10px', paddingRight: '8px' }}
+                                                                            >
+                                                                                {selectedMember ? (
+                                                                                    <div style={{ width: '18px', height: '18px', borderRadius: '50%', background: 'var(--primary-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '0.55rem', fontWeight: 700, color: 'white' }}>
+                                                                                        {(selectedMember.fullName || selectedMember.userName || '?').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
+                                                                                    </div>
+                                                                                ) : (
+                                                                                    <User size={12} color="#94a3b8" style={{ flexShrink: 0 }} />
+                                                                                )}
+                                                                                <span style={{ flex: 1, fontSize: '0.65rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'left', color: selectedMember ? '#1e293b' : '#94a3b8' }}>
+                                                                                    {selectedMember ? (selectedMember.fullName || selectedMember.userName) : 'Select Assignee'}
+                                                                                </span>
+                                                                                <ChevronDown size={12} style={{ flexShrink: 0, color: '#94a3b8', transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                                                                            </button>
+                                                                            {isOpen && (
+                                                                                <>
+                                                                                    <div style={{ position: 'fixed', inset: 0, zIndex: 150 }} onClick={() => setOpenAssigneeDropdownId(null)} />
+                                                                                    <div style={{ position: 'absolute', bottom: 'calc(100% + 4px)', left: 0, width: '100%', zIndex: 9999, background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', boxShadow: '0 -8px 30px rgba(0,0,0,0.15)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }} data-dropdown-list>
+                                                                                        <div style={{ padding: '6px', borderBottom: '1px solid #f1f5f9' }}>
+                                                                                            <div style={{ position: 'relative' }}>
+                                                                                                <Search size={11} style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                                                                                                <input autoFocus type="text" placeholder="Search members..." value={memberSearchQuery} onChange={(e) => setMemberSearchQuery(e.target.value)} style={{ width: '100%', padding: '5px 8px 5px 26px', fontSize: '0.7rem', border: '1px solid #e2e8f0', borderRadius: '6px', outline: 'none', background: '#f8fafc', boxSizing: 'border-box' }} />
+                                                                                            </div>
+                                                                                        </div>
+                                                                                        <div className="custom-scrollbar" style={{ maxHeight: '180px', overflowY: 'auto', padding: '4px' }}>
+                                                                                            <div onClick={() => { updateDraft(draft.id, 'assigneeId', ''); setOpenAssigneeDropdownId(null); }} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 8px', cursor: 'pointer', borderRadius: '6px', background: !draft.assigneeId ? '#f1f5f9' : 'transparent' }}>
+                                                                                                <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px dashed #cbd5e1' }}><User size={11} color="#94a3b8" /></div>
+                                                                                                <span style={{ fontSize: '0.72rem', fontWeight: 500, color: '#64748b', fontStyle: 'italic' }}>Unassigned</span>
+                                                                                                {!draft.assigneeId && <CheckCircle size={12} style={{ marginLeft: 'auto', color: 'var(--primary-color)' }} />}
+                                                                                            </div>
+                                                                                            {filtered.map(m => {
+                                                                                                const mId = m.id || m.memberId || m.membershipId;
+                                                                                                const isSelected = draft.assigneeId === mId;
+                                                                                                const initials = (m.fullName || m.userName || '?').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
+                                                                                                return (
+                                                                                                    <div key={mId} onClick={() => { updateDraft(draft.id, 'assigneeId', mId); const next = (draft.collaboratorIds || []).filter(id => id !== mId); if (next.length !== (draft.collaboratorIds || []).length) updateDraft(draft.id, 'collaboratorIds', next); setOpenAssigneeDropdownId(null); }} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 8px', cursor: 'pointer', borderRadius: '6px', background: isSelected ? '#f1f5f9' : 'transparent' }}>
+                                                                                                        <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: isSelected ? 'var(--primary-color)' : '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700, color: isSelected ? 'white' : '#64748b', flexShrink: 0 }}>{initials}</div>
+                                                                                                        <span style={{ fontSize: '0.72rem', fontWeight: 500, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.fullName || m.userName}</span>
+                                                                                                        {isSelected && <CheckCircle size={12} style={{ marginLeft: 'auto', flexShrink: 0, color: 'var(--primary-color)' }} />}
+                                                                                                    </div>
+                                                                                                );
+                                                                                            })}
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </>
+                                                                            )}
+                                                                        </div>
+                                                                    );
+                                                                })()}
+                                                                {/* Draft Collaborators custom dropdown */}
+                                                                {(() => {
+                                                                    const key = `__draft_collab__${draft.id}`;
+                                                                    const isOpen = openCollabDropdownId === key;
+                                                                    const eligible = members.filter(m => Number(m.projectRole) !== 1 && (m.id || m.memberId || m.membershipId) !== draft.assigneeId);
+                                                                    const selectedIds: string[] = draft.collaboratorIds || [];
+                                                                    const filtered = eligible.filter(m => {
+                                                                        if (!memberSearchQuery) return true;
+                                                                        return (m.fullName || m.userName || '').toLowerCase().includes(memberSearchQuery.toLowerCase());
+                                                                    });
+                                                                    return (
+                                                                        <div style={{ position: 'relative' }}>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => { setOpenCollabDropdownId(isOpen ? null : key); setMemberSearchQuery(''); }}
+                                                                                style={{ ...compactInput, width: '100%', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', background: '#f8fafc', paddingLeft: '10px', paddingRight: '8px' }}
+                                                                            >
+                                                                                <Users size={12} color="#94a3b8" style={{ flexShrink: 0 }} />
+                                                                                <span style={{ flex: 1, fontSize: '0.65rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'left', color: selectedIds.length > 0 ? '#1e293b' : '#94a3b8' }}>
+                                                                                    {selectedIds.length > 0 ? `${selectedIds.length} selected` : 'Select Collaborators'}
+                                                                                </span>
+                                                                                <ChevronDown size={12} style={{ flexShrink: 0, color: '#94a3b8', transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                                                                            </button>
+                                                                            {isOpen && (
+                                                                                <>
+                                                                                    <div style={{ position: 'fixed', inset: 0, zIndex: 150 }} onClick={() => setOpenCollabDropdownId(null)} />
+                                                                                    <div style={{ position: 'absolute', bottom: 'calc(100% + 4px)', left: 0, width: '100%', zIndex: 9999, background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', boxShadow: '0 -8px 30px rgba(0,0,0,0.15)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }} data-dropdown-list>
+                                                                                        <div style={{ padding: '6px', borderBottom: '1px solid #f1f5f9' }}>
+                                                                                            <div style={{ position: 'relative' }}>
+                                                                                                <Search size={11} style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                                                                                                <input autoFocus type="text" placeholder="Search collaborators..." value={memberSearchQuery} onChange={(e) => setMemberSearchQuery(e.target.value)} style={{ width: '100%', padding: '5px 8px 5px 26px', fontSize: '0.7rem', border: '1px solid #e2e8f0', borderRadius: '6px', outline: 'none', background: '#f8fafc', boxSizing: 'border-box' }} />
+                                                                                            </div>
+                                                                                        </div>
+                                                                                        <div className="custom-scrollbar" style={{ maxHeight: '180px', overflowY: 'auto', padding: '4px' }}>
+                                                                                            {filtered.length === 0 ? (
+                                                                                                <div style={{ padding: '16px 8px', textAlign: 'center', color: '#94a3b8', fontSize: '0.7rem' }}>No members found</div>
+                                                                                            ) : filtered.map(m => {
+                                                                                                const mId = m.id || m.memberId || m.membershipId;
+                                                                                                const isSelected = selectedIds.includes(mId);
+                                                                                                const initials = (m.fullName || m.userName || '?').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
+                                                                                                return (
+                                                                                                    <div key={mId} onClick={() => { const next = isSelected ? selectedIds.filter(id => id !== mId) : [...selectedIds, mId]; updateDraft(draft.id, 'collaboratorIds', next); }} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 8px', cursor: 'pointer', borderRadius: '6px', background: isSelected ? '#f1f5f9' : 'transparent' }}>
+                                                                                                        <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: isSelected ? 'var(--accent-color, #6366f1)' : '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700, color: isSelected ? 'white' : '#64748b', flexShrink: 0 }}>{initials}</div>
+                                                                                                        <span style={{ fontSize: '0.72rem', fontWeight: 500, color: '#1e293b', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.fullName || m.userName}</span>
+                                                                                                        {isSelected && <CheckCircle size={12} style={{ flexShrink: 0, color: 'var(--accent-color, #6366f1)' }} />}
+                                                                                                    </div>
+                                                                                                );
+                                                                                            })}
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </>
+                                                                            )}
+                                                                        </div>
+                                                                    );
+                                                                })()}
+                                                            </div>
+                                                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '12px', borderTop: '1px solid #f1f5f9' }} onClick={e => e.stopPropagation()}>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setConfirmState({ isOpen: true, title: 'Remove Draft', message: 'Discard this draft task?', confirmLabel: 'Remove', cancelLabel: 'Keep', variant: 'danger', onConfirm: () => setDraftTasks(prev => prev.filter(d => d.id !== draft.id)) })}
+                                                                    disabled={draft.isSaving}
+                                                                    style={{ padding: '7px 16px', borderRadius: '8px', border: '1.5px solid #fee2e2', background: '#fff1f1', color: '#ef4444', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
                                                                 >
-                                                                    <option value="">Select Assignee</option>
-                                                                    {members.filter(m => Number(m.projectRole) !== 1).map(m => (
-                                                                        <option key={m.id || m.memberId || m.membershipId} value={m.id || m.memberId || m.membershipId}>{m.fullName || m.userName}</option>
-                                                                    ))}
-                                                                </select>
-                                                                <select
-                                                                    value=""
-                                                                    onChange={(e) => {
-                                                                        const val = e.target.value;
-                                                                        if (!val) return;
-                                                                        const current = draft.collaboratorIds || [];
-                                                                        const next = current.includes(val) ? current.filter(id => id !== val) : [...current, val];
-                                                                        updateDraft(draft.id, 'collaboratorIds', next);
-                                                                    }}
-                                                                    style={{ ...compactInput, fontSize: '0.65rem', background: '#f8fafc' }}
+                                                                    <Trash2 size={13} /> Remove Draft
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={e => { e.stopPropagation(); handleSingleTaskSave(draft); }}
+                                                                    disabled={draft.isSaving}
+                                                                    style={{ padding: '7px 16px', borderRadius: '8px', border: 'none', background: 'var(--success, #22c55e)', color: 'white', fontSize: '0.75rem', fontWeight: 700, cursor: draft.isSaving ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px', opacity: draft.isSaving ? 0.7 : 1 }}
                                                                 >
-                                                                    <option value="">Select Collaborators ({draft.collaboratorIds.length})</option>
-                                                                    {members.filter(m => Number(m.projectRole) !== 1 && (m.id || m.memberId || m.membershipId) !== draft.assigneeId).map(m => (
-                                                                        <option key={m.id || m.memberId || m.membershipId} value={m.id || m.memberId || m.membershipId}>
-                                                                            {draft.collaboratorIds.includes(m.id || m.memberId || m.membershipId) ? "✓ " : ""} {m.fullName || m.userName} - {m.email || 'No email'}
-                                                                        </option>
-                                                                    ))}
-                                                                </select>
+                                                                    {draft.isSaving ? <Clock className="animate-spin-slow" size={13} /> : <Save size={13} />}
+                                                                    {draft.isSaving ? 'Creating...' : 'Create Task'}
+                                                                </button>
                                                             </div>
                                                         </React.Fragment>
                                                     )}
@@ -1375,48 +1477,49 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                                                 </div>
                                                             </div>
 
-                                                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                                                                {(canManageProject && !isArchived && activeMilestone?.status !== MilestoneStatus.Completed && activeMilestone?.status !== MilestoneStatus.Cancelled) && (
-                                                                    <button
-                                                                        onClick={(e) => { e.stopPropagation(); handleSaveExistingTask(task); }}
-                                                                        disabled={savingTaskId === task.taskId}
-                                                                        style={{
-                                                                            width: '28px',
-                                                                            height: '28px',
-                                                                            borderRadius: '8px',
-                                                                            border: 'none',
-                                                                            color: savingTaskId === task.taskId ? 'var(--text-muted)' : 'var(--success)',
-                                                                            background: 'var(--success-bg)',
-                                                                            display: 'flex',
-                                                                            alignItems: 'center',
-                                                                            justifyContent: 'center',
-                                                                            cursor: savingTaskId === task.taskId ? 'not-allowed' : 'pointer',
-                                                                            opacity: savingTaskId === task.taskId ? 0.6 : 1
-                                                                        }}
-                                                                        title="Save Update"
-                                                                    >
-                                                                        {savingTaskId === task.taskId ? <Clock className="animate-spin-slow" size={14} /> : <Save size={14} />}
-                                                                    </button>
-                                                                )}
-                                                                {task.status === 1 && activeMilestone?.status !== MilestoneStatus.Completed && activeMilestone?.status !== MilestoneStatus.Cancelled && (
-                                                                    <button onClick={(e) => handleDeleteTask(task.taskId || (task as any).id, e)} disabled={savingTaskId === task.taskId} style={{ width: '28px', height: '28px', borderRadius: '8px', border: 'none', color: 'var(--danger)', background: 'var(--danger-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', opacity: savingTaskId === task.taskId ? 0.5 : 1 }}><Trash2 size={14} /></button>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                        {isEx && (
-                                                            <React.Fragment>
-                                                                {(() => {
-                                                                    const canEditFull = canManageProject && !isArchived && task.status === 1 && activeMilestone?.status !== MilestoneStatus.Completed && activeMilestone?.status !== MilestoneStatus.Cancelled;
-                                                                    const canEditCollab = canManageProject && !isArchived && activeMilestone?.status !== MilestoneStatus.Completed && activeMilestone?.status !== MilestoneStatus.Cancelled;
+                                                            {task.status === 1 && (
+                                                                <div style={{
+                                                                    position: 'absolute',
+                                                                    top: '0',
+                                                                    right: '0',
+                                                                    fontSize: '0.55rem',
+                                                                    fontWeight: 800,
+                                                                    padding: '3px 10px',
+                                                                    background: '#f0fdf4',
+                                                                    color: '#15803d',
+                                                                    borderBottomLeftRadius: '10px',
+                                                                    borderLeft: '1px solid #15803d20',
+                                                                    borderBottom: '1px solid #15803d20',
+                                                                    textTransform: 'uppercase',
+                                                                    display: 'flex',
+                                                                    alignItems: 'center',
+                                                                    gap: '3px',
+                                                                    zIndex: 1,
+                                                                    boxShadow: '0 2px 4px rgba(21, 128, 61, 0.05)'
+                                                                }}>
+                                                                    <Edit3 size={10} /> Editable
+                                                                </div>
+                                                            )}
 
-                                                                    return (
-                                                                        <React.Fragment>
-                                                                            {!canEditFull && (
-                                                                                <div style={{ padding: '0.6rem 0.85rem', background: '#f8fafc', color: '#64748b', borderRadius: 'var(--radius-md)', fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid #e2e8f0' }} onClick={(e) => e.stopPropagation()}>
-                                                                                    <Info size={14} />
-                                                                                    <span style={{ fontWeight: 600 }}>View only — task fields are locked.{canEditCollab ? ' You can still update collaborators.' : ''}</span>
-                                                                                </div>
-                                                                            )}
+                                                            <div style={{ width: '70px' }}></div>
+                                                        </div>
+
+                                                        {isEx && (
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
+                                                                <React.Fragment>
+                                                                    {(() => {
+                                                                        const canEditFull = canManageProject && !isArchived && task.status === 1 && activeMilestone?.status !== MilestoneStatus.Completed && activeMilestone?.status !== MilestoneStatus.Cancelled;
+                                                                        const canEditCollab = canManageProject && !isArchived && activeMilestone?.status !== MilestoneStatus.Completed && activeMilestone?.status !== MilestoneStatus.Cancelled;
+
+                                                                        return (
+                                                                            <React.Fragment>
+                                                                                {!canEditFull && (
+                                                                                    <div style={{ padding: '0.6rem 0.85rem', background: '#f8fafc', color: '#64748b', borderRadius: 'var(--radius-md)', fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid #e2e8f0' }} onClick={(e) => e.stopPropagation()}>
+                                                                                        <Info size={14} />
+                                                                                        <span style={{ fontWeight: 600 }}>View only — task fields are locked.{canEditCollab ? ' You can still update collaborators.' : ''}</span>
+                                                                                    </div>
+                                                                                )}
+
                                                                             <textarea
                                                                                 placeholder="Add a detailed description..."
                                                                                 value={task.description || ''}
@@ -1473,65 +1576,162 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                                                                 </div>
                                                                             </div>
                                                                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }} onClick={(e) => e.stopPropagation()}>
-                                                                                <div style={{ position: 'relative' }}>
-                                                                                    <label style={{ position: 'absolute', top: '-8px', left: '10px', background: 'white', padding: '0 4px', fontSize: '0.6rem', fontWeight: 800, color: 'var(--text-muted)' }}>ASSIGNEE</label>
-                                                                                    <select
-                                                                                        value={(() => {
-                                                                                            if (match) return match.id || match.memberId || match.membershipId || '';
-                                                                                            const assigneeId = task.memberId || (task as any).assignedToId || '';
-                                                                                            if (!assigneeId) return '';
-                                                                                            const found = members.find((m: any) =>
-                                                                                                (m.id || m.memberId || m.membershipId || m.userId || '') === assigneeId
-                                                                                            );
-                                                                                            return found ? (found.id || found.memberId || found.membershipId || assigneeId) : assigneeId;
-                                                                                        })()}
-                                                                                        disabled={!canEditFull}
-                                                                                        onChange={(e) => {
-                                                                                            const val = e.target.value;
-                                                                                            handleUpdateTaskField(task.taskId, 'memberId', val);
-                                                                                            if (val) {
-                                                                                                const cur = (task as any).collaboratorIds || [];
-                                                                                                const next = cur.filter((id: string) => id !== val);
-                                                                                                handleUpdateTaskField(task.taskId, 'collaboratorIds', next);
-                                                                                            }
-                                                                                        }}
-                                                                                        style={{ ...compactInput, width: '100%', fontSize: '0.75rem', padding: '10px', borderRadius: '10px' }}
-                                                                                    >
-                                                                                        <option value="">Select Assignee</option>
-                                                                                        {members.filter(m => Number(m.projectRole) !== 1).map(m => (
-                                                                                            <option key={m.id || m.memberId || m.membershipId} value={m.id || m.memberId || m.membershipId}>{m.fullName || m.userName}</option>
-                                                                                        ))}
-                                                                                    </select>
-                                                                                </div>
-                                                                                <div style={{ position: 'relative' }}>
-                                                                                    <label style={{ position: 'absolute', top: '-8px', left: '10px', background: 'white', padding: '0 4px', fontSize: '0.6rem', fontWeight: 800, color: canEditCollab && !canEditFull ? '#6366f1' : 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                                                                                        COLLABORATORS{canEditCollab && !canEditFull && <span style={{ fontSize: '0.55rem', background: '#eef2ff', color: '#6366f1', borderRadius: '4px', padding: '1px 4px', fontWeight: 900 }}>EDITABLE</span>}
-                                                                                    </label>
-                                                                                    <select
-                                                                                        value=""
-                                                                                        disabled={!canEditCollab}
-                                                                                        style={{ ...compactInput, width: '100%', fontSize: '0.75rem', padding: '10px', borderRadius: '10px', background: canEditCollab ? 'var(--surface-hover)' : '#f8fafc', ...(canEditCollab && !canEditFull ? { borderColor: '#6366f1', borderWidth: '1.5px' } : {}) }}
-                                                                                        onChange={(e) => {
-                                                                                            const val = e.target.value;
-                                                                                            if (!val) return;
-                                                                                            const current = (task as any).collaboratorIds || [];
-                                                                                            const next = current.includes(val) ? current.filter((id: string) => id !== val) : [...current, val];
-                                                                                            handleUpdateTaskField(task.taskId, 'collaboratorIds', next);
-                                                                                        }}
-                                                                                    >
-                                                                                        <option value="">Add Collaborators ({((task as any).collaboratorIds || []).length})</option>
-                                                                                        {members.filter(m => Number(m.projectRole) !== 1 && (m.id || m.memberId || m.membershipId) !== (task.memberId || (task as any).assignedToId)).map(m => (
-                                                                                            <option key={m.id || m.memberId || m.membershipId} value={m.id || m.memberId || m.membershipId}>
-                                                                                                {((task as any).collaboratorIds || []).includes(m.id || m.memberId || m.membershipId) ? "✓ " : ""} {m.fullName || m.userName}
-                                                                                            </option>
-                                                                                        ))}
-                                                                                    </select>
-                                                                                </div>
+                                                                                {/* Current task Assignee custom dropdown */}
+                                                                                {(() => {
+                                                                                    const key = `__curr_assignee__${task.taskId}`;
+                                                                                    const isOpen = openAssigneeDropdownId === key;
+                                                                                    const currentAssigneeId = match ? (match.id || match.memberId || match.membershipId || '') : (task.memberId || (task as any).assignedToId || '');
+                                                                                    const eligible = members.filter(m => Number(m.projectRole) !== 1);
+                                                                                    const selectedMember = eligible.find(m => (m.id || m.memberId || m.membershipId) === currentAssigneeId);
+                                                                                    const filtered = eligible.filter(m => {
+                                                                                        if (!memberSearchQuery) return true;
+                                                                                        return (m.fullName || m.userName || '').toLowerCase().includes(memberSearchQuery.toLowerCase());
+                                                                                    });
+                                                                                    return (
+                                                                                        <div style={{ position: 'relative' }}>
+                                                                                            <label style={{ position: 'absolute', top: '-8px', left: '10px', background: 'white', padding: '0 4px', fontSize: '0.6rem', fontWeight: 800, color: 'var(--text-muted)', zIndex: 1 }}>ASSIGNEE</label>
+                                                                                            <button
+                                                                                                type="button"
+                                                                                                disabled={!canEditFull}
+                                                                                                onClick={() => { setOpenAssigneeDropdownId(isOpen ? null : key); setMemberSearchQuery(''); }}
+                                                                                                style={{ ...compactInput, width: '100%', display: 'flex', alignItems: 'center', gap: '6px', cursor: canEditFull ? 'pointer' : 'default', background: canEditFull ? 'white' : 'var(--border-light)', paddingLeft: '10px', paddingRight: '8px', fontSize: '0.75rem', borderRadius: '10px' }}
+                                                                                            >
+                                                                                                {selectedMember ? (
+                                                                                                    <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: 'var(--primary-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '0.55rem', fontWeight: 700, color: 'white' }}>
+                                                                                                        {(selectedMember.fullName || selectedMember.userName || '?').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
+                                                                                                    </div>
+                                                                                                ) : (
+                                                                                                    <User size={13} color="#94a3b8" style={{ flexShrink: 0 }} />
+                                                                                                )}
+                                                                                                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'left', color: selectedMember ? '#1e293b' : '#94a3b8' }}>
+                                                                                                    {selectedMember ? (selectedMember.fullName || selectedMember.userName) : 'Select Assignee'}
+                                                                                                </span>
+                                                                                                {canEditFull && <ChevronDown size={12} style={{ flexShrink: 0, color: '#94a3b8', transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />}
+                                                                                            </button>
+                                                                                            {isOpen && canEditFull && (
+                                                                                                <>
+                                                                                                    <div style={{ position: 'fixed', inset: 0, zIndex: 150 }} onClick={() => setOpenAssigneeDropdownId(null)} />
+                                                                                                    <div style={{ position: 'absolute', bottom: 'calc(100% + 4px)', left: 0, width: '100%', zIndex: 9999, background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', boxShadow: '0 -8px 30px rgba(0,0,0,0.15)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }} data-dropdown-list>
+                                                                                                        <div style={{ padding: '6px', borderBottom: '1px solid #f1f5f9' }}>
+                                                                                                            <div style={{ position: 'relative' }}>
+                                                                                                                <Search size={11} style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                                                                                                                <input autoFocus type="text" placeholder="Search members..." value={memberSearchQuery} onChange={(e) => setMemberSearchQuery(e.target.value)} style={{ width: '100%', padding: '5px 8px 5px 26px', fontSize: '0.7rem', border: '1px solid #e2e8f0', borderRadius: '6px', outline: 'none', background: '#f8fafc', boxSizing: 'border-box' }} />
+                                                                                                            </div>
+                                                                                                        </div>
+                                                                                                        <div className="custom-scrollbar" style={{ maxHeight: '180px', overflowY: 'auto', padding: '4px' }}>
+                                                                                                            <div onClick={() => { handleUpdateTaskField(task.taskId, 'memberId', ''); setOpenAssigneeDropdownId(null); }} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 8px', cursor: 'pointer', borderRadius: '6px', background: !currentAssigneeId ? '#f1f5f9' : 'transparent' }}>
+                                                                                                                <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px dashed #cbd5e1' }}><User size={11} color="#94a3b8" /></div>
+                                                                                                                <span style={{ fontSize: '0.72rem', fontWeight: 500, color: '#64748b', fontStyle: 'italic' }}>Unassigned</span>
+                                                                                                                {!currentAssigneeId && <CheckCircle size={12} style={{ marginLeft: 'auto', color: 'var(--primary-color)' }} />}
+                                                                                                            </div>
+                                                                                                            {filtered.map(m => {
+                                                                                                                const mId = m.id || m.memberId || m.membershipId;
+                                                                                                                const isSelected = currentAssigneeId === mId;
+                                                                                                                const initials = (m.fullName || m.userName || '?').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
+                                                                                                                return (
+                                                                                                                    <div key={mId} onClick={() => { handleUpdateTaskField(task.taskId, 'memberId', mId); const cur = (task as any).collaboratorIds || []; const next = cur.filter((id: string) => id !== mId); if (next.length !== cur.length) handleUpdateTaskField(task.taskId, 'collaboratorIds', next); setOpenAssigneeDropdownId(null); }} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 8px', cursor: 'pointer', borderRadius: '6px', background: isSelected ? '#f1f5f9' : 'transparent' }}>
+                                                                                                                        <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: isSelected ? 'var(--primary-color)' : '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700, color: isSelected ? 'white' : '#64748b', flexShrink: 0 }}>{initials}</div>
+                                                                                                                        <span style={{ fontSize: '0.72rem', fontWeight: 500, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.fullName || m.userName}</span>
+                                                                                                                        {isSelected && <CheckCircle size={12} style={{ marginLeft: 'auto', flexShrink: 0, color: 'var(--primary-color)' }} />}
+                                                                                                                    </div>
+                                                                                                                );
+                                                                                                            })}
+                                                                                                        </div>
+                                                                                                    </div>
+                                                                                                </>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    );
+                                                                                })()}
+                                                                                {/* Current task Collaborators custom dropdown */}
+                                                                                {(() => {
+                                                                                    const key = `__curr_collab__${task.taskId}`;
+                                                                                    const isOpen = openCollabDropdownId === key;
+                                                                                    const currentAssigneeId = task.memberId || (task as any).assignedToId || '';
+                                                                                    const selectedIds: string[] = (task as any).collaboratorIds || [];
+                                                                                    const eligible = members.filter(m => Number(m.projectRole) !== 1 && (m.id || m.memberId || m.membershipId) !== currentAssigneeId);
+                                                                                    const filtered = eligible.filter(m => {
+                                                                                        if (!memberSearchQuery) return true;
+                                                                                        return (m.fullName || m.userName || '').toLowerCase().includes(memberSearchQuery.toLowerCase());
+                                                                                    });
+                                                                                    return (
+                                                                                        <div style={{ position: 'relative' }}>
+                                                                                            <label style={{ position: 'absolute', top: '-8px', left: '10px', background: 'white', padding: '0 4px', fontSize: '0.6rem', fontWeight: 800, color: canEditCollab && !canEditFull ? '#6366f1' : 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '3px', zIndex: 1 }}>
+                                                                                                COLLABORATORS{canEditCollab && !canEditFull && <span style={{ fontSize: '0.55rem', background: '#eef2ff', color: '#6366f1', borderRadius: '4px', padding: '1px 4px', fontWeight: 900 }}>EDITABLE</span>}
+                                                                                            </label>
+                                                                                            <button
+                                                                                                type="button"
+                                                                                                disabled={!canEditCollab}
+                                                                                                onClick={() => { setOpenCollabDropdownId(isOpen ? null : key); setMemberSearchQuery(''); }}
+                                                                                                style={{ ...compactInput, width: '100%', display: 'flex', alignItems: 'center', gap: '6px', cursor: canEditCollab ? 'pointer' : 'default', background: canEditCollab ? 'var(--surface-hover, #f8fafc)' : '#f8fafc', paddingLeft: '10px', paddingRight: '8px', fontSize: '0.75rem', borderRadius: '10px', ...(canEditCollab && !canEditFull ? { borderColor: '#6366f1', borderWidth: '1.5px' } : {}) }}
+                                                                                            >
+                                                                                                <Users size={13} color={canEditCollab && !canEditFull ? '#6366f1' : '#94a3b8'} style={{ flexShrink: 0 }} />
+                                                                                                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'left', color: selectedIds.length > 0 ? '#1e293b' : '#94a3b8' }}>
+                                                                                                    {selectedIds.length > 0 ? `${selectedIds.length} collaborator${selectedIds.length > 1 ? 's' : ''}` : 'Add Collaborators'}
+                                                                                                </span>
+                                                                                                {canEditCollab && <ChevronDown size={12} style={{ flexShrink: 0, color: '#94a3b8', transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />}
+                                                                                            </button>
+                                                                                            {isOpen && canEditCollab && (
+                                                                                                <>
+                                                                                                    <div style={{ position: 'fixed', inset: 0, zIndex: 150 }} onClick={() => setOpenCollabDropdownId(null)} />
+                                                                                                    <div style={{ position: 'absolute', bottom: 'calc(100% + 4px)', left: 0, width: '100%', zIndex: 9999, background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', boxShadow: '0 -8px 30px rgba(0,0,0,0.15)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }} data-dropdown-list>
+                                                                                                        <div style={{ padding: '6px', borderBottom: '1px solid #f1f5f9' }}>
+                                                                                                            <div style={{ position: 'relative' }}>
+                                                                                                                <Search size={11} style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                                                                                                                <input autoFocus type="text" placeholder="Search collaborators..." value={memberSearchQuery} onChange={(e) => setMemberSearchQuery(e.target.value)} style={{ width: '100%', padding: '5px 8px 5px 26px', fontSize: '0.7rem', border: '1px solid #e2e8f0', borderRadius: '6px', outline: 'none', background: '#f8fafc', boxSizing: 'border-box' }} />
+                                                                                                            </div>
+                                                                                                        </div>
+                                                                                                        <div className="custom-scrollbar" style={{ maxHeight: '180px', overflowY: 'auto', padding: '4px' }}>
+                                                                                                            {filtered.length === 0 ? (
+                                                                                                                <div style={{ padding: '16px 8px', textAlign: 'center', color: '#94a3b8', fontSize: '0.7rem' }}>No members found</div>
+                                                                                                            ) : filtered.map(m => {
+                                                                                                                const mId = m.id || m.memberId || m.membershipId;
+                                                                                                                const isSelected = selectedIds.includes(mId);
+                                                                                                                const initials = (m.fullName || m.userName || '?').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
+                                                                                                                return (
+                                                                                                                    <div key={mId} onClick={() => { const next = isSelected ? selectedIds.filter((id: string) => id !== mId) : [...selectedIds, mId]; handleUpdateTaskField(task.taskId, 'collaboratorIds', next); }} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 8px', cursor: 'pointer', borderRadius: '6px', background: isSelected ? '#f1f5f9' : 'transparent' }}>
+                                                                                                                        <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: isSelected ? '#6366f1' : '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700, color: isSelected ? 'white' : '#64748b', flexShrink: 0 }}>{initials}</div>
+                                                                                                                        <span style={{ fontSize: '0.72rem', fontWeight: 500, color: '#1e293b', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.fullName || m.userName}</span>
+                                                                                                                        {isSelected && <CheckCircle size={12} style={{ flexShrink: 0, color: '#6366f1' }} />}
+                                                                                                                    </div>
+                                                                                                                );
+                                                                                                            })}
+                                                                                                        </div>
+                                                                                                    </div>
+                                                                                                </>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    );
+                                                                                })()}
                                                                             </div>
+                                                                            {(canManageProject && !isArchived && activeMilestone?.status !== MilestoneStatus.Completed && activeMilestone?.status !== MilestoneStatus.Cancelled) && (
+                                                                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', paddingTop: '12px', borderTop: '1px solid var(--border-color)' }} onClick={e => e.stopPropagation()}>
+                                                                                    {task.status === 1 && (
+                                                                                        <button
+                                                                                            onClick={(e) => { e.stopPropagation(); handleDeleteTask(task.taskId || (task as any).id, e); }}
+                                                                                            disabled={savingTaskId === task.taskId}
+                                                                                            style={{ padding: '7px 16px', borderRadius: '8px', border: '1.5px solid #fee2e2', background: '#fff1f1', color: '#ef4444', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', opacity: savingTaskId === task.taskId ? 0.6 : 1 }}
+                                                                                            onMouseOver={e => e.currentTarget.style.background = '#fef2f2'}
+                                                                                            onMouseOut={e => e.currentTarget.style.background = '#fff1f1'}
+                                                                                        >
+                                                                                            <Trash2 size={13} /> Delete Task
+                                                                                        </button>
+                                                                                    )}
+                                                                                    <button
+                                                                                        onClick={(e) => { e.stopPropagation(); handleSaveExistingTask(task); }}
+                                                                                        disabled={savingTaskId === task.taskId}
+                                                                                        style={{ padding: '7px 16px', borderRadius: '8px', border: 'none', background: 'var(--primary-color)', color: 'white', fontSize: '0.75rem', fontWeight: 700, cursor: savingTaskId === task.taskId ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px', opacity: savingTaskId === task.taskId ? 0.6 : 1 }}
+                                                                                    >
+                                                                                        {savingTaskId === task.taskId ? <Clock className="animate-spin-slow" size={13} /> : <Save size={13} />}
+                                                                                        {savingTaskId === task.taskId ? 'Saving...' : 'Save Changes'}
+                                                                                    </button>
+                                                                                </div>
+                                                                            )}
                                                                         </React.Fragment>
                                                                     );
                                                                 })()}
                                                             </React.Fragment>
+                                                        </div>
                                                         )}
                                                     </div>
                                                 );

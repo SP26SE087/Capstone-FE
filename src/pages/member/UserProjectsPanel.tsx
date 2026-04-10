@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Briefcase, Loader2, X, RefreshCw, Users } from 'lucide-react';
-import { userService } from '@/services/userService';
+import { projectService } from '@/services/projectService';
 import { useToastStore } from '@/store/slices/toastSlice';
 
 interface UserProjectsPanelProps {
@@ -27,14 +27,14 @@ const StatBox: React.FC<{ label: string; value: number; color: string; bg: strin
 );
 
 const UserProjectsPanel: React.FC<UserProjectsPanelProps> = ({ email, userName, onClose }) => {
-    const [data, setData] = useState<Awaited<ReturnType<typeof userService.getProjectsByEmail>> | null>(null);
+    const [data, setData] = useState<Awaited<ReturnType<typeof projectService.getByUserEmail>> | null>(null);
     const [loading, setLoading] = useState(false);
     const { addToast } = useToastStore();
 
     const fetchProjects = async () => {
         setLoading(true);
         try {
-            const result = await userService.getProjectsByEmail(email);
+            const result = await projectService.getByUserEmail(email);
             setData(result);
         } catch {
             addToast('Failed to load projects.', 'error');

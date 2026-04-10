@@ -240,9 +240,12 @@ const Projects: React.FC = () => {
                                         const projectName = project.projectName || (project as any).name || 'Untitled Project';
                                         const formatDate = (dateString?: string | null) => {
                                             if (!dateString) return 'TBD';
-                                            const d = new Date(dateString);
-                                            if (isNaN(d.getTime()) || d.getFullYear() < 1970) return 'TBD';
-                                            return `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
+                                            // Extract date part only — avoids UTC→Vietnam timezone shift
+                                            const datePart = /^\d{4}-\d{2}-\d{2}/.exec(dateString)?.[0];
+                                            if (!datePart) return 'TBD';
+                                            const [y, m, d] = datePart.split('-').map(Number);
+                                            if (!y || !m || !d || y < 1970) return 'TBD';
+                                            return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`;
                                         };
 
                                         return (
@@ -312,9 +315,12 @@ const Projects: React.FC = () => {
 
                                         const formatDate = (dateString?: string | null) => {
                                             if (!dateString) return 'TBD';
-                                            const d = new Date(dateString);
-                                            if (isNaN(d.getTime()) || d.getFullYear() < 1970) return 'TBD';
-                                            return `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
+                                            // Extract date part only — avoids UTC→Vietnam timezone shift
+                                            const datePart = /^\d{4}-\d{2}-\d{2}/.exec(dateString)?.[0];
+                                            if (!datePart) return 'TBD';
+                                            const [y, m, d] = datePart.split('-').map(Number);
+                                            if (!y || !m || !d || y < 1970) return 'TBD';
+                                            return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`;
                                         };
 
                                         const projectName = project.projectName || (project as any).name || 'Untitled Project';
@@ -380,14 +386,24 @@ const Projects: React.FC = () => {
 
                                                 {/* Col 3: Timeline + creator */}
                                                 <div style={{ lineHeight: 1.4 }}>
-                                                    <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '3px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                    <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                                                         <Calendar size={11} /> Timeline
                                                     </div>
-                                                    <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '6px' }}>
+                                                    <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                                                         {formatDate(project.startDate)}
                                                     </div>
-                                                    <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginBottom: '2px' }}>→ {formatDate(project.endDate)}</div>
-                                                    <div style={{ fontSize: '0.67rem', color: 'var(--text-muted)', fontWeight: 600, marginTop: '4px' }}>
+                                                    <div style={{ fontSize: '0.67rem', color: 'var(--text-muted)', margin: '2px 0 6px' }}>
+                                                        → {formatDate(project.endDate)}
+                                                    </div>
+                                                    {/* Progress bar from API */}
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3px' }}>
+                                                        <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)', fontWeight: 700 }}>Progress</span>
+                                                        <span style={{ fontSize: '0.6rem', fontWeight: 800, color: 'var(--primary-color)' }}>{progress}%</span>
+                                                    </div>
+                                                    <div style={{ height: '4px', background: 'var(--border-light)', borderRadius: '3px', overflow: 'hidden' }}>
+                                                        <div style={{ width: `${progress}%`, height: '100%', borderRadius: '3px', background: 'var(--primary-color)', transition: 'width 0.4s' }} />
+                                                    </div>
+                                                    <div style={{ fontSize: '0.63rem', color: 'var(--text-muted)', fontWeight: 600, marginTop: '5px' }}>
                                                         by {creatorName}
                                                     </div>
                                                 </div>

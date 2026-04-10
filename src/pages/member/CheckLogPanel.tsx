@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { ClipboardList, Loader2, X, Plus, Clock, RefreshCw } from 'lucide-react';
+import { ClipboardList, Loader2, X, Clock, RefreshCw } from 'lucide-react';
 import { userService } from '@/services/userService';
 import { useToastStore } from '@/store/slices/toastSlice';
+import { useAuth } from '@/hooks/useAuth';
+import { SystemRoleEnum } from '@/types/enums';
 import FaceRecognitionSection from './FaceRecognitionSection';
 
 interface CheckLogPanelProps {
@@ -15,10 +17,12 @@ interface CheckLogPanelProps {
 const CheckLogPanel: React.FC<CheckLogPanelProps> = ({ email, studentId, userName, onClose, onScanFace }) => {
     const [logs, setLogs] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
-    const [adding, setAdding] = useState(false);
-    const [showAddForm, setShowAddForm] = useState(false);
-    const [checkingTime, setCheckingTime] = useState('');
     const { addToast } = useToastStore();
+    const { user } = useAuth();
+
+    const isLabDirector = user?.role === 'Lab Director' ||
+        user?.role === 'LabDirector' ||
+        Number(user?.role) === SystemRoleEnum.LabDirector;
 
     const fetchLogs = async () => {
         setLoading(true);
@@ -35,23 +39,6 @@ const CheckLogPanel: React.FC<CheckLogPanelProps> = ({ email, studentId, userNam
     useEffect(() => {
         if (email) fetchLogs();
     }, [email]);
-
-    const handleAdd = async () => {
-        if (!studentId) { addToast('Student ID is missing.', 'error'); return; }
-        if (!checkingTime) { addToast('Please select a checking time.', 'warning'); return; }
-        setAdding(true);
-        try {
-            await userService.addCheckingLog(studentId, new Date(checkingTime).toISOString());
-            addToast('Checking log added.', 'success');
-            setShowAddForm(false);
-            setCheckingTime('');
-            fetchLogs();
-        } catch {
-            addToast('Failed to add checking log.', 'error');
-        } finally {
-            setAdding(false);
-        }
-    };
 
     const formatDateTime = (raw: string) => {
         if (!raw) return '—';
@@ -130,72 +117,14 @@ const CheckLogPanel: React.FC<CheckLogPanelProps> = ({ email, studentId, userNam
                 {studentId && <span style={{ marginLeft: '6px', fontWeight: 700, color: 'var(--text-primary)' }}>· ID: {studentId}</span>}
             </div>
 
-            {/* Face Recognition */}
-            <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--border-light)' }}>
-                <FaceRecognitionSection
-                    studentId={studentId}
-                    userName={userName}
-                    onScanFace={onScanFace}
-                />
-            </div>
-
-            {/* Add log form */}
-            {showAddForm && (
-                <div style={{
-                    padding: '0.75rem 1rem',
-                    borderBottom: '1px solid var(--border-light)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '0.5rem',
-                    background: '#f0fdf4'
-                }}>
-                    <label style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                        Checking Time
-                    </label>
-                    <input
-                        type="datetime-local"
-                        className="form-input"
-                        value={checkingTime}
-                        onChange={(e) => setCheckingTime(e.target.value)}
-                        style={{ fontSize: '0.78rem', padding: '6px 8px' }}
+            {/* Face Recognition — chỉ hiển thị cho Lab Director */}
+            {isLabDirector && (
+                <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--border-light)' }}>
+                    <FaceRecognitionSection
+                        studentId={studentId}
+                        userName={userName}
+                        onScanFace={onScanFace}
                     />
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <button
-                            className="btn btn-primary"
-                            onClick={handleAdd}
-                            disabled={adding}
-                            style={{ flex: 1, fontSize: '0.72rem', padding: '5px 8px', gap: '4px' }}
-                        >
-                            {adding ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
-                            Save
-                        </button>
-                        <button
-                            className="btn btn-secondary"
-                            onClick={() => { setShowAddForm(false); setCheckingTime(''); }}
-                            style={{ fontSize: '0.72rem', padding: '5px 10px' }}
-                        >
-                            Cancel
-                        </button>
-                    </div>
-                </div>
-            )}
-
-            {/* Add button */}
-            {!showAddForm && (
-                <div style={{ padding: '0.5rem 1rem', borderBottom: '1px solid var(--border-light)' }}>
-                    <button
-                        className="btn btn-secondary"
-                        onClick={() => {
-                            const now = new Date();
-                            const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
-                                .toISOString().slice(0, 16);
-                            setCheckingTime(local);
-                            setShowAddForm(true);
-                        }}
-                        style={{ width: '100%', fontSize: '0.72rem', padding: '5px 8px', gap: '5px' }}
-                    >
-                        <Plus size={13} /> Add Log Entry
-                    </button>
                 </div>
             )}
 

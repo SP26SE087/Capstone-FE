@@ -236,7 +236,7 @@ const UserDetailModal: React.FC<UserDetailModalProps> = ({ onClose, userId, syst
                             onMouseLeave={e => { e.currentTarget.style.background = '#fef2f2'; }}
                         >
                             {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                            Delete User
+                            Remove Member
                         </button>
                     )}
                 </div>
@@ -246,9 +246,9 @@ const UserDetailModal: React.FC<UserDetailModalProps> = ({ onClose, userId, syst
                 isOpen={showDeleteConfirm}
                 onClose={() => setShowDeleteConfirm(false)}
                 onConfirm={handleDelete}
-                title="Delete User"
-                message={`Permanently delete ${name || 'this user'} from the system? This action cannot be undone.`}
-                confirmText="Delete"
+                title="Remove Member"
+                message={`Remove ${name || 'this user'} from the lab? This action cannot be undone.`}
+                confirmText="Remove"
                 cancelText="Cancel"
                 variant="danger"
             />

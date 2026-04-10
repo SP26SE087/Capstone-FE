@@ -124,7 +124,7 @@ const Members: React.FC = () => {
                     gap: '1.5rem', 
                     marginBottom: '2rem' 
                 }}>
-                    <div className="card" style={{ flex: 1, margin: 0, display: 'flex', alignItems: 'center', padding: '0.75rem 1.25rem' }}>
+                    <div className="card" style={{ flex: 1, margin: 0, display: 'flex', alignItems: 'center', padding: '0 1.25rem', height: '44px' }}>
                         <div style={{ position: 'relative', flex: 1 }}>
                             <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                             <input
@@ -150,7 +150,7 @@ const Members: React.FC = () => {
                             <button 
                                 className="btn btn-primary" 
                                 style={{ 
-                                    height: '52px',
+                                    height: '44px',
                                     minWidth: '160px',
                                     padding: '0 1.5rem', 
                                     boxShadow: 'var(--shadow-sm)',

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import MainLayout from '@/layout/MainLayout';
 import { projectService, milestoneService, membershipService, taskService, researchFieldService } from '@/services';
-import { Project, ProjectStatus, ProjectRoleEnum, Milestone, Task, ResearchField } from '@/types';
+import { Project, ProjectStatus, ProjectRoleEnum, MemberStatus, Milestone, Task, ResearchField } from '@/types';
 import { getProjectStatusStyle, isDefaultDate, formatProjectDate, toApiDate } from '@/utils/projectUtils';
 import { validateSpecialChars } from '@/utils/validation';
 import Modal from '@/components/common/Modal';
@@ -476,7 +476,9 @@ const ProjectDetails: React.FC = () => {
     // Role calculations
     const projectRoleValue = currentMember?.projectRole || project?.projectRole;
     const isAdmin = currentUser.role === 'Admin';
-    const canManageProject = isAdmin || (Number(projectRoleValue) === ProjectRoleEnum.Leader) || (Number(projectRoleValue) === ProjectRoleEnum.LabDirector);
+    const currentMemberStatus = Number(currentMember?.status ?? MemberStatus.Active);
+    const isCurrentMemberActive = currentMemberStatus === MemberStatus.Active;
+    const canManageProject = isCurrentMemberActive && (isAdmin || (Number(projectRoleValue) === ProjectRoleEnum.Leader) || (Number(projectRoleValue) === ProjectRoleEnum.LabDirector));
     const canManageMilestones = isAdmin || (Number(projectRoleValue) === ProjectRoleEnum.LabDirector);
     const canAddTask = isAdmin || [ProjectRoleEnum.Leader, ProjectRoleEnum.LabDirector].includes(Number(projectRoleValue));
     const isArchived = project?.status === ProjectStatus.Archived;
@@ -739,6 +741,7 @@ const ProjectDetails: React.FC = () => {
                                 hasLeader={hasLeader}
                                 existingMemberIds={members.map(m => m.email).filter(Boolean)}
                                 currentProjectRole={Number(projectRoleValue)}
+                                currentUserMemberStatus={currentMemberStatus}
                                 currentUser={currentUser}
                                 onMemberAdded={refetchMembers}
                                 onMemberUpdated={() => { refetchMembers(); showToast('Team updated.'); }}

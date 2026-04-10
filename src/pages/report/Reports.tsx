@@ -419,7 +419,7 @@ const Reports: React.FC = () => {
                     )}
                 </div>
 
-                <div style={{ display: 'flex', gap: '2rem', height: 'calc(100vh - 250px)', minHeight: '650px', marginTop: '1rem' }}>
+                <div style={{ display: 'flex', gap: '2rem', height: 'calc(100vh - 210px)', minHeight: '650px', marginTop: '0.25rem' }}>
 
                     {/* Left Column: List content */}
                     <div style={{

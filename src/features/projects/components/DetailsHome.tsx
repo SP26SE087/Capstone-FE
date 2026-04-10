@@ -366,28 +366,35 @@ const DetailsHome: React.FC<DetailsHomeProps> = ({
                     {/* PREMIUM CUSTOM MILESTONE DROPDOWN */}
                     <div ref={dropdownRef} style={{ position: 'relative' }}>
                         <button
-                            onClick={() => setIsMilestoneDropdownOpen(!isMilestoneDropdownOpen)}
+                            onClick={() => uniqueMilestones.length > 0 && setIsMilestoneDropdownOpen(!isMilestoneDropdownOpen)}
+                            disabled={uniqueMilestones.length === 0}
                             style={{
                                 display: 'flex', alignItems: 'center', gap: '8px',
                                 padding: '8px 16px', borderRadius: '12px',
-                                border: '1px solid #e2e8f0', background: 'white',
-                                color: 'var(--primary-color)', fontSize: '0.75rem', fontWeight: 800,
-                                cursor: 'pointer', transition: 'all 0.2s',
-                                textTransform: 'uppercase', letterSpacing: '0.05em',
+                                border: '1px solid #e2e8f0',
+                                background: uniqueMilestones.length === 0 ? '#f8fafc' : 'white',
+                                color: uniqueMilestones.length === 0 ? '#94a3b8' : 'var(--primary-color)',
+                                fontSize: '0.8rem', fontWeight: 600,
+                                cursor: uniqueMilestones.length === 0 ? 'not-allowed' : 'pointer',
+                                transition: 'all 0.2s', fontFamily: 'inherit',
                                 boxShadow: isMilestoneDropdownOpen ? '0 0 0 3px rgba(232,114,12,0.1)' : '0 2px 4px rgba(0,0,0,0.02)'
                             }}
                         >
-                            {uniqueMilestones.find(m => String(getMId(m)) === String(selectedMilestoneId))?.name || 'Milestone'}
-                            <ChevronRight
-                                size={14}
-                                style={{
-                                    transform: isMilestoneDropdownOpen ? 'rotate(90deg)' : 'rotate(0deg)',
-                                    transition: 'transform 0.2s ease'
-                                }}
-                            />
+                            {uniqueMilestones.length === 0
+                                ? 'No Milestone'
+                                : (uniqueMilestones.find(m => String(getMId(m)) === String(selectedMilestoneId))?.name || 'Select Milestone')}
+                            {uniqueMilestones.length > 0 && (
+                                <ChevronRight
+                                    size={14}
+                                    style={{
+                                        transform: isMilestoneDropdownOpen ? 'rotate(90deg)' : 'rotate(0deg)',
+                                        transition: 'transform 0.2s ease'
+                                    }}
+                                />
+                            )}
                         </button>
 
-                        {isMilestoneDropdownOpen && (
+                        {isMilestoneDropdownOpen && uniqueMilestones.length > 0 && (
                             <div style={{
                                 position: 'absolute', top: 'calc(100% + 8px)', right: 0,
                                 background: 'white', borderRadius: '14px', border: '1px solid #e2e8f0',
@@ -403,6 +410,7 @@ const DetailsHome: React.FC<DetailsHomeProps> = ({
                                             onClick={() => { setSelectedMilestoneId(String(mId)); setIsMilestoneDropdownOpen(false); }}
                                             style={{
                                                 padding: '10px 14px', borderRadius: '10px', fontSize: '0.8rem', fontWeight: 600,
+                                                fontFamily: 'inherit',
                                                 color: String(selectedMilestoneId) === String(mId) ? 'var(--primary-color)' : '#475569',
                                                 background: String(selectedMilestoneId) === String(mId) ? '#fffaf5' : 'transparent',
                                                 cursor: 'pointer', transition: 'all 0.2s'

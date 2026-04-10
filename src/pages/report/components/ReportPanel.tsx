@@ -555,7 +555,7 @@ const handleAiSuggest = async () => {
                     </div>
 
                     {/* Status, Project & Milestone Context */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                         <div style={{ padding: '0.75rem', borderRadius: '12px', background: '#f8fafc', border: '1px solid #f1f5f9' }}>
                             <label style={{ display: 'block', fontSize: '0.6rem', fontWeight: 800, color: '#64748b', marginBottom: '6px', textTransform: 'uppercase' }}>Status</label>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: statusInfo.color }}>
@@ -563,9 +563,9 @@ const handleAiSuggest = async () => {
                                 <span style={{ fontWeight: 700, fontSize: '0.75rem' }}>{statusInfo.label}</span>
                             </div>
                         </div>
-                        <div 
+                        <div
                             onClick={() => isEditMode && setIsProjectModalOpen(true)}
-                            style={{ padding: '0.75rem 1rem', borderRadius: '12px', background: isEditMode ? '#fff' : '#f8fafc', border: isEditMode ? '2px dashed var(--primary-color)33' : '1px solid #f1f5f9', cursor: isEditMode ? 'pointer' : 'default' }}
+                            style={{ padding: '0.75rem 1rem', borderRadius: '12px', background: isEditMode ? '#fff' : '#f8fafc', border: isEditMode ? '2px dashed var(--primary-color)33' : '1px solid #f1f5f9', cursor: isEditMode ? 'pointer' : 'default', minWidth: 0 }}
                         >
                             <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 800, color: '#64748b', marginBottom: '6px', textTransform: 'uppercase' }}>
                                 Project <span style={{ color: '#ef4444' }}>*</span>
@@ -579,27 +579,26 @@ const handleAiSuggest = async () => {
                                 </span>
                             </div>
                         </div>
-                        <div 
+                        <div
                             onClick={() => isEditMode && formData.projectId && setIsMilestoneModalOpen(true)}
-                            style={{ 
-                                padding: '0.75rem 1rem', borderRadius: '12px', 
-                                background: isEditMode ? (formData.projectId ? '#fff' : '#f1f5f9') : '#f8fafc', 
-                                border: isEditMode ? '2px dashed var(--primary-color)33' : '1px solid #f1f5f9', 
+                            style={{
+                                padding: '0.75rem 1rem', borderRadius: '12px',
+                                background: isEditMode ? (formData.projectId ? '#fff' : '#f1f5f9') : '#f8fafc',
+                                border: isEditMode ? '2px dashed var(--primary-color)33' : '1px solid #f1f5f9',
                                 cursor: (isEditMode && formData.projectId) ? 'pointer' : 'default',
-                                opacity: (isEditMode && !formData.projectId) ? 0.6 : 1
+                                opacity: (isEditMode && !formData.projectId) ? 0.6 : 1,
+                                gridColumn: '1 / -1'
                             }}
                         >
                             <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 800, color: '#64748b', marginBottom: '6px', textTransform: 'uppercase' }}>
                                 Milestone <span style={{ color: '#ef4444' }}>*</span>
                             </label>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
-                                <span style={{ fontWeight: 700, fontSize: '0.8rem', color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                    {(() => {
-                                        const m = milestones.find(ms => (ms.milestoneId || ms.id) === formData.milestoneId);
-                                        return m?.title || m?.name || 'Select Milestone';
-                                    })()}
-                                </span>
-                            </div>
+                            <span style={{ fontWeight: 700, fontSize: '0.8rem', color: '#1e293b' }}>
+                                {(() => {
+                                    const m = milestones.find(ms => (ms.milestoneId || ms.id) === formData.milestoneId);
+                                    return m?.title || m?.name || 'Select Milestone';
+                                })()}
+                            </span>
                         </div>
                     </div>
 
@@ -738,7 +737,7 @@ const handleAiSuggest = async () => {
                                                                     })}
                                                                     style={{
                                                                         display: 'block', marginTop: '4px', background: 'none', border: 'none',
-                                                                        color: 'var(--primary-color)', fontSize: '0.75rem', fontWeight: 700,
+                                                                        color: '#2563eb', fontSize: '0.75rem', fontWeight: 700,
                                                                         cursor: 'pointer', padding: 0
                                                                     }}
                                                                 >

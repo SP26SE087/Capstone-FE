@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-    Clock, Loader2, Info, List
+    Clock, Loader2, Info
 } from 'lucide-react';
 import { Milestone, Task } from '@/types';
 import { taskService } from '@/services/taskService';
@@ -27,7 +27,6 @@ interface ActivityTimelineProps {
     projectId: string;
     isSpecialRole: boolean;
     viewMode: 'list' | 'timeline';
-    setViewMode: (mode: 'list' | 'timeline') => void;
 }
 
 const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
@@ -37,7 +36,6 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
     currentMember,
     isSpecialRole,
     // viewMode,
-    setViewMode
 }) => {
     const [timelineMode, setTimelineMode] = useState<'milestone' | 'member'>('milestone');
     const [selectedMilestoneId, setSelectedMilestoneId] = useState<string>('');
@@ -498,10 +496,6 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
                             </select>
                         </div>
 
-                        <div style={{ display: 'flex', background: '#f1f5f9', padding: '2px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                            <button onClick={() => setViewMode('list')} style={{ padding: '4px 10px', borderRadius: '6px', border: 'none', fontSize: '0.65rem', fontWeight: 700, cursor: 'pointer', background: 'transparent' }}><div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><List size={12} />List</div></button>
-                            <button onClick={() => setViewMode('timeline')} style={{ padding: '4px 10px', borderRadius: '6px', border: 'none', fontSize: '0.65rem', fontWeight: 800, cursor: 'pointer', background: 'white', color: 'var(--primary-color)' }}><div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Clock size={12} />Timeline</div></button>
-                        </div>
                     </div>
                 </div>
             </div>

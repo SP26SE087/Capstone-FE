@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import {
-    X, Mail, Calendar, ShieldCheck, UserCheck, Settings,
+    X, Mail, Calendar, ShieldCheck, Settings,
     Loader2, Check, Trash2, User, Crown, Shield, Users, AlertTriangle,
 } from 'lucide-react';
 import { membershipService, projectService, userService } from '@/services';
-import { ProjectRoleEnum } from '@/types/project';
+import { ProjectRoleEnum, MemberStatus } from '@/types/project';
 import ConfirmModal from '@/components/common/ConfirmModal';
 import { useToastStore } from '@/store/slices/toastSlice';
 
@@ -13,18 +13,11 @@ interface MemberProfilePanelProps {
     projectId: string;
     currentUser: any;
     currentUserProjectRole?: number;
+    currentUserMemberStatus?: number;
     canManage: boolean;
     onSuccess: () => void;
     onClose: () => void;
 }
-
-const SystemRoleMap: Record<number, string> = {
-    1: 'Admin',
-    2: 'Lab Director',
-    3: 'Senior Researcher',
-    4: 'Member',
-    5: 'Guest',
-};
 
 const ProjectRoleMap: Record<number, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
     [ProjectRoleEnum.Leader]: {
@@ -58,6 +51,7 @@ const MemberProfilePanel: React.FC<MemberProfilePanelProps> = ({
     projectId,
     currentUser,
     currentUserProjectRole,
+    currentUserMemberStatus,
     canManage,
     onSuccess,
     onClose,
@@ -145,6 +139,15 @@ const MemberProfilePanel: React.FC<MemberProfilePanelProps> = ({
         }
     };
 
+    const mapStatusError = (err: any): string => {
+        const msg: string = err?.response?.data?.message || err?.message || '';
+        if (msg.includes('Only Admin can unban')) return 'Only an Admin can unban a member.';
+        if (msg.includes('inactive in this project')) return 'You are inactive in this project and cannot perform this action.';
+        if (msg.includes('banned from the project')) return 'You are banned from this project.';
+        if (msg.includes('Invalid status transition')) return 'This status change is not allowed.';
+        return msg || 'Failed to update status.';
+    };
+
     const handleUpdateStatus = async (newStatus: number) => {
         if (!member) return;
         setUpdatingStatus(true);
@@ -156,7 +159,7 @@ const MemberProfilePanel: React.FC<MemberProfilePanelProps> = ({
             setPendingStatus(null);
             onSuccess();
         } catch (err: any) {
-            setStatusError(err.message || 'Failed to update status.');
+            setStatusError(mapStatusError(err));
         } finally {
             setUpdatingStatus(false);
         }
@@ -185,26 +188,54 @@ const MemberProfilePanel: React.FC<MemberProfilePanelProps> = ({
     const isAdmin = currentUser && (Number(currentUser.role) === 1 || currentUser.role === 'Admin');
     const isCurrentUserLD = Number(currentUserProjectRole) === ProjectRoleEnum.LabDirector;
     const isCurrentUserLeader = Number(currentUserProjectRole) === ProjectRoleEnum.Leader;
+    // Current user must be Active in the project to perform any admin action
+    const isCurrentUserActiveInProject =
+        currentUserMemberStatus === undefined || currentUserMemberStatus === MemberStatus.Active;
 
     const isTargetLabDirector =
         Number(member.projectRole) === ProjectRoleEnum.LabDirector ||
         member.projectRoleName === 'Lab Director' ||
-        member.roleName === 'Lab Director' ||
-        Number(projectDetails?.projectRole) === ProjectRoleEnum.LabDirector ||
-        systemDetails?.role === 2;
+        Number(projectDetails?.projectRole) === ProjectRoleEnum.LabDirector;
 
     const isTargetLeader =
         Number(member.projectRole) === ProjectRoleEnum.Leader ||
         member.projectRoleName === 'Leader' ||
-        member.roleName === 'Leader' ||
         Number(projectDetails?.projectRole) === ProjectRoleEnum.Leader;
 
     const canEdit =
         canManage &&
         !isSelf &&
+        isCurrentUserActiveInProject &&
         (isAdmin ||
             (isCurrentUserLD && !isTargetLabDirector) ||
             (isCurrentUserLeader && !isTargetLabDirector && !isTargetLeader));
+
+    // Status transition matrix:
+    // Admin (system):        Active ↔ Inactive only — cannot ban or unban
+    // Lab Director (project): Full control — Active↔Inactive, ban, unban
+    // Others:                 No status permissions
+    const allStatusOptions = [
+        { value: MemberStatus.Active, label: 'Active', color: '#10b981', bg: '#ecfdf5', border: '#6ee7b7' },
+        { value: MemberStatus.Inactive, label: 'Inactive', color: '#f59e0b', bg: '#fffbeb', border: '#fcd34d' },
+        { value: MemberStatus.Banned, label: 'Banned', color: '#ef4444', bg: '#fef2f2', border: '#fca5a5' },
+    ] as const;
+
+    const canChangeStatus = !isSelf && isCurrentUserActiveInProject && (isAdmin || isCurrentUserLD);
+
+    const visibleStatusOptions = allStatusOptions.filter(opt => {
+        if (isCurrentUserLD) {
+            // Lab Director: full control
+            // Banned target → only Active (unban)
+            if (selectedStatus === MemberStatus.Banned) return opt.value === MemberStatus.Active;
+            return true;
+        }
+        if (isAdmin) {
+            // Admin: Active ↔ Inactive only, cannot ban or unban
+            if (selectedStatus === MemberStatus.Banned) return false;
+            return opt.value !== MemberStatus.Banned;
+        }
+        return false;
+    });
 
     const projectRoleId =
         projectDetails?.projectRole
@@ -325,9 +356,9 @@ const MemberProfilePanel: React.FC<MemberProfilePanelProps> = ({
                     {/* Status badge */}
                     {(() => {
                         const badgeMap: Record<number, { label: string; bg: string; color: string }> = {
-                            1: { label: 'Active',   bg: '#ecfdf5', color: '#10b981' },
+                            1: { label: 'Active', bg: '#ecfdf5', color: '#10b981' },
                             2: { label: 'Inactive', bg: '#fffbeb', color: '#f59e0b' },
-                            3: { label: 'Banned',   bg: '#fef2f2', color: '#ef4444' },
+                            3: { label: 'Banned', bg: '#fef2f2', color: '#ef4444' },
                         };
                         const b = badgeMap[selectedStatus] ?? { label: 'Unknown', bg: '#f1f5f9', color: '#64748b' };
                         return (
@@ -371,15 +402,6 @@ const MemberProfilePanel: React.FC<MemberProfilePanelProps> = ({
                         value={joinDate ? new Date(joinDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A'}
                     />
                     <InfoRow
-                        icon={<UserCheck size={14} />}
-                        label="System Role"
-                        value={
-                            loadingDetails
-                                ? <Loader2 size={13} className="animate-spin" style={{ color: '#94a3b8' }} />
-                                : (systemDetails?.role ? SystemRoleMap[systemDetails.role] : member.roleName || 'N/A')
-                        }
-                    />
-                    <InfoRow
                         icon={<ShieldCheck size={14} />}
                         label="Project Role"
                         value={
@@ -392,11 +414,11 @@ const MemberProfilePanel: React.FC<MemberProfilePanelProps> = ({
                     />
                 </div>
 
-                {/* Admin controls */}
+                {/* Admin controls — role change + remove (canEdit) */}
                 {canEdit && (
                     <>
                         <div style={{ height: '1px', background: '#f1f5f9', margin: '0 1.25rem' }} />
-                        <div style={{ padding: '1rem 1.25rem 1.25rem' }}>
+                        <div style={{ padding: '1rem 1.25rem 0' }}>
                             <div style={{
                                 display: 'flex', alignItems: 'center', gap: '7px',
                                 marginBottom: '0.9rem',
@@ -452,46 +474,58 @@ const MemberProfilePanel: React.FC<MemberProfilePanelProps> = ({
                                     <p style={{ margin: '5px 0 0', fontSize: '0.72rem', color: '#ef4444' }}>{updateError}</p>
                                 )}
                             </div>
+                        </div>
+                    </>
+                )}
 
-                            {/* Status change */}
-                            <div style={{ marginBottom: '0.75rem' }}>
-                                <p style={{ margin: '0 0 0.5rem', fontSize: '0.78rem', fontWeight: 600, color: '#475569' }}>
-                                    Member Status
-                                </p>
-                                <div style={{ display: 'flex', gap: '6px', marginBottom: pendingStatus !== null ? '0.6rem' : 0 }}>
-                                    {([{ value: 1, label: 'Active', color: '#10b981', bg: '#ecfdf5', border: '#6ee7b7' },
-                                       { value: 2, label: 'Inactive', color: '#f59e0b', bg: '#fffbeb', border: '#fcd34d' },
-                                       { value: 3, label: 'Banned', color: '#ef4444', bg: '#fef2f2', border: '#fca5a5' },
-                                    ] as const).map(opt => (
-                                        <button
-                                            key={opt.value}
-                                            onClick={() => {
-                                                if (selectedStatus === opt.value) return;
-                                                setPendingStatus(opt.value);
-                                                setStatusError(null);
-                                            }}
-                                            disabled={updatingStatus}
-                                            style={{
-                                                flex: 1, padding: '7px 4px',
-                                                background: selectedStatus === opt.value ? opt.bg : 'white',
-                                                color: selectedStatus === opt.value ? opt.color : '#94a3b8',
-                                                border: `1.5px solid ${pendingStatus === opt.value ? opt.border : selectedStatus === opt.value ? opt.border : '#e2e8f0'}`,
-                                                borderRadius: '8px',
-                                                fontWeight: 700, fontSize: '0.72rem',
-                                                cursor: selectedStatus === opt.value ? 'default' : 'pointer',
-                                                transition: 'all 0.15s',
-                                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px',
-                                                opacity: pendingStatus !== null && pendingStatus !== opt.value && selectedStatus !== opt.value ? 0.5 : 1,
-                                            }}
-                                        >
-                                            <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'currentColor', flexShrink: 0 }} />
-                                            {opt.label}
-                                        </button>
-                                    ))}
-                                </div>
+                {/* Status change — Admin (Active↔Inactive only) hoặc Lab Director (full) */}
+                {canChangeStatus && visibleStatusOptions.length > 0 && (
+                    <>
+                        <div style={{ height: '1px', background: '#f1f5f9', margin: '0 1.25rem' }} />
+                        <div style={{ padding: canEdit ? '0.75rem 1.25rem 0' : '1rem 1.25rem 0' }}>
+                            <p style={{ margin: '0 0 0.5rem', fontSize: '0.78rem', fontWeight: 600, color: '#475569' }}>
+                                Member Status
+                            </p>
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                                {visibleStatusOptions.map(opt => (
+                                    <button
+                                        key={opt.value}
+                                        onClick={() => {
+                                            if (selectedStatus === opt.value) return;
+                                            setPendingStatus(opt.value);
+                                            setStatusError(null);
+                                        }}
+                                        disabled={updatingStatus}
+                                        style={{
+                                            flex: 1, padding: '7px 4px',
+                                            background: selectedStatus === opt.value ? opt.bg : 'white',
+                                            color: selectedStatus === opt.value ? opt.color : '#94a3b8',
+                                            border: `1.5px solid ${pendingStatus === opt.value ? opt.border : selectedStatus === opt.value ? opt.border : '#e2e8f0'}`,
+                                            borderRadius: '8px',
+                                            fontWeight: 700, fontSize: '0.72rem',
+                                            cursor: selectedStatus === opt.value ? 'default' : 'pointer',
+                                            transition: 'all 0.15s',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px',
+                                            opacity: pendingStatus !== null && pendingStatus !== opt.value && selectedStatus !== opt.value ? 0.5 : 1,
+                                        }}
+                                    >
+                                        <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'currentColor', flexShrink: 0 }} />
+                                        {opt.label}
+                                    </button>
+                                ))}
                             </div>
+                            {statusError && (
+                                <p style={{ margin: '5px 0 0', fontSize: '0.72rem', color: '#ef4444' }}>{statusError}</p>
+                            )}
+                        </div>
+                    </>
+                )}
 
-                            {/* Remove member */}
+                {/* Remove member */}
+                {canEdit && (
+                    <>
+                        <div style={{ height: '1px', background: '#f1f5f9', margin: '0.75rem 1.25rem 0' }} />
+                        <div style={{ padding: '0.75rem 1.25rem 1.25rem' }}>
                             {!showDeleteConfirm ? (
                                 <button
                                     onClick={() => setShowDeleteConfirm(true)}
@@ -575,19 +609,64 @@ const MemberProfilePanel: React.FC<MemberProfilePanelProps> = ({
 
             {/* Status change confirm modal */}
             {pendingStatus !== null && (() => {
-                const meta: Record<number, { label: string; variant: 'danger' | 'info' | 'success'; confirmText: string }> = {
-                    1: { label: 'Active',   variant: 'success', confirmText: 'Set Active'   },
-                    2: { label: 'Inactive', variant: 'info',    confirmText: 'Set Inactive' },
-                    3: { label: 'Banned',   variant: 'danger',  confirmText: 'Ban Member'   },
+                const name = member.fullName || member.userName || 'this member';
+                const isBannedTarget = selectedStatus === MemberStatus.Banned;
+
+                type StatusMeta = {
+                    title: string;
+                    body: React.ReactNode;
+                    variant: 'danger' | 'info' | 'success';
+                    confirmText: string;
                 };
-                const m = meta[pendingStatus] ?? meta[1];
+
+                const meta: Record<number, StatusMeta> = {
+                    [MemberStatus.Active]: isBannedTarget
+                        ? {
+                            title: 'Unban Member',
+                            variant: 'success',
+                            confirmText: 'Unban',
+                            body: <p style={{ margin: 0, color: '#334155' }}>Lift the ban on <strong>{name}</strong>? They'll regain full access to the project.</p>,
+                        }
+                        : {
+                            title: 'Reactivate Member',
+                            variant: 'success',
+                            confirmText: 'Set Active',
+                            body: <p style={{ margin: 0, color: '#334155' }}>Set <strong>{name}</strong> back to Active? They'll be able to receive tasks and participate again.</p>,
+                        },
+
+                    [MemberStatus.Inactive]: {
+                        title: 'Suspend Member',
+                        variant: 'info',
+                        confirmText: 'Set Inactive',
+                        body: (
+                            <>
+                                <p style={{ margin: '0 0 8px', color: '#334155' }}>Set <strong>{name}</strong> as Inactive? Use this for temporary absences like leave or a short break.</p>
+                                <p style={{ margin: 0, color: '#64748b', fontSize: '0.85em' }}>Their unfinished tasks will be unassigned and reset to <strong>To Do</strong>. You can reactivate them at any time.</p>
+                            </>
+                        ),
+                    },
+
+                    [MemberStatus.Banned]: {
+                        title: 'Ban Member',
+                        variant: 'danger',
+                        confirmText: 'Ban',
+                        body: (
+                            <>
+                                <p style={{ margin: '0 0 8px', color: '#334155' }}>Ban <strong>{name}</strong> from this project? They'll lose all access immediately.</p>
+                                <p style={{ margin: 0, color: '#64748b', fontSize: '0.85em' }}>Only Lab Director of project can undo this. Use it for serious issues, not temporary absences.</p>
+                            </>
+                        ),
+                    },
+                };
+
+                const m = meta[pendingStatus] ?? meta[MemberStatus.Active];
                 return (
                     <ConfirmModal
                         isOpen
                         onClose={() => { setPendingStatus(null); setStatusError(null); }}
                         onConfirm={() => handleUpdateStatus(pendingStatus)}
-                        title={`Change status to ${m.label}`}
-                        message={`Are you sure you want to set ${member.fullName || member.userName} as ${m.label}?`}
+                        title={m.title}
+                        message={m.body}
                         confirmText={m.confirmText}
                         cancelText="Cancel"
                         variant={m.variant}
