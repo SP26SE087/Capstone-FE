@@ -395,14 +395,6 @@ const Projects: React.FC = () => {
                                                     <div style={{ fontSize: '0.67rem', color: 'var(--text-muted)', margin: '2px 0 6px' }}>
                                                         → {formatDate(project.endDate)}
                                                     </div>
-                                                    {/* Progress bar from API */}
-                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3px' }}>
-                                                        <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)', fontWeight: 700 }}>Progress</span>
-                                                        <span style={{ fontSize: '0.6rem', fontWeight: 800, color: 'var(--primary-color)' }}>{progress}%</span>
-                                                    </div>
-                                                    <div style={{ height: '4px', background: 'var(--border-light)', borderRadius: '3px', overflow: 'hidden' }}>
-                                                        <div style={{ width: `${progress}%`, height: '100%', borderRadius: '3px', background: 'var(--primary-color)', transition: 'width 0.4s' }} />
-                                                    </div>
                                                     <div style={{ fontSize: '0.63rem', color: 'var(--text-muted)', fontWeight: 600, marginTop: '5px' }}>
                                                         by {creatorName}
                                                     </div>

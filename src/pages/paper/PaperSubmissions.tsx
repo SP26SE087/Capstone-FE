@@ -17,6 +17,7 @@ import {
     type ExternalUserResponse,
 } from '@/types/paperSubmission';
 import Toast, { ToastType } from '@/components/common/Toast';
+import ConfirmModal from '@/components/common/ConfirmModal';
 import {
     Plus, Search, ExternalLink, X, Loader2, Trash2,
     Send, Edit2, Link as LinkIcon, FileText, CheckCircle2, XCircle,
@@ -104,9 +105,21 @@ const PaperSubmissions: React.FC = () => {
     const [actionLoading, setActionLoading] = useState<string | null>(null);
     const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
     const [submitReviewLoading, setSubmitReviewLoading] = useState(false);
-    const [venueLoading, setVenueLoading] = useState(false);
-    const [showVenueInput, setShowVenueInput] = useState(false);
-    const [venueUrl, setVenueUrl] = useState('');
+
+    // Confirm modal
+    const [confirmModal, setConfirmModal] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: React.ReactNode;
+        confirmText: string;
+        variant: 'danger' | 'info' | 'success';
+        onConfirm: () => void;
+    }>({ isOpen: false, title: '', message: '', confirmText: 'Confirm', variant: 'info', onConfirm: () => {} });
+
+    const openConfirm = (opts: { title: string; message: React.ReactNode; confirmText: string; variant: 'danger' | 'info' | 'success'; onConfirm: () => void }) => {
+        setConfirmModal({ isOpen: true, ...opts });
+    };
+    const closeConfirm = () => setConfirmModal(prev => ({ ...prev, isOpen: false }));
     const [showPdfViewer, setShowPdfViewer] = useState(false);
     const [viewerUrl, setViewerUrl] = useState<string | null>(null);
     const [viewerKind, setViewerKind] = useState<'pdf' | 'office' | 'link'>('pdf');
@@ -312,106 +325,164 @@ const PaperSubmissions: React.FC = () => {
         }
     };
 
-    const handleSubmitForReview = async () => {
+    const handleSubmitForReview = () => {
         if (!selectedPaper) return;
         if (selectedPaper.status !== SubmissionStatus.Draft) {
             showToast('Only Draft papers can be submitted for internal review.', 'warning');
             return;
         }
-        setSubmitReviewLoading(true);
-        try {
-            const updated = await paperSubmissionService.submitForReview(selectedPaper.paperSubmissionId);
-            setPapers(prev => prev.map(p => p.paperSubmissionId === updated.paperSubmissionId ? updated : p));
-            setSelectedPaper(updated);
-            showToast('Submitted for internal review!', 'success');
-        } catch (err: any) {
-            showToast(err.response?.data?.message || 'Failed to submit for review.', 'error');
-        } finally {
-            setSubmitReviewLoading(false);
+        if (!selectedPaper.document) {
+            showToast('Please upload a document before submitting for internal review.', 'warning');
+            return;
         }
+        openConfirm({
+            title: 'Submit for Internal Review',
+            message: 'This will submit the paper to the Lab Director for internal review. Are you sure?',
+            confirmText: 'Submit',
+            variant: 'info',
+            onConfirm: async () => {
+                closeConfirm();
+                setSubmitReviewLoading(true);
+                try {
+                    const updated = await paperSubmissionService.submitForReview(selectedPaper.paperSubmissionId);
+                    setPapers(prev => prev.map(p => p.paperSubmissionId === updated.paperSubmissionId ? updated : p));
+                    setSelectedPaper(updated);
+                    showToast('Submitted for internal review!', 'success');
+                } catch (err: any) {
+                    showToast(err.response?.data?.message || 'Failed to submit for review.', 'error');
+                } finally {
+                    setSubmitReviewLoading(false);
+                }
+            },
+        });
     };
 
-    const handleDirectorReview = async (approve: boolean) => {
+    const handleDirectorReview = (approve: boolean) => {
         if (!selectedPaper) return;
-        setActionLoading(selectedPaper.paperSubmissionId);
-        try {
-            const updated = await paperSubmissionService.directorReview(selectedPaper.paperSubmissionId, approve);
-            setPapers(prev => prev.map(p => p.paperSubmissionId === updated.paperSubmissionId ? updated : p));
-            setSelectedPaper(updated);
-            showToast(approve ? 'Paper approved!' : 'Paper rejected.', approve ? 'success' : 'error');
-        } catch (err: any) {
-            showToast(err.response?.data?.message || 'Action failed.', 'error');
-        } finally {
-            setActionLoading(null);
-        }
+        openConfirm({
+            title: approve ? 'Approve Paper' : 'Reject Paper',
+            message: approve
+                ? 'Are you sure you want to approve this paper? It will move to Approved status.'
+                : 'Are you sure you want to reject this paper? The author will need to revise it.',
+            confirmText: approve ? 'Approve' : 'Reject',
+            variant: approve ? 'success' : 'danger',
+            onConfirm: async () => {
+                closeConfirm();
+                setActionLoading(selectedPaper.paperSubmissionId);
+                try {
+                    const updated = await paperSubmissionService.directorReview(selectedPaper.paperSubmissionId, approve);
+                    setPapers(prev => prev.map(p => p.paperSubmissionId === updated.paperSubmissionId ? updated : p));
+                    setSelectedPaper(updated);
+                    showToast(approve ? 'Paper approved!' : 'Paper rejected.', approve ? 'success' : 'error');
+                } catch (err: any) {
+                    showToast(err.response?.data?.message || 'Action failed.', 'error');
+                } finally {
+                    setActionLoading(null);
+                }
+            },
+        });
     };
 
-    const handleSubmitVenue = async () => {
-        if (!selectedPaper || !venueUrl.trim()) return;
-        setVenueLoading(true);
-        try {
-            const updated = await paperSubmissionService.submitToVenue(selectedPaper.paperSubmissionId, venueUrl);
-            setPapers(prev => prev.map(p => p.paperSubmissionId === updated.paperSubmissionId ? updated : p));
-            setSelectedPaper(updated);
-            setShowVenueInput(false); setVenueUrl('');
-            showToast('Paper submitted successfully!', 'success');
-        } catch (err: any) {
-            showToast(err.response?.data?.message || 'Failed to submit paper.', 'error');
-        } finally {
-            setVenueLoading(false);
-        }
-    };
-
-    const handleMarkRevision = async () => {
+    const handleMarkRevision = () => {
         if (!selectedPaper) return;
-        setActionLoading(selectedPaper.paperSubmissionId);
-        try {
-            const updated = await paperSubmissionService.markRevision(selectedPaper.paperSubmissionId);
-            setPapers(prev => prev.map(p => p.paperSubmissionId === updated.paperSubmissionId ? updated : p));
-            setSelectedPaper(updated);
-            showToast('Marked as revision required.', 'info');
-        } catch (err: any) {
-            showToast(err.response?.data?.message || 'Failed to mark revision.', 'error');
-        } finally {
-            setActionLoading(null);
-        }
+        openConfirm({
+            title: 'Mark as Revision Required',
+            message: 'This will move the paper to Revision Required status. The authors will need to revise it.',
+            confirmText: 'Mark Revision',
+            variant: 'info',
+            onConfirm: async () => {
+                closeConfirm();
+                setActionLoading(selectedPaper.paperSubmissionId);
+                try {
+                    const updated = await paperSubmissionService.markRevision(selectedPaper.paperSubmissionId);
+                    setPapers(prev => prev.map(p => p.paperSubmissionId === updated.paperSubmissionId ? updated : p));
+                    setSelectedPaper(updated);
+                    showToast('Marked as revision required.', 'info');
+                } catch (err: any) {
+                    showToast(err.response?.data?.message || 'Failed to mark revision.', 'error');
+                } finally {
+                    setActionLoading(null);
+                }
+            },
+        });
     };
 
-    const handleVenueDecision = async () => {
+    const handleVenueDecision = () => {
         if (!selectedPaper) return;
-        setActionLoading(selectedPaper.paperSubmissionId);
-        try {
-            const updated = await paperSubmissionService.venueDecision(selectedPaper.paperSubmissionId);
-            setPapers(prev => prev.map(p => p.paperSubmissionId === updated.paperSubmissionId ? updated : p));
-            setSelectedPaper(updated);
-            showToast('Decision recorded.', 'success');
-        } catch (err: any) {
-            showToast(err.response?.data?.message || 'Failed to record decision.', 'error');
-        } finally {
-            setActionLoading(null);
-        }
+        openConfirm({
+            title: 'Record Decision',
+            message: 'This will move the paper to Decision status, marking the process as complete.',
+            confirmText: 'Record Decision',
+            variant: 'success',
+            onConfirm: async () => {
+                closeConfirm();
+                setActionLoading(selectedPaper.paperSubmissionId);
+                try {
+                    const updated = await paperSubmissionService.venueDecision(selectedPaper.paperSubmissionId);
+                    setPapers(prev => prev.map(p => p.paperSubmissionId === updated.paperSubmissionId ? updated : p));
+                    setSelectedPaper(updated);
+                    showToast('Decision recorded.', 'success');
+                } catch (err: any) {
+                    showToast(err.response?.data?.message || 'Failed to record decision.', 'error');
+                } finally {
+                    setActionLoading(null);
+                }
+            },
+        });
     };
 
-    const handleRevertToDraft = async () => {
+    const handleRejectRevision = () => {
         if (!selectedPaper) return;
-        setActionLoading(selectedPaper.paperSubmissionId);
-        try {
-            const updated = await paperSubmissionService.changeStatus(selectedPaper.paperSubmissionId, SubmissionStatus.Draft);
-            setPapers(prev => prev.map(p => p.paperSubmissionId === updated.paperSubmissionId ? updated : p));
-            setSelectedPaper(updated);
-            showToast('Paper reverted to Draft.', 'success');
-        } catch (err: any) {
-            showToast(err.response?.data?.message || 'Failed to revert to draft.', 'error');
-        } finally {
-            setActionLoading(null);
-        }
+        openConfirm({
+            title: 'Reject Paper',
+            message: 'Are you sure you want to reject this paper?',
+            confirmText: 'Reject',
+            variant: 'danger',
+            onConfirm: async () => {
+                closeConfirm();
+                setActionLoading(selectedPaper.paperSubmissionId);
+                try {
+                    const updated = await paperSubmissionService.changeStatus(selectedPaper.paperSubmissionId, SubmissionStatus.Rejected);
+                    setPapers(prev => prev.map(p => p.paperSubmissionId === updated.paperSubmissionId ? updated : p));
+                    setSelectedPaper(updated);
+                    showToast('Paper rejected.', 'error');
+                } catch (err: any) {
+                    showToast(err.response?.data?.message || 'Failed to reject paper.', 'error');
+                } finally {
+                    setActionLoading(null);
+                }
+            },
+        });
+    };
+
+    const handleRevertToDraft = () => {
+        if (!selectedPaper) return;
+        openConfirm({
+            title: 'Revert to Draft',
+            message: 'This will move the paper back to Draft so it can be edited and resubmitted.',
+            confirmText: 'Revert to Draft',
+            variant: 'info',
+            onConfirm: async () => {
+                closeConfirm();
+                setActionLoading(selectedPaper.paperSubmissionId);
+                try {
+                    const updated = await paperSubmissionService.changeStatus(selectedPaper.paperSubmissionId, SubmissionStatus.Draft);
+                    setPapers(prev => prev.map(p => p.paperSubmissionId === updated.paperSubmissionId ? updated : p));
+                    setSelectedPaper(updated);
+                    showToast('Paper reverted to Draft.', 'success');
+                } catch (err: any) {
+                    showToast(err.response?.data?.message || 'Failed to revert to draft.', 'error');
+                } finally {
+                    setActionLoading(null);
+                }
+            },
+        });
     };
 
     const openView = (paper: PaperSubmissionResponse) => {
         setSelectedPaper(paper);
         setActivePanel('view');
         setDeleteConfirmId(null);
-        setShowVenueInput(false);
         setShowPdfViewer(false);
         setViewerUrl(null);
         if (paper.projectId) {
@@ -586,6 +657,16 @@ const PaperSubmissions: React.FC = () => {
                         <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
                     </div>
                 )}
+
+                <ConfirmModal
+                    isOpen={confirmModal.isOpen}
+                    onClose={closeConfirm}
+                    onConfirm={confirmModal.onConfirm}
+                    title={confirmModal.title}
+                    message={confirmModal.message}
+                    confirmText={confirmModal.confirmText}
+                    variant={confirmModal.variant}
+                />
 
                 {/* Header */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
@@ -981,12 +1062,14 @@ const PaperSubmissions: React.FC = () => {
                                     <div>
                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
                                             <div style={{ fontSize: '0.62rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' as const, letterSpacing: '0.6px' }}>External Authors</div>
-                                            <button
-                                                onClick={() => { setShowAddExternalUser(v => !v); setEditingExternalUserId(null); }}
-                                                style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 9px', borderRadius: '7px', border: '1px solid #e2e8f0', background: '#f8fafc', color: '#475569', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700 }}
-                                            >
-                                                <Plus size={11} /> Add
-                                            </button>
+                                            {selectedPaper.status === SubmissionStatus.Draft && (
+                                                <button
+                                                    onClick={() => { setShowAddExternalUser(v => !v); setEditingExternalUserId(null); }}
+                                                    style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 9px', borderRadius: '7px', border: '1px solid #e2e8f0', background: '#f8fafc', color: '#475569', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700 }}
+                                                >
+                                                    <Plus size={11} /> Add
+                                                </button>
+                                            )}
                                         </div>
 
                                         {/* Existing external users */}
@@ -994,7 +1077,7 @@ const PaperSubmissions: React.FC = () => {
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '6px' }}>
                                                 {(selectedPaper.externalUsers ?? []).map(eu => (
                                                     <div key={eu.externalUserId}>
-                                                        {editingExternalUserId === eu.externalUserId ? (
+                                                        {selectedPaper.status === SubmissionStatus.Draft && editingExternalUserId === eu.externalUserId ? (
                                                             <div style={{ padding: '10px', background: '#f0fdf4', borderRadius: '10px', border: '1px solid #bbf7d0', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                                                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
                                                                     <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem' }} placeholder="Full name *" value={externalUserEditForm.fullName} onChange={e => setExternalUserEditForm(f => ({ ...f, fullName: e.target.value }))} />
@@ -1026,10 +1109,14 @@ const PaperSubmissions: React.FC = () => {
                                                                             {eu.githubUrl && <a href={eu.githubUrl} target="_blank" rel="noreferrer" style={{ fontSize: '0.72rem', color: 'var(--accent-color)', textDecoration: 'none' }}>GitHub ↗</a>}
                                                                         </div>
                                                                     </div>
-                                                                    <button onClick={() => { setEditingExternalUserId(eu.externalUserId); setExternalUserEditForm({ fullName: eu.fullName ?? '', email: eu.email ?? '', phoneNumber: eu.phoneNumber ?? '', studentId: eu.studentId ?? '', orcid: eu.orcid ?? '', googleScholarUrl: eu.googleScholarUrl ?? '', githubUrl: eu.githubUrl ?? '' }); setShowAddExternalUser(false); }} style={{ padding: '3px 7px', borderRadius: '5px', border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', color: '#64748b', flexShrink: 0 }}><Edit2 size={11} /></button>
-                                                                    <button onClick={() => handleDeleteExternalUser(eu.externalUserId)} disabled={actionLoading === eu.externalUserId} style={{ padding: '3px 7px', borderRadius: '5px', border: '1px solid #fecaca', background: '#fef2f2', cursor: 'pointer', color: '#ef4444', flexShrink: 0 }}>
-                                                                        {actionLoading === eu.externalUserId ? <Loader2 size={11} className="animate-spin" /> : <Trash2 size={11} />}
-                                                                    </button>
+                                                                    {selectedPaper.status === SubmissionStatus.Draft && (
+                                                                        <>
+                                                                            <button onClick={() => { setEditingExternalUserId(eu.externalUserId); setExternalUserEditForm({ fullName: eu.fullName ?? '', email: eu.email ?? '', phoneNumber: eu.phoneNumber ?? '', studentId: eu.studentId ?? '', orcid: eu.orcid ?? '', googleScholarUrl: eu.googleScholarUrl ?? '', githubUrl: eu.githubUrl ?? '' }); setShowAddExternalUser(false); }} style={{ padding: '3px 7px', borderRadius: '5px', border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', color: '#64748b', flexShrink: 0 }}><Edit2 size={11} /></button>
+                                                                            <button onClick={() => handleDeleteExternalUser(eu.externalUserId)} disabled={actionLoading === eu.externalUserId} style={{ padding: '3px 7px', borderRadius: '5px', border: '1px solid #fecaca', background: '#fef2f2', cursor: 'pointer', color: '#ef4444', flexShrink: 0 }}>
+                                                                                {actionLoading === eu.externalUserId ? <Loader2 size={11} className="animate-spin" /> : <Trash2 size={11} />}
+                                                                            </button>
+                                                                        </>
+                                                                    )}
                                                                 </div>
                                                             </div>
                                                         )}
@@ -1038,8 +1125,8 @@ const PaperSubmissions: React.FC = () => {
                                             </div>
                                         )}
 
-                                        {/* Add new external user form */}
-                                        {showAddExternalUser && (
+                                        {/* Add new external user form — Draft only */}
+                                        {selectedPaper.status === SubmissionStatus.Draft && showAddExternalUser && (
                                             <div style={{ padding: '10px', background: '#eff6ff', borderRadius: '10px', border: '1px solid #bfdbfe', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
                                                     <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem' }} placeholder="Full name *" value={externalUserNewForm.fullName} onChange={e => setExternalUserNewForm(f => ({ ...f, fullName: e.target.value }))} />
@@ -1067,101 +1154,43 @@ const PaperSubmissions: React.FC = () => {
                                     {/* Actions */}
                                     <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '14px', display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '4px' }}>
 
-                                        {/* Draft / Revision: Edit (+ Submit for Review only in Draft) (+ Decision for Revision) */}
-                                        {(selectedPaper.status === SubmissionStatus.Draft || selectedPaper.status === SubmissionStatus.Revision) && (
+                                        {/* Draft: Edit + Submit for Internal Review + Delete */}
+                                        {selectedPaper.status === SubmissionStatus.Draft && (
                                             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' as const }}>
                                                 <button onClick={() => openEdit(selectedPaper)}
                                                     style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: '1px solid #e2e8f0', background: '#fff', color: '#475569', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>
                                                     <Edit2 size={14} /> Edit
                                                 </button>
-                                                {selectedPaper.status === SubmissionStatus.Draft && (
-                                                    <button onClick={handleSubmitForReview} disabled={submitReviewLoading}
-                                                        style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: '1px solid #bfdbfe', background: '#eff6ff', color: '#3b82f6', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>
-                                                        {submitReviewLoading ? <><Loader2 size={14} className="animate-spin" /> Submitting...</> : <><Send size={14} /> Submit for Internal Review</>}
-                                                    </button>
-                                                )}
-                                                {selectedPaper.status === SubmissionStatus.Revision && (
-                                                    <button onClick={handleVenueDecision} disabled={!!actionLoading}
-                                                        style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: 'none', background: '#8b5cf6', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem', boxShadow: '0 2px 8px rgba(139,92,246,0.25)' }}>
-                                                        {actionLoading ? <Loader2 size={14} className="animate-spin" /> : <Gavel size={14} />} Record Decision
-                                                    </button>
-                                                )}
-                                                {selectedPaper.status === SubmissionStatus.Draft && (
-                                                    deleteConfirmId === selectedPaper.paperSubmissionId ? (
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', borderRadius: '9px', background: '#fef2f2', border: '1px solid #fecaca', width: '100%' }}>
-                                                            <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 600, color: '#dc2626' }}>Delete this paper?</span>
-                                                            <button onClick={() => setDeleteConfirmId(null)} style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700 }}>Cancel</button>
-                                                            <button onClick={() => handleDelete(selectedPaper.paperSubmissionId)} disabled={!!actionLoading}
-                                                                style={{ padding: '4px 10px', borderRadius: '6px', border: 'none', background: '#ef4444', color: '#fff', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700 }}>
-                                                                {actionLoading ? <Loader2 size={12} className="animate-spin" /> : 'Delete'}
-                                                            </button>
-                                                        </div>
-                                                    ) : (
-                                                        <button onClick={() => setDeleteConfirmId(selectedPaper.paperSubmissionId)}
-                                                            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: '1px solid #fecaca', background: '#fef2f2', color: '#ef4444', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>
-                                                            <Trash2 size={14} /> Delete
+                                                <button onClick={handleSubmitForReview} disabled={submitReviewLoading}
+                                                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: '1px solid #bfdbfe', background: '#eff6ff', color: '#3b82f6', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>
+                                                    {submitReviewLoading ? <><Loader2 size={14} className="animate-spin" /> Submitting...</> : <><Send size={14} /> Submit for Internal Review</>}
+                                                </button>
+                                                {deleteConfirmId === selectedPaper.paperSubmissionId ? (
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', borderRadius: '9px', background: '#fef2f2', border: '1px solid #fecaca', width: '100%' }}>
+                                                        <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 600, color: '#dc2626' }}>Delete this paper?</span>
+                                                        <button onClick={() => setDeleteConfirmId(null)} style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700 }}>Cancel</button>
+                                                        <button onClick={() => handleDelete(selectedPaper.paperSubmissionId)} disabled={!!actionLoading}
+                                                            style={{ padding: '4px 10px', borderRadius: '6px', border: 'none', background: '#ef4444', color: '#fff', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700 }}>
+                                                            {actionLoading ? <Loader2 size={12} className="animate-spin" /> : 'Delete'}
                                                         </button>
-                                                    )
-                                                )}
-                                            </div>
-                                        )}
-
-                                        {/* Approved → Submit paper to journal/conference */}
-                                        {selectedPaper.status === SubmissionStatus.Approved && (
-                                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' as const }}>
-                                                {showVenueInput ? (
-                                                    <>
-                                                        <input type="url" value={venueUrl} onChange={e => setVenueUrl(e.target.value)}
-                                                            placeholder="Submission URL..." className="form-input"
-                                                            style={{ flex: 1, height: '38px', fontSize: '0.85rem' }} />
-                                                        <button onClick={handleSubmitVenue} disabled={venueLoading || !venueUrl.trim()}
-                                                            style={{ padding: '8px 14px', borderRadius: '9px', border: 'none', background: '#059669', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem', whiteSpace: 'nowrap' as const }}>
-                                                            {venueLoading ? <Loader2 size={14} className="animate-spin" /> : 'Confirm'}
-                                                        </button>
-                                                        <button onClick={() => setShowVenueInput(false)} style={{ padding: '8px', borderRadius: '9px', border: '1px solid #e2e8f0', background: '#fff', color: '#94a3b8', cursor: 'pointer' }}><X size={14} /></button>
-                                                    </>
+                                                    </div>
                                                 ) : (
-                                                    <button onClick={() => { setShowVenueInput(true); setVenueUrl(selectedPaper.paperUrl || ''); }}
-                                                        style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '9px', border: 'none', background: '#16a34a', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: '0.82rem', boxShadow: '0 2px 8px rgba(22,163,74,0.2)' }}>
-                                                        <ExternalLink size={14} /> Submit Paper
+                                                    <button onClick={() => setDeleteConfirmId(selectedPaper.paperSubmissionId)}
+                                                        style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: '1px solid #fecaca', background: '#fef2f2', color: '#ef4444', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>
+                                                        <Trash2 size={14} /> Delete
                                                     </button>
                                                 )}
                                             </div>
                                         )}
 
-                                        {/* Submitted → Revision or Decision */}
-                                        {selectedPaper.status === SubmissionStatus.Submitted && (
-                                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' as const }}>
-                                                <button onClick={handleMarkRevision} disabled={!!actionLoading}
-                                                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: '1px solid #fed7aa', background: '#fff7ed', color: '#c2410c', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>
-                                                    {actionLoading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />} Revision Required
-                                                </button>
-                                                <button onClick={handleVenueDecision} disabled={!!actionLoading}
-                                                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: 'none', background: '#8b5cf6', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem', boxShadow: '0 2px 8px rgba(139,92,246,0.25)' }}>
-                                                    {actionLoading ? <Loader2 size={14} className="animate-spin" /> : <Gavel size={14} />} Record Decision
-                                                </button>
+                                        {/* InternalReview: awaiting director — no leader actions */}
+                                        {selectedPaper.status === SubmissionStatus.InternalReview && !isDirector && (
+                                            <div style={{ padding: '10px 14px', borderRadius: '9px', background: '#fffbeb', border: '1px solid #fde68a', fontSize: '0.82rem', fontWeight: 600, color: '#92400e', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <Clock size={13} /> Awaiting Lab Director review.
                                             </div>
                                         )}
 
-                                        {/* Decision: final */}
-                                        {selectedPaper.status === SubmissionStatus.Decision && (
-                                            <div style={{ padding: '10px 14px', borderRadius: '9px', background: '#f5f3ff', border: '1px solid #ddd6fe', fontSize: '0.82rem', fontWeight: 600, color: '#7c3aed' }}>
-                                                Final decision recorded. No further actions available.
-                                            </div>
-                                        )}
-
-                                        {/* Rejected: revert to Draft */}
-                                        {selectedPaper.status === SubmissionStatus.Rejected && (
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', borderRadius: '9px', background: '#fef2f2', border: '1px solid #fecaca' }}>
-                                                <span style={{ flex: 1, fontSize: '0.82rem', fontWeight: 600, color: '#dc2626' }}>Rejected by Lab Director.</span>
-                                                <button onClick={handleRevertToDraft} disabled={!!actionLoading}
-                                                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: 'none', background: '#3b82f6', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem', boxShadow: '0 2px 8px rgba(59,130,246,0.25)' }}>
-                                                    {actionLoading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />} Revert to Draft
-                                                </button>
-                                            </div>
-                                        )}
-
-                                        {/* Lab Director: approve/reject InternalReview only */}
+                                        {/* Lab Director: approve/reject InternalReview */}
                                         {isDirector && selectedPaper.status === SubmissionStatus.InternalReview && (
                                             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' as const, padding: '12px 14px', borderRadius: '10px', background: '#fffbeb', border: '1px solid #fde68a' }}>
                                                 <div style={{ flex: 1, fontSize: '0.78rem', fontWeight: 600, color: '#92400e', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -1174,6 +1203,60 @@ const PaperSubmissions: React.FC = () => {
                                                 <button onClick={() => handleDirectorReview(false)} disabled={!!actionLoading}
                                                     style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 14px', borderRadius: '8px', border: '1px solid #fecaca', background: '#fee2e2', color: '#dc2626', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>
                                                     <XCircle size={13} /> Reject
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        {/* Approved → Revision Required | Record Decision */}
+                                        {selectedPaper.status === SubmissionStatus.Approved && (
+                                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' as const }}>
+                                                <button onClick={handleMarkRevision} disabled={!!actionLoading}
+                                                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: '1px solid #fed7aa', background: '#fff7ed', color: '#c2410c', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>
+                                                    {actionLoading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />} Revision Required
+                                                </button>
+                                                <button onClick={handleVenueDecision} disabled={!!actionLoading}
+                                                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: 'none', background: '#8b5cf6', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem', boxShadow: '0 2px 8px rgba(139,92,246,0.25)' }}>
+                                                    {actionLoading ? <Loader2 size={14} className="animate-spin" /> : <Gavel size={14} />} Record Decision
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        {/* Revision: Edit + Record Decision + Reject */}
+                                        {selectedPaper.status === SubmissionStatus.Revision && (
+                                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' as const }}>
+                                                <button onClick={() => openEdit(selectedPaper)}
+                                                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: '1px solid #e2e8f0', background: '#fff', color: '#475569', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>
+                                                    <Edit2 size={14} /> Edit
+                                                </button>
+                                                <button onClick={handleVenueDecision} disabled={!!actionLoading}
+                                                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: 'none', background: '#8b5cf6', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem', boxShadow: '0 2px 8px rgba(139,92,246,0.25)' }}>
+                                                    {actionLoading ? <Loader2 size={14} className="animate-spin" /> : <Gavel size={14} />} Record Decision
+                                                </button>
+                                                <button onClick={handleRejectRevision} disabled={!!actionLoading}
+                                                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: '1px solid #fecaca', background: '#fee2e2', color: '#dc2626', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>
+                                                    {actionLoading ? <Loader2 size={14} className="animate-spin" /> : <XCircle size={14} />} Reject
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        {/* Decision: allow reverting to Revision */}
+                                        {selectedPaper.status === SubmissionStatus.Decision && (
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', borderRadius: '9px', background: STATUS_BG[SubmissionStatus.Decision], border: `1px solid ${STATUS_COLOR[SubmissionStatus.Decision]}33` }}>
+                                                <span style={{ flex: 1, fontSize: '0.82rem', fontWeight: 600, color: STATUS_COLOR[SubmissionStatus.Decision] }}>Decision recorded.</span>
+                                                <button onClick={handleMarkRevision} disabled={!!actionLoading}
+                                                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: `1px solid ${STATUS_COLOR[SubmissionStatus.Revision]}55`, background: STATUS_BG[SubmissionStatus.Revision], color: STATUS_COLOR[SubmissionStatus.Revision], cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>
+                                                    {actionLoading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />} Mark Revision
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        {/* Rejected → Revert to Draft */}
+                                        {selectedPaper.status === SubmissionStatus.Rejected && (
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', borderRadius: '9px', background: '#fef2f2', border: '1px solid #fecaca' }}>
+                                                <span style={{ flex: 1, fontSize: '0.82rem', fontWeight: 600, color: '#dc2626' }}>Paper rejected.</span>
+                                                <button onClick={handleRevertToDraft} disabled={!!actionLoading}
+                                                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: 'none', background: '#3b82f6', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem', boxShadow: '0 2px 8px rgba(59,130,246,0.25)' }}>
+                                                    {actionLoading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />} Revert to Draft
                                                 </button>
                                             </div>
                                         )}

@@ -1,10 +1,10 @@
 import api from './api';
+import { SubmissionStatus } from '@/types/paperSubmission';
 import type {
     PaperSubmissionResponse,
     CreatePaperRequest,
     UpdatePaperRequest,
     SemanticSearchRequest,
-    SubmissionStatus,
     ExternalUserCreateDto,
     ExternalUserUpdateDto,
     ExternalUserResponse,
@@ -100,33 +100,24 @@ export const paperSubmissionService = {
         await api.delete(`${BASE}/${id}`);
     },
 
-    /** Submit for internal review (Draft → InternalReview) */
+    /** Submit for internal review (Draft → InternalReview, Leader only) */
     submitForReview: async (id: string): Promise<PaperSubmissionResponse> => {
-        const response = await api.post(`${BASE}/${id}/internal-review`);
-        return response.data.data || response.data;
+        return paperSubmissionService.changeStatus(id, SubmissionStatus.InternalReview);
     },
 
-    /** Director review (InternalReview → Approved / Rejected) */
+    /** Director review: InternalReview → Approved or Rejected (LabDirector only) */
     directorReview: async (id: string, isApproved: boolean): Promise<PaperSubmissionResponse> => {
-        const response = await api.post(`${BASE}/${id}/director-review`, isApproved);
-        return response.data.data || response.data;
+        return paperSubmissionService.changeStatus(id, isApproved ? SubmissionStatus.Approved : SubmissionStatus.Rejected);
     },
 
-    /** Submit paper to venue (Approved → Submitted) */
-    submitToVenue: async (id: string, paperUrl: string, targetStatus?: SubmissionStatus): Promise<PaperSubmissionResponse> => {
-        const response = await api.post(`${BASE}/${id}/submit-venue`, { paperUrl, targetStatus });
-        return response.data.data || response.data;
-    },
-
-    /** Mark as Revision Required (Submitted → Revision) */
+    /** Mark as Revision Required: Approved → Revision (LabDirector or Leader) */
     markRevision: async (id: string): Promise<PaperSubmissionResponse> => {
-        const response = await api.post(`${BASE}/${id}/revision`);
-        return response.data.data || response.data;
+        return paperSubmissionService.changeStatus(id, SubmissionStatus.Revision);
     },
 
-    /** Record venue decision — uses changeStatus(Decision) since /venue-decision was removed */
+    /** Record decision: Approved/Revision → Decision (LabDirector or Leader) */
     venueDecision: async (id: string): Promise<PaperSubmissionResponse> => {
-        return paperSubmissionService.changeStatus(id, 6 as SubmissionStatus);
+        return paperSubmissionService.changeStatus(id, SubmissionStatus.Decision);
     },
 
     /** Manually change status */
