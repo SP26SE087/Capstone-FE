@@ -282,11 +282,11 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
     const originalMemberId = findMemberId(rawActiveAssignee);
     const isMemberDirty = editForm.memberId !== originalMemberId;
 
-    const invalidEditStartInPast = isStartDirty && !!editForm.startDate && editForm.startDate < today;
-    const invalidEditDueInPast = isDueDirty && !!editForm.dueDate && editForm.dueDate < today;
-    const invalidEditStartAfterDue = (isStartDirty || isDueDirty) && !!editForm.startDate && !!editForm.dueDate && editForm.startDate > editForm.dueDate;
-    const invalidEditStartBeforeMilestone = (isStartDirty || isMilestoneDirty) && !!selectedEditMilestone && !!editForm.startDate && !!editMilestoneStart && editForm.startDate < editMilestoneStart;
-    const invalidEditDueAfterMilestone = (isDueDirty || isMilestoneDirty) && !!selectedEditMilestone && !!editForm.dueDate && !!editMilestoneEnd && editForm.dueDate > editMilestoneEnd;
+    const invalidEditStartInPast = !!editForm.startDate && editForm.startDate < today;
+    const invalidEditDueInPast = !!editForm.dueDate && editForm.dueDate < today;
+    const invalidEditStartAfterDue = !!editForm.startDate && !!editForm.dueDate && editForm.startDate > editForm.dueDate;
+    const invalidEditStartBeforeMilestone = !!selectedEditMilestone && !!editForm.startDate && !!editMilestoneStart && editForm.startDate < editMilestoneStart;
+    const invalidEditDueAfterMilestone = !!selectedEditMilestone && !!editForm.dueDate && !!editMilestoneEnd && editForm.dueDate > editMilestoneEnd;
 
     const editStartDateHasError = invalidEditStartInPast || invalidEditStartAfterDue || invalidEditStartBeforeMilestone;
     const editDueDateHasError = invalidEditDueInPast || invalidEditStartAfterDue || invalidEditDueAfterMilestone;
@@ -451,15 +451,16 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
             supportMembers: Array.isArray(editForm.supportMemberIds) ? editForm.supportMemberIds : [],
             projectId: (activeTask as any).projectId || project.projectId || (project as any).id,
         };
-        if (isMemberDirty) updatePayload.memberId = editForm.memberId || null;
-        if (isStartDirty) updatePayload.startDate = editForm.startDate ? new Date(editForm.startDate).toISOString() : null;
-        if (isDueDirty) updatePayload.dueDate = editForm.dueDate ? new Date(editForm.dueDate).toISOString() : null;
+        updatePayload.memberId = editForm.memberId || null;
+        updatePayload.startDate = editForm.startDate ? new Date(editForm.startDate).toISOString() : null;
+        updatePayload.dueDate = editForm.dueDate ? new Date(editForm.dueDate).toISOString() : null;
         try {
             await taskService.update(tId, updatePayload);
             await refreshSelectedTaskViews(tId);
             setIsEditMode(false);
             refreshTasks();
             if (viewContext === 'personal') onPersonalRefresh();
+            showToast('Task updated successfully.', 'success');
         } catch (err: any) {
             setEditError(err.message || 'Failed to save changes.');
         } finally {
@@ -517,20 +518,6 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
                             })()}
                         </div>
                     </div>
-                    {activeTask.status === TaskStatus.Todo && !isEditMode && (
-                        <div style={{
-                            position: 'absolute', top: '-0.5rem', right: '-0.5rem',
-                            fontSize: '0.6rem', fontWeight: 800, padding: '4px 12px',
-                            background: '#f0fdf4', color: '#15803d',
-                            borderBottomLeftRadius: '12px', borderTopRightRadius: '12px',
-                            borderLeft: '1px solid #15803d15', borderBottom: '1px solid #15803d15',
-                            textTransform: 'uppercase', zIndex: 1,
-                            display: 'flex', alignItems: 'center', gap: '4px',
-                            boxShadow: '-2px 2px 5px rgba(0,0,0,0.02)'
-                        }}>
-                            <Edit3 size={11} /> Editable
-                        </div>
-                    )}
                     {isSpecialRole && !isEditMode && activeTask.status === TaskStatus.Todo && (
                         <button
                             onClick={() => {

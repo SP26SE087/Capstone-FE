@@ -5,7 +5,7 @@ import { userService, AddUserRequest } from '@/services/userService';
 import {
     Users, Shield, CheckCircle, XCircle, Eye, EyeOff,
     Search, Edit2, Power, UserPlus, Mail, Calendar,
-    ChevronDown, ChevronRight, Loader2, AlertTriangle, X
+    Loader2, AlertTriangle, X
 } from 'lucide-react';
 
 const getRoleBadgeConfig = (role: number | string) => {
@@ -30,11 +30,15 @@ const UserManagement: React.FC = () => {
     // Search & Filter
     const [searchQuery, setSearchQuery] = useState('');
     const [activeRoleFilter, setActiveRoleFilter] = useState<number | 'all'>('all');
+    const [activeStatusFilter, setActiveStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
     const [showEmails, setShowEmails] = useState(false); // Privacy toggle
+
+    // Reset to page 1 whenever the filter changes
+    useEffect(() => { setPageIndex(1); }, [searchQuery, activeRoleFilter, activeStatusFilter]);
 
     // UI States
     const [showAddForm, setShowAddForm] = useState(false);
-    const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
+    const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
     const [editingUserId, setEditingUserId] = useState<string | null>(null);
     const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
     const [detailsLoadingId, setDetailsLoadingId] = useState<string | null>(null);
@@ -51,6 +55,17 @@ const UserManagement: React.FC = () => {
         googleScholarUrl: '',
         githubUrl: ''
     });
+    const [fieldErrors, setFieldErrors] = useState({ studentId: '', orcid: '', googleScholarUrl: '', githubUrl: '' });
+
+    const validate = {
+        studentId: (v: string) => v && !/^[A-Za-z]{2}\d{4}$/.test(v) ? 'Format: 2 letters + 4 digits (e.g. SE1234)' : '',
+        orcid: (v: string) => v && !/^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/.test(v) ? 'Format: xxxx-xxxx-xxxx-xxxx' : '',
+        googleScholarUrl: (v: string) => v && !/^https?:\/\/(www\.)?scholar\.google\.[a-z.]+\//.test(v) ? 'Must be a valid Google Scholar URL' : '',
+        githubUrl: (v: string) => v && !/^https?:\/\/(www\.)?github\.com\/[A-Za-z0-9_.-]+/.test(v) ? 'Must be a valid GitHub profile URL' : '',
+    };
+
+    const setFieldError = (field: keyof typeof fieldErrors, v: string) =>
+        setFieldErrors(prev => ({ ...prev, [field]: v }));
 
     // Pagination
     const [pageIndex, setPageIndex] = useState(1);
@@ -86,6 +101,11 @@ const UserManagement: React.FC = () => {
         if (activeRoleFilter !== 'all') {
             result = result.filter(m => Number(m.role) === activeRoleFilter);
         }
+        if (activeStatusFilter !== 'all') {
+            result = result.filter(m =>
+                activeStatusFilter === 'active' ? m.isActive !== false : m.isActive === false
+            );
+        }
         if (searchQuery.trim()) {
             const q = searchQuery.toLowerCase();
             result = result.filter(m =>
@@ -94,7 +114,7 @@ const UserManagement: React.FC = () => {
             );
         }
         return result;
-    }, [members, searchQuery, activeRoleFilter]);
+    }, [members, searchQuery, activeRoleFilter, activeStatusFilter]);
 
     // Stats
     const stats = {
@@ -109,6 +129,7 @@ const UserManagement: React.FC = () => {
     const pagedMembers = filteredMembers.slice((pageIndex - 1) * pageSize, pageIndex * pageSize);
     const showingFrom = filteredMembers.length === 0 ? 0 : (pageIndex - 1) * pageSize + 1;
     const showingTo = Math.min(filteredMembers.length, pageIndex * pageSize);
+    const selectedMember = selectedUserId ? (members.find(m => String(m.userId || m.id) === selectedUserId) ?? null) : null;
 
     const maskEmail = (email: string) => {
         if (showEmails) return email;
@@ -131,8 +152,8 @@ const UserManagement: React.FC = () => {
         } finally { setActionLoadingId(null); }
     };
 
-    const handleToggleStatus = async (m: any, e: React.MouseEvent) => {
-        e.stopPropagation();
+    const handleToggleStatus = async (m: any, e?: React.MouseEvent) => {
+        e?.stopPropagation();
         const uid = m.userId || m.id;
         if (String(uid) === currentUserId) return showToast('Cannot deactivate yourself.', 'error');
 
@@ -149,6 +170,16 @@ const UserManagement: React.FC = () => {
     const handleUpdateUser = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!editingUserId) return;
+
+        const errors = {
+            studentId: validate.studentId(editData.studentId.trim()),
+            orcid: validate.orcid(editData.orcid.trim()),
+            googleScholarUrl: validate.googleScholarUrl(editData.googleScholarUrl.trim()),
+            githubUrl: validate.githubUrl(editData.githubUrl.trim()),
+        };
+        setFieldErrors(errors);
+        if (Object.values(errors).some(Boolean)) return;
+
         setActionLoadingId(editingUserId);
         try {
             const payload: any = {
@@ -162,17 +193,19 @@ const UserManagement: React.FC = () => {
             const updated = await userService.updateUser(editingUserId, payload);
             setMembers(prev => prev.map(u => (u.userId || u.id) === editingUserId ? { ...u, ...updated } : u));
             setEditingUserId(null);
+            setFieldErrors({ studentId: '', orcid: '', googleScholarUrl: '', githubUrl: '' });
             showToast('User updated successfully.');
         } catch (err) { showToast('Update failed.', 'error'); }
         finally { setActionLoadingId(null); }
     };
 
-    const startEditing = async (m: any, e: React.MouseEvent) => {
-        e.stopPropagation();
+    const startEditing = async (m: any, e?: React.MouseEvent) => {
+        e?.stopPropagation();
         const uid = m.userId || m.id;
         const uidStr = String(uid);
-        setExpandedUserId(uid);
+        setSelectedUserId(uidStr);
         setEditingUserId(uid);
+        setFieldErrors({ studentId: '', orcid: '', googleScholarUrl: '', githubUrl: '' });
 
         // Prefill quick values immediately, then fetch full user details (if available)
         setEditData(prev => ({
@@ -316,6 +349,21 @@ const UserManagement: React.FC = () => {
                             </button>
                         ))}
                     </div>
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        {[
+                            { id: 'all', label: 'All Status' },
+                            { id: 'active', label: 'Active' },
+                            { id: 'inactive', label: 'Inactive' },
+                        ].map(s => (
+                            <button
+                                key={s.id}
+                                onClick={() => setActiveStatusFilter(s.id as any)}
+                                className={`filter-chip ${activeStatusFilter === s.id ? 'active' : ''}`}
+                            >
+                                {s.label}
+                            </button>
+                        ))}
+                    </div>
                     <button
                         className="btn btn-ghost"
                         style={{ marginLeft: 'auto', gap: '8px', color: showEmails ? 'var(--accent-color)' : 'var(--text-muted)' }}
@@ -327,179 +375,338 @@ const UserManagement: React.FC = () => {
                     </button>
                 </div>
 
-                {/* Error / Loading */}
-                {loading ? (
-                    <div style={{ textAlign: 'center', padding: '4rem 0' }}>
-                        <Loader2 className="animate-spin" size={40} style={{ color: 'var(--accent-color)', margin: '0 auto' }} />
-                        <p style={{ marginTop: '1rem', color: 'var(--text-secondary)' }}>Loading members...</p>
-                    </div>
-                ) : error ? (
-                    <div className="card" style={{ textAlign: 'center', color: 'var(--danger)', padding: '3rem' }}>
-                        <AlertTriangle size={40} style={{ margin: '0 auto 1rem' }} />
-                        <h3>{error}</h3>
-                        <button className="btn btn-primary" onClick={loadMembers} style={{ marginTop: '1rem' }}>Retry</button>
-                    </div>
-                ) : filteredMembers.length === 0 ? (
-                    <div className="card" style={{ textAlign: 'center', padding: '5rem 0', borderStyle: 'dashed' }}>
-                        <Users size={48} style={{ opacity: 0.2, margin: '0 auto 1rem' }} />
-                        <p style={{ color: 'var(--text-secondary)' }}>No members found matching your search.</p>
-                    </div>
-                ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                        {pagedMembers.map(m => {
-                            const uid = m.userId || m.id;
-                            const isSelf = String(uid) === currentUserId;
-                            const isExpanded = expandedUserId === uid;
-                            const isEditing = editingUserId === uid;
-                            const roleCfg = getRoleBadgeConfig(m.role);
-                            const isActive = m.isActive !== false;
+                {/* Table + Side Panel */}
+                <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                        {loading ? (
+                            <div style={{ textAlign: 'center', padding: '4rem 0' }}>
+                                <Loader2 className="animate-spin" size={40} style={{ color: 'var(--accent-color)', margin: '0 auto' }} />
+                                <p style={{ marginTop: '1rem', color: 'var(--text-secondary)' }}>Loading members...</p>
+                            </div>
+                        ) : error ? (
+                            <div className="card" style={{ textAlign: 'center', color: 'var(--danger)', padding: '3rem' }}>
+                                <AlertTriangle size={40} style={{ margin: '0 auto 1rem' }} />
+                                <h3>{error}</h3>
+                                <button className="btn btn-primary" onClick={loadMembers} style={{ marginTop: '1rem' }}>Retry</button>
+                            </div>
+                        ) : (
+                            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                                    <thead style={{ background: 'var(--surface-hover)', borderBottom: '1px solid var(--border-color)' }}>
+                                        <tr>
+                                            <th style={{ padding: '0.85rem 1.25rem', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Name</th>
+                                            <th style={{ padding: '0.85rem 1rem', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Email</th>
+                                            <th style={{ padding: '0.85rem 1rem', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Role</th>
+                                            <th style={{ padding: '0.85rem 1rem', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {filteredMembers.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={4} style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                                                    No members found matching your search.
+                                                </td>
+                                            </tr>
+                                        ) : pagedMembers.map(m => {
+                                            const uid = m.userId || m.id;
+                                            const uidStr = String(uid);
+                                            const isSelf = uidStr === currentUserId;
+                                            const isSelected = selectedUserId === uidStr;
+                                            const roleCfg = getRoleBadgeConfig(m.role);
+                                            const isActive = m.isActive !== false;
 
-                            return (
-                                <div key={uid} className="card" style={{
-                                    padding: 0, overflow: 'hidden',
-                                    borderLeft: `4px solid ${isExpanded ? 'var(--accent-color)' : 'transparent'}`,
-                                    transition: 'all 0.2s'
-                                }}>
-                                    {/* Card Row */}
-                                    <div
-                                        onClick={() => setExpandedUserId(isExpanded ? null : uid)}
-                                        style={{ display: 'flex', alignItems: 'center', padding: '1.25rem 1.5rem', cursor: 'pointer', gap: '1.25rem' }}
-                                        onMouseOver={e => e.currentTarget.style.background = 'var(--surface-hover)'}
-                                        onMouseOut={e => e.currentTarget.style.background = 'transparent'}
+                                            return (
+                                                <tr
+                                                    key={uid}
+                                                    onClick={() => setSelectedUserId(isSelected ? null : uidStr)}
+                                                    style={{
+                                                        borderBottom: '1px solid var(--border-color)',
+                                                        cursor: 'pointer',
+                                                        background: isSelected ? 'var(--accent-bg)' : 'transparent',
+                                                        borderLeft: isSelected ? '3px solid var(--accent-color)' : '3px solid transparent',
+                                                        transition: 'background 0.15s',
+                                                    }}
+                                                    onMouseOver={e => { if (!isSelected) e.currentTarget.style.background = 'var(--surface-hover)'; }}
+                                                    onMouseOut={e => { if (!isSelected) e.currentTarget.style.background = 'transparent'; }}
+                                                >
+                                                    <td style={{ padding: '0.9rem 1.25rem' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                            <div style={{
+                                                                width: '32px', height: '32px', borderRadius: '50%', flexShrink: 0,
+                                                                background: roleCfg.bg, color: roleCfg.color,
+                                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                                fontSize: '0.75rem', fontWeight: 800, border: `1.5px solid ${roleCfg.color}22`,
+                                                                overflow: 'hidden'
+                                                            }}>
+                                                                {m.avatarUrl
+                                                                    ? <img src={m.avatarUrl} alt={m.fullName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                                    : (m.fullName || m.email || '?')[0].toUpperCase()
+                                                                }
+                                                            </div>
+                                                            <div>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                                    <span style={{ fontWeight: 600, fontSize: '0.875rem', color: '#1e293b' }}>{m.fullName}</span>
+                                                                    {isSelf && <span style={{ fontSize: '0.6rem', background: '#f1f5f9', padding: '1px 5px', borderRadius: '4px', color: '#64748b', fontWeight: 700 }}>YOU</span>}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td style={{ padding: '0.9rem 1rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                                            <Mail size={12} /> {maskEmail(m.email)}
+                                                        </div>
+                                                    </td>
+                                                    <td style={{ padding: '0.9rem 1rem' }}>
+                                                        <span style={{ background: roleCfg.bg, color: roleCfg.color, padding: '3px 8px', borderRadius: '6px', fontWeight: 600, fontSize: '0.72rem' }}>
+                                                            {roleCfg.label}
+                                                        </span>
+                                                    </td>
+                                                    <td style={{ padding: '0.9rem 1rem' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                            <span style={{
+                                                                width: '8px', height: '8px', borderRadius: '50%', flexShrink: 0,
+                                                                background: isActive ? '#10b981' : '#cbd5e1',
+                                                                boxShadow: isActive ? '0 0 6px rgba(16,185,129,0.4)' : 'none',
+                                                            }} />
+                                                            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: isActive ? '#059669' : '#94a3b8' }}>
+                                                                {isActive ? 'Active' : 'Disabled'}
+                                                            </span>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+
+                        {/* Pagination */}
+                        {!loading && filteredMembers.length > 0 && (
+                            <div style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
+                                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+                                    Showing {showingFrom}–{showingTo} of {filteredMembers.length} users
+                                </span>
+                                {totalPages > 1 && (
+                                    <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', alignItems: 'center' }}>
+                                        <button disabled={pageIndex === 1} onClick={() => setPageIndex(pageIndex - 1)} className="btn btn-outline" style={{ padding: '4px 14px', fontSize: '0.85rem', opacity: pageIndex === 1 ? 0.45 : 1 }}>Prev</button>
+                                        <div style={{ display: 'flex', gap: '0.25rem' }}>
+                                            {[...Array(totalPages)].map((_, i) => (
+                                                <button key={i + 1} onClick={() => setPageIndex(i + 1)} className={`btn ${pageIndex === i + 1 ? 'btn-primary' : 'btn-text'}`} style={{ width: '32px', height: '32px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem', minWidth: 'unset' }}>{i + 1}</button>
+                                            ))}
+                                        </div>
+                                        <button disabled={pageIndex === totalPages} onClick={() => setPageIndex(pageIndex + 1)} className="btn btn-outline" style={{ padding: '4px 14px', fontSize: '0.85rem', opacity: pageIndex === totalPages ? 0.45 : 1 }}>Next</button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* User Detail Panel */}
+                    {selectedMember && (() => {
+                        const m = selectedMember;
+                        const uid = m.userId || m.id;
+                        const uidStr = String(uid);
+                        const isSelf = uidStr === currentUserId;
+                        const roleCfg = getRoleBadgeConfig(m.role);
+                        const isActive = m.isActive !== false;
+                        const isEditing = editingUserId === uid;
+                        const initial = (m.fullName || m.email || '?')[0].toUpperCase();
+
+                        return (
+                            <div style={{
+                                width: '360px', flexShrink: 0, position: 'sticky', top: '1rem',
+                                background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '14px',
+                                boxShadow: '0 4px 24px rgba(0,0,0,0.07)',
+                                display: 'flex', flexDirection: 'column', overflow: 'hidden',
+                                maxHeight: 'calc(100vh - 6rem)',
+                            }}>
+                                {/* Panel Header */}
+                                <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '10px', background: 'white', flexShrink: 0 }}>
+                                    <Users size={18} style={{ color: 'var(--primary-color)' }} />
+                                    <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800, textTransform: 'uppercase', flex: 1, color: '#1e293b' }}>User Profile</h4>
+                                    <button
+                                        onClick={() => { setSelectedUserId(null); setEditingUserId(null); }}
+                                        style={{ background: '#f1f5f9', border: 'none', cursor: 'pointer', color: '#64748b', display: 'flex', padding: '6px', borderRadius: '50%', alignItems: 'center', justifyContent: 'center' }}
                                     >
-                                        <div style={{ color: 'var(--text-muted)' }}>{isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}</div>
+                                        <X size={16} />
+                                    </button>
+                                </div>
 
-                                        <div style={{ flex: 1, minWidth: 0 }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                                <p style={{ margin: 0, fontWeight: 700, fontSize: '1rem' }}>{m.fullName}</p>
-                                                {isSelf && <span style={{ fontSize: '0.65rem', background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', color: '#64748b' }}>YOU</span>}
+                                {/* Panel Body */}
+                                <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }} className="custom-scrollbar">
+                                    {/* Avatar + identity */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', paddingBottom: '1.25rem', borderBottom: '1px solid #e2e8f0' }}>
+                                        <div style={{
+                                            width: '72px', height: '72px', borderRadius: '50%',
+                                            background: roleCfg.bg, color: roleCfg.color,
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            fontSize: '1.75rem', fontWeight: 800,
+                                            border: `3px solid white`, boxShadow: '0 4px 14px rgba(0,0,0,0.1)',
+                                            outline: `3px solid ${roleCfg.color}33`,
+                                            overflow: 'hidden'
+                                        }}>
+                                            {m.avatarUrl
+                                                ? <img src={m.avatarUrl} alt={m.fullName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                : initial
+                                            }
+                                        </div>
+                                        <div style={{ textAlign: 'center' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center', marginBottom: '6px' }}>
+                                                <span style={{ fontSize: '1rem', fontWeight: 800, color: '#1e293b' }}>{m.fullName}</span>
+                                                {isSelf && <span style={{ fontSize: '0.62rem', background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', color: '#64748b', fontWeight: 700 }}>YOU</span>}
                                             </div>
-                                            <p style={{ margin: '2px 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                <Mail size={12} /> {maskEmail(m.email)}
-                                            </p>
-                                        </div>
-
-                                        <span className="badge" style={{ background: roleCfg.bg, color: roleCfg.color, fontWeight: 700, borderRadius: '8px' }}>
-                                            {roleCfg.label}
-                                        </span>
-
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '90px', justifyContent: 'flex-end' }}>
-                                            <span style={{
-                                                width: '10px', height: '10px', borderRadius: '50%',
-                                                background: isActive ? '#10b981' : '#cbd5e1',
-                                                boxShadow: isActive ? '0 0 8px rgba(16, 185, 129, 0.4)' : 'none'
-                                            }} />
-                                            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: isActive ? '#059669' : '#94a3b8' }}>
-                                                {isActive ? 'Active' : 'Disabled'}
+                                            <span style={{ background: roleCfg.bg, color: roleCfg.color, padding: '3px 12px', borderRadius: '6px', fontWeight: 700, fontSize: '0.72rem' }}>
+                                                {roleCfg.label}
                                             </span>
-                                        </div>
-
-                                        <div style={{ display: 'flex', gap: '4px' }} onClick={e => e.stopPropagation()}>
-                                            <button className="btn btn-ghost" style={{ padding: '8px' }} onClick={e => startEditing(m, e)} title="Edit Details"><Edit2 size={16} /></button>
-                                            <button
-                                                className="btn btn-ghost"
-                                                style={{ padding: '8px', color: isSelf ? '#e2e8f0' : (isActive ? '#ef4444' : '#10b981') }}
-                                                disabled={isSelf || actionLoadingId === String(uid)}
-                                                onClick={e => handleToggleStatus(m, e)}
-                                                title={isActive ? 'Deactivate User' : 'Activate User'}
-                                            >
-                                                {actionLoadingId === String(uid) ? <Loader2 size={16} className="spin" /> : <Power size={16} />}
-                                            </button>
                                         </div>
                                     </div>
 
-                                    {/* Detail Panel */}
-                                    {isExpanded && (
-                                        <div style={{ borderTop: '1px solid var(--border-color)', background: '#f8fafc', padding: '1.75rem' }}>
-                                            {isEditing ? (
-                                                <form onSubmit={handleUpdateUser} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
-                                                    {detailsLoadingId === String(uid) && (
-                                                        <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-secondary)', fontWeight: 600 }}>
-                                                            <Loader2 size={16} className="spin" /> Loading user details...
-                                                        </div>
-                                                    )}
-                                                    <div>
-                                                        <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Role</label>
-                                                        <select className="form-input" value={editData.role} onChange={e => setEditData({ ...editData, role: Number(e.target.value) })}>
-                                                            <option value={4}>Member</option>
-                                                            <option value={3}>Senior Researcher</option>
-                                                            <option value={2}>Lab Director</option>
-                                                            {isAdmin && <option value={1}>Admin</option>}
-                                                        </select>
-                                                    </div>
-                                                    <div>
-                                                        <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Status</label>
-                                                        <select className="form-input" value={editData.isActive ? 'true' : 'false'} onChange={e => setEditData({ ...editData, isActive: e.target.value === 'true' })}>
-                                                            <option value="true">Active</option>
-                                                            <option value="false">Inactive</option>
-                                                        </select>
-                                                    </div>
+                                    {/* Info tiles */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                        <div style={{ background: 'white', padding: '0.875rem 1rem', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                                            <label style={{ fontSize: '0.65rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '4px' }}><Mail size={11} /> Email</label>
+                                            <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#1e293b', wordBreak: 'break-all' }}>{maskEmail(m.email)}</div>
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '0.75rem' }}>
+                                            <div style={{ flex: 1, background: 'white', padding: '0.875rem 1rem', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                                                <label style={{ fontSize: '0.65rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Status</label>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: isActive ? '#10b981' : '#cbd5e1', boxShadow: isActive ? '0 0 6px rgba(16,185,129,0.4)' : 'none' }} />
+                                                    <span style={{ fontSize: '0.82rem', fontWeight: 700, color: isActive ? '#059669' : '#94a3b8' }}>{isActive ? 'Active' : 'Disabled'}</span>
+                                                </div>
+                                            </div>
+                                            <div style={{ flex: 1, background: 'white', padding: '0.875rem 1rem', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                                                <label style={{ fontSize: '0.65rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '4px' }}><Calendar size={11} /> Joined</label>
+                                                <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#1e293b' }}>{m.createdAt ? new Date(m.createdAt).toLocaleDateString() : '—'}</div>
+                                            </div>
+                                        </div>
+                                    </div>
 
-                                                    <div>
-                                                        <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Student ID</label>
-                                                        <input className="form-input" type="text" value={editData.studentId} onChange={e => setEditData({ ...editData, studentId: e.target.value })} placeholder="Student ID" />
-                                                    </div>
-                                                    <div>
-                                                        <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>ORCID</label>
-                                                        <input className="form-input" type="text" value={editData.orcid} onChange={e => setEditData({ ...editData, orcid: e.target.value })} placeholder="xxxx-xxxx-xxxx-xxxx" />
-                                                    </div>
-                                                    <div>
-                                                        <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Google Scholar URL</label>
-                                                        <input className="form-input" type="url" value={editData.googleScholarUrl} onChange={e => setEditData({ ...editData, googleScholarUrl: e.target.value })} placeholder="https://scholar.google.com/..." />
-                                                    </div>
-                                                    <div>
-                                                        <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>GitHub URL</label>
-                                                        <input className="form-input" type="url" value={editData.githubUrl} onChange={e => setEditData({ ...editData, githubUrl: e.target.value })} placeholder="https://github.com/..." />
-                                                    </div>
-                                                    <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '0.5rem' }}>
-                                                        <button type="button" className="btn btn-secondary" onClick={() => setEditingUserId(null)}>Cancel</button>
-                                                        <button type="submit" className="btn btn-primary" disabled={actionLoadingId === String(uid)}>
-                                                            {actionLoadingId === String(uid) ? <Loader2 size={16} className="spin" /> : 'Update Member'}
-                                                        </button>
-                                                    </div>
-                                                </form>
-                                            ) : (
-                                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
-                                                    <div style={{ background: 'white', padding: '1rem', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
-                                                        <p style={{ margin: '0 0 6px', fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Full Email</p>
-                                                        <p style={{ margin: 0, fontWeight: 600, fontSize: '0.9rem' }}>{maskEmail(m.email)}</p>
-                                                    </div>
-
-                                                    <div style={{ background: 'white', padding: '1rem', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
-                                                        <p style={{ margin: '0 0 6px', fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Account Created</p>
-                                                        <p style={{ margin: 0, fontWeight: 600, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                            <Calendar size={14} style={{ color: 'var(--text-muted)' }} />
-                                                            {m.createdAt ? new Date(m.createdAt).toLocaleDateString() : '—'}
-                                                        </p>
-                                                    </div>
+                                    {/* Actions or Edit Form */}
+                                    {isEditing ? (
+                                        <form onSubmit={handleUpdateUser} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                            {detailsLoadingId === uidStr && (
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--text-secondary)', fontWeight: 600, fontSize: '0.82rem' }}>
+                                                    <Loader2 size={15} className="spin" /> Loading details...
                                                 </div>
                                             )}
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                                                <div>
+                                                    <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Role</label>
+                                                    <select className="form-input" value={editData.role} onChange={e => setEditData({ ...editData, role: Number(e.target.value) })}>
+                                                        <option value={4}>Member</option>
+                                                        <option value={3}>Senior Researcher</option>
+                                                        <option value={2}>Lab Director</option>
+                                                        {isAdmin && <option value={1}>Admin</option>}
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Status</label>
+                                                    <select className="form-input" value={editData.isActive ? 'true' : 'false'} onChange={e => setEditData({ ...editData, isActive: e.target.value === 'true' })}>
+                                                        <option value="true">Active</option>
+                                                        <option value="false">Inactive</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Student ID</label>
+                                                <input
+                                                    className="form-input"
+                                                    type="text"
+                                                    value={editData.studentId}
+                                                    onChange={e => {
+                                                        setEditData({ ...editData, studentId: e.target.value });
+                                                        setFieldError('studentId', validate.studentId(e.target.value));
+                                                    }}
+                                                    placeholder="e.g. SE1234"
+                                                    style={{ borderColor: fieldErrors.studentId ? '#ef4444' : undefined }}
+                                                />
+                                                {fieldErrors.studentId && <p style={{ margin: '4px 0 0', fontSize: '0.7rem', color: '#ef4444', fontWeight: 600 }}>{fieldErrors.studentId}</p>}
+                                            </div>
+                                            <div>
+                                                <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>ORCID</label>
+                                                <input
+                                                    className="form-input"
+                                                    type="text"
+                                                    value={editData.orcid}
+                                                    onChange={e => {
+                                                        setEditData({ ...editData, orcid: e.target.value });
+                                                        setFieldError('orcid', validate.orcid(e.target.value));
+                                                    }}
+                                                    placeholder="xxxx-xxxx-xxxx-xxxx"
+                                                    style={{ borderColor: fieldErrors.orcid ? '#ef4444' : undefined }}
+                                                />
+                                                {fieldErrors.orcid && <p style={{ margin: '4px 0 0', fontSize: '0.7rem', color: '#ef4444', fontWeight: 600 }}>{fieldErrors.orcid}</p>}
+                                            </div>
+                                            <div>
+                                                <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Google Scholar URL</label>
+                                                <input
+                                                    className="form-input"
+                                                    type="url"
+                                                    value={editData.googleScholarUrl}
+                                                    onChange={e => {
+                                                        setEditData({ ...editData, googleScholarUrl: e.target.value });
+                                                        setFieldError('googleScholarUrl', validate.googleScholarUrl(e.target.value));
+                                                    }}
+                                                    placeholder="https://scholar.google.com/..."
+                                                    style={{ borderColor: fieldErrors.googleScholarUrl ? '#ef4444' : undefined }}
+                                                />
+                                                {fieldErrors.googleScholarUrl && <p style={{ margin: '4px 0 0', fontSize: '0.7rem', color: '#ef4444', fontWeight: 600 }}>{fieldErrors.googleScholarUrl}</p>}
+                                            </div>
+                                            <div>
+                                                <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>GitHub URL</label>
+                                                <input
+                                                    className="form-input"
+                                                    type="url"
+                                                    value={editData.githubUrl}
+                                                    onChange={e => {
+                                                        setEditData({ ...editData, githubUrl: e.target.value });
+                                                        setFieldError('githubUrl', validate.githubUrl(e.target.value));
+                                                    }}
+                                                    placeholder="https://github.com/..."
+                                                    style={{ borderColor: fieldErrors.githubUrl ? '#ef4444' : undefined }}
+                                                />
+                                                {fieldErrors.githubUrl && <p style={{ margin: '4px 0 0', fontSize: '0.7rem', color: '#ef4444', fontWeight: 600 }}>{fieldErrors.githubUrl}</p>}
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '8px', marginTop: '0.25rem' }}>
+                                                <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={() => { setEditingUserId(null); setFieldErrors({ studentId: '', orcid: '', googleScholarUrl: '', githubUrl: '' }); }}>Cancel</button>
+                                                <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={actionLoadingId === uidStr}>
+                                                    {actionLoadingId === uidStr ? <Loader2 size={15} className="spin" /> : 'Save Changes'}
+                                                </button>
+                                            </div>
+                                        </form>
+                                    ) : (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                            <button
+                                                className="btn btn-primary"
+                                                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                                                onClick={() => startEditing(m)}
+                                            >
+                                                <Edit2 size={15} /> Edit User
+                                            </button>
+                                            <button
+                                                style={{
+                                                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                                                    padding: '8px 16px', borderRadius: '10px', fontWeight: 700, fontSize: '0.875rem', cursor: (isSelf || !!actionLoadingId) ? 'not-allowed' : 'pointer',
+                                                    background: isSelf ? '#f1f5f9' : (isActive ? '#fef2f2' : '#f0fdf4'),
+                                                    color: isSelf ? '#94a3b8' : (isActive ? '#ef4444' : '#10b981'),
+                                                    border: `1px solid ${isSelf ? '#e2e8f0' : (isActive ? '#fecaca' : '#bbf7d0')}`,
+                                                    opacity: (isSelf || !!actionLoadingId) ? 0.6 : 1,
+                                                }}
+                                                disabled={isSelf || !!actionLoadingId}
+                                                onClick={() => handleToggleStatus(m)}
+                                            >
+                                                {actionLoadingId === uidStr ? <Loader2 size={15} className="spin" /> : <Power size={15} />}
+                                                {isActive ? 'Deactivate User' : 'Activate User'}
+                                            </button>
                                         </div>
                                     )}
                                 </div>
-                            );
-                        })}
-                    </div>
-                )}
-
-                {/* Pagination */}
-                {!loading && filteredMembers.length > pageSize && (
-                    <div className="card" style={{ marginTop: '1.5rem', padding: '0.75rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                            Showing <strong>{showingFrom}</strong> – <strong>{showingTo}</strong> of {filteredMembers.length}
-                        </span>
-                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                            <button className="btn btn-secondary" disabled={pageIndex === 1} onClick={() => setPageIndex(pageIndex - 1)}>Prev</button>
-                            <span style={{ fontSize: '0.9rem', padding: '0 10px' }}>Page {pageIndex} of {totalPages}</span>
-                            <button className="btn btn-secondary" disabled={pageIndex === totalPages} onClick={() => setPageIndex(pageIndex + 1)}>Next</button>
-                            <select className="form-input" style={{ width: '100px', marginLeft: '10px' }} value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setPageIndex(1); }}>
-                                <option value={5}>5 / pg</option>
-                                <option value={10}>10 / pg</option>
-                                <option value={20}>20 / pg</option>
-                            </select>
-                        </div>
-                    </div>
-                )}
+                            </div>
+                        );
+                    })()}
+                </div>
             </div>
             <style>{`
                 .filter-chip {

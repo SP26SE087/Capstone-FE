@@ -353,7 +353,7 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
                         style={{
                             position: 'absolute',
                             left: '8px',
-                            top: '20px',
+                            top: '10px',
                             transform: 'translateY(-50%)',
                             width: '180px',
                             padding: '3px 10px',
@@ -403,9 +403,19 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
                         );
                     })}
 
-                    {task.startDate && new Date(task.startDate) >= timelineRange.start && new Date(task.startDate) <= timelineRange.end && (
-                        <div style={{ position: 'absolute', left: `${getPositionPercent(task.startDate)}%`, top: '40px', width: '16px', height: '16px', borderRadius: '50%', background: 'white', border: `3.5px solid #94a3b8`, transform: 'translate(-50%, -5px)', zIndex: 10, cursor: 'help', boxShadow: '0 2px 6px rgba(0,0,0,0.1)' }} title={`Planned Start: ${new Date(task.startDate).toLocaleDateString()}`} />
-                    )}
+                    {task.startDate && new Date(task.startDate) >= timelineRange.start && new Date(task.startDate) <= timelineRange.end && (() => {
+                        const startUtc7 = new Date(new Date(task.startDate).getTime() + 7 * 60 * 60 * 1000);
+                        const startTooltip = `Plan Start: ${startUtc7.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} ${startUtc7.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })} (UTC+7)`;
+                        return (
+                            <div title={startTooltip} style={{ position: 'absolute', left: `${getPositionPercent(task.startDate)}%`, top: '22px', transform: 'translateX(-50%)', zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px', cursor: 'help' }}>
+                                <span style={{ fontSize: '0.5rem', fontWeight: 900, color: '#64748b', whiteSpace: 'nowrap', background: 'white', padding: '0 3px', lineHeight: 1.3, textTransform: 'uppercase', letterSpacing: '0.04em', borderRadius: '3px' }}>Plan Start</span>
+                                <div style={{ width: '14px', height: '14px', borderRadius: '50%', background: 'white', border: '3px solid #94a3b8', boxShadow: '0 2px 6px rgba(0,0,0,0.12)' }} />
+                                <span style={{ fontSize: '0.52rem', fontWeight: 700, color: '#64748b', whiteSpace: 'nowrap', background: 'white', padding: '0 2px', lineHeight: 1.2 }}>
+                                    {new Date(task.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                </span>
+                            </div>
+                        );
+                    })()}
 
                     {sortedLogs.map((log) => {
                         const logDate = new Date(log.createdAt);
@@ -414,10 +424,12 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
                         if (task.status === 6 && log.taskStatus === 6) return null;
                         const posPct = getPositionPercent(log.createdAt);
                         const status = getStatusFromLog(log);
+                        const isEarlyStart = status === 2 && !!task.startDate && logDate < new Date(task.startDate);
+                        const displayName = isEarlyStart ? 'Early Start' : getStatusName(status);
                         return (
                             <React.Fragment key={log.id}>
                                 <div style={{ position: 'absolute', left: `${posPct}%`, top: '40px', width: '12px', height: '12px', borderRadius: '50%', background: getStatusColor(status), transform: 'translate(-50%, -2.5px)', zIndex: 15, cursor: 'help', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} title={`${log.performedByFullName}: ${log.action}\nTime: ${new Date(log.createdAt).toLocaleString()}`} />
-                                <span style={{ position: 'absolute', left: `${posPct}%`, top: '52px', transform: 'translateX(-50%)', zIndex: 15, fontSize: '0.45rem', fontWeight: 900, color: getStatusColor(status), whiteSpace: 'nowrap', background: 'white', padding: '0 2px', lineHeight: 1.2, borderRadius: '3px', pointerEvents: 'none' }}>{getStatusName(status)}</span>
+                                <span style={{ position: 'absolute', left: `${posPct}%`, top: '52px', transform: 'translateX(-50%)', zIndex: 15, fontSize: '0.45rem', fontWeight: 900, color: getStatusColor(status), whiteSpace: 'nowrap', background: 'white', padding: '0 2px', lineHeight: 1.2, borderRadius: '3px', pointerEvents: 'none' }}>{displayName}</span>
                             </React.Fragment>
                         );
                     })}

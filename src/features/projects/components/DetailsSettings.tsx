@@ -192,10 +192,9 @@ const DetailsSettings: React.FC<DetailsSettingsProps> = ({
                         </h4>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                             <div className="form-group">
-                                <label className="form-label" style={{ fontSize: '0.75rem', color: isStartDateInPast ? '#dc2626' : 'inherit' }}>Start Date</label>
-                                <input className="form-input" type="date" name="startDate" value={formData.startDate} onChange={handleInputChange} disabled={isReadOnly} min={todayStr} style={{ fontSize: '0.9rem', borderColor: (isStartDateInPast || isStartDateAfterMilestone) ? '#dc2626' : '' }} />
-                                {isStartDateInPast && <p style={{ fontSize: '0.75rem', fontWeight: 600, color: '#dc2626', marginTop: '4px' }}>Start date cannot be in the past</p>}
-                                {!isStartDateInPast && isStartDateAfterMilestone && (
+                                <label className="form-label" style={{ fontSize: '0.75rem', color: isStartDateAfterMilestone ? '#dc2626' : 'inherit' }}>Start Date</label>
+                                <input className="form-input" type="date" name="startDate" value={formData.startDate} onChange={handleInputChange} disabled={isReadOnly} min={todayStr} style={{ fontSize: '0.9rem', borderColor: isStartDateAfterMilestone ? '#dc2626' : '' }} />
+                                {isStartDateAfterMilestone && (
                                     <p style={{ fontSize: '0.75rem', fontWeight: 600, color: '#dc2626', marginTop: '4px' }}>
                                         Start date cannot be after earliest milestone ({earliestMilestoneStartDate!.split('T')[0]})
                                     </p>

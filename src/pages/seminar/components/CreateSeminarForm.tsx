@@ -101,6 +101,7 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
 
     // Presenters
     const [presenters, setPresenters] = useState<PresenterInfo[]>([]);
+    const [presenterError, setPresenterError] = useState('');
     const [allUsers, setAllUsers] = useState<any[]>([]);
     const [usersLoading, setUsersLoading] = useState(false);
     // Presenter picker tabs: 'users' | 'project' | 'manual'
@@ -162,8 +163,14 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
     const togglePresenter = (email: string, name: string) => {
         if (isPresenterSelected(email)) {
             setPresenters(presenters.filter(p => p.email?.toLowerCase() !== email.toLowerCase()));
+            setPresenterError('');
         } else {
+            if (presenters.length >= numberOfWeeks) {
+                setPresenterError(`Maximum ${numberOfWeeks} presenter${numberOfWeeks !== 1 ? 's' : ''} allowed (one per session).`);
+                return;
+            }
             setPresenters([...presenters, { email, name, topic: null }]);
+            setPresenterError('');
         }
     };
 
@@ -177,7 +184,19 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
 
     const removePresenter = (email: string) => {
         setPresenters(presenters.filter(p => p.email?.toLowerCase() !== email.toLowerCase()));
+        setPresenterError('');
     };
+
+    // Trim presenters if numberOfWeeks is reduced below current count
+    useEffect(() => {
+        if (presenters.length > numberOfWeeks) {
+            setPresenters(prev => prev.slice(0, numberOfWeeks));
+            setPresenterError(`Presenter list trimmed to ${numberOfWeeks} (one per session).`);
+        } else if (presenters.length <= numberOfWeeks) {
+            setPresenterError('');
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [numberOfWeeks]);
 
     const addTopic = () => {
         if (!newTopic.trim()) return;
@@ -547,10 +566,12 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
                                 </span>
                                 {presenters.length > 0 && (
                                     <span style={{
-                                        fontSize: '0.65rem', fontWeight: 700, color: '#6366f1',
-                                        background: '#ede9fe', padding: '2px 8px', borderRadius: '10px'
+                                        fontSize: '0.65rem', fontWeight: 700,
+                                        color: presenters.length >= numberOfWeeks ? '#ef4444' : '#6366f1',
+                                        background: presenters.length >= numberOfWeeks ? '#fee2e2' : '#ede9fe',
+                                        padding: '2px 8px', borderRadius: '10px'
                                     }}>
-                                        {presenters.length} selected
+                                        {presenters.length} / {numberOfWeeks} max
                                     </span>
                                 )}
                             </div>
@@ -561,6 +582,13 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
                         </button>
 
                         {presenterOpen && (<>
+
+                            {/* Presenter limit error */}
+                            {presenterError && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#ef4444', fontSize: '0.72rem', fontWeight: 600, marginBottom: '8px', padding: '6px 10px', background: '#fee2e2', borderRadius: '7px', border: '1px solid #fecaca' }}>
+                                    <AlertCircle size={12} /> {presenterError}
+                                </div>
+                            )}
 
                             {/* Selected presenter chips */}
                             {presenters.length > 0 && (
@@ -679,11 +707,12 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
                                             ) : filteredPresenterUsers.map(u => {
                                                 const email = u.email || ''; const name = u.fullName || '';
                                                 const selected = isPresenterSelected(email);
+                                                const atLimit = !selected && presenters.length >= numberOfWeeks;
                                                 return (
-                                                    <div key={u.userId || email} onClick={() => togglePresenter(email, name)}
-                                                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 9px', borderRadius: '7px', cursor: 'pointer', background: selected ? '#ede9fe' : '#fff', border: selected ? '1px solid #c7d2fe' : '1px solid transparent', transition: 'all 0.12s' }}
-                                                        onMouseEnter={e => { if (!selected) e.currentTarget.style.background = '#f5f3ff'; }}
-                                                        onMouseLeave={e => { if (!selected) e.currentTarget.style.background = '#fff'; }}
+                                                    <div key={u.userId || email} onClick={() => !atLimit && togglePresenter(email, name)}
+                                                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 9px', borderRadius: '7px', cursor: atLimit ? 'not-allowed' : 'pointer', opacity: atLimit ? 0.45 : 1, background: selected ? '#ede9fe' : '#fff', border: selected ? '1px solid #c7d2fe' : '1px solid transparent', transition: 'all 0.12s' }}
+                                                        onMouseEnter={e => { if (!selected && !atLimit) e.currentTarget.style.background = '#f5f3ff'; }}
+                                                        onMouseLeave={e => { if (!selected && !atLimit) e.currentTarget.style.background = '#fff'; }}
                                                     >
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                             <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: selected ? '#6366f1' : 'var(--primary-color)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700 }}>
@@ -727,11 +756,12 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
                                                 .map(m => {
                                                     const email = m.email || m.userEmail || ''; const name = m.fullName || m.userName || ''; const role = m.projectRoleName || '';
                                                     const selected = isPresenterSelected(email);
+                                                    const atLimit = !selected && presenters.length >= numberOfWeeks;
                                                     return (
-                                                        <div key={m.memberId || m.userId || email} onClick={() => email && togglePresenter(email, name)}
-                                                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 9px', borderRadius: '7px', cursor: email ? 'pointer' : 'default', opacity: email ? 1 : 0.5, background: selected ? '#ede9fe' : '#fff', border: selected ? '1px solid #c7d2fe' : '1px solid transparent', transition: 'all 0.12s' }}
-                                                            onMouseEnter={e => { if (!selected && email) e.currentTarget.style.background = '#f5f3ff'; }}
-                                                            onMouseLeave={e => { if (!selected && email) e.currentTarget.style.background = '#fff'; }}
+                                                        <div key={m.memberId || m.userId || email} onClick={() => email && !atLimit && togglePresenter(email, name)}
+                                                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 9px', borderRadius: '7px', cursor: (email && !atLimit) ? 'pointer' : 'not-allowed', opacity: (email && !atLimit) ? 1 : 0.45, background: selected ? '#ede9fe' : '#fff', border: selected ? '1px solid #c7d2fe' : '1px solid transparent', transition: 'all 0.12s' }}
+                                                            onMouseEnter={e => { if (!selected && email && !atLimit) e.currentTarget.style.background = '#f5f3ff'; }}
+                                                            onMouseLeave={e => { if (!selected && email && !atLimit) e.currentTarget.style.background = '#fff'; }}
                                                         >
                                                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                                 <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: selected ? '#6366f1' : 'var(--primary-color)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700 }}>
@@ -756,29 +786,30 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
                                         {presenterManualInputs.map((val, idx) => (
                                             <div key={idx} style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                                                 <input
-                                                    style={{ flex: 1, padding: '7px 10px', borderRadius: '7px', border: '1.5px solid #e0e7ff', fontSize: '0.8rem', fontFamily: 'inherit', outline: 'none' }}
+                                                    style={{ flex: 1, padding: '7px 10px', borderRadius: '7px', border: '1.5px solid #e0e7ff', fontSize: '0.8rem', fontFamily: 'inherit', outline: 'none', opacity: presenters.length >= numberOfWeeks ? 0.5 : 1 }}
                                                     value={val}
-                                                    onChange={e => { const u = [...presenterManualInputs]; u[idx] = e.target.value; setPresenterManualInputs(u); }}
-                                                    placeholder="Enter email address…"
+                                                    onChange={e => { if (presenters.length < numberOfWeeks) { const u = [...presenterManualInputs]; u[idx] = e.target.value; setPresenterManualInputs(u); } }}
+                                                    placeholder={presenters.length >= numberOfWeeks ? 'Limit reached' : 'Enter email address…'}
+                                                    readOnly={presenters.length >= numberOfWeeks}
                                                     onFocus={e => { e.currentTarget.style.borderColor = '#6366f1'; }}
                                                     onBlur={e => { e.currentTarget.style.borderColor = '#e0e7ff'; }}
                                                     onKeyDown={e => {
                                                         if (e.key !== 'Enter') return;
                                                         const trimmed = val.trim();
-                                                        if (!trimmed || isPresenterSelected(trimmed) || selectedAttendees.some(a => a.email.toLowerCase() === trimmed.toLowerCase())) return;
+                                                        if (!trimmed || isPresenterSelected(trimmed) || selectedAttendees.some(a => a.email.toLowerCase() === trimmed.toLowerCase()) || presenters.length >= numberOfWeeks) return;
                                                         togglePresenter(trimmed, trimmed);
                                                         const u = [...presenterManualInputs]; u[idx] = ''; setPresenterManualInputs(u);
                                                     }}
                                                 />
                                                 <button
-                                                    disabled={!val.trim()}
+                                                    disabled={!val.trim() || presenters.length >= numberOfWeeks}
                                                     onClick={() => {
                                                         const trimmed = val.trim();
-                                                        if (!trimmed || isPresenterSelected(trimmed) || selectedAttendees.some(a => a.email.toLowerCase() === trimmed.toLowerCase())) return;
+                                                        if (!trimmed || isPresenterSelected(trimmed) || selectedAttendees.some(a => a.email.toLowerCase() === trimmed.toLowerCase()) || presenters.length >= numberOfWeeks) return;
                                                         togglePresenter(trimmed, trimmed);
                                                         const u = [...presenterManualInputs]; u[idx] = ''; setPresenterManualInputs(u);
                                                     }}
-                                                    style={{ padding: '7px 11px', borderRadius: '7px', border: 'none', background: val.trim() ? '#6366f1' : '#94a3b8', color: '#fff', cursor: val.trim() ? 'pointer' : 'not-allowed', fontSize: '0.72rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '3px', flexShrink: 0 }}
+                                                    style={{ padding: '7px 11px', borderRadius: '7px', border: 'none', background: (val.trim() && presenters.length < numberOfWeeks) ? '#6366f1' : '#94a3b8', color: '#fff', cursor: (val.trim() && presenters.length < numberOfWeeks) ? 'pointer' : 'not-allowed', fontSize: '0.72rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '3px', flexShrink: 0 }}
                                                 >
                                                     Add
                                                 </button>

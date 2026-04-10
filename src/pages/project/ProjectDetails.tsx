@@ -628,7 +628,7 @@ const ProjectDetails: React.FC = () => {
                     ].map(tab => (
                         <button
                             key={tab.id}
-                            onClick={() => setActiveTab(tab.id as any)}
+                            onClick={() => { if (tab.id !== 'tasks') setTaskView('list'); setActiveTab(tab.id as any); }}
                             style={{
                                 display: 'flex',
                                 alignItems: 'center',
