@@ -558,7 +558,7 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
                                                 try {
                                                     const token = localStorage.getItem('token');
                                                     let res = await fetch(
-                                                        `${API_BASE_URL}/api/Seminars/meetings/${meetingId}/slide-document/download`,
+                                                        `${API_BASE_URL.replace(/\/$/, '')}/api/Seminars/meetings/${meetingId}/slide-document/download`,
                                                         { headers: { Authorization: `Bearer ${token}` } }
                                                     );
                                                     if (res.status === 401 && res.url) {
