@@ -563,7 +563,7 @@ const PaperReview: React.FC = () => {
                                                         {(() => {
                                                             const pm = projectMembers.find((p: any) => (p.membershipId || p.memberId) === m.membershipId);
                                                             const name = pm?.fullName || m.membershipId.substring(0, 8);
-                                                            return `${name} · ${PaperRoleLabel[m.role as PaperRoleEnum] || 'Member'}`;
+                                                            return name;
                                                         })()}
                                                     </span>
                                                 ))}
@@ -609,21 +609,9 @@ const PaperReview: React.FC = () => {
                                         </div>
                                     )}
 
-                                    {/* Approved: Revision Required / Record Decision */}
+                                    {/* Approved: Record Decision */}
                                     {selectedPaper.status === SubmissionStatus.Approved && (
                                         <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', paddingTop: '1rem', borderTop: '1px solid #f1f5f9' }}>
-                                            <button
-                                                onClick={() => handleMarkRevision(selectedPaper.paperSubmissionId)}
-                                                disabled={!!actionLoading}
-                                                className="btn"
-                                                style={{
-                                                    border: '1px solid #fed7aa', background: '#fff7ed', color: '#c2410c', borderRadius: '10px',
-                                                    padding: '10px 18px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
-                                                    fontSize: '0.88rem', fontWeight: 600, fontFamily: 'inherit', transition: 'all 0.2s'
-                                                }}
-                                            >
-                                                {actionLoading === selectedPaper.paperSubmissionId ? <Loader2 size={18} className="animate-spin" /> : <RefreshCw size={18} />} Revision Required
-                                            </button>
                                             <button
                                                 onClick={() => handleDecision(selectedPaper.paperSubmissionId)}
                                                 disabled={!!actionLoading}

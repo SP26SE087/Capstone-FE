@@ -18,6 +18,9 @@ import {
     Users,
     UserCheck,
     ChevronRight,
+    Sparkles,
+    Zap,
+    X,
 } from 'lucide-react';
 import meetingService from '@/services/meetingService';
 import { MeetingResponse, MeetingStatus } from '@/types/meeting';
@@ -54,6 +57,10 @@ const Schedules: React.FC = () => {
     const [usersMap, setUsersMap] = useState<Record<string, string>>({});
     const { addToast } = useToastStore();
     const [viewMode, setViewMode] = useState<'list' | 'timetable'>('list');
+
+    // Semantic search
+    const [semanticResults, setSemanticResults] = useState<MeetingResponse[] | null>(null);
+    const [isSemanticLoading, setIsSemanticLoading] = useState(false);
 
     // Panel system
     const [activePanel, setActivePanel] = useState<ScheduleTab | null>(null);
@@ -112,6 +119,23 @@ const Schedules: React.FC = () => {
         addToast(message, type);
     };
 
+    const handleSemanticSearch = async () => {
+        if (!searchQuery.trim()) return;
+        setIsSemanticLoading(true);
+        try {
+            const results = await meetingService.searchMeetings({
+                query: searchQuery,
+                topK: 20,
+                projectId: filterProjectId || undefined,
+            });
+            setSemanticResults(Array.isArray(results) ? results : []);
+        } catch {
+            showToast('Semantic search failed.', 'error');
+        } finally {
+            setIsSemanticLoading(false);
+        }
+    };
+
     // Panel handlers
     const handleAddCreateTab = () => {
         const newId = `create-${Date.now()}`;
@@ -163,6 +187,8 @@ const Schedules: React.FC = () => {
 
     // Filtered meetings
     const displayMeetings = useMemo(() => {
+        if (semanticResults !== null) return semanticResults;
+
         return meetings.filter(m => {
             const query = searchQuery.toLowerCase();
             const matchesQuery = !query ||
@@ -173,7 +199,7 @@ const Schedules: React.FC = () => {
             const matchesProject = !filterProjectId || m.projectId === filterProjectId;
             return matchesQuery && matchesStatus && matchesProject;
         }).sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
-    }, [meetings, searchQuery, filterStatus, filterProjectId]);
+    }, [meetings, semanticResults, searchQuery, filterStatus, filterProjectId]);
 
     // Stats
     const scheduledCount = meetings.filter(m => m.status === MeetingStatus.Scheduled).length;
@@ -296,10 +322,44 @@ const Schedules: React.FC = () => {
                                 className="form-input"
                                 style={{ paddingLeft: '40px', height: '42px', border: 'none', background: 'var(--surface-hover)', borderRadius: '10px', fontSize: '0.88rem' }}
                                 value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
+                                onChange={(e) => { setSearchQuery(e.target.value); setSemanticResults(null); }}
                             />
                         </div>
+                        <button
+                            type="button"
+                            onClick={handleSemanticSearch}
+                            disabled={isSemanticLoading || !searchQuery.trim()}
+                            style={{
+                                height: '42px', padding: '0 1.1rem', borderRadius: '10px',
+                                display: 'flex', alignItems: 'center', gap: '7px',
+                                fontSize: '0.85rem', fontWeight: 700, border: 'none',
+                                cursor: isSemanticLoading || !searchQuery.trim() ? 'not-allowed' : 'pointer',
+                                background: semanticResults !== null ? 'var(--primary-color)' : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                                color: '#fff', opacity: !searchQuery.trim() ? 0.5 : 1,
+                                boxShadow: '0 4px 12px rgba(99,102,241,0.25)', whiteSpace: 'nowrap' as const,
+                            }}
+                        >
+                            {isSemanticLoading ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
+                            AI Search
+                        </button>
                     </div>
+
+                    {semanticResults !== null && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 14px', borderRadius: '10px', background: 'linear-gradient(135deg, #eef2ff, #f5f3ff)', border: '1px solid #c7d2fe', marginBottom: '10px' }}>
+                            <Zap size={14} color="#6366f1" />
+                            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#4f46e5' }}>
+                                AI Search — {semanticResults.length} meeting{semanticResults.length !== 1 ? 's' : ''} found
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => setSemanticResults(null)}
+                                style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', fontWeight: 700, color: '#6366f1', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 8px', borderRadius: '6px' }}
+                            >
+                                <X size={12} /> Clear
+                            </button>
+                        </div>
+                    )}
+
                     <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: '20px', paddingTop: '10px', borderTop: '1px solid rgba(0,0,0,0.05)' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <Filter size={14} color="var(--text-muted)" />

@@ -245,20 +245,21 @@ const MemberProfilePanel: React.FC<MemberProfilePanelProps> = ({
 
     const joinDate = member.joinDate || member.joinedDate;
 
+    // Derive the project role that maps to this member's system role (use name to avoid GUID mismatch)
+    const targetSystemRole = Number(systemDetails?.role || member.role);
+    const mappedProjectRoleName = targetSystemRole === 3 ? 'Senior Researcher' : 'Member';
+    const mappedProjectRoleId =
+        targetSystemRole === 3 ? ProjectRoleEnum.SeniorResearcher : ProjectRoleEnum.Member;
+
     const visibleRoles = roles.filter(role => {
         const roleId = Number(role.id);
         const name = role.name;
-        if (isAdmin) return true;
+        // Never allow assigning Lab Director via this UI
         if (name === 'Lab Director' || roleId === ProjectRoleEnum.LabDirector) return false;
-        if (isCurrentUserLeader) {
-            return (
-                roleId === ProjectRoleEnum.Member ||
-                roleId === ProjectRoleEnum.SeniorResearcher ||
-                name === 'Member' ||
-                name === 'Senior Researcher'
-            );
-        }
-        return true;
+        // Always allow promoting to Leader
+        if (name === 'Leader' || roleId === ProjectRoleEnum.Leader) return true;
+        // Allow their system-role-mapped project role (match by name first, fallback to numeric)
+        return name === mappedProjectRoleName || roleId === mappedProjectRoleId;
     });
 
     const originalRoleId = member.projectRoleId || member.roleId || '';

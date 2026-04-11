@@ -71,6 +71,7 @@ export interface PaperSubmissionResponse {
     updatedAt: string;
     createdByMembershipId?: string | null;
     lastUpdatedByMembershipId?: string | null;
+    editable: boolean;
     members: PaperMemberResponse[];
     externalUsers?: ExternalUserResponse[] | null;
 }

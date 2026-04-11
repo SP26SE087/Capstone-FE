@@ -3,6 +3,7 @@ import { X, Search, Loader2, UserPlus, AlertCircle, UserCheck, Crown, Shield, Us
 import { userService, membershipService, projectService } from '@/services';
 import { useAuth } from '@/hooks/useAuth';
 import { ProjectRoleEnum } from '@/types/project';
+import { SystemRoleMap } from '@/types/enums';
 
 interface AddMemberPanelProps {
     projectId: string;
@@ -125,12 +126,26 @@ const AddMemberPanel: React.FC<AddMemberPanelProps> = ({
         return isLeader || isSenior || isMember;
     });
 
+    // Map system role → project role by name (API IDs may be GUIDs, not numeric enums)
+    const resolveProjectRoleForUser = (user: any): string | null => {
+        const sysRole = Number(user.role);
+        const targetName = sysRole === 3 ? 'Senior Researcher' : 'Member';
+        const matched = roles.find((r: any) =>
+            r.name === targetName ||
+            Number(r.id) === (sysRole === 3 ? ProjectRoleEnum.SeniorResearcher : ProjectRoleEnum.Member)
+        );
+        return matched ? matched.id : (roles.find((r: any) => r.name === 'Member')?.id ?? null);
+    };
+
     const handleSelectUser = (user: any) => {
         setSelectedUser(user);
         setError(null);
         if (!hasLeader) {
             const leaderRole = roles.find(r => r.name === 'Leader' || Number(r.id) === ProjectRoleEnum.Leader);
             if (leaderRole) setSelectedRoleId(leaderRole.id);
+        } else {
+            const autoRoleId = resolveProjectRoleForUser(user);
+            if (autoRoleId) setSelectedRoleId(autoRoleId);
         }
     };
 
@@ -316,13 +331,25 @@ const AddMemberPanel: React.FC<AddMemberPanelProps> = ({
                                         }
                                     </div>
                                     <div style={{ flex: 1, minWidth: 0 }}>
-                                        <p style={{
-                                            margin: 0, fontSize: '0.82rem', fontWeight: 600,
-                                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                                            color: isAlreadyIn ? '#94a3b8' : '#1e293b',
-                                        }}>
-                                            {user.fullName || user.userName}
-                                        </p>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <p style={{
+                                                margin: 0, fontSize: '0.82rem', fontWeight: 600,
+                                                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                                color: isAlreadyIn ? '#94a3b8' : '#1e293b',
+                                            }}>
+                                                {user.fullName || user.userName}
+                                            </p>
+                                            {user.role && (
+                                                <span style={{
+                                                    fontSize: '0.6rem', fontWeight: 700,
+                                                    color: '#7c3aed', background: '#f5f3ff',
+                                                    padding: '1px 5px', borderRadius: '4px',
+                                                    whiteSpace: 'nowrap', flexShrink: 0,
+                                                }}>
+                                                    {SystemRoleMap[Number(user.role)] || user.role}
+                                                </span>
+                                            )}
+                                        </div>
                                         <p style={{
                                             margin: 0, fontSize: '0.7rem', color: '#94a3b8',
                                             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
@@ -432,80 +459,115 @@ const AddMemberPanel: React.FC<AddMemberPanelProps> = ({
                             </button>
                         </div>
 
-                        {/* Role label */}
-                        <div>
-                            <p style={{
-                                margin: '0 0 6px',
-                                fontSize: '0.68rem', fontWeight: 700,
-                                textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.04em',
-                            }}>
-                                {!hasLeader ? 'Mandatory Role' : 'Assign Role'}
-                            </p>
-                            {loadingRoles ? (
-                                <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>Loading roles...</div>
-                            ) : (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                    {visibleRoles.map(role => {
-                                        const roleId = Number(role.id);
-                                        const meta = ROLE_META[roleId] || { icon: <User size={14} />, color: '#64748b', bg: '#f1f5f9' };
-                                        const isChecked = selectedRoleId === role.id;
-                                        return (
-                                            <div
-                                                key={role.id}
-                                                onClick={() => setSelectedRoleId(role.id)}
-                                                style={{
-                                                    padding: '8px 10px',
-                                                    borderRadius: '8px',
-                                                    border: `1.5px solid ${isChecked ? 'var(--primary-color)' : '#e2e8f0'}`,
-                                                    background: isChecked ? 'rgba(99,102,241,0.05)' : 'white',
-                                                    cursor: 'pointer',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    gap: '9px',
-                                                    transition: 'all 0.12s',
-                                                }}
-                                            >
-                                                <div style={{
-                                                    width: '26px', height: '26px', borderRadius: '7px',
-                                                    background: isChecked ? meta.bg : '#f8fafc',
-                                                    color: isChecked ? meta.color : '#94a3b8',
-                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                    flexShrink: 0, transition: 'all 0.12s',
-                                                }}>
-                                                    {meta.icon}
+                        {/* Role selection (Leader-adding flow) or auto-assigned role display */}
+                        {!hasLeader ? (
+                            <div>
+                                <p style={{
+                                    margin: '0 0 6px',
+                                    fontSize: '0.68rem', fontWeight: 700,
+                                    textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.04em',
+                                }}>
+                                    Mandatory Role
+                                </p>
+                                {loadingRoles ? (
+                                    <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>Loading roles...</div>
+                                ) : (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                        {visibleRoles.map(role => {
+                                            const roleId = Number(role.id);
+                                            const meta = ROLE_META[roleId] || { icon: <User size={14} />, color: '#64748b', bg: '#f1f5f9' };
+                                            const isChecked = selectedRoleId === role.id;
+                                            return (
+                                                <div
+                                                    key={role.id}
+                                                    onClick={() => setSelectedRoleId(role.id)}
+                                                    style={{
+                                                        padding: '8px 10px',
+                                                        borderRadius: '8px',
+                                                        border: `1.5px solid ${isChecked ? 'var(--primary-color)' : '#e2e8f0'}`,
+                                                        background: isChecked ? 'rgba(99,102,241,0.05)' : 'white',
+                                                        cursor: 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '9px',
+                                                        transition: 'all 0.12s',
+                                                    }}
+                                                >
+                                                    <div style={{
+                                                        width: '26px', height: '26px', borderRadius: '7px',
+                                                        background: isChecked ? meta.bg : '#f8fafc',
+                                                        color: isChecked ? meta.color : '#94a3b8',
+                                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                        flexShrink: 0, transition: 'all 0.12s',
+                                                    }}>
+                                                        {meta.icon}
+                                                    </div>
+                                                    <span style={{
+                                                        fontSize: '0.82rem',
+                                                        fontWeight: isChecked ? 700 : 500,
+                                                        color: isChecked ? '#1e293b' : '#475569',
+                                                        flex: 1,
+                                                    }}>
+                                                        {role.name}
+                                                    </span>
+                                                    <div style={{
+                                                        width: '14px', height: '14px', borderRadius: '50%',
+                                                        border: `2px solid ${isChecked ? 'var(--primary-color)' : '#cbd5e1'}`,
+                                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                        flexShrink: 0,
+                                                    }}>
+                                                        {isChecked && (
+                                                            <div style={{
+                                                                width: '6px', height: '6px', borderRadius: '50%',
+                                                                background: 'var(--primary-color)',
+                                                            }} />
+                                                        )}
+                                                    </div>
                                                 </div>
-                                                <span style={{
-                                                    fontSize: '0.82rem',
-                                                    fontWeight: isChecked ? 700 : 500,
-                                                    color: isChecked ? '#1e293b' : '#475569',
-                                                    flex: 1,
-                                                }}>
-                                                    {role.name}
-                                                </span>
-                                                <div style={{
-                                                    width: '14px', height: '14px', borderRadius: '50%',
-                                                    border: `2px solid ${isChecked ? 'var(--primary-color)' : '#cbd5e1'}`,
-                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                    flexShrink: 0,
-                                                }}>
-                                                    {isChecked && (
-                                                        <div style={{
-                                                            width: '6px', height: '6px', borderRadius: '50%',
-                                                            background: 'var(--primary-color)',
-                                                        }} />
-                                                    )}
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                    {!hasLeader && (
+                                            );
+                                        })}
                                         <p style={{ margin: '2px 0 0', fontSize: '0.7rem', color: 'var(--primary-color)', fontWeight: 600 }}>
                                             * First member must be Project Leader.
                                         </p>
+                                    </div>
+                                )}
+                            </div>
+                        ) : (() => {
+                            const assignedRole = roles.find((r: any) => r.id === selectedRoleId);
+                            const assignedRoleId = assignedRole ? Number(assignedRole.id) : null;
+                            const meta = assignedRoleId ? (ROLE_META[assignedRoleId] || { icon: <User size={14} />, color: '#64748b', bg: '#f1f5f9' }) : null;
+                            return (
+                                <div style={{
+                                    padding: '8px 10px',
+                                    borderRadius: '8px',
+                                    border: '1.5px solid #e2e8f0',
+                                    background: '#f8fafc',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '9px',
+                                }}>
+                                    {meta && (
+                                        <div style={{
+                                            width: '26px', height: '26px', borderRadius: '7px',
+                                            background: meta.bg, color: meta.color,
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            flexShrink: 0,
+                                        }}>
+                                            {meta.icon}
+                                        </div>
                                     )}
+                                    <div style={{ flex: 1 }}>
+                                        <p style={{ margin: 0, fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.04em' }}>
+                                            Project Role
+                                        </p>
+                                        <p style={{ margin: 0, fontSize: '0.82rem', fontWeight: 700, color: '#1e293b' }}>
+                                            {assignedRole?.name || 'Member'}
+                                        </p>
+                                    </div>
+                                    <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontStyle: 'italic' }}>auto-assigned</span>
                                 </div>
-                            )}
-                        </div>
+                            );
+                        })()}
 
                         {/* Error */}
                         {error && (
