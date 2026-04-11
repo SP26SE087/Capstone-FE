@@ -53,6 +53,58 @@ const isPdfFile = (file: File | null): boolean => {
     return name.endsWith('.pdf') || type === 'application/pdf';
 };
 
+type ExternalAuthorValidationErrors = {
+    studentId: string;
+    phoneNumber: string;
+    orcid: string;
+    googleScholarUrl: string;
+    githubUrl: string;
+};
+
+const externalAuthorValidationDefaults: ExternalAuthorValidationErrors = {
+    studentId: '',
+    phoneNumber: '',
+    orcid: '',
+    googleScholarUrl: '',
+    githubUrl: '',
+};
+
+const validateExternalAuthorField = (field: keyof ExternalAuthorValidationErrors, value: string): string => {
+    switch (field) {
+        case 'studentId':
+            return value && !/^[A-Za-z]{2}\d{4}$/.test(value) ? 'Format: 2 letters + 4 digits (e.g. SE1234)' : '';
+        case 'phoneNumber':
+            return value && !/^\+?[\d\s\-().]{7,20}$/.test(value) ? 'Invalid phone number' : '';
+        case 'orcid':
+            return value && !/^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/.test(value) ? 'Format: xxxx-xxxx-xxxx-xxxx' : '';
+        case 'googleScholarUrl':
+            return value && !/^https?:\/\/(www\.)?scholar\.google\.[a-z.]+\//.test(value) ? 'Must be a valid Google Scholar URL' : '';
+        case 'githubUrl':
+            return value && !/^https?:\/\/(www\.)?github\.com\/[A-Za-z0-9_.-]+/.test(value) ? 'Must be a valid GitHub profile URL' : '';
+        default:
+            return '';
+    }
+};
+
+const validateExternalAuthorProfileFields = (author: typeof blankEu): ExternalAuthorValidationErrors => {
+    const studentId = (author.studentId || '').trim();
+    const phoneNumber = (author.phoneNumber || '').trim();
+    const orcid = (author.orcid || '').trim();
+    const googleScholarUrl = (author.googleScholarUrl || '').trim();
+    const githubUrl = (author.githubUrl || '').trim();
+
+    return {
+        studentId: validateExternalAuthorField('studentId', studentId),
+        phoneNumber: validateExternalAuthorField('phoneNumber', phoneNumber),
+        orcid: validateExternalAuthorField('orcid', orcid),
+        googleScholarUrl: validateExternalAuthorField('googleScholarUrl', googleScholarUrl),
+        githubUrl: validateExternalAuthorField('githubUrl', githubUrl),
+    };
+};
+
+const hasExternalAuthorValidationErrors = (errors: ExternalAuthorValidationErrors): boolean =>
+    Object.values(errors).some(Boolean);
+
 const PaperSubmissions: React.FC = () => {
     const { user } = useAuth();
     const isDirector = user?.role === 'LabDirector' || user?.role === 'Lab Director';
@@ -284,6 +336,22 @@ const PaperSubmissions: React.FC = () => {
 
     const handleCreate = async () => {
         if (!validateForm({ title: addTitle, conferenceName: addConference, paperUrl: addPaperUrl })) return;
+        const hasInvalidExternalAuthor = addExternalUsers.some(eu =>
+            hasExternalAuthorValidationErrors(validateExternalAuthorProfileFields({
+                ...blankEu,
+                fullName: eu.fullName || '',
+                email: eu.email || '',
+                phoneNumber: eu.phoneNumber || '',
+                studentId: eu.studentId || '',
+                orcid: eu.orcid || '',
+                googleScholarUrl: eu.googleScholarUrl || '',
+                githubUrl: eu.githubUrl || '',
+            }))
+        );
+        if (hasInvalidExternalAuthor) {
+            showToast('Please correct external author information before creating paper.', 'error');
+            return;
+        }
         if (isPdfFile(addDocument)) {
             showToast('PDF upload is currently disabled.', 'error');
             return;
@@ -1680,18 +1748,31 @@ const CreateExternalAuthors: React.FC<CreateExternalAuthorsProps> = ({ externalU
     const [showForm, setShowForm] = React.useState(false);
     const [editIdx, setEditIdx] = React.useState<number | null>(null);
     const [editDraft, setEditDraft] = React.useState(blankEu);
+    const [draftErrors, setDraftErrors] = React.useState<ExternalAuthorValidationErrors>(externalAuthorValidationDefaults);
+    const [editErrors, setEditErrors] = React.useState<ExternalAuthorValidationErrors>(externalAuthorValidationDefaults);
+
+    const hasDraftValidationErrors = hasExternalAuthorValidationErrors(validateExternalAuthorProfileFields(draft));
+    const hasEditValidationErrors = hasExternalAuthorValidationErrors(validateExternalAuthorProfileFields(editDraft));
 
     const addAuthor = () => {
         if (!draft.fullName.trim() || !draft.email.trim()) return;
+        const nextErrors = validateExternalAuthorProfileFields(draft);
+        setDraftErrors(nextErrors);
+        if (hasExternalAuthorValidationErrors(nextErrors)) return;
         onChange([...externalUsers, { ...draft, fullName: draft.fullName.trim(), email: draft.email.trim() || null, phoneNumber: draft.phoneNumber.trim() || null, studentId: draft.studentId.trim() || null, orcid: draft.orcid.trim() || null, googleScholarUrl: draft.googleScholarUrl.trim() || null, githubUrl: draft.githubUrl.trim() || null, isActive: true }]);
         setDraft(blankEu);
+        setDraftErrors(externalAuthorValidationDefaults);
         setShowForm(false);
     };
 
     const saveEdit = () => {
         if (editIdx === null || !editDraft.fullName.trim() || !editDraft.email.trim()) return;
+        const nextErrors = validateExternalAuthorProfileFields(editDraft);
+        setEditErrors(nextErrors);
+        if (hasExternalAuthorValidationErrors(nextErrors)) return;
         onChange(externalUsers.map((eu, i) => i === editIdx ? { ...editDraft, fullName: editDraft.fullName.trim(), email: editDraft.email.trim() || null, phoneNumber: editDraft.phoneNumber.trim() || null, studentId: editDraft.studentId.trim() || null, orcid: editDraft.orcid.trim() || null, googleScholarUrl: editDraft.googleScholarUrl.trim() || null, githubUrl: editDraft.githubUrl.trim() || null, isActive: true } : eu));
         setEditIdx(null);
+        setEditErrors(externalAuthorValidationDefaults);
     };
 
     return (
@@ -1716,15 +1797,24 @@ const CreateExternalAuthors: React.FC<CreateExternalAuthorsProps> = ({ externalU
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
                                         <input className="form-input" style={{ ...fieldInputStyle }} placeholder="Full name *" value={editDraft.fullName} onChange={e => setEditDraft(d => ({ ...d, fullName: e.target.value }))} />
                                         <input className="form-input" style={{ ...fieldInputStyle }} placeholder="Email *" value={editDraft.email} onChange={e => setEditDraft(d => ({ ...d, email: e.target.value }))} />
-                                        <input className="form-input" style={{ ...fieldInputStyle }} placeholder="Phone number" value={editDraft.phoneNumber} onChange={e => setEditDraft(d => ({ ...d, phoneNumber: e.target.value }))} />
-                                        <input className="form-input" style={{ ...fieldInputStyle }} placeholder="Student ID" value={editDraft.studentId} onChange={e => setEditDraft(d => ({ ...d, studentId: e.target.value }))} />
-                                        <input className="form-input" style={{ ...fieldInputStyle }} placeholder="ORCID" value={editDraft.orcid} onChange={e => setEditDraft(d => ({ ...d, orcid: e.target.value }))} />
-                                        <input className="form-input" style={{ ...fieldInputStyle }} placeholder="Google Scholar URL" value={editDraft.googleScholarUrl} onChange={e => setEditDraft(d => ({ ...d, googleScholarUrl: e.target.value }))} />
-                                        <input className="form-input" style={{ ...fieldInputStyle, gridColumn: '1 / -1' } as React.CSSProperties} placeholder="GitHub URL" value={editDraft.githubUrl} onChange={e => setEditDraft(d => ({ ...d, githubUrl: e.target.value }))} />
+                                        <input className="form-input" style={{ ...fieldInputStyle, borderColor: editErrors.phoneNumber ? '#ef4444' : '#e2e8f0' }} placeholder="Phone number" value={editDraft.phoneNumber} onChange={e => { const value = e.target.value; setEditDraft(d => ({ ...d, phoneNumber: value })); setEditErrors(prev => ({ ...prev, phoneNumber: validateExternalAuthorField('phoneNumber', value.trim()) })); }} />
+                                        <input className="form-input" style={{ ...fieldInputStyle, borderColor: editErrors.studentId ? '#ef4444' : '#e2e8f0' }} placeholder="Student ID" value={editDraft.studentId} onChange={e => { const value = e.target.value; setEditDraft(d => ({ ...d, studentId: value })); setEditErrors(prev => ({ ...prev, studentId: validateExternalAuthorField('studentId', value.trim()) })); }} />
+                                        <input className="form-input" style={{ ...fieldInputStyle, borderColor: editErrors.orcid ? '#ef4444' : '#e2e8f0' }} placeholder="ORCID" value={editDraft.orcid} onChange={e => { const value = e.target.value; setEditDraft(d => ({ ...d, orcid: value })); setEditErrors(prev => ({ ...prev, orcid: validateExternalAuthorField('orcid', value.trim()) })); }} />
+                                        <input className="form-input" style={{ ...fieldInputStyle, borderColor: editErrors.googleScholarUrl ? '#ef4444' : '#e2e8f0' }} placeholder="Google Scholar URL" value={editDraft.googleScholarUrl} onChange={e => { const value = e.target.value; setEditDraft(d => ({ ...d, googleScholarUrl: value })); setEditErrors(prev => ({ ...prev, googleScholarUrl: validateExternalAuthorField('googleScholarUrl', value.trim()) })); }} />
+                                        <input className="form-input" style={{ ...fieldInputStyle, gridColumn: '1 / -1', borderColor: editErrors.githubUrl ? '#ef4444' : '#e2e8f0' } as React.CSSProperties} placeholder="GitHub URL" value={editDraft.githubUrl} onChange={e => { const value = e.target.value; setEditDraft(d => ({ ...d, githubUrl: value })); setEditErrors(prev => ({ ...prev, githubUrl: validateExternalAuthorField('githubUrl', value.trim()) })); }} />
                                     </div>
+                                    {(editErrors.phoneNumber || editErrors.studentId || editErrors.orcid || editErrors.googleScholarUrl || editErrors.githubUrl) && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                            {editErrors.studentId && <span style={{ color: '#ef4444', fontSize: '0.72rem' }}>{editErrors.studentId}</span>}
+                                            {editErrors.phoneNumber && <span style={{ color: '#ef4444', fontSize: '0.72rem' }}>{editErrors.phoneNumber}</span>}
+                                            {editErrors.orcid && <span style={{ color: '#ef4444', fontSize: '0.72rem' }}>{editErrors.orcid}</span>}
+                                            {editErrors.googleScholarUrl && <span style={{ color: '#ef4444', fontSize: '0.72rem' }}>{editErrors.googleScholarUrl}</span>}
+                                            {editErrors.githubUrl && <span style={{ color: '#ef4444', fontSize: '0.72rem' }}>{editErrors.githubUrl}</span>}
+                                        </div>
+                                    )}
                                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
-                                        <button type="button" onClick={() => setEditIdx(null)} style={{ padding: '5px 12px', borderRadius: '7px', border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', color: '#64748b', fontSize: '0.78rem', fontWeight: 700 }}>Cancel</button>
-                                        <button type="button" onClick={saveEdit} disabled={!editDraft.fullName.trim() || !editDraft.email.trim()} style={{ padding: '5px 12px', borderRadius: '7px', border: 'none', background: '#16a34a', color: '#fff', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700 }}>Save</button>
+                                        <button type="button" onClick={() => { setEditIdx(null); setEditErrors(externalAuthorValidationDefaults); }} style={{ padding: '5px 12px', borderRadius: '7px', border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', color: '#64748b', fontSize: '0.78rem', fontWeight: 700 }}>Cancel</button>
+                                        <button type="button" onClick={saveEdit} disabled={!editDraft.fullName.trim() || !editDraft.email.trim() || hasEditValidationErrors} style={{ padding: '5px 12px', borderRadius: '7px', border: 'none', background: '#16a34a', color: '#fff', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700 }}>Save</button>
                                     </div>
                                 </div>
                             ) : (
@@ -1740,7 +1830,7 @@ const CreateExternalAuthors: React.FC<CreateExternalAuthorsProps> = ({ externalU
                                             {eu.githubUrl && <span style={{ fontSize: '0.71rem', color: '#64748b' }}>GitHub</span>}
                                         </div>
                                     </div>
-                                    <button type="button" onClick={() => { setEditIdx(idx); setEditDraft({ fullName: eu.fullName ?? '', email: eu.email ?? '', phoneNumber: eu.phoneNumber ?? '', studentId: eu.studentId ?? '', orcid: eu.orcid ?? '', googleScholarUrl: eu.googleScholarUrl ?? '', githubUrl: eu.githubUrl ?? '' }); setShowForm(false); }}
+                                    <button type="button" onClick={() => { setEditIdx(idx); setEditDraft({ fullName: eu.fullName ?? '', email: eu.email ?? '', phoneNumber: eu.phoneNumber ?? '', studentId: eu.studentId ?? '', orcid: eu.orcid ?? '', googleScholarUrl: eu.googleScholarUrl ?? '', githubUrl: eu.githubUrl ?? '' }); setEditErrors(externalAuthorValidationDefaults); setShowForm(false); }}
                                         style={{ padding: '3px 7px', borderRadius: '5px', border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', color: '#64748b', flexShrink: 0 }}><Edit2 size={11} /></button>
                                     <button type="button" onClick={() => onChange(externalUsers.filter((_, i) => i !== idx))}
                                         style={{ padding: '3px 7px', borderRadius: '5px', border: '1px solid #fecaca', background: '#fef2f2', cursor: 'pointer', color: '#ef4444', flexShrink: 0 }}><Trash2 size={11} /></button>
@@ -1757,15 +1847,24 @@ const CreateExternalAuthors: React.FC<CreateExternalAuthorsProps> = ({ externalU
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
                         <input className="form-input" style={{ ...fieldInputStyle }} placeholder="Full name *" value={draft.fullName} onChange={e => setDraft(d => ({ ...d, fullName: e.target.value }))} />
                         <input className="form-input" style={{ ...fieldInputStyle }} placeholder="Email *" value={draft.email} onChange={e => setDraft(d => ({ ...d, email: e.target.value }))} />
-                        <input className="form-input" style={{ ...fieldInputStyle }} placeholder="Phone number" value={draft.phoneNumber} onChange={e => setDraft(d => ({ ...d, phoneNumber: e.target.value }))} />
-                        <input className="form-input" style={{ ...fieldInputStyle }} placeholder="Student ID" value={draft.studentId} onChange={e => setDraft(d => ({ ...d, studentId: e.target.value }))} />
-                        <input className="form-input" style={{ ...fieldInputStyle }} placeholder="ORCID" value={draft.orcid} onChange={e => setDraft(d => ({ ...d, orcid: e.target.value }))} />
-                        <input className="form-input" style={{ ...fieldInputStyle }} placeholder="Google Scholar URL" value={draft.googleScholarUrl} onChange={e => setDraft(d => ({ ...d, googleScholarUrl: e.target.value }))} />
-                        <input className="form-input" style={{ ...fieldInputStyle, gridColumn: '1 / -1' } as React.CSSProperties} placeholder="GitHub URL" value={draft.githubUrl} onChange={e => setDraft(d => ({ ...d, githubUrl: e.target.value }))} />
+                        <input className="form-input" style={{ ...fieldInputStyle, borderColor: draftErrors.phoneNumber ? '#ef4444' : '#e2e8f0' }} placeholder="Phone number" value={draft.phoneNumber} onChange={e => { const value = e.target.value; setDraft(d => ({ ...d, phoneNumber: value })); setDraftErrors(prev => ({ ...prev, phoneNumber: validateExternalAuthorField('phoneNumber', value.trim()) })); }} />
+                        <input className="form-input" style={{ ...fieldInputStyle, borderColor: draftErrors.studentId ? '#ef4444' : '#e2e8f0' }} placeholder="Student ID" value={draft.studentId} onChange={e => { const value = e.target.value; setDraft(d => ({ ...d, studentId: value })); setDraftErrors(prev => ({ ...prev, studentId: validateExternalAuthorField('studentId', value.trim()) })); }} />
+                        <input className="form-input" style={{ ...fieldInputStyle, borderColor: draftErrors.orcid ? '#ef4444' : '#e2e8f0' }} placeholder="ORCID" value={draft.orcid} onChange={e => { const value = e.target.value; setDraft(d => ({ ...d, orcid: value })); setDraftErrors(prev => ({ ...prev, orcid: validateExternalAuthorField('orcid', value.trim()) })); }} />
+                        <input className="form-input" style={{ ...fieldInputStyle, borderColor: draftErrors.googleScholarUrl ? '#ef4444' : '#e2e8f0' }} placeholder="Google Scholar URL" value={draft.googleScholarUrl} onChange={e => { const value = e.target.value; setDraft(d => ({ ...d, googleScholarUrl: value })); setDraftErrors(prev => ({ ...prev, googleScholarUrl: validateExternalAuthorField('googleScholarUrl', value.trim()) })); }} />
+                        <input className="form-input" style={{ ...fieldInputStyle, gridColumn: '1 / -1', borderColor: draftErrors.githubUrl ? '#ef4444' : '#e2e8f0' } as React.CSSProperties} placeholder="GitHub URL" value={draft.githubUrl} onChange={e => { const value = e.target.value; setDraft(d => ({ ...d, githubUrl: value })); setDraftErrors(prev => ({ ...prev, githubUrl: validateExternalAuthorField('githubUrl', value.trim()) })); }} />
                     </div>
+                    {(draftErrors.phoneNumber || draftErrors.studentId || draftErrors.orcid || draftErrors.googleScholarUrl || draftErrors.githubUrl) && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                            {draftErrors.studentId && <span style={{ color: '#ef4444', fontSize: '0.72rem' }}>{draftErrors.studentId}</span>}
+                            {draftErrors.phoneNumber && <span style={{ color: '#ef4444', fontSize: '0.72rem' }}>{draftErrors.phoneNumber}</span>}
+                            {draftErrors.orcid && <span style={{ color: '#ef4444', fontSize: '0.72rem' }}>{draftErrors.orcid}</span>}
+                            {draftErrors.googleScholarUrl && <span style={{ color: '#ef4444', fontSize: '0.72rem' }}>{draftErrors.googleScholarUrl}</span>}
+                            {draftErrors.githubUrl && <span style={{ color: '#ef4444', fontSize: '0.72rem' }}>{draftErrors.githubUrl}</span>}
+                        </div>
+                    )}
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
-                        <button type="button" onClick={() => { setShowForm(false); setDraft(blankEu); }} style={{ padding: '5px 12px', borderRadius: '7px', border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', color: '#64748b', fontSize: '0.78rem', fontWeight: 700 }}>Cancel</button>
-                        <button type="button" onClick={addAuthor} disabled={!draft.fullName.trim() || !draft.email.trim()} style={{ padding: '5px 12px', borderRadius: '7px', border: 'none', background: 'var(--accent-color)', color: '#fff', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700 }}>Add Author</button>
+                        <button type="button" onClick={() => { setShowForm(false); setDraft(blankEu); setDraftErrors(externalAuthorValidationDefaults); }} style={{ padding: '5px 12px', borderRadius: '7px', border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', color: '#64748b', fontSize: '0.78rem', fontWeight: 700 }}>Cancel</button>
+                        <button type="button" onClick={addAuthor} disabled={!draft.fullName.trim() || !draft.email.trim() || hasDraftValidationErrors} style={{ padding: '5px 12px', borderRadius: '7px', border: 'none', background: 'var(--accent-color)', color: '#fff', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700 }}>Add Author</button>
                     </div>
                 </div>
             )}

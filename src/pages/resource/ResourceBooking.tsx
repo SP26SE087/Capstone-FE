@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+﻿import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import MainLayout from '@/layout/MainLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { Resource, Booking, BookingStatus, EquipmentLog, EquipmentLogAction } from '@/types/booking';
@@ -24,7 +24,11 @@ import {
     ChevronRight,
     Layers,
     Pencil,
-    Trash2
+    Trash2,
+    Filter,
+    X,
+    Wrench,
+    Activity
 } from 'lucide-react';
 
 import ResourceListView from './components/ResourceListView';
@@ -35,58 +39,24 @@ import BookingListView from './components/BookingListView';
 import BookingDetailPanel from './components/BookingDetailPanel';
 import ResourceTypePanel from './components/ResourceTypePanel';
 
+// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+type MainTab = 'resources' | 'bookings' | 'logs';
+type ResourceSubTab = 'all' | 'my_managed' | 'types';
+type BookingSubTab = 'my' | 'all' | 'managed';
 type TabType = 'resources' | 'my_managed' | 'my_bookings' | 'all_bookings' | 'managed_bookings' | 'equipment_logs' | 'resource_types';
 
 interface ActivePanel {
     id: string;
-    type: 'create_resource' | 'view_resource' | 'create_booking' | 'view_booking' | 'resource_type_form';
+    type: 'create_resource' | 'view_resource' | 'create_booking' | 'view_booking' | 'resource_type_form' | 'view_log';
     targetId?: string;
     title: string;
     resource?: Resource;
     preSelectedResource?: Resource;
     editingResourceType?: ResourceTypeItem;
+    log?: EquipmentLog;
 }
 
-// ─── Tab groups ─────────────────────────────────────────────────────────────
-interface TabGroup {
-    label: string;
-    color: string;
-    icon: React.ReactNode;
-    tabs: { id: TabType; label: string; icon: React.ReactNode; directorOnly?: boolean }[];
-}
-
-const TAB_GROUPS: TabGroup[] = [
-    {
-        label: 'Resources',
-        color: '#f97316',
-        icon: <Package size={13} />,
-        tabs: [
-            { id: 'resources', label: 'All Resources', icon: <Package size={14} /> },
-            { id: 'my_managed', label: 'My Managed', icon: <Settings size={14} /> },
-            { id: 'resource_types', label: 'Resource Types', icon: <Layers size={14} />, directorOnly: true },
-        ]
-    },
-    {
-        label: 'Bookings',
-        color: '#6366f1',
-        icon: <Calendar size={13} />,
-        tabs: [
-            { id: 'my_bookings', label: 'My Bookings', icon: <Calendar size={14} /> },
-            { id: 'all_bookings', label: 'All Bookings', icon: <ClipboardList size={14} />, directorOnly: true },
-            { id: 'managed_bookings', label: 'Managed', icon: <ScrollText size={14} /> },
-        ]
-    },
-    {
-        label: 'Logs',
-        color: '#0ea5e9',
-        icon: <ScrollText size={13} />,
-        tabs: [
-            { id: 'equipment_logs', label: 'Equipment Logs', icon: <ScrollText size={14} /> },
-        ]
-    }
-];
-
-// ─── Equipment log action label ──────────────────────────────────────────────
+// â”€â”€â”€ Equipment log action label â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const getLogActionConfig = (action: EquipmentLogAction) =>
     action === EquipmentLogAction.CheckOut
         ? { label: 'Check Out', color: '#2563eb', bg: '#eff6ff', icon: <LogOut size={12} /> }
@@ -98,11 +68,29 @@ const formatDate = (s: string) => {
     return `${d.getDate().toString().padStart(2,'0')}/${(d.getMonth()+1).toString().padStart(2,'0')}/${d.getFullYear()} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
 };
 
-// ─── Component ───────────────────────────────────────────────────────────────
+// â”€â”€â”€ Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const ResourceBooking: React.FC = () => {
     const { user } = useAuth();
 
-    const [activeTab, setActiveTab] = useState<TabType>('resources');
+    const [mainTab, setMainTab] = useState<MainTab>('resources');
+    const [resourceSubTab, setResourceSubTab] = useState<ResourceSubTab>('all');
+    const [bookingSubTab, setBookingSubTab] = useState<BookingSubTab>('my');
+
+    // Derived active tab for data fetching (keeps backward compat)
+    const activeTab = useMemo((): TabType => {
+        if (mainTab === 'resources') {
+            if (resourceSubTab === 'my_managed') return 'my_managed';
+            if (resourceSubTab === 'types') return 'resource_types';
+            return 'resources';
+        }
+        if (mainTab === 'bookings') {
+            if (bookingSubTab === 'all') return 'all_bookings';
+            if (bookingSubTab === 'managed') return 'managed_bookings';
+            return 'my_bookings';
+        }
+        return 'equipment_logs';
+    }, [mainTab, resourceSubTab, bookingSubTab]);
+
     const [resources, setResources] = useState<Resource[]>([]);
     const [myBookings, setMyBookings] = useState<Booking[]>([]);
     const [allBookings, setAllBookings] = useState<Booking[]>([]);
@@ -215,6 +203,7 @@ const ResourceBooking: React.FC = () => {
         }
     };
 
+    const handleViewLog = (log: EquipmentLog) => setActivePanel({ id: `view-log-${log.id}`, type: 'view_log', targetId: log.id, title: log.resourceName, log });
     const handleClosePanel = () => setActivePanel(null);
 
     const handleTitleChange = (newTitle: string) => {
@@ -227,15 +216,29 @@ const ResourceBooking: React.FC = () => {
         if (shouldClose) handleClosePanel();
     };
 
-    const switchTab = (tab: TabType) => {
-        setActiveTab(tab);
+    const switchMainTab = (tab: MainTab) => {
+        setMainTab(tab);
         setActivePanel(null);
         setSearchQuery('');
         setFilterStatus('');
         setFilterType('');
     };
 
-    // ─── Derived state ───────────────────────────────────────────────────────
+    const switchResourceSubTab = (sub: ResourceSubTab) => {
+        setResourceSubTab(sub);
+        setActivePanel(null);
+        setSearchQuery('');
+        setFilterType('');
+    };
+
+    const switchBookingSubTab = (sub: BookingSubTab) => {
+        setBookingSubTab(sub);
+        setActivePanel(null);
+        setSearchQuery('');
+        setFilterStatus('');
+    };
+
+    // â”€â”€â”€ Derived state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     const isResourceTab = activeTab === 'resources' || activeTab === 'my_managed';
     const isBookingTab = activeTab === 'my_bookings' || activeTab === 'all_bookings' || activeTab === 'managed_bookings';
     const isLogTab = activeTab === 'equipment_logs';
@@ -274,241 +277,268 @@ const ResourceBooking: React.FC = () => {
         bookingListForTab.filter(b => b.status === BookingStatus.Pending).length,
         [bookingListForTab]
     );
-    const availableResourceCount = resources.filter(r => r.availableQuantity > 0).length;
+    const availableResourceCount = resources.reduce((sum, r) => sum + (r.availableQuantity ?? 0), 0);
+    const damagedResourceCount = resources.reduce((sum, r) => sum + (r.damagedQuantity ?? 0), 0);
+    const inUseResourceCount = resources.reduce((sum, r) => sum + (r.inUseCount ?? 0), 0);
 
-    // ─── Render ──────────────────────────────────────────────────────────────
+    // â”€â”€â”€ Style helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    const mainTabStyle = (tab: MainTab): React.CSSProperties => {
+        const isActive = mainTab === tab;
+        const hasPills = mainTab === 'resources' || mainTab === 'bookings';
+        const connectToPills = isActive && hasPills;
+        const tabColors: Record<MainTab, { bg: string; color: string }> = {
+            resources: { bg: '#fff7ed', color: '#ea580c' },
+            bookings:  { bg: '#eef2ff', color: '#4f46e5' },
+            logs:      { bg: '#f0f9ff', color: '#0284c7' },
+        };
+        const { bg, color } = tabColors[tab];
+        return {
+            display: 'flex', alignItems: 'center', gap: '8px',
+            // Extra paddingBottom when connecting so button fills gap to pill row
+            padding: connectToPills ? '10px 24px 13px' : '10px 24px',
+            borderTop: connectToPills ? `3px solid ${color}` : 'none',
+            borderLeft: connectToPills ? `3px solid ${color}` : 'none',
+            borderRight: connectToPills ? `3px solid ${color}` : 'none',
+            borderBottom: 'none',
+            cursor: 'pointer',
+            fontSize: '0.9rem', fontWeight: isActive ? 700 : 500,
+            // Square bottom corners when "opening" into pill row
+            borderRadius: connectToPills ? '10px 10px 0 0' : '12px',
+            transition: 'all 0.2s',
+            background: isActive ? bg : 'transparent',
+            color: isActive ? color : '#64748b',
+            // Lift above pill row so background covers the pill row borderTop at tab position
+            position: 'relative' as const,
+            zIndex: connectToPills ? 2 : 'auto' as any,
+            // Pull down by 3px to overlap pill row's borderTop, breaking the line under the tab
+            marginBottom: connectToPills ? '-3px' : '0',
+            boxShadow: isActive && !connectToPills ? '0 2px 8px rgba(0,0,0,0.06)' : 'none',
+        };
+    };
+
+    const pillStyle = (isActive: boolean, color: string): React.CSSProperties => ({
+        padding: '5px 14px', border: 'none', cursor: 'pointer',
+        fontSize: '0.78rem', fontWeight: isActive ? 700 : 500,
+        borderRadius: '20px', transition: 'all 0.15s',
+        background: isActive ? color : '#f1f5f9',
+        color: isActive ? '#fff' : '#475569',
+    });
+
+    // â”€â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     return (
         <MainLayout role={user?.role} userName={user?.name}>
-            <div className="page-container" style={{ padding: '1.5rem 2rem', maxWidth: '1600px', margin: '0 auto' }}>
+            <div style={{ padding: '1.5rem 2rem', maxWidth: '1600px', margin: '0 auto' }}>
                 {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-                {/* Header */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <div style={{
-                            width: '40px', height: '40px', borderRadius: '12px',
-                            background: 'linear-gradient(135deg, #f59e0b, #f97316)',
-                            color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            boxShadow: '0 8px 16px rgba(245,158,11,0.2)'
-                        }}>
-                            <Package size={22} />
-                        </div>
-                        <div>
-                            <h1 style={{ fontSize: '1.6rem', fontWeight: 900, color: '#1e293b', margin: 0, letterSpacing: '-0.02em' }}>Lab Resources</h1>
-                            <p style={{ color: '#64748b', fontSize: '0.85rem', fontWeight: 500, margin: 0 }}>
-                                Manage resources, bookings, and equipment logs
-                            </p>
-                        </div>
+                {/* â”€â”€ Page Header â”€â”€ */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '1.5rem' }}>
+                    <div style={{
+                        width: '44px', height: '44px', borderRadius: '14px', flexShrink: 0,
+                        background: 'linear-gradient(135deg, #f59e0b, #f97316)',
+                        color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        boxShadow: '0 8px 16px rgba(245,158,11,0.25)'
+                    }}>
+                        <Package size={22} />
                     </div>
-
-                    {/* Action buttons */}
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                        {isResourceTab && (
-                            <button onClick={() => handleCreateBooking()} style={{
-                                display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700,
-                                padding: '10px 20px', borderRadius: '12px', fontSize: '0.85rem',
-                                background: 'linear-gradient(135deg, #3b82f6, #6366f1)', border: 'none',
-                                color: '#fff', cursor: 'pointer', height: '42px',
-                                boxShadow: '0 4px 12px rgba(99,102,241,0.2)'
-                            }}>
-                                <Calendar size={16} /> Book Resource
-                            </button>
-                        )}
-                        {isLabDirector && (
-                            <button onClick={handleCreateResource} className="btn btn-primary" style={{
-                                display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700,
-                                padding: '10px 20px', borderRadius: '12px', fontSize: '0.85rem',
-                                height: '42px', marginBottom: 0
-                            }}>
-                                <Plus size={16} /> Add Resource
-                            </button>
-                        )}
+                    <div>
+                        <h1 style={{ fontSize: '1.5rem', fontWeight: 900, color: '#1e293b', margin: 0, letterSpacing: '-0.02em' }}>
+                            Lab Resources
+                        </h1>
+                        <p style={{ color: '#64748b', fontSize: '0.82rem', margin: 0 }}>
+                            Manage resources, bookings, and equipment logs
+                        </p>
                     </div>
                 </div>
 
-                {/* Quick stats row */}
-                <div style={{
-                    display: 'flex', gap: '12px', marginBottom: '1.5rem', flexWrap: 'wrap' as const
-                }}>
-                    {[
-                        { icon: <Package size={14} />, color: '#3b82f6', label: 'Total Resources', value: resources.length, show: isResourceTab },
-                        { icon: <CheckCircle2 size={14} />, color: '#10b981', label: 'Available', value: availableResourceCount, show: isResourceTab },
-                        { icon: <AlertTriangle size={14} />, color: '#f59e0b', label: 'Pending', value: pendingCount, show: isBookingTab },
-                        { icon: <Clock size={14} />, color: '#8b5cf6', label: 'Total Bookings', value: bookingListForTab.length, show: isBookingTab },
-                        { icon: <ScrollText size={14} />, color: '#0ea5e9', label: 'Log Entries', value: equipmentLogs.length, show: isLogTab },
-                        { icon: <Layers size={14} />, color: '#8b5cf6', label: 'Resource Types', value: resourceTypes.length, show: isResourceTypeTab },
-                    ].filter(s => s.show).map(stat => (
-                        <div key={stat.label} style={{
-                            display: 'flex', alignItems: 'center', gap: '10px',
-                            padding: '10px 16px', background: '#fff', borderRadius: '12px',
-                            border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
-                        }}>
-                            <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: stat.color, color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                {stat.icon}
-                            </div>
-                            <div>
-                                <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' as const, letterSpacing: '0.05em' }}>{stat.label}</div>
-                                <div style={{ fontSize: '1rem', fontWeight: 800, color: '#1e293b' }}>{stat.value}</div>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-
-                {/* ── Chrome/Edge-style Tab Groups ── */}
+                {/* ─ Unified Nav Card ─ */}
                 {(() => {
-                    const activeGroupIdx = TAB_GROUPS.findIndex(g =>
-                        g.tabs.some(t => t.id === activeTab)
-                    );
-
+                    const tabMeta: Record<MainTab, { color: string; accentBg: string; borderColor: string }> = {
+                        resources: { color: '#ea580c', accentBg: '#fff7ed', borderColor: '#fdba74' },
+                        bookings:  { color: '#4f46e5', accentBg: '#eef2ff', borderColor: '#a5b4fc' },
+                        logs:      { color: '#0284c7', accentBg: '#f0f9ff', borderColor: '#7dd3fc' },
+                    };
+                    const meta = tabMeta[mainTab];
+                    const hasPills = mainTab === 'resources' || mainTab === 'bookings';
                     return (
-                        <div style={{ marginBottom: '1.5rem' }}>
-                            {/* Tab bar */}
-                            <div style={{
-                                background: '#fff', borderRadius: '16px', border: '1px solid #e2e8f0',
-                                boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-                                display: 'flex', alignItems: 'stretch',
-                                overflowX: 'auto', padding: '0 12px'
-                            }} className="custom-scrollbar">
-                                {TAB_GROUPS.map((group, gi) => {
-                                    const visibleTabs = group.tabs.filter(t => !t.directorOnly || isLabDirector);
-                                    if (visibleTabs.length === 0) return null;
-                                    const isExpanded = gi === activeGroupIdx;
-
-                                    return (
-                                        <React.Fragment key={group.label}>
-                                            {/* Separator between groups */}
-                                            {gi > 0 && (
-                                                <div style={{
-                                                    width: '1px', background: '#f1f5f9',
-                                                    margin: '10px 8px', flexShrink: 0
-                                                }} />
-                                            )}
-
-                                            {/* Group container */}
-                                            <div style={{
-                                                display: 'flex', alignItems: 'stretch',
-                                                borderBottom: isExpanded ? `2.5px solid ${group.color}` : '2.5px solid transparent',
-                                                transition: 'border-color 0.2s'
-                                            }}>
-                                                {/* Group pill — always visible */}
-                                                <button
-                                                    onClick={() => {
-                                                        const firstTab = visibleTabs[0];
-                                                        if (firstTab) switchTab(firstTab.id);
-                                                    }}
-                                                    style={{
-                                                        display: 'flex', alignItems: 'center', gap: '5px',
-                                                        padding: '0 10px', border: 'none', cursor: 'pointer',
-                                                        background: 'none', flexShrink: 0,
-                                                        transition: 'all 0.15s'
-                                                    }}
-                                                >
-                                                    <span style={{
-                                                        display: 'flex', alignItems: 'center', gap: '5px',
-                                                        padding: '4px 10px', borderRadius: '20px',
-                                                        fontSize: '0.72rem', fontWeight: 800,
-                                                        letterSpacing: '0.04em',
-                                                        background: isExpanded
-                                                            ? group.color
-                                                            : `${group.color}18`,
-                                                        color: isExpanded ? '#fff' : group.color,
-                                                        transition: 'all 0.2s',
-                                                        whiteSpace: 'nowrap' as const
-                                                    }}>
-                                                        {group.icon} {group.label}
-                                                    </span>
-                                                </button>
-
-                                                {/* Tabs — only visible when group is expanded */}
-                                                <div style={{
-                                                    display: 'flex', alignItems: 'stretch',
-                                                    maxWidth: isExpanded ? '600px' : '0px',
-                                                    overflow: 'hidden',
-                                                    transition: 'max-width 0.3s cubic-bezier(0.4,0,0.2,1)',
-                                                    gap: '2px'
-                                                }}>
-                                                    {visibleTabs.map(tab => {
-                                                        const isActiveTab = activeTab === tab.id;
-                                                        return (
-                                                            <button
-                                                                key={tab.id}
-                                                                onClick={() => switchTab(tab.id)}
-                                                                style={{
-                                                                    display: 'flex', alignItems: 'center', gap: '6px',
-                                                                    padding: '0 14px', border: 'none', background: 'none',
-                                                                    cursor: 'pointer', whiteSpace: 'nowrap' as const,
-                                                                    fontSize: '0.82rem',
-                                                                    fontWeight: isActiveTab ? 700 : 400,
-                                                                    color: isActiveTab ? group.color : '#64748b',
-                                                                    position: 'relative' as const,
-                                                                    transition: 'all 0.15s'
-                                                                }}
-                                                            >
-                                                                {tab.icon} {tab.label}
-                                                                {/* Active tab dot indicator */}
-                                                                {isActiveTab && (
-                                                                    <span style={{
-                                                                        position: 'absolute' as const,
-                                                                        bottom: '0', left: '14px', right: '14px',
-                                                                        height: '2.5px',
-                                                                        background: group.color,
-                                                                        borderRadius: '2px 2px 0 0'
-                                                                    }} />
-                                                                )}
-                                                            </button>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </div>
-                                        </React.Fragment>
-                                    );
-                                })}
-
-                                {/* Search + filter — pushed to right */}
-                                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 0 8px 12px', flexShrink: 0 }}>
-                                    <div style={{ position: 'relative' }}>
-                                        <Search size={13} style={{ position: 'absolute', left: '9px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-                                        <input
-                                            type="text"
-                                            placeholder="Search..."
-                                            value={searchQuery}
-                                            onChange={e => setSearchQuery(e.target.value)}
-                                            style={{
-                                                paddingLeft: '28px', height: '32px', width: '180px',
-                                                border: '1px solid #e2e8f0', borderRadius: '8px',
-                                                fontSize: '0.8rem', outline: 'none', background: '#f8fafc'
-                                            }}
-                                        />
-                                    </div>
-                                    {isResourceTab && (
-                                        <select value={filterType} onChange={e => setFilterType(e.target.value)}
-                                            style={{ height: '32px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '0.8rem', padding: '0 8px', background: '#f8fafc', outline: 'none', color: '#475569' }}>
-                                            <option value="">All Types</option>
-                                            <option value="1">GPU</option>
-                                            <option value="2">Equipment</option>
-                                            <option value="3">Dataset</option>
-                                            <option value="4">Lab Station</option>
-                                        </select>
+                        <div style={{
+                            background: '#fff', borderRadius: '16px',
+                            border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                            marginBottom: '1rem', overflow: 'hidden',
+                        }}>
+                            {/* Row 1 — Main tabs */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '6px 6px 0', position: 'relative', zIndex: 1 }}>
+                                <button style={mainTabStyle('resources')} onClick={() => switchMainTab('resources')}>
+                                    <Package size={17} /> Resources
+                                    {isResourceTab && resources.length > 0 && (
+                                        <span style={{ padding: '1px 7px', borderRadius: '10px', background: '#ea580c', color: '#fff', fontSize: '0.7rem', fontWeight: 800 }}>
+                                            {resources.length}
+                                        </span>
                                     )}
-                                    {isBookingTab && (
-                                        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-                                            style={{ height: '32px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '0.8rem', padding: '0 8px', background: '#f8fafc', outline: 'none', color: '#475569' }}>
-                                            <option value="">All Status</option>
-                                            <option value="1">Pending</option>
-                                            <option value="2">Approved</option>
-                                            <option value="3">Rejected</option>
-                                            <option value="4">Cancelled</option>
-                                            <option value="5">Completed</option>
-                                            <option value="6">In Use</option>
-                                        </select>
+                                </button>
+                                <button style={mainTabStyle('bookings')} onClick={() => switchMainTab('bookings')}>
+                                    <Calendar size={17} /> Bookings
+                                    {isBookingTab && pendingCount > 0 && (
+                                        <span style={{ padding: '1px 7px', borderRadius: '10px', background: '#4f46e5', color: '#fff', fontSize: '0.7rem', fontWeight: 800 }}>
+                                            {pendingCount} pending
+                                        </span>
                                     )}
-                                </div>
+                                </button>
+                                <button style={mainTabStyle('logs')} onClick={() => switchMainTab('logs')}>
+                                    <ScrollText size={17} /> Equipment Logs
+                                </button>
                             </div>
+                            {/* Row 2 — Sub-filter pills + CTA, visually linked to active tab */}
+                            {hasPills && (
+                                <div style={{
+                                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                    gap: '12px', flexWrap: 'wrap' as const,
+                                    borderTop: `3px solid ${meta.color}`,
+                                    background: meta.accentBg,
+                                    padding: '7px 12px 7px 14px',
+                                }}>
+                                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' as const }}>
+                                        {mainTab === 'resources' && (
+                                            <>
+                                                <button style={pillStyle(resourceSubTab === 'all', meta.color)} onClick={() => switchResourceSubTab('all')}>All Resources</button>
+                                                <button style={pillStyle(resourceSubTab === 'my_managed', meta.color)} onClick={() => switchResourceSubTab('my_managed')}>
+                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><Settings size={12} /> My Managed</span>
+                                                </button>
+                                                {isLabDirector && (
+                                                    <button style={pillStyle(resourceSubTab === 'types', meta.color)} onClick={() => switchResourceSubTab('types')}>
+                                                        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><Layers size={12} /> Resource Types</span>
+                                                    </button>
+                                                )}
+                                            </>
+                                        )}
+                                        {mainTab === 'bookings' && (
+                                            <>
+                                                <button style={pillStyle(bookingSubTab === 'my', meta.color)} onClick={() => switchBookingSubTab('my')}>My Bookings</button>
+                                                <button style={pillStyle(bookingSubTab === 'managed', meta.color)} onClick={() => switchBookingSubTab('managed')}>Managed</button>
+                                                {isLabDirector && (
+                                                    <button style={pillStyle(bookingSubTab === 'all', meta.color)} onClick={() => switchBookingSubTab('all')}>
+                                                        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><ClipboardList size={12} /> All Bookings</span>
+                                                    </button>
+                                                )}
+                                            </>
+                                        )}
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                        {mainTab === 'bookings' && (
+                                            <button onClick={() => handleCreateBooking()} style={{
+                                                display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700,
+                                                padding: '0 14px', height: '32px', borderRadius: '8px', fontSize: '0.8rem',
+                                                background: meta.color, border: 'none',
+                                                color: '#fff', cursor: 'pointer', boxShadow: `0 2px 6px ${meta.color}55`
+                                            }}><Plus size={14} /> New Booking</button>
+                                        )}
+                                        {mainTab === 'resources' && isResourceTypeTab && isLabDirector && (
+                                            <button onClick={handleCreateResourceType} style={{
+                                                display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700,
+                                                padding: '0 14px', height: '32px', borderRadius: '8px', fontSize: '0.8rem',
+                                                background: meta.color, border: 'none',
+                                                color: '#fff', cursor: 'pointer', boxShadow: `0 2px 6px ${meta.color}55`
+                                            }}><Plus size={14} /> New Type</button>
+                                        )}
+                                        {mainTab === 'resources' && !isResourceTypeTab && isLabDirector && (
+                                            <button onClick={handleCreateResource} style={{
+                                                display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700,
+                                                padding: '0 14px', height: '32px', borderRadius: '8px', fontSize: '0.8rem',
+                                                background: meta.color, border: 'none',
+                                                color: '#fff', cursor: 'pointer', boxShadow: `0 2px 6px ${meta.color}55`
+                                            }}><Plus size={14} /> Add Resource</button>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     );
                 })()}
-
-                {/* Breadcrumb */}
+                {/* Search + filter toolbar + stats in one row */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginBottom: '1rem', flexWrap: 'wrap' as const }}>
+                    {/* Left: stats chips */}
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' as const }}>
+                        {isResourceTab && !isResourceTypeTab && [
+                            { label: 'Total', value: resources.length, color: '#3b82f6', icon: <Package size={13} /> },
+                            { label: 'Available', value: availableResourceCount, color: '#10b981', icon: <CheckCircle2 size={13} /> },
+                            { label: 'In Use', value: inUseResourceCount, color: '#f59e0b', icon: <Activity size={13} /> },
+                            { label: 'Damaged', value: damagedResourceCount, color: '#ef4444', icon: <Wrench size={13} /> },
+                        ].map(s => (
+                            <div key={s.label} style={{
+                                display: 'flex', alignItems: 'center', gap: '6px',
+                                padding: '5px 12px', background: '#fff', borderRadius: '8px',
+                                border: '1px solid #e2e8f0', fontSize: '0.78rem', fontWeight: 700, color: '#475569'
+                            }}>
+                                <span style={{ color: s.color }}>{s.icon}</span>
+                                {s.label}: <span style={{ color: '#1e293b' }}>{s.value}</span>
+                            </div>
+                        ))}
+                        {isBookingTab && [
+                            { label: 'Total', value: bookingListForTab.length, color: '#8b5cf6', icon: <Clock size={13} /> },
+                            { label: 'Pending', value: pendingCount, color: '#f59e0b', icon: <AlertTriangle size={13} /> },
+                        ].map(s => (
+                            <div key={s.label} style={{
+                                display: 'flex', alignItems: 'center', gap: '6px',
+                                padding: '5px 12px', background: '#fff', borderRadius: '8px',
+                                border: '1px solid #e2e8f0', fontSize: '0.78rem', fontWeight: 700, color: '#475569'
+                            }}>
+                                <span style={{ color: s.color }}>{s.icon}</span>
+                                {s.label}: <span style={{ color: '#1e293b' }}>{s.value}</span>
+                            </div>
+                        ))}
+                        {isLogTab && (
+                            <div style={{
+                                display: 'flex', alignItems: 'center', gap: '6px',
+                                padding: '5px 12px', background: '#fff', borderRadius: '8px',
+                                border: '1px solid #e2e8f0', fontSize: '0.78rem', fontWeight: 700, color: '#475569'
+                            }}>
+                                <span style={{ color: '#0ea5e9' }}><ScrollText size={13} /></span>
+                                Entries: <span style={{ color: '#1e293b' }}>{equipmentLogs.length}</span>
+                            </div>
+                        )}
+                    </div>
+                    {/* Right: search + filter */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ position: 'relative' }}>
+                        <Search size={13} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', pointerEvents: 'none' }} />
+                        <input type="text" placeholder="Search..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+                            style={{ paddingLeft: '30px', paddingRight: searchQuery ? '28px' : '10px', height: '34px', width: '200px', border: '1px solid #e2e8f0', borderRadius: '10px', fontSize: '0.82rem', outline: 'none', background: '#fff', color: '#1e293b' }} />
+                        {searchQuery && (
+                            <button onClick={() => setSearchQuery('')} style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 0, display: 'flex' }}>
+                                <X size={13} />
+                            </button>
+                        )}
+                    </div>
+                    {isResourceTab && !isResourceTypeTab && (
+                        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                            <Filter size={12} style={{ position: 'absolute', left: '9px', color: '#94a3b8', pointerEvents: 'none' }} />
+                            <select value={filterType} onChange={e => setFilterType(e.target.value)}
+                                style={{ height: '34px', border: '1px solid #e2e8f0', borderRadius: '10px', fontSize: '0.82rem', paddingLeft: '26px', paddingRight: '10px', background: '#fff', outline: 'none', color: '#475569', appearance: 'none' as const }}>
+                                <option value="">All Types</option>
+                                <option value="1">GPU</option>
+                                <option value="2">Equipment</option>
+                                <option value="3">Dataset</option>
+                                <option value="4">Lab Station</option>
+                            </select>
+                        </div>
+                    )}
+                    {isBookingTab && (
+                        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                            <Filter size={12} style={{ position: 'absolute', left: '9px', color: '#94a3b8', pointerEvents: 'none' }} />
+                            <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
+                                style={{ height: '34px', border: '1px solid #e2e8f0', borderRadius: '10px', fontSize: '0.82rem', paddingLeft: '26px', paddingRight: '10px', background: '#fff', outline: 'none', color: '#475569', appearance: 'none' as const }}>
+                                <option value="">All Status</option>
+                                <option value="1">Pending</option>
+                                <option value="2">Approved</option>
+                                <option value="3">Rejected</option>
+                                <option value="4">Cancelled</option>
+                                <option value="5">Completed</option>
+                                <option value="6">In Use</option>
+                            </select>
+                        </div>
+                    )}
+                    </div>
+                </div>
+                {/* â”€â”€ Breadcrumb when panel open â”€â”€ */}
                 {activePanel && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '0.75rem', fontSize: '0.78rem', fontWeight: 600 }}>
                         <button
@@ -517,7 +547,7 @@ const ResourceBooking: React.FC = () => {
                             onMouseEnter={e => (e.currentTarget.style.background = '#fff7ed')}
                             onMouseLeave={e => (e.currentTarget.style.background = 'none')}
                         >
-                            {TAB_GROUPS.find(g => g.tabs.some(t => t.id === activeTab))?.label ?? activeTab}
+                            {mainTab === 'resources' ? 'Resources' : mainTab === 'bookings' ? 'Bookings' : 'Logs'}
                         </button>
                         <ChevronRight size={13} color="#94a3b8" />
                         <span style={{ color: '#1e293b', maxWidth: '280px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
@@ -526,30 +556,30 @@ const ResourceBooking: React.FC = () => {
                     </div>
                 )}
 
-                {/* ── Main content ── */}
-                <div style={{ display: 'flex', gap: '1.5rem', height: 'calc(100vh - 320px)', minHeight: '600px' }}>
+                {/* â”€â”€ Main content â”€â”€ */}
+                <div style={{ display: 'flex', gap: '1.5rem', height: 'calc(100vh - 320px)', minHeight: '560px' }}>
                     {/* Left: List */}
                     <div style={{
                         flex: activePanel ? 4 : 10,
                         display: 'flex', flexDirection: 'column',
-                        transition: 'flex 0.4s cubic-bezier(0.4,0,0.2,1)',
+                        transition: 'flex 0.35s cubic-bezier(0.4,0,0.2,1)',
                         overflow: 'hidden', minWidth: 0
                     }}>
                         <div style={{ flex: 1, overflowY: 'auto', paddingRight: '4px' }} className="custom-scrollbar">
                             {loading ? (
-                                <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
-                                    <Loader2 className="animate-spin" size={32} style={{ color: 'var(--accent-color)' }} />
+                                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '5rem' }}>
+                                    <Loader2 className="animate-spin" size={32} style={{ color: '#f97316' }} />
                                 </div>
                             ) : isResourceTab ? (
                                 <>
                                     {activeTab === 'my_managed' && (
                                         <div style={{
-                                            padding: '8px 12px', marginBottom: '10px', background: '#eff6ff',
-                                            border: '1px solid #bfdbfe', borderRadius: '8px',
-                                            fontSize: '0.78rem', color: '#2563eb', fontWeight: 600
+                                            padding: '8px 12px', marginBottom: '10px', background: '#ecfdf5',
+                                            border: '1px solid #a7f3d0', borderRadius: '8px',
+                                            fontSize: '0.78rem', color: '#059669', fontWeight: 600
                                         }}>
                                             {displayResources.length > 0
-                                                ? `${displayResources.length} resource(s) you manage`
+                                                ? `${displayResources.length} resource(s) assigned to you`
                                                 : 'No resources assigned to you yet.'}
                                         </div>
                                     )}
@@ -557,6 +587,7 @@ const ResourceBooking: React.FC = () => {
                                         resources={displayResources}
                                         selectedId={activePanel?.type === 'view_resource' ? activePanel.targetId ?? null : null}
                                         onSelect={handleViewResource}
+                                        onBook={handleCreateBooking}
                                     />
                                 </>
                             ) : isBookingTab ? (
@@ -566,44 +597,38 @@ const ResourceBooking: React.FC = () => {
                                     onSelect={handleViewBooking}
                                 />
                             ) : isLogTab ? (
-                                /* Equipment Logs */
                                 <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
                                     {displayLogs.length === 0 ? (
-                                        <div style={{ padding: '3rem', textAlign: 'center', color: '#94a3b8', fontSize: '0.88rem' }}>No equipment log entries found.</div>
+                                        <div style={{ padding: '3rem', textAlign: 'center', color: '#94a3b8', fontSize: '0.88rem' }}>
+                                            <ScrollText size={40} style={{ opacity: 0.3, marginBottom: '1rem' }} />
+                                            <div>No equipment log entries found.</div>
+                                        </div>
                                     ) : displayLogs.map((log, idx) => {
                                         const action = getLogActionConfig(log.action);
                                         return (
-                                            <div key={log.id} style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '12px 16px', borderBottom: idx < displayLogs.length - 1 ? '1px solid #f1f5f9' : 'none', transition: 'background 0.15s' }}
-                                                onMouseEnter={e => (e.currentTarget.style.background = '#f8fafc')}
-                                                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                                            <div key={log.id} style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '12px 16px', borderBottom: idx < displayLogs.length - 1 ? '1px solid #f1f5f9' : 'none', transition: 'background 0.15s', cursor: 'pointer', background: activePanel?.targetId === log.id ? '#f0f9ff' : 'transparent', outline: activePanel?.targetId === log.id ? '2px solid #0284c7' : 'none', outlineOffset: '-2px', borderRadius: activePanel?.targetId === log.id ? '8px' : undefined }}
+                                                onClick={() => handleViewLog(log)}
+                                                onMouseEnter={e => { if (activePanel?.targetId !== log.id) e.currentTarget.style.background = '#f8fafc'; }}
+                                                onMouseLeave={e => { if (activePanel?.targetId !== log.id) e.currentTarget.style.background = 'transparent'; }}
                                             >
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 10px', borderRadius: '8px', background: action.bg, color: action.color, fontSize: '0.72rem', fontWeight: 700, flexShrink: 0 }}>
                                                     {action.icon} {action.label}
                                                 </div>
                                                 <div style={{ flex: 1, minWidth: 0 }}>
                                                     <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{log.resourceName || 'Unknown Resource'}</div>
-                                                    <div style={{ fontSize: '0.72rem', color: '#64748b' }}>by {log.userName} {log.note ? `· ${log.note}` : ''}</div>
+                                                    <div style={{ fontSize: '0.72rem', color: '#64748b' }}>by {log.userName} {log.note ? `Â· ${log.note}` : ''}</div>
                                                 </div>
                                                 <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600, flexShrink: 0 }}>{formatDate(log.loggedAt)}</div>
-                                                <ChevronRight size={14} color="#cbd5e1" style={{ flexShrink: 0 }} />
                                             </div>
                                         );
                                     })}
                                 </div>
                             ) : isResourceTypeTab ? (
-                                /* Resource Types — lab director only */
                                 <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-                                    {/* Header row with create button */}
-                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid #f1f5f9' }}>
+                                    <div style={{ padding: '10px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                         <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' as const, letterSpacing: '0.05em' }}>
                                             {displayResourceTypes.length} type(s)
                                         </span>
-                                        <button
-                                            onClick={handleCreateResourceType}
-                                            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px', borderRadius: '8px', border: 'none', background: 'var(--accent-color)', color: '#fff', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer' }}
-                                        >
-                                            <Plus size={13} /> New Type
-                                        </button>
                                     </div>
                                     {displayResourceTypes.length === 0 ? (
                                         <div style={{ padding: '3rem', textAlign: 'center', color: '#94a3b8', fontSize: '0.88rem' }}>No resource types found.</div>
@@ -612,7 +637,7 @@ const ResourceBooking: React.FC = () => {
                                             onMouseEnter={e => (e.currentTarget.style.background = '#f8fafc')}
                                             onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                                         >
-                                            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', flexShrink: 0 }}>
+                                            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#f5f3ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#7c3aed', flexShrink: 0 }}>
                                                 <Layers size={16} />
                                             </div>
                                             <div style={{ flex: 1, minWidth: 0 }}>
@@ -639,14 +664,15 @@ const ResourceBooking: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Right: Panel */}
+                    {/* Right: Detail / Form Panel */}
                     {activePanel && (
                         <div style={{
-                            flex: 6, transition: 'flex 0.4s cubic-bezier(0.4,0,0.2,1)',
+                            flex: 6, transition: 'flex 0.35s cubic-bezier(0.4,0,0.2,1)',
                             overflow: 'hidden', display: 'flex', flexDirection: 'column',
                             background: '#fff', borderRadius: '16px',
-                            border: '1px solid var(--border-color)', padding: '1.5rem',
-                            alignSelf: ['resource_type_form', 'view_booking'].includes(activePanel.type) ? 'flex-start' : 'stretch'
+                            border: '1px solid #e2e8f0', padding: '1.5rem',
+                            alignSelf: ['resource_type_form', 'view_booking'].includes(activePanel.type) ? 'flex-start' : 'stretch',
+                            boxShadow: '0 4px 20px rgba(0,0,0,0.07)'
                         }}>
                             {activePanel.type === 'create_resource' && (
                                 <CreateResourceForm onClose={handleClosePanel} onSaved={handlePanelSaved} onTitleChange={handleTitleChange} />
@@ -680,6 +706,32 @@ const ResourceBooking: React.FC = () => {
                                     onSaved={(msg) => { fetchData(); showToast(msg, 'success'); handleClosePanel(); }}
                                 />
                             )}
+                            {activePanel.type === 'view_log' && activePanel.log && (() => {
+                                const log = activePanel.log!;
+                                const action = getLogActionConfig(log.action);
+                                return (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: action.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: action.color, flexShrink: 0 }}>
+                                                    {action.icon}
+                                                </div>
+                                                <div>
+                                                    <div style={{ fontWeight: 800, fontSize: '1rem', color: '#1e293b' }}>{log.resourceName}</div>
+                                                    <div style={{ fontSize: '0.75rem', color: action.color, fontWeight: 700 }}>{action.label}</div>
+                                                </div>
+                                            </div>
+                                            <button onClick={handleClosePanel} style={{ width: '28px', height: '28px', border: 'none', background: '#f1f5f9', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '1rem' }}>×</button>
+                                        </div>
+                                        {[{ label: 'User', value: log.userName }, { label: 'Date', value: formatDate(log.loggedAt) }, { label: 'Resource ID', value: log.resourceId }, ...(log.bookingId ? [{ label: 'Booking ID', value: log.bookingId }] : []), ...(log.note ? [{ label: 'Note', value: log.note }] : [])].map(row => (
+                                            <div key={row.label} style={{ display: 'flex', gap: '12px', padding: '10px 0', borderBottom: '1px solid #f1f5f9' }}>
+                                                <div style={{ width: '100px', flexShrink: 0, fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', paddingTop: '2px' }}>{row.label}</div>
+                                                <div style={{ fontSize: '0.85rem', color: '#1e293b', fontWeight: 600, wordBreak: 'break-all' as const }}>{row.value}</div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                );
+                            })()}
                         </div>
                     )}
                 </div>

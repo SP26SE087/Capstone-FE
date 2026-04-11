@@ -1,11 +1,12 @@
 import React from 'react';
 import { Resource, ResourceType } from '@/types/booking';
-import { Cpu, HardDrive, Box, Monitor, Package, MapPin, ChevronRight } from 'lucide-react';
+import { Cpu, HardDrive, Box, Monitor, Package, MapPin, ChevronRight, Calendar } from 'lucide-react';
 
 interface ResourceListViewProps {
     resources: Resource[];
     selectedId: string | null;
     onSelect: (resource: Resource) => void;
+    onBook?: (resource: Resource) => void;
     isSplit?: boolean;
 }
 
@@ -43,6 +44,7 @@ const ResourceListView: React.FC<ResourceListViewProps> = ({
     resources,
     selectedId,
     onSelect,
+    onBook,
     isSplit: _isSplit = false
 }) => {
     if (resources.length === 0) {
@@ -134,6 +136,24 @@ const ResourceListView: React.FC<ResourceListViewProps> = ({
                                 </span>
                             </div>
                         </div>
+
+                        {/* Book button */}
+                        {onBook && isAvailable && (
+                            <button
+                                onClick={e => { e.stopPropagation(); onBook(resource); }}
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: '5px',
+                                    padding: '5px 12px', borderRadius: '8px', border: 'none',
+                                    background: isSelected ? 'rgba(255,255,255,0.9)' : 'linear-gradient(135deg, #6366f1, #4f46e5)',
+                                    color: isSelected ? '#4f46e5' : '#fff',
+                                    fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer',
+                                    flexShrink: 0, transition: 'all 0.15s',
+                                    boxShadow: '0 2px 6px rgba(99,102,241,0.25)'
+                                }}
+                            >
+                                <Calendar size={12} /> Book
+                            </button>
+                        )}
 
                         {/* Arrow */}
                         <ChevronRight size={16} style={{ color: isSelected ? 'var(--accent-color)' : '#cbd5e1', flexShrink: 0 }} />

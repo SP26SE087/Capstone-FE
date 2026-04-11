@@ -9,6 +9,8 @@ interface UserDetailModalProps {
     onClose: () => void;
     userId: string | null;
     systemRoleMap: Record<number | string, string>;
+    currentUserId?: string;
+    currentUserEmail?: string;
     onCheckLog: (email: string, studentId: string, userName: string) => void;
     isCheckLogOpen: boolean;
     isLabDirector?: boolean;
@@ -17,7 +19,7 @@ interface UserDetailModalProps {
     isProjectPanelOpen?: boolean;
 }
 
-const UserDetailModal: React.FC<UserDetailModalProps> = ({ onClose, userId, systemRoleMap, onCheckLog, isCheckLogOpen, isLabDirector, onDeleted, onViewProjects, isProjectPanelOpen }) => {
+const UserDetailModal: React.FC<UserDetailModalProps> = ({ onClose, userId, systemRoleMap, currentUserId, currentUserEmail, onCheckLog, isCheckLogOpen, isLabDirector, onDeleted, onViewProjects, isProjectPanelOpen }) => {
     const [userData, setUserData] = useState<any>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -46,6 +48,16 @@ const UserDetailModal: React.FC<UserDetailModalProps> = ({ onClose, userId, syst
 
     const handleDelete = async () => {
         if (!userData?.email) return;
+        const selectedId = String(userData?.userId || userData?.id || '').trim().toLowerCase();
+        const selectedEmail = String(userData?.email || '').trim().toLowerCase();
+        const myId = String(currentUserId || '').trim().toLowerCase();
+        const myEmail = String(currentUserEmail || '').trim().toLowerCase();
+        const isSelf = (selectedId && myId && selectedId === myId) || (selectedEmail && myEmail && selectedEmail === myEmail);
+        if (isSelf) {
+            setShowDeleteConfirm(false);
+            addToast('You cannot remove your own account.', 'error');
+            return;
+        }
         setDeleting(true);
         try {
             await userService.deleteByEmail(userData.email);
@@ -68,6 +80,11 @@ const UserDetailModal: React.FC<UserDetailModalProps> = ({ onClose, userId, syst
     const isActive = userData?.isActive === true || userData?.status === 1;
     const roleName = systemRoleMap[userData?.role] || userData?.role || 'Member';
     const studentId = String(userData?.studentId ?? userData?.StudentId ?? userData?.studentID ?? userData?.student_id ?? '').trim();
+    const selectedId = String(userData?.userId || userData?.id || '').trim().toLowerCase();
+    const selectedEmail = String(userData?.email || '').trim().toLowerCase();
+    const myId = String(currentUserId || '').trim().toLowerCase();
+    const myEmail = String(currentUserEmail || '').trim().toLowerCase();
+    const isSelfProfile = (selectedId && myId && selectedId === myId) || (selectedEmail && myEmail && selectedEmail === myEmail);
 
     return (
         <div style={{
@@ -221,7 +238,7 @@ const UserDetailModal: React.FC<UserDetailModalProps> = ({ onClose, userId, syst
                         )}
                     </div>
 
-                    {isLabDirector && (
+                    {isLabDirector && !isSelfProfile && (
                         <button
                             onClick={() => setShowDeleteConfirm(true)}
                             disabled={deleting}

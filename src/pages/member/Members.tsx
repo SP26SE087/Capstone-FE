@@ -21,10 +21,12 @@ import { useToastStore } from '@/store/slices/toastSlice';
 
 const Members: React.FC = () => {
     const { user } = useAuth();
+    const PAGE_SIZE = 12;
     const [members, setMembers] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
     const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
     const [isInviteFormOpen, setIsInviteFormOpen] = useState(false);
     const [faceScanData, setFaceScanData] = useState<{ studentId: string; userName: string } | null>(null);
@@ -78,6 +80,14 @@ const Members: React.FC = () => {
         return base;
     }, [members, searchQuery, studentSearchResult]);
 
+    const totalPages = Math.max(1, Math.ceil(filteredMembers.length / PAGE_SIZE));
+
+    const paginatedMembers = useMemo(() => {
+        const start = (currentPage - 1) * PAGE_SIZE;
+        const end = start + PAGE_SIZE;
+        return filteredMembers.slice(start, end);
+    }, [filteredMembers, currentPage]);
+
     // studentId API search when local results are empty
     useEffect(() => {
         const q = searchQuery.trim();
@@ -93,6 +103,16 @@ const Members: React.FC = () => {
             }
         }, 500);
     }, [searchQuery]);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchQuery, studentSearchResult, members.length]);
+
+    useEffect(() => {
+        if (currentPage > totalPages) {
+            setCurrentPage(totalPages);
+        }
+    }, [currentPage, totalPages]);
 
     const isSidePanelOpen = isInviteFormOpen || Boolean(selectedUserId);
     const isCheckLogOpen = Boolean(checkLogData);
@@ -212,7 +232,7 @@ const Members: React.FC = () => {
                                 }}
                             >
                                 {filteredMembers.length > 0 ? (
-                                    filteredMembers.map((member: any) => {
+                                    paginatedMembers.map((member: any) => {
                                         const name = member.fullName || member.userName || member.name || 'Unknown User';
                                         const initials = name.split(' ').map((n: string) => n[0]).join('').toUpperCase();
                                         
@@ -291,6 +311,60 @@ const Members: React.FC = () => {
                                 )}
                             </div>
                         )}
+
+                        {!loading && !error && filteredMembers.length > 0 && (
+                            <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                marginTop: '0.75rem',
+                                padding: '0.6rem 0.25rem 0',
+                                borderTop: '1px solid var(--border-light)'
+                            }}>
+                                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                                    Showing {(currentPage - 1) * PAGE_SIZE + 1}-{Math.min(currentPage * PAGE_SIZE, filteredMembers.length)} of {filteredMembers.length}
+                                </span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <button
+                                        type="button"
+                                        disabled={currentPage === 1}
+                                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                        style={{
+                                            padding: '0.35rem 0.75rem',
+                                            fontSize: '0.75rem',
+                                            borderRadius: '8px',
+                                            border: '1px solid #fdba74',
+                                            background: currentPage === 1 ? '#fff7ed' : '#f97316',
+                                            color: currentPage === 1 ? '#9a3412' : '#ffffff',
+                                            cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                                            fontWeight: 700
+                                        }}
+                                    >
+                                        Prev
+                                    </button>
+                                    <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', minWidth: '58px', textAlign: 'center' }}>
+                                        {currentPage}/{totalPages}
+                                    </span>
+                                    <button
+                                        type="button"
+                                        disabled={currentPage === totalPages}
+                                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                        style={{
+                                            padding: '0.35rem 0.75rem',
+                                            fontSize: '0.75rem',
+                                            borderRadius: '8px',
+                                            border: '1px solid #fdba74',
+                                            background: currentPage === totalPages ? '#fff7ed' : '#f97316',
+                                            color: currentPage === totalPages ? '#9a3412' : '#ffffff',
+                                            cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+                                            fontWeight: 700
+                                        }}
+                                    >
+                                        Next
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Middle Column: User detail / Invite form */}
@@ -316,6 +390,8 @@ const Members: React.FC = () => {
                             <UserDetailModal
                                 userId={selectedUserId}
                                 systemRoleMap={SystemRoleMap}
+                                currentUserId={user.userId}
+                                currentUserEmail={user.email}
                                 onClose={() => { setSelectedUserId(null); setCheckLogData(null); setProjectPanelData(null); }}
                                 onCheckLog={(email, studentId, userName) => {
                                     setProjectPanelData(null);
