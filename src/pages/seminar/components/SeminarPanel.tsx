@@ -556,7 +556,7 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
                                             type="button"
                                             onClick={async () => {
                                                 try {
-                                                    const token = localStorage.getItem('token');
+                                                    const token = sessionStorage.getItem('token');
                                                     let res = await fetch(
                                                         `${API_BASE_URL.replace(/\/$/, '')}/api/Seminars/meetings/${meetingId}/slide-document/download`,
                                                         { headers: { Authorization: `Bearer ${token}` } }

@@ -123,9 +123,9 @@ export const authService = {
     },
 
     saveAuthData(data: AuthResponse): void {
-        localStorage.setItem(AUTH_KEYS.TOKEN, data.jwtToken);
-        localStorage.setItem(AUTH_KEYS.REFRESH_TOKEN, data.refreshToken);
-        localStorage.setItem(AUTH_KEYS.USER, JSON.stringify({
+        sessionStorage.setItem(AUTH_KEYS.TOKEN, data.jwtToken);
+        sessionStorage.setItem(AUTH_KEYS.REFRESH_TOKEN, data.refreshToken);
+        sessionStorage.setItem(AUTH_KEYS.USER, JSON.stringify({
             userId: data.userId,
             email: data.email,
             fullName: data.fullName,
@@ -136,17 +136,17 @@ export const authService = {
     },
 
     clearAuthData(): void {
-        localStorage.removeItem(AUTH_KEYS.TOKEN);
-        localStorage.removeItem(AUTH_KEYS.REFRESH_TOKEN);
-        localStorage.removeItem(AUTH_KEYS.USER);
+        sessionStorage.removeItem(AUTH_KEYS.TOKEN);
+        sessionStorage.removeItem(AUTH_KEYS.REFRESH_TOKEN);
+        sessionStorage.removeItem(AUTH_KEYS.USER);
     },
 
     getAccessToken(): string | null {
-        return localStorage.getItem(AUTH_KEYS.TOKEN);
+        return sessionStorage.getItem(AUTH_KEYS.TOKEN);
     },
 
     getAuthUser(): { userId: string; email: string; fullName: string; role: string; avatarUrl?: string } | null {
-        const raw = localStorage.getItem(AUTH_KEYS.USER);
+        const raw = sessionStorage.getItem(AUTH_KEYS.USER);
         if (!raw) return null;
         try {
             return JSON.parse(raw);

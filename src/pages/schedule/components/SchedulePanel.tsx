@@ -10,6 +10,7 @@ import meetingService from '@/services/meetingService';
 import { useAuth } from '@/hooks/useAuth';
 import AttendeeSelector, { SelectedAttendee } from '@/components/common/AttendeeSelector';
 import DateTimePicker from '@/components/common/DateTimePicker';
+import CalendarPicker from '@/components/common/CalendarPicker';
 import {
     Save,
     Trash2,
@@ -128,8 +129,12 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
     // Form fields
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
+    const [meetingDate, setMeetingDate] = useState(() => {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    });
     const [startTime, setStartTime] = useState('');
-    const [endTime, setEndTime] = useState('');
+    const [durationMinutes, setDurationMinutes] = useState(60);
     const [projectId, setProjectId] = useState('');
     const [selectedAttendees, setSelectedAttendees] = useState<SelectedAttendee[]>([]);
 
@@ -168,8 +173,14 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
     const populateForm = (m: MeetingResponse) => {
         setTitle(m.title || '');
         setDescription(m.description || '');
-        setStartTime(formatDateForInput(m.startTime));
-        setEndTime(formatDateForInput(m.endTime));
+        const st = formatDateForInput(m.startTime);
+        const et = formatDateForInput(m.endTime);
+        setMeetingDate(st.split('T')[0] || '');
+        setStartTime(st);
+        if (st && et) {
+            const diffMs = new Date(m.endTime).getTime() - new Date(m.startTime).getTime();
+            setDurationMinutes(Math.max(15, Math.round(diffMs / 60000)));
+        }
         setProjectId(m.projectId || '');
         setSelectedAttendees(
             m.attendees?.filter(a => a.email).map(a => ({
@@ -194,25 +205,20 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
             setDateError('Start time cannot be in the past');
             return false;
         }
-        if (endTime && new Date(endTime) < now) {
-            setDateError('End time cannot be in the past');
-            return false;
-        }
-        if (startTime && endTime && new Date(endTime) <= new Date(startTime)) {
-            setDateError('End time must be after start time');
-            return false;
-        }
         setDateError('');
         return true;
     };
 
-    const handleStartTimeChange = (val: string) => {
-        setStartTime(val);
+    const handleMeetingDateChange = (newDate: string) => {
+        setMeetingDate(newDate);
+        const getTime = (t: string) => (t.includes('T') ? t.split('T')[1].slice(0, 5) : null);
+        const st = getTime(startTime);
+        setStartTime(st ? `${newDate}T${st}` : `${newDate}T09:00`);
         if (dateError) setDateError('');
     };
 
-    const handleEndTimeChange = (val: string) => {
-        setEndTime(val);
+    const handleStartTimeChange = (val: string) => {
+        setStartTime(val);
         if (dateError) setDateError('');
     };
 
@@ -228,22 +234,24 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
         setSaving(true);
         try {
             if (isCreating) {
+                const computedEnd = startTime ? new Date(new Date(startTime).getTime() + durationMinutes * 60000) : null;
                 const req: CreateMeetingRequest = {
                     title: title.trim(),
                     description: description.trim() || null,
                     startTime: new Date(startTime).toISOString(),
-                    endTime: new Date(endTime).toISOString(),
+                    endTime: computedEnd ? computedEnd.toISOString() : new Date(startTime).toISOString(),
                     projectId: projectId || null,
                     attendeeEmails: selectedAttendees.length > 0 ? selectedAttendees.map(a => a.email) : null
                 };
                 const created = await meetingService.createMeeting(req);
                 onSaved(false, 'Schedule created successfully.', created.id || '');
             } else if (meetingId) {
+                const computedEnd = startTime ? new Date(new Date(startTime).getTime() + durationMinutes * 60000) : null;
                 const req: UpdateMeetingRequest = {
                     title: title.trim(),
                     description: description.trim() || null,
                     startTime: startTime ? new Date(startTime).toISOString() : null,
-                    endTime: endTime ? new Date(endTime).toISOString() : null,
+                    endTime: computedEnd ? computedEnd.toISOString() : null,
                     attendeeEmails: selectedAttendees.length > 0 ? selectedAttendees.map(a => a.email) : null
                 };
                 await meetingService.updateMeeting(meetingId, req);
@@ -525,24 +533,68 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                         />
                     </div>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '14px' }}>
+                    <div style={{ marginBottom: '14px' }}>
+                        <label style={labelStyle}><Calendar size={12} /> Date</label>
+                        <CalendarPicker
+                            value={meetingDate}
+                            onChange={canEdit ? handleMeetingDateChange : () => {}}
+                            minDate={isCreating ? (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })() : undefined}
+                            disabled={!canEdit}
+                        />
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
                         <div>
-                            <label style={labelStyle}><Calendar size={12} /> Start Time</label>
+                            <label style={labelStyle}><Clock size={12} /> Start Time</label>
                             <DateTimePicker
                                 value={startTime}
                                 onChange={handleStartTimeChange}
                                 min={isCreating ? new Date().toISOString().slice(0, 16) : undefined}
                                 disabled={!canEdit}
+                                hideDate
                             />
                         </div>
                         <div>
-                            <label style={labelStyle}><Clock size={12} /> End Time</label>
-                            <DateTimePicker
-                                value={endTime}
-                                onChange={handleEndTimeChange}
-                                min={isCreating ? new Date().toISOString().slice(0, 16) : undefined}
-                                disabled={!canEdit}
-                            />
+                            <label style={labelStyle}><Clock size={12} /> Duration</label>
+                            {/* Quick pills */}
+                            <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' as const, marginBottom: '6px' }}>
+                                {[15, 30, 60, 90, 120].map(d => (
+                                    <button
+                                        key={d}
+                                        type="button"
+                                        disabled={!canEdit}
+                                        onClick={() => setDurationMinutes(d)}
+                                        style={{
+                                            padding: '4px 8px', borderRadius: '6px', border: '1.5px solid',
+                                            borderColor: durationMinutes === d ? 'var(--accent-color)' : '#e2e8f0',
+                                            background: durationMinutes === d ? 'rgba(232,114,12,0.08)' : '#fff',
+                                            color: durationMinutes === d ? 'var(--accent-color)' : '#64748b',
+                                            fontSize: '0.72rem', fontWeight: 700, cursor: canEdit ? 'pointer' : 'default',
+                                            transition: 'all 0.15s'
+                                        }}
+                                    >
+                                        {d < 60 ? `${d}m` : d === 60 ? '1h' : d === 90 ? '1h30' : '2h'}
+                                    </button>
+                                ))}
+                            </div>
+                            {/* Custom number input */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <input
+                                    type="number"
+                                    min={5}
+                                    max={480}
+                                    disabled={!canEdit}
+                                    value={durationMinutes}
+                                    onChange={e => setDurationMinutes(Math.max(5, Math.min(480, Number(e.target.value))))}
+                                    style={{ ...inputStyle, width: '70px', padding: '6px 10px', fontSize: '0.82rem' }}
+                                />
+                                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>min</span>
+                                {startTime && (
+                                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#10b981', marginLeft: 'auto' }}>
+                                        → {(() => { const e = new Date(new Date(startTime).getTime() + durationMinutes * 60000); return `${String(e.getHours()).padStart(2,'0')}:${String(e.getMinutes()).padStart(2,'0')}`; })()}
+                                    </span>
+                                )}
+                            </div>
                         </div>
                     </div>
                     {dateError && (

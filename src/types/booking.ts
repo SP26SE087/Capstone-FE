@@ -47,6 +47,7 @@ export interface Booking {
   resourceIds?: string[];
   userId: string;
   userName: string;
+  userFullName?: string;
   userEmail?: string;
   title: string;
   purpose: string;
@@ -120,9 +121,15 @@ export interface EquipmentLog {
   id: string;
   resourceId: string;
   resourceName: string;
+  resourceTitle?: string;
+  resourceDescription?: string;
   bookingId?: string;
+  bookingTitle?: string;
+  bookingDescription?: string;
   userId: string;
   userName: string;
+  userFullName?: string;
+  userEmail?: string;
   action: EquipmentLogAction;
   note?: string;
   loggedAt: string;

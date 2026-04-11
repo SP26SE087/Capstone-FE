@@ -7,6 +7,7 @@ interface DateTimePickerProps {
     min?: string;
     disabled?: boolean;
     accentColor?: string;
+    hideDate?: boolean;
 }
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -118,7 +119,7 @@ const Drum: React.FC<DrumProps> = ({ inputVal, max, label, accent, disabled, onU
 };
 
 // ── Main ─────────────────────────────────────────────────────────────────────
-const DateTimePicker: React.FC<DateTimePickerProps> = ({ value, onChange, min, disabled, accentColor }) => {
+const DateTimePicker: React.FC<DateTimePickerProps> = ({ value, onChange, min, disabled, accentColor, hideDate }) => {
     const parsed = parseValue(value);
     const [date, setDate] = useState(parsed.date);
     const [hours, setHours] = useState(parsed.hours);
@@ -195,30 +196,32 @@ const DateTimePicker: React.FC<DateTimePickerProps> = ({ value, onChange, min, d
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' as const }}>
             {/* Date — compact, click opens native picker */}
-            <div style={{ position: 'relative', flex: 1, minWidth: '140px' }}>
-                <input
-                    ref={dateRef}
-                    type="date"
-                    value={date}
-                    min={minDate}
-                    disabled={disabled}
-                    onChange={e => handleDateChange(e.target.value)}
-                    style={{
-                        width: '100%', height: '36px', padding: '0 10px',
-                        borderRadius: '8px', border: `1.5px solid #e2e8f0`,
-                        fontSize: '0.8rem', fontWeight: 600, fontFamily: 'inherit',
-                        outline: 'none', background: disabled ? '#f8fafc' : '#fff',
-                        color: date ? '#1e293b' : '#94a3b8',
-                        cursor: disabled ? 'not-allowed' : 'pointer',
-                        boxSizing: 'border-box' as const
-                    }}
-                    onFocus={e => { e.currentTarget.style.borderColor = accent; e.currentTarget.style.boxShadow = `0 0 0 3px ${accent}18`; }}
-                    onBlur={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.boxShadow = 'none'; }}
-                />
-            </div>
+            {!hideDate && (
+                <div style={{ position: 'relative', flex: 1, minWidth: '140px' }}>
+                    <input
+                        ref={dateRef}
+                        type="date"
+                        value={date}
+                        min={minDate}
+                        disabled={disabled}
+                        onChange={e => handleDateChange(e.target.value)}
+                        style={{
+                            width: '100%', height: '36px', padding: '0 10px',
+                            borderRadius: '8px', border: `1.5px solid #e2e8f0`,
+                            fontSize: '0.8rem', fontWeight: 600, fontFamily: 'inherit',
+                            outline: 'none', background: disabled ? '#f8fafc' : '#fff',
+                            color: date ? '#1e293b' : '#94a3b8',
+                            cursor: disabled ? 'not-allowed' : 'pointer',
+                            boxSizing: 'border-box' as const
+                        }}
+                        onFocus={e => { e.currentTarget.style.borderColor = accent; e.currentTarget.style.boxShadow = `0 0 0 3px ${accent}18`; }}
+                        onBlur={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.boxShadow = 'none'; }}
+                    />
+                </div>
+            )}
 
             {/* Divider */}
-            <div style={{ width: '1px', height: '28px', background: '#e2e8f0', flexShrink: 0 }} />
+            {!hideDate && <div style={{ width: '1px', height: '28px', background: '#e2e8f0', flexShrink: 0 }} />}
 
             {/* Hour + Minute drums */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>

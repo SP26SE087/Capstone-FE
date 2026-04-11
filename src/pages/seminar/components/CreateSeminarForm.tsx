@@ -112,10 +112,6 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
     const [presenterProjectLoading, setPresenterProjectLoading] = useState(false);
     const [presenterManualInputs, setPresenterManualInputs] = useState<string[]>(['']);
 
-    // Weekly topics
-    const [weeklyTopics, setWeeklyTopics] = useState<string[]>([]);
-    const [newTopic, setNewTopic] = useState('');
-
     // Collapse state for participant sub-panels (default closed)
     const [presenterOpen, setPresenterOpen] = useState(false);
     const [attendeeOpen, setAttendeeOpen] = useState(false);
@@ -198,19 +194,6 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [numberOfWeeks]);
 
-    const addTopic = () => {
-        if (!newTopic.trim()) return;
-        if (weeklyTopics.length >= numberOfWeeks) {
-            return;
-        }
-        setWeeklyTopics([...weeklyTopics, newTopic.trim()]);
-        setNewTopic('');
-    };
-
-    const removeTopic = (idx: number) => {
-        setWeeklyTopics(weeklyTopics.filter((_, i) => i !== idx));
-    };
-
     // Validate date is not in the past
     const validateDate = (dateStr: string) => {
         if (!dateStr) {
@@ -253,8 +236,7 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
                 additionalAttendeeEmails: selectedAttendees.length > 0
                     ? selectedAttendees.map(a => a.email)
                     : null,
-                location: location.trim() || null,
-                weeklyTopics: weeklyTopics.length > 0 ? weeklyTopics : null
+                location: location.trim() || null
             };
             await seminarService.createRecurringSeminar(req);
             // Show success toast, clear form, lock button
@@ -270,8 +252,6 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
             setLocation('');
             setPresenters([]);
             setSelectedAttendees([]);
-            setWeeklyTopics([]);
-            setNewTopic('');
             setPresenterSearch('');
             setPresenterProjectId('');
             setPresenterProjectMembers([]);
@@ -445,76 +425,6 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
                                 })() : `${numberOfWeeks} week${numberOfWeeks !== 1 ? 's' : ''}`}
                             </div>
                         </div>
-                    </div>
-                </div>
-
-                {/* Weekly Topics */}
-                <div style={sectionStyle}>
-                    <div style={{ ...labelStyle, justifyContent: 'space-between' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <FileText size={12} /> Weekly Topics
-                        </div>
-                        <span style={{ fontSize: '0.65rem', fontWeight: 700, color: weeklyTopics.length >= numberOfWeeks ? '#ef4444' : 'var(--text-muted)' }}>
-                            {weeklyTopics.length} / {numberOfWeeks} max
-                        </span>
-                    </div>
-
-                    {weeklyTopics.map((topic, idx) => (
-                        <div key={idx} style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            padding: '10px 14px',
-                            borderRadius: '8px',
-                            background: '#fff',
-                            border: '1px solid var(--border-light)',
-                            marginBottom: '6px'
-                        }}>
-                            <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                                Week {idx + 1}: {topic}
-                            </span>
-                            <button onClick={() => removeTopic(idx)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: '4px' }}>
-                                <X size={14} />
-                            </button>
-                        </div>
-                    ))}
-
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                        <input
-                            style={{
-                                ...inputStyle,
-                                fontSize: '0.8rem',
-                                padding: '8px 12px',
-                                flex: 1,
-                                background: weeklyTopics.length >= numberOfWeeks ? '#f8fafc' : '#fff',
-                                cursor: weeklyTopics.length >= numberOfWeeks ? 'not-allowed' : 'text'
-                            }}
-                            value={newTopic}
-                            onChange={e => { if (weeklyTopics.length < numberOfWeeks) setNewTopic(e.target.value); }}
-                            placeholder={weeklyTopics.length >= numberOfWeeks ? "Limit reached" : `Week ${weeklyTopics.length + 1} topic...`}
-                            onKeyDown={e => e.key === 'Enter' && addTopic()}
-                            readOnly={weeklyTopics.length >= numberOfWeeks}
-                        />
-                        <button
-                            onClick={addTopic}
-                            disabled={!newTopic.trim() || weeklyTopics.length >= numberOfWeeks}
-                            style={{
-                                padding: '8px 14px',
-                                borderRadius: '8px',
-                                border: 'none',
-                                background: (newTopic.trim() && weeklyTopics.length < numberOfWeeks) ? 'var(--accent-color)' : '#94a3b8',
-                                color: '#fff',
-                                cursor: (newTopic.trim() && weeklyTopics.length < numberOfWeeks) ? 'pointer' : 'not-allowed',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                fontSize: '0.75rem',
-                                fontWeight: 700,
-                                flexShrink: 0
-                            }}
-                        >
-                            <Plus size={14} /> Add
-                        </button>
                     </div>
                 </div>
 

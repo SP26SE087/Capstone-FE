@@ -18,7 +18,7 @@ const meetingApi = axios.create({
 // Request interceptor — sends token WITHOUT "Bearer" prefix
 meetingApi.interceptors.request.use(
     (config: any) => {
-        const token = localStorage.getItem('token');
+        const token = sessionStorage.getItem('token');
         if (token && token !== 'undefined' && token !== 'null' && !config.headers.Authorization) {
             config.headers.Authorization = token;
         }
@@ -36,7 +36,7 @@ meetingApi.interceptors.response.use(
         if (error.response?.status === 401 && !originalRequest._retry) {
             originalRequest._retry = true;
 
-            const refreshToken = localStorage.getItem('refreshToken');
+            const refreshToken = sessionStorage.getItem('refreshToken');
             if (!refreshToken || refreshToken === 'undefined' || refreshToken === 'null') {
                 // Session expired — let the main app handle redirect
                 return Promise.reject(error);
@@ -52,16 +52,16 @@ meetingApi.interceptors.response.use(
 
                 if (!newToken) throw new Error('No token from refresh');
 
-                localStorage.setItem('token', newToken);
-                if (newRefreshToken) localStorage.setItem('refreshToken', newRefreshToken);
+                sessionStorage.setItem('token', newToken);
+                if (newRefreshToken) sessionStorage.setItem('refreshToken', newRefreshToken);
 
                 // Retry with new token (no Bearer prefix)
                 originalRequest.headers.Authorization = newToken;
                 return meetingApi(originalRequest);
             } catch (refreshError) {
-                localStorage.removeItem('token');
-                localStorage.removeItem('refreshToken');
-                localStorage.removeItem('auth_user');
+                sessionStorage.removeItem('token');
+                sessionStorage.removeItem('refreshToken');
+                sessionStorage.removeItem('auth_user');
                 if (!window.location.pathname.includes('/login')) {
                     window.location.href = '/login';
                 }

@@ -71,20 +71,34 @@ const EquipmentLogList: React.FC<EquipmentLogListProps> = ({ logs, loading, onEd
                    <td style={{ padding: '1rem 1.5rem' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         {getEventBadge(String(log.action))}
-                        {isSplit && <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>{log.userName}</div>}
+                        {isSplit && <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>{log.userFullName || log.userName}</div>}
                     </div>
                   </td>
                   <td style={{ padding: '1rem' }}>
-                    <span style={{ fontWeight: 600, color: '#1e293b', fontSize: '0.85rem' }}>{log.resourceName}</span>
+                    <div style={{ fontWeight: 600, color: '#1e293b', fontSize: '0.85rem' }}>{log.resourceTitle || log.resourceName}</div>
+                    {(log.bookingTitle) && <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '2px' }}>{log.bookingTitle}</div>}
                   </td>
                   {!isSplit && (
                     <td style={{ padding: '1rem' }}>
-                      <div style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600 }}>{log.userName}</div>
+                      <div style={{ fontSize: '0.85rem', color: '#1e293b', fontWeight: 600 }}>{log.userFullName || log.userName}</div>
+                      {log.userEmail && <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '2px' }}>{log.userEmail}</div>}
                     </td>
                   )}
                   <td style={{ padding: '1rem', textAlign: 'center' }}>
-                    <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#475569' }}>{new Date(log.loggedAt).toLocaleDateString()}</div>
-                    <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>{new Date(log.loggedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                    {(() => {
+                      const d = new Date((log.loggedAt.endsWith('Z') ? log.loggedAt : log.loggedAt + 'Z'));
+                      const vn = new Date(d.getTime() + 7 * 3600000);
+                      return (
+                        <>
+                          <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#475569' }}>
+                            {vn.getUTCDate().toString().padStart(2,'0')}/{(vn.getUTCMonth()+1).toString().padStart(2,'0')}/{vn.getUTCFullYear()}
+                          </div>
+                          <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>
+                            {vn.getUTCHours().toString().padStart(2,'0')}:{vn.getUTCMinutes().toString().padStart(2,'0')}
+                          </div>
+                        </>
+                      );
+                    })()}
                   </td>
                   <td style={{ padding: '1rem 1.5rem', textAlign: 'right' }}>
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '4px' }}>

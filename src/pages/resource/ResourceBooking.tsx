@@ -63,9 +63,10 @@ const getLogActionConfig = (action: EquipmentLogAction) =>
         : { label: 'Check In', color: '#16a34a', bg: '#f0fdf4', icon: <LogIn size={12} /> };
 
 const formatDate = (s: string) => {
-    const d = new Date(s);
+    const d = new Date(s.endsWith('Z') ? s : s + 'Z');
     if (isNaN(d.getTime())) return 'N/A';
-    return `${d.getDate().toString().padStart(2,'0')}/${(d.getMonth()+1).toString().padStart(2,'0')}/${d.getFullYear()} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
+    const vn = new Date(d.getTime() + 7 * 3600000);
+    return `${vn.getUTCDate().toString().padStart(2,'0')}/${(vn.getUTCMonth()+1).toString().padStart(2,'0')}/${vn.getUTCFullYear()} ${vn.getUTCHours().toString().padStart(2,'0')}:${vn.getUTCMinutes().toString().padStart(2,'0')}`;
 };
 
 // â”€â”€â”€ Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -616,7 +617,7 @@ const ResourceBooking: React.FC = () => {
                                                 </div>
                                                 <div style={{ flex: 1, minWidth: 0 }}>
                                                     <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{log.resourceName || 'Unknown Resource'}</div>
-                                                    <div style={{ fontSize: '0.72rem', color: '#64748b' }}>by {log.userName} {log.note ? `Â· ${log.note}` : ''}</div>
+                                                    <div style={{ fontSize: '0.72rem', color: '#64748b' }}>by {log.userFullName || log.userName} {log.note ? `· ${log.note}` : ''}</div>
                                                 </div>
                                                 <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600, flexShrink: 0 }}>{formatDate(log.loggedAt)}</div>
                                             </div>
@@ -709,26 +710,66 @@ const ResourceBooking: React.FC = () => {
                             {activePanel.type === 'view_log' && activePanel.log && (() => {
                                 const log = activePanel.log!;
                                 const action = getLogActionConfig(log.action);
+                                const cardStyle: React.CSSProperties = { background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', padding: '14px 16px', marginBottom: '10px' };
+                                const labelSt: React.CSSProperties = { fontSize: '0.68rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.7px', marginBottom: '4px' };
+                                const valueSt: React.CSSProperties = { fontSize: '0.88rem', fontWeight: 600, color: '#1e293b', wordBreak: 'break-word' };
+                                const subValueSt: React.CSSProperties = { fontSize: '0.78rem', color: '#64748b', marginTop: '3px', wordBreak: 'break-word' };
                                 return (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                                <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: action.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: action.color, flexShrink: 0 }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                        {/* Header */}
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', paddingBottom: '14px', borderBottom: '1px solid #f1f5f9' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                                <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: action.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: action.color, flexShrink: 0, border: `1px solid ${action.color}22` }}>
                                                     {action.icon}
                                                 </div>
                                                 <div>
-                                                    <div style={{ fontWeight: 800, fontSize: '1rem', color: '#1e293b' }}>{log.resourceName}</div>
-                                                    <div style={{ fontSize: '0.75rem', color: action.color, fontWeight: 700 }}>{action.label}</div>
+                                                    <div style={{ fontWeight: 800, fontSize: '1.05rem', color: '#0f172a' }}>Activity Log</div>
+                                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', fontWeight: 700, color: action.color, background: action.bg, border: `1px solid ${action.color}33`, padding: '2px 10px', borderRadius: '20px', marginTop: '2px' }}>
+                                                        {action.icon} {action.label}
+                                                    </span>
                                                 </div>
                                             </div>
-                                            <button onClick={handleClosePanel} style={{ width: '28px', height: '28px', border: 'none', background: '#f1f5f9', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '1rem' }}>×</button>
+                                            <button onClick={handleClosePanel} style={{ width: '30px', height: '30px', border: 'none', background: '#f1f5f9', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '1.1rem' }}>×</button>
                                         </div>
-                                        {[{ label: 'User', value: log.userName }, { label: 'Date', value: formatDate(log.loggedAt) }, { label: 'Resource ID', value: log.resourceId }, ...(log.bookingId ? [{ label: 'Booking ID', value: log.bookingId }] : []), ...(log.note ? [{ label: 'Note', value: log.note }] : [])].map(row => (
-                                            <div key={row.label} style={{ display: 'flex', gap: '12px', padding: '10px 0', borderBottom: '1px solid #f1f5f9' }}>
-                                                <div style={{ width: '100px', flexShrink: 0, fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', paddingTop: '2px' }}>{row.label}</div>
-                                                <div style={{ fontSize: '0.85rem', color: '#1e293b', fontWeight: 600, wordBreak: 'break-all' as const }}>{row.value}</div>
+
+                                        {/* Date */}
+                                        <div style={cardStyle}>
+                                            <div style={labelSt}>Logged At</div>
+                                            <div style={{ ...valueSt, color: '#2563eb' }}>{formatDate(log.loggedAt)}</div>
+                                        </div>
+
+                                        {/* User */}
+                                        <div style={cardStyle}>
+                                            <div style={labelSt}>Performed By</div>
+                                            <div style={valueSt}>{log.userFullName || log.userName}</div>
+                                            {log.userEmail && <div style={subValueSt}>{log.userEmail}</div>}
+                                        </div>
+
+                                        {/* Resource */}
+                                        <div style={cardStyle}>
+                                            <div style={labelSt}>Resource</div>
+                                            <div style={valueSt}>{log.resourceTitle || log.resourceName}</div>
+                                            {log.resourceDescription && <div style={subValueSt}>{log.resourceDescription}</div>}
+                                        </div>
+
+                                        {/* Booking */}
+                                        {(log.bookingTitle || log.bookingId) && (
+                                            <div style={cardStyle}>
+                                                <div style={labelSt}>Booking</div>
+                                                <div style={valueSt}>{log.bookingTitle || log.bookingId}</div>
+                                                {log.bookingDescription && log.bookingDescription !== log.bookingTitle && (
+                                                    <div style={subValueSt}>{log.bookingDescription}</div>
+                                                )}
                                             </div>
-                                        ))}
+                                        )}
+
+                                        {/* Note */}
+                                        {log.note && (
+                                            <div style={{ ...cardStyle, background: '#fffbeb', border: '1px solid #fde68a' }}>
+                                                <div style={{ ...labelSt, color: '#d97706' }}>Note</div>
+                                                <div style={{ ...valueSt, color: '#92400e' }}>{log.note}</div>
+                                            </div>
+                                        )}
                                     </div>
                                 );
                             })()}

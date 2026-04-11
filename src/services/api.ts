@@ -26,7 +26,7 @@ export const setupInterceptors = (axiosInstance: any) => {
     // Request interceptor to add the auth token to headers
     axiosInstance.interceptors.request.use(
         (config: any) => {
-            const token = localStorage.getItem('token');
+            const token = sessionStorage.getItem('token');
             if (token && token !== 'undefined' && token !== 'null' && !config.headers.Authorization) {
                 config.headers.Authorization = `Bearer ${token}`;
             }
@@ -74,7 +74,7 @@ export const setupInterceptors = (axiosInstance: any) => {
                 originalRequest._retry = true;
                 isRefreshing = true;
 
-                const currentRefreshToken = localStorage.getItem('refreshToken');
+                const currentRefreshToken = sessionStorage.getItem('refreshToken');
 
                 if (!currentRefreshToken || currentRefreshToken === 'undefined' || currentRefreshToken === 'null') {
                     isRefreshing = false;
@@ -95,8 +95,8 @@ export const setupInterceptors = (axiosInstance: any) => {
                     if (!newToken) throw new Error('No token returned from refresh');
 
                     // Update storage
-                    localStorage.setItem('token', newToken);
-                    localStorage.setItem('refreshToken', newRefreshToken || currentRefreshToken);
+                    sessionStorage.setItem('token', newToken);
+                    sessionStorage.setItem('refreshToken', newRefreshToken || currentRefreshToken);
                     
                     // Update user info from refresh response (include avatar, role, fullName)
                     if (data.email || data.userId) {
@@ -126,7 +126,7 @@ export const setupInterceptors = (axiosInstance: any) => {
                                 data.profileImageUrl ||
                                 data.ProfileImageUrl,
                         };
-                        localStorage.setItem('auth_user', JSON.stringify(userData));
+                        sessionStorage.setItem('auth_user', JSON.stringify(userData));
                         window.dispatchEvent(new Event('auth_user_updated'));
                     }
 
@@ -156,9 +156,9 @@ export const setupInterceptors = (axiosInstance: any) => {
 };
 
 const handleSessionExpired = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('auth_user');
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('refreshToken');
+    sessionStorage.removeItem('auth_user');
     
     // Redirect only if not already on login page
     if (!window.location.pathname.includes('/login')) {

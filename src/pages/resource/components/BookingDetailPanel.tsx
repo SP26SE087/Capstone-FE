@@ -283,6 +283,27 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                     </div>
                 </div>
 
+                {/* Requester Info */}
+                {(booking.userFullName || booking.userEmail) && (
+                    <div style={sectionStyle}>
+                        <div style={labelStyle}><User size={12} /> Requested By</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            {booking.userFullName && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, minWidth: '50px' }}>Name</span>
+                                    <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>{booking.userFullName}</span>
+                                </div>
+                            )}
+                            {booking.userEmail && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 700, minWidth: '50px' }}>Email</span>
+                                    <span style={{ fontSize: '0.85rem', fontWeight: 500, color: '#2563eb' }}>{booking.userEmail}</span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
                 {/* Purpose */}
                 <div style={sectionStyle}>
                     <div style={labelStyle}><FileText size={12} /> Purpose</div>
