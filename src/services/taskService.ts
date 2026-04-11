@@ -26,6 +26,12 @@ export const taskService = {
                     const dateB = b.dueDate ? new Date(b.dueDate).getTime() : Infinity;
                     return dateA - dateB;
                 });
+                // Normalize API field names so Task type fields are always populated
+                tasks = tasks.map((t: any) => ({
+                    ...t,
+                    taskId: t.taskId || t.id,
+                    assignedToName: t.assignedToName || t.assigneeName,
+                }));
             }
             return tasks;
         } catch (error) {
@@ -324,8 +330,10 @@ export const taskService = {
 
             return {
                 ...taskData,
-                member: primaryMemberDetail, // Primary member full details
-                members: processedMembers, // Hydrated collaborators
+                taskId: taskData.taskId || taskData.id,
+                assignedToName: taskData.assignedToName || taskData.assigneeName,
+                member: primaryMemberDetail,
+                members: processedMembers,
                 createdAt: taskData.createdDate || taskData.createdAt,
                 updatedAt: taskData.updatedDate || taskData.updatedAt
             };

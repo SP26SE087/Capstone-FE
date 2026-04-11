@@ -27,10 +27,10 @@ const Home: React.FC = () => {
         const fetchPublicProjects = async () => {
             setLoading(true);
             try {
-                const data = await projectService.getPublic();
+                const data = await projectService.getAll();
                 setPublicProjects(data || []);
             } catch (error) {
-                console.error('Failed to fetch public projects:', error);
+                console.error('Failed to fetch projects:', error);
             } finally {
                 setLoading(false);
             }
@@ -130,7 +130,7 @@ const Home: React.FC = () => {
                                 <div
                                     key={project.projectId}
                                     className="card card-interactive"
-                                    onClick={() => navigate(`/explore/projects/${project.projectId}`)}
+                                    onClick={() => navigate(`/projects/${project.projectId}`)}
                                     style={{ padding: 0, display: 'flex', flexDirection: 'column' }}
                                 >
                                     <div style={{ padding: '1.5rem', flex: 1 }}>

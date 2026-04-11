@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { BookingResponse, bookingService } from '@/services/bookingService';
 import { BookingStatus } from '@/types/booking';
-import { X, Clock, Package, User, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { X, Clock, Package, User, Loader2 } from 'lucide-react';
 
 interface AdminBookingPanelProps {
   booking: BookingResponse;

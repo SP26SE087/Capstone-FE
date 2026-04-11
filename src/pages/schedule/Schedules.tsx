@@ -17,11 +17,15 @@ import {
     CheckCircle2,
     Users,
     UserCheck,
+    ChevronRight,
+    Sparkles,
+    Zap,
+    X,
 } from 'lucide-react';
 import meetingService from '@/services/meetingService';
 import { MeetingResponse, MeetingStatus } from '@/types/meeting';
 import { projectService, userService } from '@/services';
-import Toast, { ToastType } from '@/components/common/Toast';
+import { useToastStore } from '@/store/slices/toastSlice';
 
 import ScheduleList from './components/ScheduleList';
 import SchedulePanel from './components/SchedulePanel';
@@ -34,7 +38,9 @@ interface ScheduleTab {
     id: string;
     type: 'create' | 'view';
     meetingId?: string;
+    actualMeetingId?: string;
     title: string;
+    initialData?: MeetingResponse;
 }
 
 const Schedules: React.FC = () => {
@@ -49,12 +55,20 @@ const Schedules: React.FC = () => {
     const [filterProjectId, setFilterProjectId] = useState<string>('');
     const [projectsMap, setProjectsMap] = useState<Record<string, string>>({});
     const [usersMap, setUsersMap] = useState<Record<string, string>>({});
-    const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+    const { addToast } = useToastStore();
     const [viewMode, setViewMode] = useState<'list' | 'timetable'>('list');
+
+    // Semantic search
+    const [semanticResults, setSemanticResults] = useState<MeetingResponse[] | null>(null);
+    const [isSemanticLoading, setIsSemanticLoading] = useState(false);
 
     // Panel system
     const [activePanel, setActivePanel] = useState<ScheduleTab | null>(null);
     const [showTranscription, setShowTranscription] = useState(false);
+    const [isTranscriptionProcessing, setIsTranscriptionProcessing] = useState(false);
+    const [showConfirmSwitch, setShowConfirmSwitch] = useState(false);
+    const [pendingTab, setPendingTab] = useState<ListTabType | null>(null);
+    const [transcriptionMode, setTranscriptionMode] = useState<'full' | 'view'>('full');
 
     // Fetch metadata
     useEffect(() => {
@@ -101,8 +115,25 @@ const Schedules: React.FC = () => {
         }
     };
 
-    const showToast = (message: string, type: ToastType = 'info') => {
-        setToast({ message, type });
+    const showToast = (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => {
+        addToast(message, type);
+    };
+
+    const handleSemanticSearch = async () => {
+        if (!searchQuery.trim()) return;
+        setIsSemanticLoading(true);
+        try {
+            const results = await meetingService.searchMeetings({
+                query: searchQuery,
+                topK: 20,
+                projectId: filterProjectId || undefined,
+            });
+            setSemanticResults(Array.isArray(results) ? results : []);
+        } catch {
+            showToast('Semantic search failed.', 'error');
+        } finally {
+            setIsSemanticLoading(false);
+        }
     };
 
     // Panel handlers
@@ -113,7 +144,14 @@ const Schedules: React.FC = () => {
 
     const handleOpenViewTab = (meeting: MeetingResponse) => {
         const eventId = meeting.googleCalendarEventId || meeting.id;
-        setActivePanel({ id: `view-${eventId}`, type: 'view', meetingId: eventId, title: meeting.title || 'Schedule' });
+        setActivePanel({
+            id: `view-${eventId}`,
+            type: 'view',
+            meetingId: eventId,
+            actualMeetingId: meeting.id,
+            title: meeting.title || 'Schedule',
+            initialData: meeting
+        });
     };
 
     const handleClosePanel = () => {
@@ -121,21 +159,47 @@ const Schedules: React.FC = () => {
     };
 
     const handleTitleChange = (newTitle: string) => {
-        if (activePanel) setActivePanel({ ...activePanel, title: newTitle });
+        if (activePanel && activePanel.title !== newTitle) {
+            setActivePanel({ ...activePanel, title: newTitle });
+        }
+    };
+
+    const handleTabSwitch = (tabId: ListTabType) => {
+        if (isTranscriptionProcessing) {
+            setPendingTab(tabId);
+            setShowConfirmSwitch(true);
+        } else {
+            setActiveListTab(tabId);
+            setShowTranscription(false);
+            setActivePanel(null);
+        }
+    };
+
+    const handleConfirmTabSwitch = () => {
+        if (pendingTab) {
+            setActiveListTab(pendingTab);
+            setShowTranscription(false);
+            setActivePanel(null);
+            setPendingTab(null);
+        }
+        setShowConfirmSwitch(false);
     };
 
     // Filtered meetings
     const displayMeetings = useMemo(() => {
+        if (semanticResults !== null) return semanticResults;
+
         return meetings.filter(m => {
             const query = searchQuery.toLowerCase();
             const matchesQuery = !query ||
                 (m.title?.toLowerCase().includes(query)) ||
                 (m.description?.toLowerCase().includes(query));
             const matchesStatus = filterStatus === '' || m.status === Number(filterStatus);
+
             const matchesProject = !filterProjectId || m.projectId === filterProjectId;
             return matchesQuery && matchesStatus && matchesProject;
         }).sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
-    }, [meetings, searchQuery, filterStatus, filterProjectId]);
+    }, [meetings, semanticResults, searchQuery, filterStatus, filterProjectId]);
 
     // Stats
     const scheduledCount = meetings.filter(m => m.status === MeetingStatus.Scheduled).length;
@@ -162,8 +226,6 @@ const Schedules: React.FC = () => {
     return (
         <MainLayout role={user?.role} userName={user?.name}>
             <div className="page-container" style={{ padding: '1.5rem 2rem', maxWidth: '1600px', margin: '0 auto' }}>
-                {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-
                 {/* Header */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
                     <div>
@@ -260,10 +322,44 @@ const Schedules: React.FC = () => {
                                 className="form-input"
                                 style={{ paddingLeft: '40px', height: '42px', border: 'none', background: 'var(--surface-hover)', borderRadius: '10px', fontSize: '0.88rem' }}
                                 value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
+                                onChange={(e) => { setSearchQuery(e.target.value); setSemanticResults(null); }}
                             />
                         </div>
+                        <button
+                            type="button"
+                            onClick={handleSemanticSearch}
+                            disabled={isSemanticLoading || !searchQuery.trim()}
+                            style={{
+                                height: '42px', padding: '0 1.1rem', borderRadius: '10px',
+                                display: 'flex', alignItems: 'center', gap: '7px',
+                                fontSize: '0.85rem', fontWeight: 700, border: 'none',
+                                cursor: isSemanticLoading || !searchQuery.trim() ? 'not-allowed' : 'pointer',
+                                background: semanticResults !== null ? 'var(--primary-color)' : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                                color: '#fff', opacity: !searchQuery.trim() ? 0.5 : 1,
+                                boxShadow: '0 4px 12px rgba(99,102,241,0.25)', whiteSpace: 'nowrap' as const,
+                            }}
+                        >
+                            {isSemanticLoading ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
+                            AI Search
+                        </button>
                     </div>
+
+                    {semanticResults !== null && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 14px', borderRadius: '10px', background: 'linear-gradient(135deg, #eef2ff, #f5f3ff)', border: '1px solid #c7d2fe', marginBottom: '10px' }}>
+                            <Zap size={14} color="#6366f1" />
+                            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#4f46e5' }}>
+                                AI Search — {semanticResults.length} meeting{semanticResults.length !== 1 ? 's' : ''} found
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => setSemanticResults(null)}
+                                style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', fontWeight: 700, color: '#6366f1', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 8px', borderRadius: '6px' }}
+                            >
+                                <X size={12} /> Clear
+                            </button>
+                        </div>
+                    )}
+
                     <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: '20px', paddingTop: '10px', borderTop: '1px solid rgba(0,0,0,0.05)' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <Filter size={14} color="var(--text-muted)" />
@@ -310,7 +406,7 @@ const Schedules: React.FC = () => {
                         <List size={16} /> List View
                     </button>
                     <button
-                        onClick={() => setViewMode('timetable')}
+                        onClick={() => { setViewMode('timetable'); setActivePanel(null); setShowTranscription(false); }}
                         style={{
                             padding: '8px 16px', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 700,
                             border: viewMode === 'timetable' ? '1.5px solid var(--accent-color)' : '1px solid var(--border-color)',
@@ -323,6 +419,24 @@ const Schedules: React.FC = () => {
                     </button>
                 </div>
 
+                {/* Breadcrumb */}
+                {activePanel && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '0.75rem', fontSize: '0.78rem', fontWeight: 600 }}>
+                        <button
+                            onClick={() => { setActivePanel(null); setShowTranscription(false); }}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent-color)', fontWeight: 700, padding: '2px 6px', borderRadius: '6px', fontSize: '0.78rem', transition: 'background 0.15s' }}
+                            onMouseEnter={e => (e.currentTarget.style.background = 'var(--accent-bg)')}
+                            onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+                        >
+                            Schedules
+                        </button>
+                        <ChevronRight size={13} color="#94a3b8" />
+                        <span style={{ color: '#1e293b', maxWidth: '280px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
+                            {activePanel.title}
+                        </span>
+                    </div>
+                )}
+
                 {/* List Tabs + New Schedule Button */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1.5rem' }}>
                     <div style={{ flex: 1, borderBottom: '1px solid #e2e8f0', overflowX: 'auto', whiteSpace: 'nowrap' as const }} className="custom-scrollbar">
@@ -333,7 +447,7 @@ const Schedules: React.FC = () => {
                             ].map(tab => (
                                 <button
                                     key={tab.id}
-                                    onClick={() => setActiveListTab(tab.id as ListTabType)}
+                                    onClick={() => handleTabSwitch(tab.id as ListTabType)}
                                     style={{
                                         padding: '12px 10px',
                                         display: 'flex',
@@ -421,55 +535,122 @@ const Schedules: React.FC = () => {
                             </div>
                         )}
 
-                        {/* Meeting detail panel */}
-                        {activePanel && (
+                        {/* Meeting detail panel — hidden when AI Notes is open */}
+                        {activePanel && !showTranscription && (
                             <div style={{
-                                flex: showTranscription ? 5 : 4, minWidth: 0, overflow: 'hidden',
+                                flex: 4, minWidth: 0, overflow: 'hidden',
                                 display: 'flex', flexDirection: 'column',
                                 background: '#fff', borderRadius: '16px',
                                 border: '1px solid var(--border-color)', padding: '1.5rem',
                                 transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
                             }}>
                                 <SchedulePanel
+                                    key={activePanel.meetingId || activePanel.id}
                                     meetingId={activePanel.type === 'view' ? activePanel.meetingId! : null}
+                                    initialData={activePanel.initialData}
                                     isCreating={activePanel.type === 'create'}
                                     onClose={() => { handleClosePanel(); setShowTranscription(false); }}
                                     onSaved={(shouldClose = false, message?: string, newEventId?: string) => {
                                         fetchMeetings();
                                         if (message) showToast(message, 'success');
                                         if (activePanel.type === 'create' && newEventId) {
-                                            setActivePanel({ id: `view-${newEventId}`, type: 'view', meetingId: newEventId, title: 'Schedule Detail' });
+                                            setActivePanel({ id: `view-${newEventId}`, type: 'view', meetingId: newEventId, actualMeetingId: newEventId, title: 'Schedule Detail' });
                                         } else if (shouldClose) {
                                             handleClosePanel();
                                         }
                                     }}
                                     onTitleChange={handleTitleChange}
                                     projectsMap={projectsMap}
-                                    onToggleAINote={() => setShowTranscription(v => !v)}
+                                    onToggleAINote={() => { setTranscriptionMode('full'); setShowTranscription(v => !v); }}
                                     showAINote={showTranscription}
+                                    onGetTranscribe={() => { setTranscriptionMode('view'); setShowTranscription(true); }}
                                 />
                             </div>
                         )}
 
-                        {/* AI Notes / Transcription panel */}
+                        {/* AI Notes / Transcription panel — takes full width */}
                         {showTranscription && (
                             <div style={{
-                                flex: 4, minWidth: 0, overflow: 'hidden',
+                                flex: 10, minWidth: 0, overflow: 'hidden',
                                 display: 'flex', flexDirection: 'column',
-                                background: '#fff', borderRadius: '16px',
-                                border: '1.5px solid #e0e7ff', padding: '1.5rem',
                                 transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
-                                boxShadow: '0 4px 20px rgba(99,102,241,0.08)'
                             }}>
-                                <TranscriptionPanel onClose={() => setShowTranscription(false)} />
+                                <TranscriptionPanel
+                                    onClose={() => setShowTranscription(false)}
+                                    meetingId={activePanel?.type === 'view' ? activePanel.actualMeetingId : undefined}
+                                    meetingName={activePanel?.title}
+                                    mode={transcriptionMode}
+                                    onProcessingChange={setIsTranscriptionProcessing}
+                                />
                             </div>
                         )}
                     </div>
                 )}
             </div>
 
+
+            {/* Custom Confirmation Modal */}
+            {showConfirmSwitch && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(8px)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    zIndex: 10000, animation: 'fadeIn 0.2s ease-out'
+                }}>
+                    <div style={{
+                        background: '#fff', borderRadius: '24px', padding: '32px',
+                        width: '90%', maxWidth: '400px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
+                        textAlign: 'center', animation: 'slideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)'
+                    }}>
+                        <div style={{
+                            width: '64px', height: '64px', borderRadius: '20px',
+                            background: '#fff7ed', color: '#f97316',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            margin: '0 auto 20px auto', border: '1px solid #ffedd5'
+                        }}>
+                            <AlertTriangle size={32} />
+                        </div>
+                        <h3 style={{ margin: '0 0 10px 0', fontSize: '1.3rem', fontWeight: 900, color: '#1e293b' }}>
+                            Process in Progress
+                        </h3>
+                        <p style={{ margin: '0 0 28px 0', fontSize: '1rem', color: '#64748b', lineHeight: '1.6' }}>
+                            AI is currently working on your task. Switching tabs now will stop the process and you might lose the results.
+                        </p>
+                        <div style={{ display: 'flex', gap: '14px' }}>
+                            <button
+                                onClick={() => setShowConfirmSwitch(false)}
+                                style={{
+                                    flex: 1, padding: '14px', borderRadius: '14px', border: '2px solid #f1f5f9',
+                                    background: '#fff', color: '#64748b', fontWeight: 800, fontSize: '0.9rem', cursor: 'pointer',
+                                    transition: 'all 0.2s'
+                                }}
+                                onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+                                onMouseLeave={e => e.currentTarget.style.background = '#fff'}
+                            >
+                                Stay Here
+                            </button>
+                            <button
+                                onClick={handleConfirmTabSwitch}
+                                style={{
+                                    flex: 1, padding: '14px', borderRadius: '14px', border: 'none',
+                                    background: 'linear-gradient(135deg, #ef4444, #dc2626)', color: '#fff', fontWeight: 800, fontSize: '0.9rem',
+                                    cursor: 'pointer', boxShadow: '0 8px 16px rgba(239,68,68,0.25)',
+                                    transition: 'all 0.2s'
+                                }}
+                                onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+                                onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+                            >
+                                Yes, Switch
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <style>{`
                 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+                @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+                @keyframes slideUp { from { transform: translateY(24px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
                 .animate-spin { animation: spin 1s linear infinite; }
             `}</style>
         </MainLayout>

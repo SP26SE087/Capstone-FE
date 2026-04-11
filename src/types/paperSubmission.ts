@@ -42,6 +42,20 @@ export interface PaperMemberResponse {
     role: PaperRoleEnum;
 }
 
+export interface ExternalUserResponse {
+    externalUserId: string;
+    email?: string | null;
+    fullName?: string | null;
+    avatarUrl?: string | null;
+    phoneNumber?: string | null;
+    studentId?: string | null;
+    orcid?: string | null;
+    googleScholarUrl?: string | null;
+    githubUrl?: string | null;
+    isActive: boolean;
+    createdAt: string;
+}
+
 export interface PaperSubmissionResponse {
     paperSubmissionId: string;
     projectId?: string | null;
@@ -50,10 +64,16 @@ export interface PaperSubmissionResponse {
     status: SubmissionStatus;
     conferenceName: string;
     paperUrl: string;
+    document?: string | null;
+    documents?: string | null;
     submissionDeadline: string | null;
     createdAt: string;
     updatedAt: string;
+    createdByMembershipId?: string | null;
+    lastUpdatedByMembershipId?: string | null;
+    editable: boolean;
     members: PaperMemberResponse[];
+    externalUsers?: ExternalUserResponse[] | null;
 }
 
 // ---- Request DTOs ----
@@ -63,22 +83,64 @@ export interface PaperMemberRequest {
     role: PaperRoleEnum;
 }
 
+export interface ExternalUserCreateDto {
+    email?: string | null;
+    fullName?: string | null;
+    avatarUrl?: string | null;
+    phoneNumber?: string | null;
+    studentId?: string | null;
+    orcid?: string | null;
+    googleScholarUrl?: string | null;
+    githubUrl?: string | null;
+    isActive?: boolean;
+}
+
+export interface ExternalUserUpdateDto {
+    email?: string | null;
+    fullName?: string | null;
+    avatarUrl?: string | null;
+    phoneNumber?: string | null;
+    studentId?: string | null;
+    orcid?: string | null;
+    googleScholarUrl?: string | null;
+    githubUrl?: string | null;
+    isActive?: boolean;
+}
+
 export interface CreatePaperRequest {
     projectId?: string | null;
     title: string;
     abstract: string;
-    paperUrl: string;
+    paperUrl?: string;
+    document?: File | string | null;
+    documents?: string;
     conferenceName: string;
     submissionDeadline: string | null;
+    createdByMembershipId?: string | null;
     members: PaperMemberRequest[];
+    externalUsers?: ExternalUserCreateDto[];
 }
 
 export interface UpdatePaperRequest {
     projectId?: string | null;
     title: string;
     abstract: string;
-    paperUrl: string;
+    paperUrl?: string;
+    document?: File | string | null;
+    documents?: string;
     conferenceName: string;
     submissionDeadline: string | null;
+    lastUpdatedByMembershipId?: string | null;
     members: PaperMemberRequest[];
+}
+
+export interface SemanticSearchRequest {
+    query: string;
+    topK?: number;
+    projectId?: string | null;
+}
+
+export interface SubmitToVenueRequest {
+    paperUrl?: string | null;
+    targetStatus?: SubmissionStatus;
 }

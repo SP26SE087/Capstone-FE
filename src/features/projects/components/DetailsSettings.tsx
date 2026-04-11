@@ -1,5 +1,5 @@
 import React from 'react';
-import { ChevronDown, Briefcase, Save, Search, Calendar, Trash2 } from 'lucide-react';
+import { ChevronDown, Briefcase, Save, Search, Calendar, Trash2, Lock } from 'lucide-react';
 import { Project, ResearchField, ProjectStatus } from '@/types';
 
 interface DetailsSettingsProps {
@@ -17,24 +17,76 @@ interface DetailsSettingsProps {
     submitting: boolean;
     canDeleteProject: boolean;
     setIsDeleteConfirmOpen: (open: boolean) => void;
+    latestMilestoneDueDate?: string;
+    earliestMilestoneStartDate?: string;
 }
 
 const DetailsSettings: React.FC<DetailsSettingsProps> = ({
     isArchived, isReadOnly: permissionReadOnly, isAdmin, formData, handleStatusChange, handleInputChange,
     project, availableFields, selectedFieldIds, toggleField, handleSubmit, submitting,
-    canDeleteProject, setIsDeleteConfirmOpen
+    canDeleteProject, setIsDeleteConfirmOpen, latestMilestoneDueDate, earliestMilestoneStartDate
 }) => {
     // Local state for field searching and edit mode
     const [fieldSearchTerm, setFieldSearchTerm] = React.useState('');
     const [isEditing, setIsEditing] = React.useState(false);
+    const projectNameValue = formData.projectName ?? '';
+    const projectDescriptionValue = formData.projectDescription ?? '';
 
     const isReadOnly = permissionReadOnly || !isEditing;
+    const isProjectNameInvalid = isEditing && !projectNameValue.trim();
+
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
     // Date validation: End date cannot be before start date
     const isDateInvalid = React.useMemo(() => {
         if (!formData.startDate || !formData.endDate) return false;
-        return new Date(formData.startDate) > new Date(formData.endDate);
+        return formData.startDate > formData.endDate;
     }, [formData.startDate, formData.endDate]);
+
+    // Start date cannot be in the past
+    const isStartDateInPast = React.useMemo(() => {
+        if (!formData.startDate) return false;
+        return formData.startDate < todayStr;
+    }, [formData.startDate]);
+
+    // End date cannot be in the past
+    const isEndDateInPast = React.useMemo(() => {
+        if (!formData.endDate) return false;
+        return formData.endDate < todayStr;
+    }, [formData.endDate]);
+
+    // End date cannot be before the latest milestone due date
+    const isEndDateBeforeMilestone = React.useMemo(() => {
+        if (!formData.endDate || !latestMilestoneDueDate) return false;
+        return formData.endDate < latestMilestoneDueDate.split('T')[0];
+    }, [formData.endDate, latestMilestoneDueDate]);
+
+    // Start date cannot be after the earliest milestone start date
+    const isStartDateAfterMilestone = React.useMemo(() => {
+        if (!formData.startDate || !earliestMilestoneStartDate) return false;
+        return formData.startDate > earliestMilestoneStartDate.split('T')[0];
+    }, [formData.startDate, earliestMilestoneStartDate]);
+
+    // Can only edit when project is Inactive (or Admin)
+    const isInactive = project?.status === ProjectStatus.Inactive;
+    const canEdit = !permissionReadOnly && !isArchived && (isAdmin || isInactive);
+
+    // End date required before changing status
+    const hasNoEndDate = !formData.endDate;
+
+    // Valid status transitions: Inactive→Active, Active→Completed, Completed→Archived
+    const getAllowedStatuses = (current: number): number[] => {
+        if (isAdmin) return [ProjectStatus.Inactive, ProjectStatus.Active, ProjectStatus.Completed, ProjectStatus.Archived];
+        switch (current) {
+            case ProjectStatus.Inactive:  return [ProjectStatus.Inactive, ProjectStatus.Active];
+            case ProjectStatus.Active:    return [ProjectStatus.Active, ProjectStatus.Completed];
+            case ProjectStatus.Completed: return [ProjectStatus.Completed, ProjectStatus.Archived];
+            case ProjectStatus.Archived:  return [ProjectStatus.Archived];
+            default: return [current];
+        }
+    };
+    const allowedStatuses = getAllowedStatuses(formData.status);
 
     const getStatusStyle = (status: number) => {
         switch (status) {
@@ -51,7 +103,7 @@ const DetailsSettings: React.FC<DetailsSettingsProps> = ({
     return (
         <div style={{ maxWidth: '1000px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             {/* Action Bar */}
-            {!permissionReadOnly && !isArchived && (
+            {canEdit && (
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginBottom: '-0.5rem' }}>
                     {!isEditing ? (
                         <button
@@ -72,26 +124,39 @@ const DetailsSettings: React.FC<DetailsSettingsProps> = ({
                     )}
                 </div>
             )}
+            {!permissionReadOnly && !isArchived && !isInactive && !isAdmin && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '0.65rem 1rem', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '10px', fontSize: '0.8rem', color: '#92400e' }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    Settings can only be edited while the project is <strong style={{ marginLeft: '4px' }}>Inactive</strong>.
+                </div>
+            )}
             <div className="card" style={{ padding: '2rem' }}>
                 {/* Header Information */}
                 <div style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '1.5rem', marginBottom: '1.5rem' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '2rem' }}>
                         <div style={{ flex: 1 }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '4px' }}>
-                                <label className="form-label" style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 0 }}>Project Name</label>
-                                {isEditing && <span style={{ fontSize: '0.65rem', color: formData.projectName.length >= 200 ? 'var(--error)' : 'var(--text-muted)' }}>{formData.projectName.length}/200</span>}
+                                <label className="form-label" style={{ fontSize: '0.75rem', color: isProjectNameInvalid ? '#dc2626' : 'var(--text-muted)', marginBottom: 0 }}>
+                                    Project Name <span style={{ color: '#dc2626' }}>*</span>
+                                </label>
+                                {isEditing && <span style={{ fontSize: '0.65rem', color: projectNameValue.length >= 200 ? '#dc2626' : 'var(--text-muted)' }}>{projectNameValue.length}/200</span>}
                             </div>
                             <input
                                 className="form-input"
-                                style={{ fontSize: '1.5rem', fontWeight: 800, padding: isEditing ? '4px 8px' : '0 0 4px 0', border: isEditing ? '1px solid var(--border-color)' : 'none', background: isEditing ? 'white' : 'transparent', width: '100%', borderRadius: isEditing ? 'var(--radius-sm)' : 0, outline: 'none' }}
+                                style={{ fontSize: '1.5rem', fontWeight: 800, padding: isEditing ? '4px 8px' : '0 0 4px 0', border: isEditing ? `1px solid ${isProjectNameInvalid ? '#dc2626' : 'var(--border-color)'}` : 'none', background: isEditing ? 'white' : 'transparent', width: '100%', borderRadius: isEditing ? 'var(--radius-sm)' : 0, outline: 'none' }}
                                 type="text"
                                 name="projectName"
-                                value={formData.projectName}
+                                value={projectNameValue}
                                 onChange={handleInputChange}
                                 disabled={isReadOnly}
                                 placeholder="Workspace Name"
                                 maxLength={200}
                             />
+                            {isProjectNameInvalid && (
+                                <p style={{ fontSize: '0.75rem', fontWeight: 600, color: '#dc2626', marginTop: '6px' }}>
+                                    Project name is required.
+                                </p>
+                            )}
                         </div>
                         <div style={{ textAlign: 'right', flexShrink: 0 }}>
                             <p style={{ margin: 0, fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Lab Director / Creator</p>
@@ -103,13 +168,13 @@ const DetailsSettings: React.FC<DetailsSettingsProps> = ({
                     <div style={{ marginTop: '1.5rem' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '4px' }}>
                             <label className="form-label" style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 0 }}>Description</label>
-                            {isEditing && <span style={{ fontSize: '0.65rem', color: formData.projectDescription.length >= 2000 ? 'var(--error)' : 'var(--text-muted)' }}>{formData.projectDescription.length}/2000</span>}
+                            {isEditing && <span style={{ fontSize: '0.65rem', color: projectDescriptionValue.length >= 2000 ? 'var(--error)' : 'var(--text-muted)' }}>{projectDescriptionValue.length}/2000</span>}
                         </div>
                         <textarea
                             className="form-input"
                             style={{ padding: isEditing ? '8px 12px' : '0', border: isEditing ? '1px solid var(--border-color)' : 'none', background: isEditing ? 'white' : 'transparent', minHeight: '80px', resize: isEditing ? 'vertical' : 'none', borderRadius: isEditing ? 'var(--radius-sm)' : 0, lineHeight: 1.6, width: '100%', outline: 'none' }}
                             name="projectDescription"
-                            value={formData.projectDescription}
+                                value={projectDescriptionValue}
                             onChange={handleInputChange}
                             disabled={isReadOnly}
                             placeholder="Describe the research goals..."
@@ -127,13 +192,24 @@ const DetailsSettings: React.FC<DetailsSettingsProps> = ({
                         </h4>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                             <div className="form-group">
-                                <label className="form-label" style={{ fontSize: '0.75rem' }}>Start Date</label>
-                                <input className="form-input" type="date" name="startDate" value={formData.startDate} onChange={handleInputChange} disabled={isReadOnly} style={{ fontSize: '0.9rem' }} />
+                                <label className="form-label" style={{ fontSize: '0.75rem', color: isStartDateAfterMilestone ? '#dc2626' : 'inherit' }}>Start Date</label>
+                                <input className="form-input" type="date" name="startDate" value={formData.startDate} onChange={handleInputChange} disabled={isReadOnly} min={todayStr} style={{ fontSize: '0.9rem', borderColor: isStartDateAfterMilestone ? '#dc2626' : '' }} />
+                                {isStartDateAfterMilestone && (
+                                    <p style={{ fontSize: '0.75rem', fontWeight: 600, color: '#dc2626', marginTop: '4px' }}>
+                                        Start date cannot be after earliest milestone ({earliestMilestoneStartDate!.split('T')[0]})
+                                    </p>
+                                )}
                             </div>
                             <div className="form-group">
-                                <label className="form-label" style={{ fontSize: '0.75rem', color: isDateInvalid ? 'var(--error)' : 'inherit' }}>End Date</label>
-                                <input className="form-input" type="date" name="endDate" value={formData.endDate} onChange={handleInputChange} disabled={isReadOnly} style={{ fontSize: '0.9rem', borderColor: isDateInvalid ? 'var(--error)' : '' }} />
-                                {isDateInvalid && <p style={{ fontSize: '0.65rem', color: 'var(--error)', marginTop: '4px' }}>Cannot end before start</p>}
+                                <label className="form-label" style={{ fontSize: '0.75rem', color: (isDateInvalid || isEndDateInPast || isEndDateBeforeMilestone) ? '#dc2626' : 'inherit' }}>End Date</label>
+                                <input className="form-input" type="date" name="endDate" value={formData.endDate} onChange={handleInputChange} disabled={isReadOnly} min={todayStr} style={{ fontSize: '0.9rem', borderColor: (isDateInvalid || isEndDateInPast || isEndDateBeforeMilestone) ? '#dc2626' : '' }} />
+                                {isDateInvalid && <p style={{ fontSize: '0.75rem', fontWeight: 600, color: '#dc2626', marginTop: '4px' }}>Cannot end before start date</p>}
+                                {!isDateInvalid && isEndDateInPast && <p style={{ fontSize: '0.75rem', fontWeight: 600, color: '#dc2626', marginTop: '4px' }}>End date cannot be in the past</p>}
+                                {!isDateInvalid && !isEndDateInPast && isEndDateBeforeMilestone && (
+                                    <p style={{ fontSize: '0.75rem', fontWeight: 600, color: '#dc2626', marginTop: '4px' }}>
+                                        Cannot end before latest milestone ({latestMilestoneDueDate!.split('T')[0]})
+                                    </p>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -193,38 +269,52 @@ const DetailsSettings: React.FC<DetailsSettingsProps> = ({
                 {/* Integration Row (Bottom Management) */}
                 <div style={{ marginTop: '2.5rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '3rem', flex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', height: '36px' }}>
-                            <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: statusStyle.color, flexShrink: 0 }} />
-                            <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Project Status</p>
-                            <div style={{ position: 'relative' }}>
-                                <select
-                                    value={formData.status}
-                                    onChange={(e) => handleStatusChange(parseInt(e.target.value))}
-                                    className="form-input"
-                                    style={{
-                                        padding: '0 20px 0 0',
-                                        fontSize: '0.9rem',
-                                        fontWeight: 700,
-                                        color: 'var(--text-primary)',
-                                        background: 'transparent',
-                                        border: 'none',
-                                        borderRadius: 0,
-                                        appearance: 'none',
-                                        cursor: 'pointer',
-                                        width: 'auto',
-                                        height: '36px',
-                                        display: 'flex',
-                                        alignItems: 'center'
-                                    }}
-                                    disabled={isReadOnly && !isAdmin}
-                                >
-                                    <option value={ProjectStatus.Active}>Active</option>
-                                    <option value={ProjectStatus.Inactive}>Inactive</option>
-                                    {(project?.status !== ProjectStatus.Archived || isAdmin) && <option value={ProjectStatus.Completed}>Completed</option>}
-                                    <option value={ProjectStatus.Archived}>Archived</option>
-                                </select>
-                                <ChevronDown size={14} style={{ position: 'absolute', right: '0', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-muted)' }} />
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', height: '36px' }}>
+                                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: hasNoEndDate ? '#94a3b8' : statusStyle.color, flexShrink: 0 }} />
+                                <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Project Status</p>
+                                {hasNoEndDate ? (
+                                    <div title="Set an end date and save first" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '0 10px', height: '36px', borderRadius: '8px', background: '#f1f5f9', border: '1px solid #e2e8f0', cursor: 'not-allowed' }}>
+                                        <Lock size={13} style={{ color: '#94a3b8' }} />
+                                        <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#94a3b8' }}>{['Inactive','Active','Completed','Archived'][formData.status - 1] ?? 'Unknown'}</span>
+                                    </div>
+                                ) : (
+                                    <div style={{ position: 'relative' }}>
+                                        <select
+                                            value={formData.status}
+                                            onChange={(e) => handleStatusChange(parseInt(e.target.value))}
+                                            className="form-input"
+                                            style={{
+                                                padding: '0 20px 0 0',
+                                                fontSize: '0.9rem',
+                                                fontWeight: 700,
+                                                color: 'var(--text-primary)',
+                                                background: 'transparent',
+                                                border: 'none',
+                                                borderRadius: 0,
+                                                appearance: 'none',
+                                                cursor: 'pointer',
+                                                width: 'auto',
+                                                height: '36px',
+                                                display: 'flex',
+                                                alignItems: 'center'
+                                            }}
+                                            disabled={isReadOnly && !isAdmin}
+                                        >
+                                            {allowedStatuses.includes(ProjectStatus.Inactive) && <option value={ProjectStatus.Inactive}>Inactive</option>}
+                                            {allowedStatuses.includes(ProjectStatus.Active) && <option value={ProjectStatus.Active}>Active</option>}
+                                            {allowedStatuses.includes(ProjectStatus.Completed) && <option value={ProjectStatus.Completed}>Completed</option>}
+                                            {allowedStatuses.includes(ProjectStatus.Archived) && <option value={ProjectStatus.Archived}>Archived</option>}
+                                        </select>
+                                        <ChevronDown size={14} style={{ position: 'absolute', right: '0', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-muted)' }} />
+                                    </div>
+                                )}
                             </div>
+                            {hasNoEndDate && (
+                                <p style={{ margin: 0, fontSize: '0.72rem', color: '#b45309', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <Lock size={11} /> Please set an End Date and save before changing status.
+                                </p>
+                            )}
                         </div>
 
                         <div style={{ width: '1px', height: '20px', background: 'var(--border-color)' }} />
@@ -243,13 +333,13 @@ const DetailsSettings: React.FC<DetailsSettingsProps> = ({
                                 onClick={() => { handleSubmit(); setIsEditing(false); }}
                                 className="btn btn-primary"
                                 style={{ height: '36px', padding: '0 20px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}
-                                disabled={submitting || isDateInvalid}
+                                disabled={submitting || isDateInvalid || isStartDateInPast || isEndDateInPast || isEndDateBeforeMilestone || isStartDateAfterMilestone || isProjectNameInvalid}
                             >
                                 {submitting ? <div className="loader-sm" /> : <Save size={16} />}
                                 Save Changes
                             </button>
                         )}
-                        {canDeleteProject && !isArchived && (
+                        {canDeleteProject && (isAdmin || isInactive) && !isArchived && (
                             <button
                                 onClick={() => setIsDeleteConfirmOpen(true)}
                                 className="btn"

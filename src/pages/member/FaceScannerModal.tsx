@@ -1,30 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import Modal from '@/components/common/Modal';
-import { Camera, User as UserIcon, ShieldCheck, Play, Square } from 'lucide-react';
+import { Camera, ShieldCheck, Play, Square } from 'lucide-react';
 import { faceService } from '@/services/faceService';
+import { useToastStore } from '@/store/slices/toastSlice';
 
 interface FaceScannerModalProps {
     isOpen: boolean;
     onClose: () => void;
-    initialUserId: string;
+    initialStudentId: string;
     userName: string;
 }
 
-const FaceScannerModal: React.FC<FaceScannerModalProps> = ({ isOpen, onClose, initialUserId, userName }) => {
-    const [userId, setUserId] = useState(initialUserId);
+const FaceScannerModal: React.FC<FaceScannerModalProps> = ({ isOpen, onClose, initialStudentId, userName }) => {
     const [isScanning, setIsScanning] = useState(false);
     const [status, setStatus] = useState<string | null>(null);
     const videoRef = React.useRef<HTMLVideoElement>(null);
+    const { addToast } = useToastStore();
 
     useEffect(() => {
         if (isOpen) {
-            setUserId(initialUserId);
             setIsScanning(false);
             setStatus(null);
         } else {
             setIsScanning(false);
         }
-    }, [isOpen, initialUserId]);
+    }, [isOpen, initialStudentId]);
 
     useEffect(() => {
         let stream: MediaStream | null = null;
@@ -49,21 +49,22 @@ const FaceScannerModal: React.FC<FaceScannerModalProps> = ({ isOpen, onClose, in
     }, [isOpen]);
 
     const handleStart = async () => {
-        if (!userId) {
-            alert('Please enter a User ID');
+        const studentId = String(initialStudentId || '').trim();
+        if (!studentId) {
+            alert('Student ID is missing.');
             return;
         }
         setIsScanning(true);
         setStatus('Connecting to Biometric Engine...');
         
         try {
-            const data = await faceService.startAddUser(userId);
+            const data = await faceService.startAddUser(studentId);
             setStatus(data.message || 'System Active. Scanning face...');
         } catch (err) {
             console.error('Start scan failed:', err);
             setStatus('Connection failed. Is the Biometric BE running?');
             setIsScanning(false);
-            alert((err as any).message || 'Failed to start biometric registration.');
+            addToast((err as any).message || 'Failed to start biometric registration.', 'error');
         }
     };
 
@@ -73,7 +74,7 @@ const FaceScannerModal: React.FC<FaceScannerModalProps> = ({ isOpen, onClose, in
             await faceService.stopAddUser();
             setIsScanning(false);
             setStatus(null);
-            alert('Biometric registration process stopped.');
+            addToast('Biometric registration process stopped.', 'success');
         } catch (err) {
             console.error('Stop scan failed:', err);
             setIsScanning(false);
@@ -87,6 +88,7 @@ const FaceScannerModal: React.FC<FaceScannerModalProps> = ({ isOpen, onClose, in
             onClose={onClose}
             title="Biometric Registration"
             maxWidth="500px"
+            disableBackdropClose
         >
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                 <div style={{ textAlign: 'center' }}>
@@ -101,23 +103,8 @@ const FaceScannerModal: React.FC<FaceScannerModalProps> = ({ isOpen, onClose, in
                     <h3 style={{ margin: '0 0 8px 0', fontSize: '1.2rem' }}>Face Recognition Setup</h3>
                     <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
                         Register biometrics for <strong>{userName}</strong>
+                        {initialStudentId && <span style={{ color: 'var(--text-muted)', marginLeft: '4px' }}>({initialStudentId})</span>}
                     </p>
-                </div>
-
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label className="form-label" style={{ fontSize: '0.75rem' }}>Confirm User ID</label>
-                    <div style={{ position: 'relative' }}>
-                        <UserIcon size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                        <input 
-                            type="text" 
-                            className="form-input" 
-                            value={userId}
-                            onChange={(e) => setUserId(e.target.value)}
-                            style={{ paddingLeft: '40px' }}
-                            placeholder="Enter unique ID..."
-                            disabled={isScanning}
-                        />
-                    </div>
                 </div>
 
                 <div style={{

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-    Clock, Loader2, Info, List
+    Clock, Loader2, Info
 } from 'lucide-react';
 import { Milestone, Task } from '@/types';
 import { taskService } from '@/services/taskService';
@@ -13,6 +13,7 @@ interface TimelineActivity {
     createdAt: string;
     performedByFullName: string;
     performedByEmail: string;
+    taskStatus?: number;
 }
 
 interface TaskWithActivities extends Task {
@@ -26,7 +27,6 @@ interface ActivityTimelineProps {
     projectId: string;
     isSpecialRole: boolean;
     viewMode: 'list' | 'timeline';
-    setViewMode: (mode: 'list' | 'timeline') => void;
 }
 
 const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
@@ -36,7 +36,6 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
     currentMember,
     isSpecialRole,
     // viewMode,
-    setViewMode
 }) => {
     const [timelineMode, setTimelineMode] = useState<'milestone' | 'member'>('milestone');
     const [selectedMilestoneId, setSelectedMilestoneId] = useState<string>('');
@@ -191,13 +190,25 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
 
     const getStatusColor = (status: number) => {
         switch (status) {
-            case 1: return '#94a3b8'; // Todo
+            case 1: return '#64748b'; // Todo
             case 2: return '#0ea5e9'; // InProgress
-            case 3: return '#a855f7'; // Submitted
+            case 3: return '#d97706'; // Submitted
             case 4: return '#ef4444'; // Missed
-            case 5: return '#f59e0b'; // Adjusting
+            case 5: return '#a855f7'; // Adjusting
             case 6: return '#10b981'; // Completed
-            default: return '#cbd5e1';
+            default: return '#94a3b8';
+        }
+    };
+
+    const getStatusName = (status: number) => {
+        switch (status) {
+            case 1: return 'Todo';
+            case 2: return 'In Progress';
+            case 3: return 'Submitted';
+            case 4: return 'Missed';
+            case 5: return 'Adjusting';
+            case 6: return 'Completed';
+            default: return '';
         }
     };
 
@@ -288,76 +299,93 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
             new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
         );
 
-        const getStatusFromAction = (action: string) => {
-            const a = action.toLowerCase();
-            if (a.includes('inprogress')) return 2;
-            if (a.includes('submitted')) return 3;
-            if (a.includes('missed')) return 4;
-            if (a.includes('adjusting')) return 5;
-            if (a.includes('completed')) return 6;
-            if (a.includes('todo')) return 1;
-            return 1;
-        };
+        const getStatusFromLog = (log: any): number => log.taskStatus ?? 1;
 
         const now = new Date();
         const timelineEnd = timelineRange.end;
 
         const transitions: { from: Date, to: Date, status: number }[] = [];
-        let currentPos = new Date(task.startDate || (sortedLogs.length > 0 ? sortedLogs[0].createdAt : task.updatedDate || now));
+        let currentPos = new Date(task.createdAt || (sortedLogs.length > 0 ? sortedLogs[0].createdAt : null) || timelineRange.start);
         let currentStatus = 1;
 
         sortedLogs.forEach((log) => {
             const logTime = new Date(log.createdAt);
-            const nextStatus = getStatusFromAction(log.action);
-            if (logTime > currentPos || nextStatus !== currentStatus) {
-                transitions.push({ from: new Date(currentPos), to: new Date(logTime), status: currentStatus });
+            const nextStatus = getStatusFromLog(log);
+            if (logTime > currentPos) {
+                transitions.push({ from: new Date(currentPos), to: logTime, status: currentStatus });
                 currentPos = logTime;
-                currentStatus = nextStatus;
             }
+            // Always update status (handles same-timestamp status changes)
+            currentStatus = nextStatus;
         });
 
         const actualEndDate = (task.status === 6) ? new Date(task.updatedDate || now) : now;
         const cappedEnd = actualEndDate > timelineEnd ? timelineEnd : actualEndDate;
+        const isMissed = task.status !== 6 && task.dueDate && now > new Date(task.dueDate);
         if (cappedEnd > currentPos) {
-            transitions.push({ from: new Date(currentPos), to: new Date(cappedEnd), status: currentStatus });
+            if (isMissed) {
+                const dueDate = new Date(task.dueDate!);
+                if (dueDate > currentPos) {
+                    // segment before deadline: keep current status
+                    transitions.push({ from: new Date(currentPos), to: dueDate, status: currentStatus });
+                }
+                // segment after deadline: Missed (status 4)
+                const missedStart = dueDate > currentPos ? dueDate : new Date(currentPos);
+                if (cappedEnd > missedStart) {
+                    transitions.push({ from: missedStart, to: new Date(cappedEnd), status: 4 });
+                }
+            } else {
+                transitions.push({ from: new Date(currentPos), to: new Date(cappedEnd), status: currentStatus });
+            }
         }
+
+        const duePctGlobal = task.dueDate ? getPositionPercent(task.dueDate) : null;
+        const lineOriginDate: string | null = task.createdAt || (sortedLogs.length > 0 ? sortedLogs[0].createdAt : null) || timelineRange.start.toISOString();
 
         return (
             <div style={{ display: 'flex', minHeight: '65px', alignItems: 'center', position: 'relative', width: '100%', borderBottom: '1px solid #f8fafc' }}>
-                <div style={{ position: 'relative', height: '100%', flex: 1, width: '100%' }}>
-                    {task.startDate && (
-                        <button
-                            onClick={() => handleTaskClick(task.taskId || (task as any).id)}
-                            onMouseEnter={() => setIsHovered(true)}
-                            onMouseLeave={() => setIsHovered(false)}
-                            style={{
-                                position: 'absolute',
-                                left: `${getPositionPercent(task.startDate)}%`,
-                                top: '8px',
-                                padding: '3px 10px',
-                                background: 'white',
-                                border: '1px solid #e2e8f0',
-                                borderRadius: '7px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                                zIndex: 10,
-                                transform: 'translateX(-12px)',
-                                cursor: 'pointer',
-                                transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-                                boxShadow: isHovered ? '0 6px 14px rgba(0,0,0,0.06)' : '0 2px 4px rgba(0,0,0,0.03)',
-                                borderColor: isHovered ? 'var(--primary-color)' : '#e2e8f0',
-                                outline: 'none'
-                            }}
-                        >
-                            <span style={{ fontSize: '0.7rem', fontWeight: 800, color: isHovered ? 'var(--primary-color)' : '#1e293b', whiteSpace: 'nowrap', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                {task.name}
-                            </span>
-                            <span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '1px 6px', borderRadius: '5px' }}>
-                                {(task as any).performerFullName || (task as any).assignedToFullName || 'U'}
-                            </span>
-                        </button>
-                    )}
+                {/* Zero-width sticky wrapper — overlays timeline without pushing it */}
+                <div style={{ position: 'sticky', left: 0, width: 0, flexShrink: 0, zIndex: 20, alignSelf: 'center' }}>
+                    <button
+                        onClick={() => handleTaskClick(task.taskId || (task as any).id)}
+                        onMouseEnter={() => setIsHovered(true)}
+                        onMouseLeave={() => setIsHovered(false)}
+                        style={{
+                            position: 'absolute',
+                            left: '8px',
+                            top: '10px',
+                            transform: 'translateY(-50%)',
+                            width: '180px',
+                            padding: '3px 10px',
+                            background: isHovered ? '#f0f9ff' : 'white',
+                            border: `1px solid ${isHovered ? 'var(--primary-color)' : '#e2e8f0'}`,
+                            borderRadius: '7px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            cursor: 'pointer',
+                            transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                            boxShadow: isHovered ? '0 6px 14px rgba(0,0,0,0.06)' : '0 2px 4px rgba(0,0,0,0.03)',
+                            outline: 'none',
+                        }}
+                    >
+                        <span style={{ fontSize: '0.7rem', fontWeight: 800, color: isHovered ? 'var(--primary-color)' : '#1e293b', whiteSpace: 'nowrap', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'left' }}>
+                            {task.name}
+                        </span>
+                    </button>
+                </div>
+                <div style={{ position: 'relative', height: '100%', width: '100%' }}>
+
+                    {/* Thin background line from creation to due (or now if no dueDate, or completion) */}
+                    {lineOriginDate && (() => {
+                        const lineEndPct = task.status === 6 && task.updatedDate
+                            ? Math.min(getPositionPercent(task.updatedDate), 100)
+                            : Math.min(duePctGlobal ?? getPositionPercent(new Date().toISOString()), 100);
+                        const lineStartPct = Math.max(getPositionPercent(lineOriginDate), 0);
+                        const lineWidth = Math.max(lineEndPct - lineStartPct, 0);
+                        if (lineWidth === 0) return null;
+                        return <div style={{ position: 'absolute', left: `${lineStartPct}%`, width: `${lineWidth}%`, top: '43px', height: '2px', background: '#e2e8f0', borderRadius: '2px', zIndex: 1, pointerEvents: 'none' }} />;
+                    })()}
 
                     <div
                         onMouseEnter={() => setIsHovered(true)}
@@ -366,37 +394,73 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
                     />
 
                     {transitions.map((t, i) => {
-                        const startPct = getPositionPercent(t.from.toISOString());
-                        const endPct = getPositionPercent(t.to.toISOString());
+                        const startPct = Math.max(getPositionPercent(t.from.toISOString()), 0);
+                        const endPct = Math.min(getPositionPercent(t.to.toISOString()), 100);
                         const widthPct = endPct - startPct;
+                        if (widthPct <= 0) return null;
                         return (
-                            <div key={i} style={{ position: 'absolute', left: `${startPct}%`, top: '40px', width: `${Math.max(widthPct, 0.5)}%`, height: '7px', background: getStatusColor(t.status), borderRadius: '4px', zIndex: 2, opacity: isHovered ? 1 : 0.85, filter: isHovered ? 'brightness(1.1)' : 'none', transition: 'all 0.2s ease', pointerEvents: 'none' }} />
+                            <div key={i} style={{ position: 'absolute', left: `${startPct}%`, top: '40px', width: `${widthPct}%`, height: '7px', background: getStatusColor(t.status), borderRadius: '4px', zIndex: 2, opacity: isHovered ? 1 : 0.85, filter: isHovered ? 'brightness(1.1)' : 'none', transition: 'all 0.2s ease', pointerEvents: 'none' }} />
                         );
                     })}
 
-                    {task.startDate && new Date(task.startDate) >= timelineRange.start && new Date(task.startDate) <= timelineRange.end && (
-                        <div style={{ position: 'absolute', left: `${getPositionPercent(task.startDate)}%`, top: '40px', width: '16px', height: '16px', borderRadius: '50%', background: 'white', border: `3.5px solid #94a3b8`, transform: 'translate(-50%, -5px)', zIndex: 10, cursor: 'help', boxShadow: '0 2px 6px rgba(0,0,0,0.1)' }} title={`Planned Start: ${new Date(task.startDate).toLocaleDateString()}`} />
-                    )}
+                    {task.startDate && new Date(task.startDate) >= timelineRange.start && new Date(task.startDate) <= timelineRange.end && (() => {
+                        const startUtc7 = new Date(new Date(task.startDate).getTime() + 7 * 60 * 60 * 1000);
+                        const startTooltip = `Plan Start: ${startUtc7.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} ${startUtc7.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })} (UTC+7)`;
+                        return (
+                            <div title={startTooltip} style={{ position: 'absolute', left: `${getPositionPercent(task.startDate)}%`, top: '22px', transform: 'translateX(-50%)', zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px', cursor: 'help' }}>
+                                <span style={{ fontSize: '0.5rem', fontWeight: 900, color: '#64748b', whiteSpace: 'nowrap', background: 'white', padding: '0 3px', lineHeight: 1.3, textTransform: 'uppercase', letterSpacing: '0.04em', borderRadius: '3px' }}>Plan Start</span>
+                                <div style={{ width: '14px', height: '14px', borderRadius: '50%', background: 'white', border: '3px solid #94a3b8', boxShadow: '0 2px 6px rgba(0,0,0,0.12)' }} />
+                                <span style={{ fontSize: '0.52rem', fontWeight: 700, color: '#64748b', whiteSpace: 'nowrap', background: 'white', padding: '0 2px', lineHeight: 1.2 }}>
+                                    {new Date(task.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                </span>
+                            </div>
+                        );
+                    })()}
 
                     {sortedLogs.map((log) => {
                         const logDate = new Date(log.createdAt);
                         if (logDate < timelineRange.start || logDate > timelineRange.end) return null;
+                        // Completed logs are represented by the dedicated Completed marker
+                        if (task.status === 6 && log.taskStatus === 6) return null;
                         const posPct = getPositionPercent(log.createdAt);
-                        const status = getStatusFromAction(log.action);
+                        const status = getStatusFromLog(log);
+                        const isEarlyStart = status === 2 && !!task.startDate && logDate < new Date(task.startDate);
+                        const displayName = isEarlyStart ? 'Early Start' : getStatusName(status);
                         return (
-                            <div key={log.id} style={{ position: 'absolute', left: `${posPct}%`, top: '40px', width: '12px', height: '12px', borderRadius: '50%', background: getStatusColor(status), transform: 'translate(-50%, -2.5px)', zIndex: 15, cursor: 'help', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} title={`${log.performedByFullName}: ${log.action}\nTime: ${new Date(log.createdAt).toLocaleString()}`} />
+                            <React.Fragment key={log.id}>
+                                <div style={{ position: 'absolute', left: `${posPct}%`, top: '40px', width: '12px', height: '12px', borderRadius: '50%', background: getStatusColor(status), transform: 'translate(-50%, -2.5px)', zIndex: 15, cursor: 'help', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} title={`${log.performedByFullName}: ${log.action}\nTime: ${new Date(log.createdAt).toLocaleString()}`} />
+                                <span style={{ position: 'absolute', left: `${posPct}%`, top: '52px', transform: 'translateX(-50%)', zIndex: 15, fontSize: '0.45rem', fontWeight: 900, color: getStatusColor(status), whiteSpace: 'nowrap', background: 'white', padding: '0 2px', lineHeight: 1.2, borderRadius: '3px', pointerEvents: 'none' }}>{displayName}</span>
+                            </React.Fragment>
                         );
                     })}
 
-                    {task.dueDate && new Date(task.dueDate) >= timelineRange.start && new Date(task.dueDate) <= timelineRange.end && (
-                        <div style={{ position: 'absolute', left: `${getPositionPercent(task.dueDate)}%`, top: '40px', width: '16px', height: '16px', borderRadius: '50%', background: 'white', border: `3.5px solid #ef4444`, transform: 'translate(-50%, -5px)', zIndex: 10, cursor: 'help', boxShadow: '0 2px 6px rgba(0,0,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title={`Deadline: ${new Date(task.dueDate).toLocaleDateString()}`}>
-                            <span style={{ fontSize: '9px', fontWeight: 900, color: '#ef4444' }}>!</span>
+                    {task.dueDate && new Date(task.dueDate) >= timelineRange.start && new Date(task.dueDate) <= timelineRange.end &&
+                        !(task.status === 6 && task.updatedDate && new Date(task.updatedDate) <= new Date(task.dueDate)) && (
+                        <div style={{ position: 'absolute', left: `${getPositionPercent(task.dueDate)}%`, top: '22px', transform: 'translateX(-50%)', zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px', pointerEvents: 'none' }}>
+                            <span style={{ fontSize: '0.5rem', fontWeight: 900, color: '#ef4444', whiteSpace: 'nowrap', background: 'white', padding: '0 3px', lineHeight: 1.3, textTransform: 'uppercase', letterSpacing: '0.04em', borderRadius: '3px' }}>Deadline</span>
+                            <div style={{ width: '14px', height: '14px', borderRadius: '50%', background: 'white', border: '3px solid #ef4444', boxShadow: '0 2px 6px rgba(0,0,0,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <span style={{ fontSize: '8px', fontWeight: 900, color: '#ef4444', lineHeight: 1 }}>!</span>
+                            </div>
+                            <span style={{ fontSize: '0.52rem', fontWeight: 700, color: '#ef4444', whiteSpace: 'nowrap', background: 'white', padding: '0 2px', lineHeight: 1.2 }}>
+                                {new Date(task.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            </span>
                         </div>
                     )}
 
-                    {task.status === 6 && task.updatedDate && new Date(task.updatedDate) >= timelineRange.start && new Date(task.updatedDate) <= timelineRange.end && (
-                        <div style={{ position: 'absolute', left: `${getPositionPercent(task.updatedDate)}%`, top: '40px', width: '12px', height: '12px', borderRadius: '50%', background: '#10b981', border: '2px solid white', transform: 'translate(-50%, -3px)', zIndex: 11, cursor: 'help', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }} title={`Completed on: ${new Date(task.updatedDate).toLocaleString()}`} />
-                    )}
+                    {(() => {
+                        if (task.status !== 6) return null;
+                        // Use completion log's createdAt so the dot aligns with the log position
+                        const completionLog = [...sortedLogs].reverse().find(l => l.taskStatus === 6);
+                        const completionDate = completionLog ? completionLog.createdAt : task.updatedDate;
+                        if (!completionDate) return null;
+                        const cd = new Date(completionDate);
+                        if (cd < timelineRange.start || cd > timelineRange.end) return null;
+                        const posPct = getPositionPercent(completionDate);
+                        return (<>
+                            <span style={{ position: 'absolute', left: `${posPct}%`, top: '27px', transform: 'translateX(-50%)', zIndex: 11, fontSize: '0.5rem', fontWeight: 900, color: '#10b981', whiteSpace: 'nowrap', background: 'white', padding: '0 3px', lineHeight: 1.3, textTransform: 'uppercase', letterSpacing: '0.04em', borderRadius: '3px', pointerEvents: 'none' }}>Completed</span>
+                            <div title={`Completed on: ${cd.toLocaleString()}`} style={{ position: 'absolute', left: `${posPct}%`, top: '40px', width: '16px', height: '16px', borderRadius: '50%', background: 'white', border: '3.5px solid #10b981', transform: 'translate(-50%, -5px)', zIndex: 11, boxShadow: '0 2px 6px rgba(0,0,0,0.1)', pointerEvents: 'none' }} />
+                        </>);
+                    })()}
                 </div>
             </div>
         );
@@ -444,10 +508,6 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
                             </select>
                         </div>
 
-                        <div style={{ display: 'flex', background: '#f1f5f9', padding: '2px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                            <button onClick={() => setViewMode('list')} style={{ padding: '4px 10px', borderRadius: '6px', border: 'none', fontSize: '0.65rem', fontWeight: 700, cursor: 'pointer', background: 'transparent' }}><div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><List size={12} />List</div></button>
-                            <button onClick={() => setViewMode('timeline')} style={{ padding: '4px 10px', borderRadius: '6px', border: 'none', fontSize: '0.65rem', fontWeight: 800, cursor: 'pointer', background: 'white', color: 'var(--primary-color)' }}><div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Clock size={12} />Timeline</div></button>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -502,13 +562,13 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
                             </div>
                         </div>
                         <div style={{ flex: 1, overflowY: 'auto', padding: '1.25rem' }} className="custom-scrollbar">
-                            <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '1rem', letterSpacing: '0.05em' }}>Status Activity Log</div>
+                            <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '1rem', letterSpacing: '0.05em' }}>Status Task Log</div>
                             {selectedDetailTask.activities.length > 0 ? (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                                    {[...selectedDetailTask.activities].reverse().map((log, index) => (
+                                    {[...selectedDetailTask.activities].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).map((log, index) => (
                                         <div key={log.id} style={{ display: 'flex', gap: '12px', position: 'relative' }}>
                                             {index !== selectedDetailTask.activities.length - 1 && (<div style={{ position: 'absolute', left: '7px', top: '22px', bottom: '-10px', width: '1px', background: '#f1f5f9' }} />)}
-                                            <div style={{ width: '15px', height: '15px', borderRadius: '50%', background: getStatusColor(2), marginTop: '3px', flexShrink: 0, border: '3px solid white', boxShadow: '0 0 0 1px #f1f5f9' }} />
+                                            <div style={{ width: '15px', height: '15px', borderRadius: '50%', background: getStatusColor(log.taskStatus ?? 1), marginTop: '3px', flexShrink: 0, border: '3px solid white', boxShadow: '0 0 0 1px #f1f5f9' }} />
                                             <div>
                                                 <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#334155' }}>{log.action}</div>
                                                 <div style={{ fontSize: '0.65rem', color: '#64748b', marginTop: '2px' }}>

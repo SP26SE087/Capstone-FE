@@ -9,16 +9,15 @@ import {
     Calendar,
     FileText,
     Briefcase,
-    AlertCircle,
     Plus,
     Check,
     Search,
     ShieldAlert
 } from 'lucide-react';
-import { toApiDate } from '@/utils/projectUtils';
-
-
+import { getVietnamDateInputValue, toApiDate } from '@/utils/projectUtils';
+import { validateSpecialChars } from '@/utils/validation';
 import { useAuth } from '@/hooks/useAuth';
+
 
 const CreateProject: React.FC = () => {
     const navigate = useNavigate();
@@ -27,11 +26,12 @@ const CreateProject: React.FC = () => {
     const [availableFields, setAvailableFields] = useState<ResearchField[]>([]);
     const [selectedFieldIds, setSelectedFieldIds] = useState<string[]>([]);
     const [fieldSearchTerm, setFieldSearchTerm] = useState('');
+    const [fieldErrors, setFieldErrors] = useState<{ projectName?: string; projectDescription?: string }>({});
 
     const [formData, setFormData] = useState({
         projectName: '',
         projectDescription: '',
-        startDate: '',
+        startDate: getVietnamDateInputValue(),
         endDate: '',
     });
 
@@ -46,6 +46,9 @@ const CreateProject: React.FC = () => {
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
+        if (name === 'projectName' || name === 'projectDescription') {
+            setFieldErrors(prev => ({ ...prev, [name]: validateSpecialChars(value) }));
+        }
     };
 
     const toggleField = (fieldId: string) => {
@@ -58,20 +61,36 @@ const CreateProject: React.FC = () => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setSubmitting(true);
+        const nameError = validateSpecialChars(formData.projectName);
+        const descError = validateSpecialChars(formData.projectDescription);
+        if (nameError || descError) {
+            setFieldErrors({ projectName: nameError, projectDescription: descError });
+            return;
+        }
         try {
-            const today = new Date().toISOString().split('T')[0];
-            const startDate = formData.startDate || today;
+            const todayVn = getVietnamDateInputValue();
+            const startDate = formData.startDate || todayVn;
+
+            if (startDate < todayVn) {
+                alert('Start date cannot be in the past.');
+                return;
+            }
+
+            if (formData.endDate && formData.endDate < startDate) {
+                alert('End date cannot be earlier than start date.');
+                return;
+            }
+
+            setSubmitting(true);
 
             const projectData = {
                 projectName: formData.projectName,
                 projectDescription: formData.projectDescription,
                 startDate: toApiDate(startDate),
                 endDate: toApiDate(formData.endDate),
+                status: 2, // 2 is Inactive/Pending
                 researchFieldIds: selectedFieldIds || []
             };
-
-            console.log('Submitting project to API:', projectData);
 
             await projectService.create(projectData);
             navigate('/projects');
@@ -84,12 +103,10 @@ const CreateProject: React.FC = () => {
         }
     };
 
-
-
     return (
         <MainLayout role={user.role} userName={user.name}>
             <div className="page-container" style={{ margin: '0 auto' }}>
-                <header className="page-header" style={{ marginBottom: '2.5rem' }}>
+                <header className="page-header" style={{ marginBottom: '1.5rem' }}>
                     <div>
                         <h1>Create New Project</h1>
                         <p>Initialize a new research initiative in the lab.</p>
@@ -104,196 +121,235 @@ const CreateProject: React.FC = () => {
                     </button>
                 </header>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '2rem' }}>
-                    <form onSubmit={handleSubmit} className="card" style={{ padding: '2.5rem', marginBottom: 0 }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-                            <section>
-                                <h3 style={{ margin: '0 0 1.25rem', fontSize: '1.1rem', fontWeight: 700 }}>Basic Information</h3>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                                    <div className="form-group" style={{ marginBottom: 0 }}>
-                                        <label className="form-label" htmlFor="projectName">Project Name</label>
-                                        <div style={{ position: 'relative' }}>
-                                            <Briefcase size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                                            <input
-                                                className="form-input"
-                                                style={{ paddingLeft: '40px' }}
-                                                type="text"
-                                                id="projectName"
-                                                name="projectName"
-                                                placeholder="e.g. AI-Powered Medical Diagnosis"
-                                                value={formData.projectName}
-                                                onChange={handleInputChange}
-                                                required
-                                            />
-                                        </div>
-                                    </div>
+                <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
 
-                                    <div className="form-group" style={{ marginBottom: 0 }}>
-                                        <label className="form-label" htmlFor="projectDescription">Project Description</label>
-                                        <div style={{ position: 'relative' }}>
-                                            <FileText size={18} style={{ position: 'absolute', left: '12px', top: '12px', color: 'var(--text-muted)' }} />
-                                            <textarea
-                                                className="form-input"
-                                                style={{ paddingLeft: '40px', minHeight: '120px', resize: 'vertical' }}
-                                                id="projectDescription"
-                                                name="projectDescription"
-                                                placeholder="Briefly describe the goals and scope of the project..."
-                                                value={formData.projectDescription}
-                                                onChange={handleInputChange}
-                                                required
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-                            </section>
+                    {/* ── Left: Form ── */}
+                    <form
+                        onSubmit={handleSubmit}
+                        className="card"
+                        style={{ flex: 3, padding: '1.75rem', marginBottom: 0, display: 'flex', flexDirection: 'column', gap: '1.25rem' }}
+                    >
+                        {/* Project Name */}
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label" htmlFor="projectName">Project Name</label>
+                            <div style={{ position: 'relative' }}>
+                                <Briefcase size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                                <input
+                                    className="form-input"
+                                    style={{ paddingLeft: '38px', borderColor: fieldErrors.projectName ? 'var(--danger)' : undefined }}
+                                    type="text"
+                                    id="projectName"
+                                    name="projectName"
+                                    placeholder="e.g. AI-Powered Medical Diagnosis"
+                                    value={formData.projectName}
+                                    onChange={handleInputChange}
+                                    required
+                                />
+                            </div>
+                            {fieldErrors.projectName && (
+                                <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: 'var(--danger)' }}>{fieldErrors.projectName}</p>
+                            )}
+                        </div>
 
-                            <section>
-                                <h3 style={{ margin: '0 0 1.25rem', fontSize: '1.1rem', fontWeight: 700 }}>Project Timeline</h3>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }}>
-                                    <div className="form-group" style={{ marginBottom: 0 }}>
-                                        <label className="form-label" htmlFor="startDate">Expected Start Date</label>
-                                        <div style={{ position: 'relative' }}>
-                                            <Calendar size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                                            <input
-                                                className="form-input"
-                                                style={{ paddingLeft: '40px' }}
-                                                type="date"
-                                                id="startDate"
-                                                name="startDate"
-                                                value={formData.startDate}
-                                                onChange={handleInputChange}
-                                            />
-                                        </div>
-                                    </div>
-                                    <div className="form-group" style={{ marginBottom: 0 }}>
-                                        <label className="form-label" htmlFor="endDate">Expected End Date</label>
-                                        <div style={{ position: 'relative' }}>
-                                            <Calendar size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                                            <input
-                                                className="form-input"
-                                                style={{ paddingLeft: '40px' }}
-                                                type="date"
-                                                id="endDate"
-                                                name="endDate"
-                                                value={formData.endDate}
-                                                onChange={handleInputChange}
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-                            </section>
+                        {/* Description */}
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label" htmlFor="projectDescription">Project Description</label>
+                            <div style={{ position: 'relative' }}>
+                                <FileText size={16} style={{ position: 'absolute', left: '12px', top: '11px', color: 'var(--text-muted)' }} />
+                                <textarea
+                                    className="form-input"
+                                    style={{ paddingLeft: '38px', minHeight: '90px', resize: 'vertical', borderColor: fieldErrors.projectDescription ? 'var(--danger)' : undefined }}
+                                    id="projectDescription"
+                                    name="projectDescription"
+                                    placeholder="Briefly describe the goals and scope of the project..."
+                                    value={formData.projectDescription}
+                                    onChange={handleInputChange}
+                                    required
+                                />
+                            </div>
+                            {fieldErrors.projectDescription && (
+                                <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: 'var(--danger)' }}>{fieldErrors.projectDescription}</p>
+                            )}
+                        </div>
 
-                            <section>
-                                <h3 style={{ margin: '0 0 1.25rem', fontSize: '1.1rem', fontWeight: 700 }}>Research Fields</h3>
-                                
-                                <div style={{ position: 'relative', marginBottom: '1rem' }}>
-                                    <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                        {/* Timeline */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                            <div className="form-group" style={{ marginBottom: 0 }}>
+                                <label className="form-label" htmlFor="startDate">Start Date</label>
+                                <div style={{ position: 'relative' }}>
+                                    <Calendar size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                                     <input
-                                        type="text"
-                                        placeholder="Search fields..."
                                         className="form-input"
-                                        style={{ paddingLeft: '36px', height: '42px', fontSize: '0.9rem' }}
-                                        value={fieldSearchTerm}
-                                        onChange={(e) => setFieldSearchTerm(e.target.value)}
+                                        style={{ paddingLeft: '38px' }}
+                                        type="date"
+                                        id="startDate"
+                                        name="startDate"
+                                        min={getVietnamDateInputValue()}
+                                        value={formData.startDate}
+                                        onChange={(e) => {
+                                            const nextStartDate = e.target.value;
+                                            setFormData(prev => ({
+                                                ...prev,
+                                                startDate: nextStartDate,
+                                                endDate: prev.endDate && prev.endDate < nextStartDate ? nextStartDate : prev.endDate
+                                            }));
+                                        }}
                                     />
                                 </div>
-
-                                <div style={{
-                                    display: 'flex',
-                                    flexWrap: 'wrap',
-                                    gap: '10px',
-                                    padding: '1.25rem',
-                                    background: 'var(--surface-hover)',
-                                    borderRadius: 'var(--radius-md)',
-                                    border: '1px solid var(--border-color)',
-                                    maxHeight: '240px',
-                                    overflowY: 'auto'
-                                }}
-                                className="custom-scrollbar"
-                                >
-                                    {availableFields.length > 0 ? (
-                                        availableFields.filter(f => f.name.toLowerCase().includes(fieldSearchTerm.toLowerCase())).length > 0 ? (
-                                            availableFields
-                                                .filter(f => f.name.toLowerCase().includes(fieldSearchTerm.toLowerCase()))
-                                                .map((field) => (
-                                                    <button
-                                                        key={field.researchFieldId}
-                                                        type="button"
-                                                        onClick={() => toggleField(field.researchFieldId)}
-                                                        className={`filter-chip ${selectedFieldIds.includes(field.researchFieldId) ? 'active' : ''}`}
-                                                        style={{
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            gap: '6px',
-                                                            transition: 'all 0.2s',
-                                                        }}
-                                                    >
-                                                        {selectedFieldIds.includes(field.researchFieldId) ? <Check size={14} /> : <Plus size={14} />}
-                                                        {field.name}
-                                                    </button>
-                                                ))
-                                        ) : (
-                                            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: '0 auto', padding: '10px' }}>
-                                                No research fields match your search.
-                                            </p>
-                                        )
-                                    ) : (
-                                        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>Loading research fields...</p>
-                                    )}
-                                </div>
-                                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <AlertCircle size={14} />
-                                    Only administrators can create new research fields.
-                                </p>
-                            </section>
-
-                            <div style={{
-                                display: 'flex',
-                                gap: '1rem',
-                                marginTop: '1.5rem',
-                                borderTop: '1px solid var(--border-color)',
-                                paddingTop: '2.5rem'
-                            }}>
-                                <button
-                                    type="button"
-                                    onClick={() => navigate('/projects')}
-                                    className="btn btn-secondary"
-                                    style={{ flex: 1, height: '48px' }}
-                                    disabled={submitting}
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="btn btn-primary"
-                                    style={{ flex: 2, height: '48px' }}
-                                    disabled={submitting}
-                                >
-                                    {submitting ? 'Creating...' : (
-                                        <>
-                                            <Save size={18} />
-                                            Create Project
-                                        </>
-                                    )}
-                                </button>
                             </div>
+                            <div className="form-group" style={{ marginBottom: 0 }}>
+                                <label className="form-label" htmlFor="endDate">End Date</label>
+                                <div style={{ position: 'relative' }}>
+                                    <Calendar size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                                    <input
+                                        className="form-input"
+                                        style={{ paddingLeft: '38px' }}
+                                        type="date"
+                                        id="endDate"
+                                        name="endDate"
+                                        min={formData.startDate || getVietnamDateInputValue()}
+                                        value={formData.endDate}
+                                        onChange={(e) => {
+                                            const nextEndDate = e.target.value;
+                                            setFormData(prev => ({
+                                                ...prev,
+                                                endDate: nextEndDate && prev.startDate && nextEndDate < prev.startDate ? prev.startDate : nextEndDate
+                                            }));
+                                        }}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Research Fields */}
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                            <label className="form-label">Research Fields</label>
+                            <div style={{ position: 'relative', marginBottom: '0.5rem' }}>
+                                <Search size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                                <input
+                                    type="text"
+                                    placeholder="Search fields..."
+                                    className="form-input"
+                                    style={{ paddingLeft: '36px', height: '40px', fontSize: '0.875rem' }}
+                                    value={fieldSearchTerm}
+                                    onChange={(e) => setFieldSearchTerm(e.target.value)}
+                                />
+                            </div>
+                            <div style={{
+                                display: 'flex', flexWrap: 'wrap', gap: '8px',
+                                padding: '0.85rem',
+                                background: 'var(--surface-hover)',
+                                borderRadius: 'var(--radius-md)',
+                                border: '1px solid var(--border-color)',
+                                maxHeight: '150px', overflowY: 'auto'
+                            }} className="custom-scrollbar">
+                                {availableFields.length > 0 ? (
+                                    availableFields.filter(f => f.name.toLowerCase().includes(fieldSearchTerm.toLowerCase())).length > 0 ? (
+                                        availableFields
+                                            .filter(f => f.name.toLowerCase().includes(fieldSearchTerm.toLowerCase()))
+                                            .map((field) => (
+                                                <button
+                                                    key={field.researchFieldId}
+                                                    type="button"
+                                                    onClick={() => toggleField(field.researchFieldId)}
+                                                    className={`filter-chip ${selectedFieldIds.includes(field.researchFieldId) ? 'active' : ''}`}
+                                                    style={{ display: 'flex', alignItems: 'center', gap: '5px', transition: 'all 0.2s' }}
+                                                >
+                                                    {selectedFieldIds.includes(field.researchFieldId) ? <Check size={12} /> : <Plus size={12} />}
+                                                    {field.name}
+                                                </button>
+                                            ))
+                                    ) : (
+                                        <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: '0 auto' }}>No fields match.</p>
+                                    )
+                                ) : (
+                                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>Loading research fields...</p>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div style={{ display: 'flex', gap: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)', marginTop: '0.25rem' }}>
+                            <button
+                                type="button"
+                                onClick={() => navigate('/projects')}
+                                className="btn btn-secondary"
+                                style={{ flex: 1, height: '44px' }}
+                                disabled={submitting}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="submit"
+                                className="btn btn-primary"
+                                style={{ flex: 2, height: '44px' }}
+                                disabled={submitting}
+                            >
+                                {submitting ? 'Creating...' : (
+                                    <>
+                                        <Save size={16} />
+                                        Create Project
+                                    </>
+                                )}
+                            </button>
                         </div>
                     </form>
 
-                    <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '12px',
-                        padding: '1.25rem',
-                        background: 'var(--info-bg)',
-                        borderRadius: 'var(--radius-md)',
-                        color: 'var(--info)',
-                        fontSize: '0.9rem',
-                        border: '1px solid var(--border-color)'
-                    }}>
-                        <ShieldAlert size={20} />
-                        <div>
-                            <strong>Approval Required:</strong> Your project will be in "Pending" status and requires administrator approval before starting.
+                    {/* ── Right: Sidebar ── */}
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '1rem', position: 'sticky', top: '80px' }}>
+
+                        {/* Approval notice */}
+                        <div style={{
+                            display: 'flex', alignItems: 'flex-start', gap: '12px',
+                            padding: '1rem 1.25rem',
+                            background: 'var(--info-bg)',
+                            borderRadius: '12px',
+                            color: 'var(--info)',
+                            fontSize: '0.85rem',
+                            border: '1px solid rgba(59,130,246,0.2)',
+                            lineHeight: 1.5
+                        }}>
+                            <ShieldAlert size={18} style={{ flexShrink: 0, marginTop: '2px' }} />
+                            <div>
+                                <strong style={{ display: 'block', marginBottom: '4px' }}>Approval Required</strong>
+                                Your project will be in "Pending" status and requires administrator approval before it can start.
+                            </div>
+                        </div>
+
+                        {/* Selected fields summary */}
+                        {selectedFieldIds.length > 0 && (
+                            <div style={{
+                                padding: '1rem 1.25rem',
+                                background: 'var(--accent-bg)',
+                                borderRadius: '12px',
+                                border: '1px solid rgba(99,102,241,0.15)',
+                            }}>
+                                <p style={{ margin: '0 0 0.5rem', fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--accent-color)' }}>
+                                    Selected Fields ({selectedFieldIds.length})
+                                </p>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                                    {selectedFieldIds.map(id => {
+                                        const f = availableFields.find(f => f.researchFieldId === id);
+                                        return f ? (
+                                            <span key={id} className="tag" style={{ fontSize: '0.75rem', padding: '2px 8px', borderRadius: '6px', fontWeight: 600 }}>{f.name}</span>
+                                        ) : null;
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Tip */}
+                        <div style={{
+                            padding: '1rem 1.25rem',
+                            borderRadius: '12px',
+                            background: 'var(--surface-hover)',
+                            border: '1px dashed var(--border-color)',
+                            fontSize: '0.82rem',
+                            color: 'var(--text-secondary)',
+                            lineHeight: 1.6
+                        }}>
+                            <p style={{ margin: '0 0 4px', fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.8rem' }}>💡 Tips</p>
+                            Choose a clear, descriptive name. You can add members and milestones after the project is approved.
                         </div>
                     </div>
                 </div>

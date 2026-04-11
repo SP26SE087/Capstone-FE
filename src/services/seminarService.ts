@@ -72,11 +72,18 @@ const seminarService = {
 
     // Update a seminar meeting
     updateSeminarMeeting: async (seminarMeetingId: string, data: UpdateSeminarMeetingRequest): Promise<SeminarMeetingResponse> => {
+        const formData = new FormData();
+        if (data.title != null) formData.append('Title', data.title);
+        if (data.description != null) formData.append('Description', data.description);
+        if (data.location != null) formData.append('Location', data.location);
+        if (data.slideUrl != null) formData.append('SlideUrl', data.slideUrl);
+        if (data.file) formData.append('File', data.file);
         try {
-            const response = await api.put(`/api/Seminars/meetings/${seminarMeetingId}`, data);
+            const response = await api.put(`/api/Seminars/meetings/${seminarMeetingId}`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
             return response.data;
         } catch (error) {
-            console.error(`Error updating seminar meeting ${seminarMeetingId}:`, error);
             throw error;
         }
     },

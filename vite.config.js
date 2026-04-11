@@ -1,18 +1,18 @@
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
-import path from 'path';
+import { fileURLToPath } from 'node:url';
 // https://vitejs.dev/config/
 export default defineConfig(function (_a) {
     var mode = _a.mode;
     var env = loadEnv(mode, process.cwd(), '');
-    var isServerMode = false; // Set to true to use server URLs, false for local URLs
+    var isServerMode = true; // Set to true to use server URLs, false for local URLs
     var serverUrl = env.VITE_SERVER_URL;
     var getTarget = function (localUrl) { return (isServerMode ? serverUrl : localUrl); };
     return {
         plugins: [react()],
         resolve: {
             alias: {
-                '@': path.resolve(__dirname, './src'),
+                '@': fileURLToPath(new URL('./src', import.meta.url)),
             },
         },
         server: {
@@ -23,6 +23,17 @@ export default defineConfig(function (_a) {
             proxy: {
                 '/api/auth': {
                     target: getTarget('https://localhost:7268'),
+                    changeOrigin: true,
+                    secure: false,
+                },
+                '/api/user-projects': {
+                    target: getTarget('https://localhost:7215'),
+                    changeOrigin: true,
+                    secure: false,
+                    rewrite: function (path) { return path.replace('/api/users'); },
+                },
+                '^/api/users/[^/]+/projects': {
+                    target: getTarget('https://localhost:7215'),
                     changeOrigin: true,
                     secure: false,
                 },
@@ -62,12 +73,12 @@ export default defineConfig(function (_a) {
                     secure: false,
                 },
                 '/api/Transcriptions': {
-                    target: getTarget('https://localhost:7180'),
+                    target: getTarget('https://localhost:7003'),
                     changeOrigin: true,
                     secure: false,
                 },
                 '/api/tasks/suggest': {
-                    target: getTarget('https://localhost:7180'),
+                    target: getTarget('https://localhost:7003'),
                     changeOrigin: true,
                     secure: false,
                 },

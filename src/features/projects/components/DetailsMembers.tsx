@@ -13,6 +13,7 @@ interface DetailsMembersProps {
     hasLeader: boolean;
     existingMemberIds: string[];
     currentProjectRole?: number;
+    currentUserMemberStatus?: number;
     currentUser: any;
     onMemberAdded: () => void;
     onMemberUpdated: () => void;
@@ -27,6 +28,7 @@ const DetailsMembers: React.FC<DetailsMembersProps> = ({
     hasLeader,
     existingMemberIds,
     currentProjectRole,
+    currentUserMemberStatus,
     currentUser,
     onMemberAdded,
     onMemberUpdated,
@@ -60,7 +62,7 @@ const DetailsMembers: React.FC<DetailsMembersProps> = ({
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>Research Team</h3>
+                <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>Project Team</h3>
                 {canManageProject && (
                     isPanelOpen ? (
                         <button
@@ -110,6 +112,35 @@ const DetailsMembers: React.FC<DetailsMembersProps> = ({
                         </h4>
                         <p style={{ margin: 0, fontSize: '0.8rem', color: '#c2410c', opacity: 0.9 }}>
                             This project is currently managed only by you. Consider adding a Project Leader to coordinate research tasks.
+                        </p>
+                    </div>
+                </div>
+            )}
+
+            {/* No Leader Warning — always visible when there's no leader yet */}
+            {!hasLeader && !isSoloDirector && (
+                <div style={{
+                    padding: '1rem 1.25rem',
+                    background: '#fff7ed',
+                    borderRadius: '12px',
+                    border: '1px solid #ffedd5',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                }}>
+                    <div style={{
+                        width: '36px', height: '36px', borderRadius: '10px',
+                        background: '#ffedd5', display: 'flex',
+                        alignItems: 'center', justifyContent: 'center', color: '#c2410c', flexShrink: 0,
+                    }}>
+                        <AlertCircle size={18} />
+                    </div>
+                    <div>
+                        <h4 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 700, color: '#9a3412' }}>
+                            No Project Leader assigned
+                        </h4>
+                        <p style={{ margin: 0, fontSize: '0.78rem', color: '#c2410c', opacity: 0.9 }}>
+                            This project does not have a Leader yet. Assign one to coordinate research tasks.
                         </p>
                     </div>
                 </div>
@@ -245,6 +276,7 @@ const DetailsMembers: React.FC<DetailsMembersProps> = ({
                         projectId={projectId}
                         currentUser={currentUser}
                         currentUserProjectRole={currentProjectRole}
+                        currentUserMemberStatus={currentUserMemberStatus}
                         canManage={canManageProject}
                         onSuccess={() => {
                             onMemberUpdated();

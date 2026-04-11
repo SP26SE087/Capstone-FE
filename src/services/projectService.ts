@@ -23,31 +23,9 @@ export const projectService = {
             if (mapped.length === 0) {
                 console.warn('Projects response empty or unmapped. Raw:', response.data);
             }
-            if (mapped.length > 0) return mapped;
+            return mapped;
         } catch (error) {
             console.error('Error fetching projects:', error);
-        }
-
-        // fallback to public if auth/role chặn
-        try {
-            const fallback = await api.get('/api/projects/public');
-            const mapped = mapProjects(fallback.data);
-            if (mapped.length === 0) {
-                console.warn('Public projects response empty or unmapped. Raw:', fallback.data);
-            }
-            return mapped;
-        } catch (fallbackErr) {
-            console.error('Fallback public projects failed:', fallbackErr);
-            return mockProjects;
-        }
-    },
-
-    getPublic: async (): Promise<Project[]> => {
-        try {
-            const response = await api.get('/api/projects/public');
-            return mapProjects(response.data);
-        } catch (error) {
-            console.error('Error fetching public projects:', error);
             return mockProjects;
         }
     },
@@ -152,6 +130,31 @@ export const projectService = {
         } catch (error) {
             console.error('Error fetching milestone tasks:', error);
             return null;
+        }
+    },
+
+    getByUserEmail: async (email: string): Promise<{
+        projects: any[];
+        totalProjects: number;
+        activeProjects: number;
+        inactiveProjects: number;
+        archivedProjects: number;
+        completedProjects: number;
+    }> => {
+        try {
+            const response = await api.get(`/api/projects/users/${encodeURIComponent(email)}`);
+            const data = response.data.data || response.data;
+            return {
+                projects: data.projects || [],
+                totalProjects: data.totalProjects ?? 0,
+                activeProjects: data.activeProjects ?? 0,
+                inactiveProjects: data.inactiveProjects ?? 0,
+                archivedProjects: data.archivedProjects ?? 0,
+                completedProjects: data.completedProjects ?? 0,
+            };
+        } catch (error) {
+            console.error(`Error fetching projects for user ${email}:`, error);
+            throw error;
         }
     }
 };

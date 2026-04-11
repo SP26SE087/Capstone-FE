@@ -13,9 +13,10 @@ import {
 interface MilestoneItemProps {
     milestone: Milestone;
     onClick?: (milestone: Milestone) => void;
+    hasNoTasks?: boolean;
 }
 
-const MilestoneItem: React.FC<MilestoneItemProps> = ({ milestone, onClick }) => {
+const MilestoneItem: React.FC<MilestoneItemProps> = ({ milestone, onClick, hasNoTasks = false }) => {
     const getStatusStyle = (status: MilestoneStatus) => {
         switch (status) {
             case MilestoneStatus.NotStarted: 
@@ -38,7 +39,11 @@ const MilestoneItem: React.FC<MilestoneItemProps> = ({ milestone, onClick }) => 
 
     const formatDate = (date: string | null | undefined) => {
         if (!date || date.startsWith('0001')) return 'TBD';
-        return new Date(date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+        const plain = date.includes('T') ? date.split('T')[0] : date;
+        const [year, month, day] = plain.split('-').map(Number);
+        if (!year || !month || !day) return 'TBD';
+        const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        return `${String(day).padStart(2,'0')} ${months[month-1]} ${year}`;
     };
 
     // Circular progress SVG logic
@@ -67,6 +72,7 @@ const MilestoneItem: React.FC<MilestoneItemProps> = ({ milestone, onClick }) => 
             }}
             className="milestone-card-v2"
         >
+
 
 
             {/* Icon Column */}

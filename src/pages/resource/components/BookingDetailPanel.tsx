@@ -23,6 +23,7 @@ interface BookingDetailPanelProps {
     onSaved: (shouldClose?: boolean, message?: string) => void;
     onTitleChange?: (title: string) => void;
     isLabDirector: boolean;
+    isManagedView?: boolean;
 }
 
 const labelStyle: React.CSSProperties = {
@@ -73,7 +74,8 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
     onClose,
     onSaved,
     onTitleChange,
-    isLabDirector
+    isLabDirector,
+    isManagedView = false
 }) => {
     const { user } = useAuth();
     const [booking, setBooking] = useState<Booking | null>(null);
@@ -215,14 +217,13 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
     const currentUserEmail = (user?.email || '').trim().toLowerCase();
     const bookingUserEmail = (booking.userEmail || '').trim().toLowerCase();
     const isRequester = !!currentUserEmail && !!bookingUserEmail && currentUserEmail === bookingUserEmail;
-    const canApproveReject = booking.status === BookingStatus.Pending && !!currentUserEmail && !!bookingUserEmail && !isRequester;
-    const canCancel = (booking.status === BookingStatus.Pending || booking.status === BookingStatus.Approved);
-    const canLogEquipment = isLabDirector || isRequester;
-    const canCheckOut = canLogEquipment && booking.status === BookingStatus.Approved;
-    const canCheckIn = canLogEquipment && booking.status === BookingStatus.InUse;
+    const canApproveReject = isManagedView && !isRequester && booking.status === BookingStatus.Pending;
+    const canCancel = isRequester && (booking.status === BookingStatus.Pending || booking.status === BookingStatus.Approved);
+    const canCheckOut = isRequester && booking.status === BookingStatus.Approved;
+    const canCheckIn = isRequester && booking.status === BookingStatus.InUse;
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', height: 'auto' }}>
             {/* Panel Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '12px', borderBottom: '1px solid var(--border-light)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -262,7 +263,7 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
             </div>
 
             {/* Scrollable Content */}
-            <div style={{ flex: 1, overflowY: 'auto', paddingRight: '4px' }} className="custom-scrollbar">
+            <div style={{ maxHeight: 'calc(100vh - 380px)', overflowY: 'auto', paddingRight: '4px' }} className="custom-scrollbar">
                 {/* Schedule Info */}
                 <div style={sectionStyle}>
                     <div style={labelStyle}><Clock size={12} /> Schedule</div>
@@ -278,31 +279,6 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                             <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                                 {formatDisplayDate(booking.endTime)}
                             </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Requester Info */}
-                <div style={sectionStyle}>
-                    <div style={labelStyle}><User size={12} /> Requester</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', background: '#fff', borderRadius: '8px', border: '1px solid var(--border-light)' }}>
-                        <div style={{
-                            width: '32px',
-                            height: '32px',
-                            borderRadius: '50%',
-                            background: 'linear-gradient(135deg, #6366f1, #818cf8)',
-                            color: '#fff',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            fontSize: '0.72rem',
-                            fontWeight: 700
-                        }}>
-                            {booking.userName?.[0]?.toUpperCase() || 'U'}
-                        </div>
-                        <div>
-                            <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1e293b' }}>{booking.userName}</div>
-                            <div style={{ fontSize: '0.72rem', color: '#64748b' }}>Created: {formatDisplayDate(booking.createdAt)}</div>
                         </div>
                     </div>
                 </div>
@@ -609,7 +585,7 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                 display: 'flex',
                 justifyContent: 'space-between',
                 gap: '10px',
-                marginTop: 'auto'
+                marginTop: '14px'
             }}>
                 <div style={{ display: 'flex', gap: '8px' }}>
                     {canCheckOut && !showLogForm && !showCancelForm && !showApproveForm && !showRejectForm && (

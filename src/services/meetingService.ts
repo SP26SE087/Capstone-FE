@@ -72,6 +72,17 @@ const meetingService = {
         }
     },
 
+    // Semantic search across meetings
+    searchMeetings: async (params: { query: string; topK?: number; projectId?: string }): Promise<MeetingResponse[]> => {
+        try {
+            const response = await api.post('/api/Meetings/search', params);
+            return response.data?.data ?? response.data ?? [];
+        } catch (error) {
+            console.error('Error searching meetings:', error);
+            throw error;
+        }
+    },
+
     // Update meeting details (agenda, notes, action items, etc.)
     updateMeetingDetails: async (eventId: string, data: UpdateMeetingDetailsRequest): Promise<MeetingResponse> => {
         try {

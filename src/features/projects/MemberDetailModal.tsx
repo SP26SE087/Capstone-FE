@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Modal from '@/components/common/Modal';
 import { membershipService, projectService, userService } from '@/services';
-import { Mail, Trash2, Loader2, Check, User, Calendar, ShieldCheck, UserCheck, Settings, Info } from 'lucide-react';
+import { Mail, Trash2, Loader2, Check, User, Calendar, ShieldCheck, Settings, Info } from 'lucide-react';
 import { ProjectRoleEnum } from '@/types/project';
 
 interface MemberDetailModalProps {
@@ -14,14 +14,6 @@ interface MemberDetailModalProps {
     canManage: boolean;
     onSuccess: () => void;
 }
-
-const SystemRoleMap: Record<number, string> = {
-    1: 'Admin',
-    2: 'Lab Director',
-    3: 'Senior Researcher',
-    4: 'Member',
-    5: 'Guest'
-};
 
 const ProjectRoleMap: Record<number, string> = {
     1: 'Lab Director',
@@ -255,23 +247,12 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
                             Member Information
                         </h4>
                         
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                            <div style={{ padding: '1.25rem', background: 'white', border: '1.5px solid #f1f5f9', borderRadius: '14px' }}>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '8px' }}>
-                                    <UserCheck size={14} /> System Role
-                                </label>
-                                <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#334155' }}>
-                                    {loadingDetails ? <Loader2 size={18} className="animate-spin" /> : (systemDetails?.role ? SystemRoleMap[systemDetails.role] : member.roleName || 'N/A')}
-                                </div>
-                            </div>
-                            
-                            <div style={{ padding: '1.25rem', background: 'white', border: '1.5px solid #f1f5f9', borderRadius: '14px' }}>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '8px' }}>
-                                    <ShieldCheck size={14} /> Project Role
-                                </label>
-                                <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--primary-color)' }}>
-                                    {loadingDetails ? <Loader2 size={18} className="animate-spin" /> : (projectDetails?.projectRole ? ProjectRoleMap[projectDetails.projectRole] : member.projectRoleName || 'N/A')}
-                                </div>
+                        <div style={{ padding: '1.25rem', background: 'white', border: '1.5px solid #f1f5f9', borderRadius: '14px' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '8px' }}>
+                                <ShieldCheck size={14} /> Project Role
+                            </label>
+                            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--primary-color)' }}>
+                                {loadingDetails ? <Loader2 size={18} className="animate-spin" /> : (ProjectRoleMap[Number(member.projectRole)] || ProjectRoleMap[Number(projectDetails?.projectRole)] || 'N/A')}
                             </div>
                         </div>
                     </div>

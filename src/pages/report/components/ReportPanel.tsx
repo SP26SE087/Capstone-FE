@@ -55,6 +55,8 @@ const ReportPanel: React.FC<ReportPanelProps> = ({
     const [isAssigneeModalOpen, setIsAssigneeModalOpen] = useState(false);
     const [isMilestoneModalOpen, setIsMilestoneModalOpen] = useState(false);
     const [isFeedbackSidebarOpen, setIsFeedbackSidebarOpen] = useState(false);
+    const [isFeedbackListOpen, setIsFeedbackListOpen] = useState(false);
+    const [expandedFeedbacks, setExpandedFeedbacks] = useState<Set<number>>(new Set());
     const [userSearchQuery, setUserSearchQuery] = useState('');
     const [confirmAction, setConfirmAction] = useState<{type: 'delete' | 'submit' | null, event?: React.MouseEvent}>({type: null});
 
@@ -491,36 +493,7 @@ const handleAiSuggest = async () => {
                                 style={{ fontSize: '1rem', fontWeight: 700, padding: '12px', borderRadius: '10px' }}
                             />
                         ) : (
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1.5rem' }}>
-                                <h3 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 800, color: '#1e293b', lineHeight: 1.3, flex: 1 }}>{formData.title}</h3>
-                                
-                                {/* View Feedback Button */}
-                                {!isAdding && !isEditMode && (() => {
-                                    const reviewList = (report as any)?.assignees || (report as any)?.Assignees || [];
-                                    const hasFeedback = reviewList.some((r: any) => r.status > 1 || r.feedback);
-                                    if (!hasFeedback) return null;
-                                    
-                                    return (
-                                        <button 
-                                            type="button" 
-                                            onClick={() => setIsFeedbackSidebarOpen(true)} 
-                                            className="btn" 
-                                            style={{ 
-                                                fontSize: '0.75rem', padding: '8px 14px', gap: '8px', 
-                                                background: '#f1f5f9', color: '#4338ca', fontWeight: 800, 
-                                                borderRadius: '10px', border: '1px solid #e2e8f0', 
-                                                display: 'flex', alignItems: 'center', cursor: 'pointer', 
-                                                transition: 'all 0.2s', whiteSpace: 'nowrap',
-                                                boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-                                            }}
-                                            onMouseOver={(e) => { e.currentTarget.style.background = '#e0e7ff'; e.currentTarget.style.borderColor = '#c7d2fe'; }}
-                                            onMouseOut={(e) => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.borderColor = '#e2e8f0'; }}
-                                        >
-                                            <MessageSquare size={14} /> View Feedback List
-                                        </button>
-                                    );
-                                })()}
-                            </div>
+                            <h3 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 800, color: '#1e293b', lineHeight: 1.3 }}>{formData.title}</h3>
                         )}
                     </div>
 
@@ -582,7 +555,7 @@ const handleAiSuggest = async () => {
                     </div>
 
                     {/* Status, Project & Milestone Context */}
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                         <div style={{ padding: '0.75rem', borderRadius: '12px', background: '#f8fafc', border: '1px solid #f1f5f9' }}>
                             <label style={{ display: 'block', fontSize: '0.6rem', fontWeight: 800, color: '#64748b', marginBottom: '6px', textTransform: 'uppercase' }}>Status</label>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: statusInfo.color }}>
@@ -590,9 +563,9 @@ const handleAiSuggest = async () => {
                                 <span style={{ fontWeight: 700, fontSize: '0.75rem' }}>{statusInfo.label}</span>
                             </div>
                         </div>
-                        <div 
+                        <div
                             onClick={() => isEditMode && setIsProjectModalOpen(true)}
-                            style={{ padding: '0.75rem 1rem', borderRadius: '12px', background: isEditMode ? '#fff' : '#f8fafc', border: isEditMode ? '2px dashed var(--primary-color)33' : '1px solid #f1f5f9', cursor: isEditMode ? 'pointer' : 'default' }}
+                            style={{ padding: '0.75rem 1rem', borderRadius: '12px', background: isEditMode ? '#fff' : '#f8fafc', border: isEditMode ? '2px dashed var(--primary-color)33' : '1px solid #f1f5f9', cursor: isEditMode ? 'pointer' : 'default', minWidth: 0 }}
                         >
                             <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 800, color: '#64748b', marginBottom: '6px', textTransform: 'uppercase' }}>
                                 Project <span style={{ color: '#ef4444' }}>*</span>
@@ -606,27 +579,26 @@ const handleAiSuggest = async () => {
                                 </span>
                             </div>
                         </div>
-                        <div 
+                        <div
                             onClick={() => isEditMode && formData.projectId && setIsMilestoneModalOpen(true)}
-                            style={{ 
-                                padding: '0.75rem 1rem', borderRadius: '12px', 
-                                background: isEditMode ? (formData.projectId ? '#fff' : '#f1f5f9') : '#f8fafc', 
-                                border: isEditMode ? '2px dashed var(--primary-color)33' : '1px solid #f1f5f9', 
+                            style={{
+                                padding: '0.75rem 1rem', borderRadius: '12px',
+                                background: isEditMode ? (formData.projectId ? '#fff' : '#f1f5f9') : '#f8fafc',
+                                border: isEditMode ? '2px dashed var(--primary-color)33' : '1px solid #f1f5f9',
                                 cursor: (isEditMode && formData.projectId) ? 'pointer' : 'default',
-                                opacity: (isEditMode && !formData.projectId) ? 0.6 : 1
+                                opacity: (isEditMode && !formData.projectId) ? 0.6 : 1,
+                                gridColumn: '1 / -1'
                             }}
                         >
                             <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 800, color: '#64748b', marginBottom: '6px', textTransform: 'uppercase' }}>
                                 Milestone <span style={{ color: '#ef4444' }}>*</span>
                             </label>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
-                                <span style={{ fontWeight: 700, fontSize: '0.8rem', color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                    {(() => {
-                                        const m = milestones.find(ms => (ms.milestoneId || ms.id) === formData.milestoneId);
-                                        return m?.title || m?.name || 'Select Milestone';
-                                    })()}
-                                </span>
-                            </div>
+                            <span style={{ fontWeight: 700, fontSize: '0.8rem', color: '#1e293b' }}>
+                                {(() => {
+                                    const m = milestones.find(ms => (ms.milestoneId || ms.id) === formData.milestoneId);
+                                    return m?.title || m?.name || 'Select Milestone';
+                                })()}
+                            </span>
                         </div>
                     </div>
 
@@ -659,6 +631,131 @@ const handleAiSuggest = async () => {
                             </div>
                         </>
                     )}
+
+                    {/* Feedback List (inline collapsible) */}
+                    {!isAdding && !isEditMode && formData.status !== 0 && (() => {
+                        const reviewList = (report as any)?.assignees || (report as any)?.Assignees || [];
+                        const feedbackList = reviewList.filter((r: any) => r.status > 1 || r.feedback);
+                        if (feedbackList.length === 0) return null;
+
+                        const PREVIEW_CHARS = 150;
+
+                        return (
+                            <div style={{ borderRadius: '14px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+                                {/* Header toggle */}
+                                <button
+                                    type="button"
+                                    onClick={() => setIsFeedbackListOpen(o => !o)}
+                                    style={{
+                                        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                        padding: '0.75rem 1rem', background: '#f8fafc', border: 'none', cursor: 'pointer',
+                                        borderBottom: isFeedbackListOpen ? '1px solid #e2e8f0' : 'none'
+                                    }}
+                                >
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.7rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                        <MessageSquare size={13} color="var(--primary-color)" />
+                                        Feedback List
+                                        <span style={{ padding: '1px 7px', borderRadius: '10px', background: 'var(--primary-color)', color: '#fff', fontSize: '0.6rem', fontWeight: 700 }}>
+                                            {feedbackList.length}
+                                        </span>
+                                    </span>
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                                        style={{ transform: isFeedbackListOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
+                                        <polyline points="6 9 12 15 18 9" />
+                                    </svg>
+                                </button>
+
+                                {/* Feedback items */}
+                                {isFeedbackListOpen && (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+                                        {feedbackList.map((rev: any, idx: number) => {
+                                            const isApproved = rev.status === 2;
+                                            const isRejected = rev.status === 3;
+                                            const color = isApproved ? '#10b981' : isRejected ? '#ef4444' : '#94a3b8';
+                                            const bg = isApproved ? '#ecfdf5' : isRejected ? '#fef2f2' : '#f8fafc';
+                                            const statusLabel = isApproved ? 'Approved' : isRejected ? 'Rejected' : 'Reviewing';
+                                            const feedbackText: string = rev.feedback || '';
+                                            const isLong = feedbackText.length > PREVIEW_CHARS;
+                                            const isExpanded = expandedFeedbacks.has(idx);
+
+                                            return (
+                                                <div
+                                                    key={idx}
+                                                    style={{
+                                                        padding: '0.9rem 1rem',
+                                                        borderBottom: idx < feedbackList.length - 1 ? '1px solid #f1f5f9' : 'none',
+                                                        background: '#fff'
+                                                    }}
+                                                >
+                                                    {/* Reviewer header */}
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                            <div style={{
+                                                                width: '28px', height: '28px', borderRadius: '50%',
+                                                                background: '#f1f5f9', border: '1px solid #e2e8f0',
+                                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                                fontSize: '0.75rem', fontWeight: 700, color: '#475569', flexShrink: 0
+                                                            }}>
+                                                                {rev.fullName?.[0]?.toUpperCase() || 'U'}
+                                                            </div>
+                                                            <div>
+                                                                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#1e293b' }}>{rev.fullName || 'Reviewer'}</div>
+                                                                {rev.email && <div style={{ fontSize: '0.65rem', color: '#94a3b8' }}>{rev.email}</div>}
+                                                            </div>
+                                                        </div>
+                                                        <div style={{
+                                                            padding: '3px 8px', borderRadius: '6px', background: bg,
+                                                            color, fontSize: '0.6rem', fontWeight: 700,
+                                                            textTransform: 'uppercase', letterSpacing: '0.04em',
+                                                            display: 'flex', alignItems: 'center', gap: '3px',
+                                                            border: `1px solid ${color}25`
+                                                        }}>
+                                                            {isApproved && <Check size={10} />}
+                                                            {isRejected && <X size={10} />}
+                                                            {statusLabel}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Feedback text */}
+                                                    {feedbackText ? (
+                                                        <div style={{
+                                                            padding: '10px 12px', background: '#f8fafc', borderRadius: '8px',
+                                                            borderLeft: `3px solid ${color}`,
+                                                            fontSize: '0.8rem', color: '#334155', lineHeight: 1.6, whiteSpace: 'pre-wrap'
+                                                        }}>
+                                                            {isLong && !isExpanded
+                                                                ? feedbackText.slice(0, PREVIEW_CHARS) + '…'
+                                                                : feedbackText
+                                                            }
+                                                            {isLong && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setExpandedFeedbacks(prev => {
+                                                                        const next = new Set(prev);
+                                                                        isExpanded ? next.delete(idx) : next.add(idx);
+                                                                        return next;
+                                                                    })}
+                                                                    style={{
+                                                                        display: 'block', marginTop: '4px', background: 'none', border: 'none',
+                                                                        color: '#2563eb', fontSize: '0.75rem', fontWeight: 700,
+                                                                        cursor: 'pointer', padding: 0
+                                                                    }}
+                                                                >
+                                                                    {isExpanded ? 'View less' : 'View more'}
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    ) : (
+                                                        <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic' }}>No written feedback.</div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })()}
 
                     {/* Reviewer Feedback Section */}
                     {isReviewer && !currentUserHasReviewed && formData.status !== 0 && !isEditMode && (

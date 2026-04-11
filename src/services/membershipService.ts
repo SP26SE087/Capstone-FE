@@ -68,6 +68,19 @@ export const membershipService = {
         }
     },
 
+    updateMemberStatus: async (memberId: string, status: number): Promise<any> => {
+        try {
+            const response = await api.patch('/api/projects/memberships/status', {
+                memberId,
+                status
+            });
+            return response.data;
+        } catch (error) {
+            console.error('Error updating member status:', error);
+            throw error;
+        }
+    },
+
     getMemberById: async (memberId: string): Promise<any> => {
         try {
             const response = await api.get(`/api/projects/members/${memberId}`);
