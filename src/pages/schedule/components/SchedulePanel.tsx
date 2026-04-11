@@ -627,6 +627,7 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                                         max={480}
                                         disabled={!canEdit}
                                         value={durationMinutes}
+                                        className="no-spinner"
                                         onChange={e => {
                                             const v = parseInt(e.target.value, 10);
                                             if (!isNaN(v)) setDurationMinutes(Math.max(5, Math.min(480, v)));
@@ -636,7 +637,6 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                                             textAlign: 'center', fontSize: '0.9rem', fontWeight: 800,
                                             color: 'var(--text-primary)', outline: 'none',
                                             cursor: canEdit ? 'text' : 'not-allowed',
-                                            MozAppearance: 'textfield' as any,
                                         }}
                                     />
                                     <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>min</span>

@@ -113,13 +113,13 @@ export const userService = {
         const config = token
             ? { headers: { Authorization: `Bearer ${token}` } }
             : {};
-        const response = await api.get('/api/users/me', config);
+        const response = await api.get(`/api/users/me?_t=${Date.now()}`, config);
         return response.data.data || response.data;
     },
 
     getProfile: async (): Promise<ProfileResponse> => {
         try {
-            const response = await api.get('/api/users/me');
+            const response = await api.get(`/api/users/me?_t=${Date.now()}`);
             const data = response.data.data || response.data;
             return {
                 email: data.email || data.Email || '',

@@ -27,7 +27,7 @@ const ProfilePage: React.FC = () => {
     const setStudentIdError = (v: string) => setFieldErrors(prev => ({ ...prev, studentId: v }));
 
     const validate = {
-        studentId: (v: string) => v && !/^[A-Za-z]{2}\d{4}$/.test(v) ? 'Format: 2 letters + 4 digits (e.g. SE1234)' : '',
+        studentId: (v: string) => v && !/^[A-Za-z]{2}\d{6}$/.test(v) ? 'Format: 2 letters + 6 digits (e.g. SE123456)' : '',
         phoneNumber: (v: string) => v && !/^\+?[\d\s\-().]{7,20}$/.test(v) ? 'Invalid phone number' : '',
         orcid: (v: string) => v && !/^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/.test(v) ? 'Format: xxxx-xxxx-xxxx-xxxx' : '',
         googleScholarUrl: (v: string) => v && !/^https?:\/\/(www\.)?scholar\.google\.[a-z.]+\//.test(v) ? 'Must be a valid Google Scholar URL' : '',
@@ -38,7 +38,39 @@ const ProfilePage: React.FC = () => {
         setFieldErrors(prev => ({ ...prev, [field]: v }));
 
 
-    useEffect(() => { fetchProfile(); }, []);
+    useEffect(() => {
+        // Immediately wipe previous user's data before fetching the new one
+        setProfile(null);
+        setEditData({ fullName: '', studentId: '', phoneNumber: '', orcid: '', googleScholarUrl: '', githubUrl: '' });
+        setFieldErrors({ studentId: '', phoneNumber: '', orcid: '', googleScholarUrl: '', githubUrl: '' });
+        setIsEditMode(false);
+        setImgError(false);
+
+        let cancelled = false;
+        setLoading(true);
+        userService.getProfile()
+            .then(data => {
+                if (cancelled) return;
+                setProfile(data);
+                setEditData({
+                    fullName: data.fullName || '',
+                    studentId: data.studentId || '',
+                    phoneNumber: data.phoneNumber || '',
+                    orcid: data.orcid || '',
+                    googleScholarUrl: data.googleScholarUrl || '',
+                    githubUrl: data.githubUrl || ''
+                });
+            })
+            .catch(() => {
+                if (cancelled) return;
+                setToast({ message: 'Failed to load profile data.', type: 'error' });
+            })
+            .finally(() => {
+                if (!cancelled) setLoading(false);
+            });
+
+        return () => { cancelled = true; };
+    }, [authUser.userId]);
     useEffect(() => {
         if (toast) {
             const timer = setTimeout(() => setToast(null), 4000);
@@ -315,11 +347,11 @@ const ProfilePage: React.FC = () => {
                                         <>
                                             <StyledInput
                                                 value={editData.studentId}
-                                                placeholder="e.g. SE1234"
+                                                placeholder="e.g. SE123456"
                                                 error={!!studentIdError}
                                                 onChange={v => {
                                                     setEditData({ ...editData, studentId: v });
-                                                    setStudentIdError(v.trim() && !/^[A-Za-z]{2}\d{4}$/.test(v.trim()) ? 'Format: 2 letters + 4 digits (e.g. SE1234)' : '');
+                                                    setStudentIdError(validate.studentId(v.trim()));
                                                 }}
                                             />
                                             {studentIdError && (

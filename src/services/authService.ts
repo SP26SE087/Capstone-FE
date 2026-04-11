@@ -161,7 +161,7 @@ export const authService = {
 
     async hydrateProfile(authData: AuthResponse): Promise<AuthResponse> {
         try {
-            const res = await api.get('/api/users/me', {
+            const res = await api.get(`/api/users/me?_t=${Date.now()}`, {
                 headers: { Authorization: `Bearer ${authData.jwtToken}` }
             });
             const data = res.data.data || res.data;
