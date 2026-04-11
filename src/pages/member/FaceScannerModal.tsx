@@ -11,41 +11,30 @@ interface FaceScannerModalProps {
     userName: string;
 }
 
+const FACE_SERVER_URL = (import.meta.env.VITE_FACE_SERVER_URL as string || 'http://localhost:5000').replace(/\/$/, '');
+const FACE_VIDEO_FEED = `${FACE_SERVER_URL}/video_feed`;
+
 const FaceScannerModal: React.FC<FaceScannerModalProps> = ({ isOpen, onClose, initialStudentId, userName }) => {
     const [isScanning, setIsScanning] = useState(false);
     const [status, setStatus] = useState<string | null>(null);
-    const videoRef = React.useRef<HTMLVideoElement>(null);
+    const [videoSrc, setVideoSrc] = useState(FACE_VIDEO_FEED);
     const { addToast } = useToastStore();
 
     useEffect(() => {
         if (isOpen) {
             setIsScanning(false);
             setStatus(null);
-        } else {
-            setIsScanning(false);
+            setVideoSrc(`${FACE_VIDEO_FEED}?t=${Date.now()}`);
         }
     }, [isOpen, initialStudentId]);
 
+    // Refresh MJPEG stream every 5 seconds (same as ui.html)
     useEffect(() => {
-        let stream: MediaStream | null = null;
-        if (isOpen) {
-            navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
-                .then(s => {
-                    stream = s;
-                    if (videoRef.current) {
-                        videoRef.current.srcObject = s;
-                    }
-                })
-                .catch(err => {
-                    console.error('Camera access failed:', err);
-                    setStatus('Could not access camera.');
-                });
-        }
-        return () => {
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-            }
-        };
+        if (!isOpen) return;
+        const interval = setInterval(() => {
+            setVideoSrc(`${FACE_VIDEO_FEED}?t=${Date.now()}`);
+        }, 5000);
+        return () => clearInterval(interval);
     }, [isOpen]);
 
     const handleStart = async () => {
@@ -121,10 +110,9 @@ const FaceScannerModal: React.FC<FaceScannerModalProps> = ({ isOpen, onClose, in
                     position: 'relative',
                     overflow: 'hidden'
                 }}>
-                    <video 
-                        ref={videoRef}
-                        autoPlay 
-                        playsInline 
+                    <img
+                        src={videoSrc}
+                        alt="Camera Stream"
                         style={{ 
                             position: 'absolute', 
                             width: '100%', 

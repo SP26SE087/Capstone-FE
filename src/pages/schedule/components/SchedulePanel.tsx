@@ -9,7 +9,6 @@ import {
 import meetingService from '@/services/meetingService';
 import { useAuth } from '@/hooks/useAuth';
 import AttendeeSelector, { SelectedAttendee } from '@/components/common/AttendeeSelector';
-import DateTimePicker from '@/components/common/DateTimePicker';
 import CalendarPicker from '@/components/common/CalendarPicker';
 import {
     Save,
@@ -543,58 +542,125 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                         />
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
-                        <div>
-                            <label style={labelStyle}><Clock size={12} /> Start Time</label>
-                            <DateTimePicker
-                                value={startTime}
-                                onChange={handleStartTimeChange}
-                                min={isCreating ? new Date().toISOString().slice(0, 16) : undefined}
-                                disabled={!canEdit}
-                                hideDate
-                            />
-                        </div>
-                        <div>
-                            <label style={labelStyle}><Clock size={12} /> Duration</label>
-                            {/* Quick pills */}
-                            <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' as const, marginBottom: '6px' }}>
-                                {[15, 30, 60, 90, 120].map(d => (
-                                    <button
-                                        key={d}
-                                        type="button"
-                                        disabled={!canEdit}
-                                        onClick={() => setDurationMinutes(d)}
-                                        style={{
-                                            padding: '4px 8px', borderRadius: '6px', border: '1.5px solid',
-                                            borderColor: durationMinutes === d ? 'var(--accent-color)' : '#e2e8f0',
-                                            background: durationMinutes === d ? 'rgba(232,114,12,0.08)' : '#fff',
-                                            color: durationMinutes === d ? 'var(--accent-color)' : '#64748b',
-                                            fontSize: '0.72rem', fontWeight: 700, cursor: canEdit ? 'pointer' : 'default',
-                                            transition: 'all 0.15s'
-                                        }}
-                                    >
-                                        {d < 60 ? `${d}m` : d === 60 ? '1h' : d === 90 ? '1h30' : '2h'}
-                                    </button>
-                                ))}
-                            </div>
-                            {/* Custom number input */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <input
-                                    type="number"
-                                    min={5}
-                                    max={480}
+                    {/* Start Time + Duration — full width stacked for clarity */}
+                    <div style={{ marginBottom: '14px' }}>
+                        <label style={labelStyle}><Clock size={12} /> Start Time</label>
+                        <input
+                            type="time"
+                            disabled={!canEdit}
+                            value={startTime ? (startTime.includes('T') ? startTime.split('T')[1].slice(0, 5) : startTime.slice(0, 5)) : '09:00'}
+                            onChange={e => {
+                                const t = e.target.value;
+                                if (t) handleStartTimeChange(`${meetingDate}T${t}`);
+                            }}
+                            style={{
+                                ...inputStyle,
+                                cursor: canEdit ? 'pointer' : 'default',
+                                ...(canEdit ? {} : { background: '#f8fafc', color: 'var(--text-secondary)' })
+                            }}
+                            onFocus={e => { if (canEdit) { e.currentTarget.style.borderColor = 'var(--accent-color)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,114,12,0.08)'; } }}
+                            onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.boxShadow = 'none'; }}
+                        />
+                    </div>
+
+                    <div style={{ marginBottom: '14px' }}>
+                        <label style={{ ...labelStyle, marginBottom: '8px' }}><Clock size={12} /> Duration</label>
+                        {/* Quick-pick pills */}
+                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' as const, marginBottom: '10px' }}>
+                            {[
+                                { val: 15, label: '15 min' },
+                                { val: 30, label: '30 min' },
+                                { val: 45, label: '45 min' },
+                                { val: 60, label: '1 hour' },
+                                { val: 90, label: '1.5 hrs' },
+                                { val: 120, label: '2 hours' },
+                            ].map(({ val, label }) => (
+                                <button
+                                    key={val}
+                                    type="button"
                                     disabled={!canEdit}
-                                    value={durationMinutes}
-                                    onChange={e => setDurationMinutes(Math.max(5, Math.min(480, Number(e.target.value))))}
-                                    style={{ ...inputStyle, width: '70px', padding: '6px 10px', fontSize: '0.82rem' }}
-                                />
-                                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>min</span>
+                                    onClick={() => setDurationMinutes(val)}
+                                    style={{
+                                        padding: '6px 12px', borderRadius: '8px', border: '1.5px solid',
+                                        borderColor: durationMinutes === val ? 'var(--accent-color)' : '#e2e8f0',
+                                        background: durationMinutes === val ? 'rgba(232,114,12,0.10)' : '#fff',
+                                        color: durationMinutes === val ? 'var(--accent-color)' : '#64748b',
+                                        fontSize: '0.75rem', fontWeight: 700,
+                                        cursor: canEdit ? 'pointer' : 'default',
+                                        transition: 'all 0.15s',
+                                        boxShadow: durationMinutes === val ? '0 2px 6px rgba(232,114,12,0.15)' : 'none'
+                                    }}
+                                >
+                                    {label}
+                                </button>
+                            ))}
+                        </div>
+                        {/* Stepper for custom duration */}
+                        <div style={{
+                            display: 'flex', alignItems: 'center', gap: '0',
+                            border: '1.5px solid var(--border-color)', borderRadius: '10px',
+                            overflow: 'hidden', background: '#fff'
+                        }}>
+                            <button
+                                type="button"
+                                disabled={!canEdit || durationMinutes <= 5}
+                                onClick={() => setDurationMinutes(d => Math.max(5, d - 5))}
+                                style={{
+                                    width: '40px', height: '40px', border: 'none', background: 'transparent',
+                                    fontSize: '1.1rem', fontWeight: 700, color: '#64748b',
+                                    cursor: (!canEdit || durationMinutes <= 5) ? 'not-allowed' : 'pointer',
+                                    opacity: (!canEdit || durationMinutes <= 5) ? 0.4 : 1,
+                                    transition: 'all 0.15s', flexShrink: 0
+                                }}
+                                onMouseEnter={e => { if (canEdit && durationMinutes > 5) e.currentTarget.style.background = '#f1f5f9'; }}
+                                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                            >−</button>
+                            <div style={{
+                                flex: 1, textAlign: 'center', borderLeft: '1px solid #e2e8f0', borderRight: '1px solid #e2e8f0',
+                                padding: '0 8px', height: '40px', display: 'flex', flexDirection: 'column',
+                                alignItems: 'center', justifyContent: 'center'
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <input
+                                        type="number"
+                                        min={5}
+                                        max={480}
+                                        disabled={!canEdit}
+                                        value={durationMinutes}
+                                        onChange={e => {
+                                            const v = parseInt(e.target.value, 10);
+                                            if (!isNaN(v)) setDurationMinutes(Math.max(5, Math.min(480, v)));
+                                        }}
+                                        style={{
+                                            width: '52px', border: 'none', background: 'transparent',
+                                            textAlign: 'center', fontSize: '0.9rem', fontWeight: 800,
+                                            color: 'var(--text-primary)', outline: 'none',
+                                            cursor: canEdit ? 'text' : 'not-allowed',
+                                            MozAppearance: 'textfield' as any,
+                                        }}
+                                    />
+                                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>min</span>
+                                </div>
                                 {startTime && (
-                                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#10b981', marginLeft: 'auto' }}>
-                                        → {(() => { const e = new Date(new Date(startTime).getTime() + durationMinutes * 60000); return `${String(e.getHours()).padStart(2,'0')}:${String(e.getMinutes()).padStart(2,'0')}`; })()}
+                                    <span style={{ fontSize: '0.66rem', fontWeight: 600, color: '#10b981', lineHeight: 1 }}>
+                                        ends {(() => { const e = new Date(new Date(startTime).getTime() + durationMinutes * 60000); return `${String(e.getHours()).padStart(2, '0')}:${String(e.getMinutes()).padStart(2, '0')}`; })()}
                                     </span>
                                 )}
                             </div>
+                            <button
+                                type="button"
+                                disabled={!canEdit || durationMinutes >= 480}
+                                onClick={() => setDurationMinutes(d => Math.min(480, d + 5))}
+                                style={{
+                                    width: '40px', height: '40px', border: 'none', background: 'transparent',
+                                    fontSize: '1.1rem', fontWeight: 700, color: '#64748b',
+                                    cursor: (!canEdit || durationMinutes >= 480) ? 'not-allowed' : 'pointer',
+                                    opacity: (!canEdit || durationMinutes >= 480) ? 0.4 : 1,
+                                    transition: 'all 0.15s', flexShrink: 0
+                                }}
+                                onMouseEnter={e => { if (canEdit && durationMinutes < 480) e.currentTarget.style.background = '#f1f5f9'; }}
+                                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                            >+</button>
                         </div>
                     </div>
                     {dateError && (
