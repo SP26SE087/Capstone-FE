@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { SeminarMeetingResponse, UpdateSeminarMeetingRequest, CreateSeminarSwapRequest } from '@/types/seminar';
 import seminarService from '@/services/seminarService';
+import { API_BASE_URL } from '@/services/api';
 import { useAuth } from '@/hooks/useAuth';
 import { useToastStore } from '@/store/slices/toastSlice';
 import DateTimePicker from '@/components/common/DateTimePicker';
@@ -557,7 +558,7 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
                                                 try {
                                                     const token = localStorage.getItem('token');
                                                     let res = await fetch(
-                                                        `/api/Seminars/meetings/${meetingId}/slide-document/download`,
+                                                        `${API_BASE_URL}/api/Seminars/meetings/${meetingId}/slide-document/download`,
                                                         { headers: { Authorization: `Bearer ${token}` } }
                                                     );
                                                     if (res.status === 401 && res.url) {
