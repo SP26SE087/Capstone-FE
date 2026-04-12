@@ -482,10 +482,10 @@ const ProjectDetails: React.FC = () => {
     const currentMemberStatus = Number(currentMember?.status ?? MemberStatus.Active);
     const isCurrentMemberActive = currentMemberStatus === MemberStatus.Active;
     const canManageProject = isCurrentMemberActive && (isAdmin || (Number(projectRoleValue) === ProjectRoleEnum.Leader) || (Number(projectRoleValue) === ProjectRoleEnum.LabDirector));
-    const canManageMilestones = isAdmin || (Number(projectRoleValue) === ProjectRoleEnum.LabDirector);
-    const canAddTask = isAdmin || [ProjectRoleEnum.Leader, ProjectRoleEnum.LabDirector].includes(Number(projectRoleValue));
     const isArchived = project?.status === ProjectStatus.Archived;
-    const isReadOnly = (isArchived && !isAdmin) || !canManageProject;
+    const canManageMilestones = !isArchived && (isAdmin || (Number(projectRoleValue) === ProjectRoleEnum.LabDirector));
+    const canAddTask = !isArchived && (isAdmin || [ProjectRoleEnum.Leader, ProjectRoleEnum.LabDirector].includes(Number(projectRoleValue)));
+    const isReadOnly = isArchived || !canManageProject;
     const canDeleteProject = isAdmin || (Number(projectRoleValue) === ProjectRoleEnum.LabDirector);
 
     // Filtered data
@@ -671,6 +671,19 @@ const ProjectDetails: React.FC = () => {
                 {/* Main Content Area */}
                 <div style={{ display: 'flex', gap: '2.5rem', alignItems: 'stretch', minHeight: 'calc(100vh - 200px)' }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
+                        {isArchived && (
+                            <div style={{
+                                display: 'flex', alignItems: 'center', gap: '12px',
+                                padding: '12px 18px', marginBottom: '1.25rem',
+                                background: '#f3f4f6', border: '1px solid #d1d5db',
+                                borderRadius: '12px', color: '#6b7280',
+                            }}>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>
+                                <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>
+                                    This project has been archived. All content is read-only — no additions, edits, or deletions are allowed.
+                                </span>
+                            </div>
+                        )}
                         {activeTab === 'home' && (
                             <DetailsHome
                                 project={project}
@@ -740,6 +753,7 @@ const ProjectDetails: React.FC = () => {
                                 currentProjectRole={Number(projectRoleValue)}
                                 currentUserMemberStatus={currentMemberStatus}
                                 currentUser={currentUser}
+                                isArchived={isArchived}
                                 onMemberAdded={refetchMembers}
                                 onMemberUpdated={() => { refetchMembers(); showToast('Team updated.'); }}
                             />

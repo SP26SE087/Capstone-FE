@@ -9,6 +9,7 @@ interface DetailsMembersProps {
     memberSearchQuery: string;
     setMemberSearchQuery: (query: string) => void;
     canManageProject: boolean;
+    isArchived: boolean;
     projectId: string;
     hasLeader: boolean;
     existingMemberIds: string[];
@@ -24,6 +25,7 @@ const DetailsMembers: React.FC<DetailsMembersProps> = ({
     memberSearchQuery,
     setMemberSearchQuery,
     canManageProject,
+    isArchived,
     projectId,
     hasLeader,
     existingMemberIds,
@@ -63,7 +65,7 @@ const DetailsMembers: React.FC<DetailsMembersProps> = ({
             {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>Project Team</h3>
-                {canManageProject && (
+                {canManageProject && !isArchived && (
                     isPanelOpen ? (
                         <button
                             className="btn btn-text"

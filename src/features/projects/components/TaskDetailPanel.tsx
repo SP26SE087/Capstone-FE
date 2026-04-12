@@ -74,6 +74,7 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
     projectMembers,
     milestones,
     isSpecialRole,
+    isArchived,
     formatProjectDate,
     showToast,
     refreshTasks,
@@ -523,7 +524,7 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
                             })()}
                         </div>
                     </div>
-                    {isSpecialRole && !isEditMode && activeTask.status === TaskStatus.Todo && (
+                    {isSpecialRole && !isArchived && !isEditMode && activeTask.status === TaskStatus.Todo && (
                         <button
                             onClick={() => {
                                 const rawMilestoneId =

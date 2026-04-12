@@ -901,7 +901,7 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                     </div>
                 </div>
 
-                {!isArchived && (editingMilestoneId || canManageMilestones) && (
+                {(editingMilestoneId || (!isArchived && canManageMilestones)) && (
                     <div style={{ flex: 3, display: 'flex', flexDirection: 'column', gap: '0.8rem', transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)', minWidth: '310px', minHeight: 0 }}>
                         {!!editingMilestoneId ? (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
@@ -1071,7 +1071,7 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                         >
                             Current ({milestoneTasks.length})
                         </button>
-                        {activeMilestone?.status !== MilestoneStatus.Completed && activeMilestone?.status !== MilestoneStatus.Cancelled && (
+                        {!isArchived && activeMilestone?.status !== MilestoneStatus.Completed && activeMilestone?.status !== MilestoneStatus.Cancelled && (
                             <button
                                 onClick={() => setTaskTab('draft')}
                                 style={{ ...tabStyle, flex: 1, height: '100%', fontSize: '0.7rem', borderRadius: '8px', ...(taskTab === 'draft' ? activeTabStyle : inactiveTabStyle) }}
@@ -1087,7 +1087,7 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                 <Calendar size={14} /><span style={{ fontSize: '0.72rem', fontWeight: 750 }}>{header.startDate ? `${formatDate(header.startDate)} - ${formatDate(header.dueDate)}` : "TBD"}</span>
                             </div>
                             <div style={{ display: 'flex', gap: '8px' }}>
-                                {canManageProject && taskTab === 'draft' && activeMilestone?.status !== MilestoneStatus.Completed && activeMilestone?.status !== MilestoneStatus.Cancelled && (
+                                {canManageProject && !isArchived && taskTab === 'draft' && activeMilestone?.status !== MilestoneStatus.Completed && activeMilestone?.status !== MilestoneStatus.Cancelled && (
                                     <React.Fragment>
                                         <button
                                             onClick={addDraftSlot}
