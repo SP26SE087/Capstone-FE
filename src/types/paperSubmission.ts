@@ -68,8 +68,12 @@ export interface PaperSubmissionResponse {
     documents?: string | null;
     createdAt: string;
     updatedAt: string;
-    createdByMembershipId?: string | null;
-    lastUpdatedByMembershipId?: string | null;
+    createdByUserId?: string | null;
+    lastUpdatedByUserId?: string | null;
+    creatorFullName?: string | null;
+    creatorEmail?: string | null;
+    lastUpdatedByFullName?: string | null;
+    lastUpdatedByEmail?: string | null;
     editable: boolean;
     members: PaperMemberResponse[];
     externalUsers?: ExternalUserResponse[] | null;
@@ -114,7 +118,7 @@ export interface CreatePaperRequest {
     document?: File | string | null;
     documents?: string;
     conferenceName: string;
-    createdByMembershipId?: string | null;
+    createdByUserId?: string | null;
     members: PaperMemberRequest[];
     externalUsers?: ExternalUserCreateDto[];
 }
@@ -127,7 +131,7 @@ export interface UpdatePaperRequest {
     document?: File | string | null;
     documents?: string;
     conferenceName: string;
-    lastUpdatedByMembershipId?: string | null;
+    lastUpdatedByUserId?: string | null;
     members: PaperMemberRequest[];
 }
 

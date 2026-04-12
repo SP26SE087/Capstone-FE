@@ -271,10 +271,13 @@ const DetailsSettings: React.FC<DetailsSettingsProps> = ({
                     <div style={{ display: 'flex', alignItems: 'center', gap: '3rem', flex: 1 }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', height: '36px' }}>
-                                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: hasNoEndDate ? '#94a3b8' : statusStyle.color, flexShrink: 0 }} />
+                                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: (hasNoEndDate || isEditing) ? '#94a3b8' : statusStyle.color, flexShrink: 0 }} />
                                 <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Project Status</p>
-                                {hasNoEndDate ? (
-                                    <div title="Set an end date and save first" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '0 10px', height: '36px', borderRadius: '8px', background: '#f1f5f9', border: '1px solid #e2e8f0', cursor: 'not-allowed' }}>
+                                {(hasNoEndDate || isEditing) ? (
+                                    <div
+                                        title={isEditing ? 'Discard or save changes before changing status' : 'Set an end date and save first'}
+                                        style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '0 10px', height: '36px', borderRadius: '8px', background: '#f1f5f9', border: '1px solid #e2e8f0', cursor: 'not-allowed' }}
+                                    >
                                         <Lock size={13} style={{ color: '#94a3b8' }} />
                                         <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#94a3b8' }}>{['Inactive','Active','Completed','Archived'][formData.status - 1] ?? 'Unknown'}</span>
                                     </div>
@@ -293,13 +296,13 @@ const DetailsSettings: React.FC<DetailsSettingsProps> = ({
                                                 border: 'none',
                                                 borderRadius: 0,
                                                 appearance: 'none',
-                                                cursor: 'pointer',
+                                                cursor: permissionReadOnly ? 'not-allowed' : 'pointer',
                                                 width: 'auto',
                                                 height: '36px',
                                                 display: 'flex',
                                                 alignItems: 'center'
                                             }}
-                                            disabled={isReadOnly && !isAdmin}
+                                            disabled={permissionReadOnly}
                                         >
                                             {allowedStatuses.includes(ProjectStatus.Inactive) && <option value={ProjectStatus.Inactive}>Inactive</option>}
                                             {allowedStatuses.includes(ProjectStatus.Active) && <option value={ProjectStatus.Active}>Active</option>}
@@ -310,9 +313,14 @@ const DetailsSettings: React.FC<DetailsSettingsProps> = ({
                                     </div>
                                 )}
                             </div>
-                            {hasNoEndDate && (
+                            {hasNoEndDate && !isEditing && (
                                 <p style={{ margin: 0, fontSize: '0.72rem', color: '#b45309', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
                                     <Lock size={11} /> Please set an End Date and save before changing status.
+                                </p>
+                            )}
+                            {isEditing && (
+                                <p style={{ margin: 0, fontSize: '0.72rem', color: '#94a3b8', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <Lock size={11} /> Discard or save changes to change status.
                                 </p>
                             )}
                         </div>

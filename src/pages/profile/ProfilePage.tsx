@@ -28,7 +28,7 @@ const ProfilePage: React.FC = () => {
 
     const validate = {
         studentId: (v: string) => v && !/^[A-Za-z]{2}\d{6}$/.test(v) ? 'Format: 2 letters + 6 digits (e.g. SE123456)' : '',
-        phoneNumber: (v: string) => v && !/^\+?[\d\s\-().]{7,20}$/.test(v) ? 'Invalid phone number' : '',
+        phoneNumber: (v: string) => v && !/^(\+[1-9]\d{6,14}|0\d{9})$/.test(v) ? 'Invalid phone number format (e.g. 0912345678 or +84912345678)' : '',
         orcid: (v: string) => v && !/^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/.test(v) ? 'Format: xxxx-xxxx-xxxx-xxxx' : '',
         googleScholarUrl: (v: string) => v && !/^https?:\/\/(www\.)?scholar\.google\.[a-z.]+\//.test(v) ? 'Must be a valid Google Scholar URL' : '',
         githubUrl: (v: string) => v && !/^https?:\/\/(www\.)?github\.com\/[A-Za-z0-9_.-]+/.test(v) ? 'Must be a valid GitHub profile URL' : '',

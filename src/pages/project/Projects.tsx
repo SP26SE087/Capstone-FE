@@ -16,9 +16,27 @@ import {
     Save,
     Briefcase,
     FileText,
-    Check
+    Check,
+    AlertTriangle,
+    Clock
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+
+const DEADLINE_WARN_DAYS = 7;
+
+const getDeadlineState = (project: Project): 'overdue' | 'soon' | null => {
+    if (project.status !== ProjectStatus.Active && project.status !== ProjectStatus.Inactive) return null;
+    const datePart = /^(\d{4}-\d{2}-\d{2})/.exec(project.endDate ?? '')?.[1];
+    if (!datePart) return null;
+    const [y, m, d] = datePart.split('-').map(Number);
+    if (!y || y < 1970) return null;
+    const end = new Date(y, m - 1, d);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const diffDays = Math.ceil((end.getTime() - today.getTime()) / 86400000);
+    if (diffDays < 0) return 'overdue';
+    if (diffDays <= DEADLINE_WARN_DAYS) return 'soon';
+    return null;
+};
 
 const PROJECT_SORT_ORDER: Record<number, number> = {
     [ProjectStatus.Inactive as number]: 0,
@@ -248,6 +266,8 @@ const Projects: React.FC = () => {
                                             return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`;
                                         };
 
+                                        const deadlineState = getDeadlineState(project);
+
                                         return (
                                             <div
                                                 key={project.projectId}
@@ -258,11 +278,23 @@ const Projects: React.FC = () => {
                                                     display: 'flex',
                                                     flexDirection: 'column',
                                                     gap: '0.5rem',
-                                                    border: '1px solid var(--border-color)',
+                                                    border: deadlineState === 'overdue' ? '1.5px solid #fca5a5' : deadlineState === 'soon' ? '1.5px solid #fde68a' : '1px solid var(--border-color)',
                                                     transition: 'all 0.2s',
                                                     cursor: 'pointer',
+                                                    overflow: 'hidden',
                                                 }}
                                             >
+                                                {/* Deadline banner */}
+                                                {deadlineState === 'overdue' && (
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', margin: '-0.85rem -1rem 0', padding: '5px 10px', background: '#fef2f2', borderBottom: '1px solid #fca5a5', fontSize: '0.72rem', fontWeight: 700, color: '#dc2626' }}>
+                                                        <AlertTriangle size={12} /> Overdue · {formatDate(project.endDate)}
+                                                    </div>
+                                                )}
+                                                {deadlineState === 'soon' && (
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', margin: '-0.85rem -1rem 0', padding: '5px 10px', background: '#fffbeb', borderBottom: '1px solid #fde68a', fontSize: '0.72rem', fontWeight: 700, color: '#d97706' }}>
+                                                        <Clock size={12} /> Due soon · {formatDate(project.endDate)}
+                                                    </div>
+                                                )}
                                                 {/* Row 1: name + badges */}
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
                                                     <span title={projectName} style={{
@@ -326,6 +358,7 @@ const Projects: React.FC = () => {
                                         const projectName = project.projectName || (project as any).name || 'Untitled Project';
                                         const projectDescription = project.projectDescription || (project as any).description;
                                         const creatorName = project.nameProjectCreator || project.NameProjectCreator || 'Lab Manager';
+                                        const deadlineState = getDeadlineState(project);
 
                                         return (
                                             <div
@@ -333,16 +366,27 @@ const Projects: React.FC = () => {
                                                 className="card card-interactive"
                                                 onClick={() => navigate(`/projects/${project.projectId}`)}
                                                 style={{
-                                                    padding: '1rem 1.25rem',
-                                                    display: 'grid',
-                                                    gridTemplateColumns: '1fr 180px 160px 140px',
-                                                    gap: '1.25rem',
-                                                    alignItems: 'center',
-                                                    border: '1px solid var(--border-color)',
+                                                    padding: '0',
+                                                    display: 'flex',
+                                                    flexDirection: 'column',
+                                                    border: deadlineState === 'overdue' ? '1.5px solid #fca5a5' : deadlineState === 'soon' ? '1.5px solid #fde68a' : '1px solid var(--border-color)',
                                                     transition: 'all 0.2s',
                                                     cursor: 'pointer',
+                                                    overflow: 'hidden',
                                                 }}
                                             >
+                                                {/* Deadline banner */}
+                                                {deadlineState === 'overdue' && (
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 14px', background: '#fef2f2', borderBottom: '1px solid #fca5a5', fontSize: '0.72rem', fontWeight: 700, color: '#dc2626' }}>
+                                                        <AlertTriangle size={12} /> Overdue · {formatDate(project.endDate)}
+                                                    </div>
+                                                )}
+                                                {deadlineState === 'soon' && (
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 14px', background: '#fffbeb', borderBottom: '1px solid #fde68a', fontSize: '0.72rem', fontWeight: 700, color: '#d97706' }}>
+                                                        <Clock size={12} /> Due soon · {formatDate(project.endDate)}
+                                                    </div>
+                                                )}
+                                                <div style={{ padding: '1rem 1.25rem', display: 'grid', gridTemplateColumns: '1fr 180px 160px 140px', gap: '1.25rem', alignItems: 'center' }}>
                                                 {/* Col 1: Name + description + meta */}
                                                 <div style={{ minWidth: 0 }}>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
@@ -411,6 +455,7 @@ const Projects: React.FC = () => {
                                                         </span>
                                                     )}
                                                 </div>
+                                                </div>{/* end inner grid div */}
                                             </div>
                                         );
                                     })}

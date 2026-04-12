@@ -74,7 +74,7 @@ export const paperSubmissionService = {
     /** Create a new paper (multipart/form-data) */
     create: async (data: CreatePaperRequest): Promise<PaperSubmissionResponse> => {
         const fd = buildFormData(data, {
-            CreatedByMembershipId: data.createdByMembershipId ?? '',
+            CreatedByUserId: data.createdByUserId ?? '',
         });
         const response = await api.post(BASE, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
         return response.data.data || response.data;
@@ -84,7 +84,7 @@ export const paperSubmissionService = {
     update: async (id: string, data: UpdatePaperRequest): Promise<PaperSubmissionResponse> => {
         try {
             const fd = buildFormData(data, {
-                LastUpdatedByMembershipId: data.lastUpdatedByMembershipId ?? '',
+                LastUpdatedByUserId: data.lastUpdatedByUserId ?? '',
             });
             const response = await api.put(`${BASE}/${id}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
             return response.data.data || response.data;

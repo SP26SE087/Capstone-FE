@@ -281,11 +281,11 @@ const Reports: React.FC = () => {
 
     return (
         <MainLayout role={user?.role} userName={user?.name}>
-            <div className="page-container" style={{ padding: '1.5rem 2rem', maxWidth: '1600px', margin: '0 auto' }}>
+            <div className="page-container" style={{ padding: '1rem 2rem', maxWidth: '1600px', margin: '0 auto' }}>
                 {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
                 {/* Header Section */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
                     <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
                             <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'var(--primary-color)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 16px rgba(99, 102, 241, 0.2)' }}>
@@ -301,7 +301,7 @@ const Reports: React.FC = () => {
 
                 {/* Search Toolbar */}
                 <div style={{
-                    padding: '0.75rem 1.5rem', borderRadius: '14px', background: 'var(--surface-color)', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)', marginBottom: '1.5rem'
+                    padding: '0.625rem 1.25rem', borderRadius: '14px', background: 'var(--surface-color)', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)', marginBottom: '1rem'
                 }}>
                     <form onSubmit={handleSearch} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                         <div style={{ display: 'flex', gap: '10px' }}>
@@ -377,7 +377,7 @@ const Reports: React.FC = () => {
                     </form>
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1.5rem', gap: '2rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1rem', gap: '2rem' }}>
                     {/* Left: Tabs */}
                     <div style={{ flex: 1, borderBottom: '1px solid #e2e8f0', overflowX: 'auto', whiteSpace: 'nowrap' }} className="custom-scrollbar">
                         <div style={{ display: 'flex', gap: '1rem' }}>
@@ -404,12 +404,82 @@ const Reports: React.FC = () => {
                     </div>
                     {/* Right: Actions */}
                     {!isLabDirector && (
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-end', paddingBottom: '4px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-end', paddingBottom: '4px', gap: '10px' }}>
+                            {/* Create Dropdown */}
+                            {openTabs.length > 0 && (
+                                <div style={{ position: 'relative' }} ref={createDropdownRef}>
+                                    <button
+                                        onClick={() => { setIsCreateDropdownOpen(!isCreateDropdownOpen); setIsUpdateDropdownOpen(false); }}
+                                        style={{
+                                        height: '38px', padding: '0 14px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 800, border: '1px solid #e2e8f0',
+                                            background: openTabs.some(t => t.id === activeTabId && t.type === 'create') ? 'var(--primary-color)' : '#fff',
+                                            color: openTabs.some(t => t.id === activeTabId && t.type === 'create') ? '#fff' : '#64748b',
+                                            display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', transition: 'all 0.2s',
+                                            boxShadow: isCreateDropdownOpen ? '0 0 0 2px var(--primary-color)22' : 'none', whiteSpace: 'nowrap'
+                                        }}
+                                    >
+                                        <Plus size={14} /> New Report ({openTabs.filter(t => t.type === 'create').length}/5) <ChevronRight size={14} style={{ transform: isCreateDropdownOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }} />
+                                    </button>
+                                    {isCreateDropdownOpen && (
+                                        <div style={{ position: 'absolute', top: '110%', right: 0, width: '250px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', zIndex: 200, padding: '8px' }}>
+                                            {openTabs.filter(t => t.type === 'create').length === 0 ? (
+                                                <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8', fontSize: '0.75rem' }}>No new reports open.</div>
+                                            ) : openTabs.filter(t => t.type === 'create').map(tab => (
+                                                <div
+                                                    key={tab.id}
+                                                    onClick={() => { setActiveTabId(tab.id); setIsCreateDropdownOpen(false); }}
+                                                    style={{ padding: '8px 12px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', background: activeTabId === tab.id ? '#f1f5f9' : 'transparent', marginBottom: '2px' }}
+                                                >
+                                                    <div style={{ fontSize: '0.8rem', fontWeight: 700, color: activeTabId === tab.id ? 'var(--primary-color)' : '#334155', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                        {tab.title}
+                                                    </div>
+                                                    <X size={14} onClick={(e) => handleCloseTab(tab.id, e)} style={{ color: '#94a3b8' }} />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                            {/* Update Dropdown */}
+                            {openTabs.length > 0 && (
+                                <div style={{ position: 'relative' }} ref={updateDropdownRef}>
+                                    <button
+                                        onClick={() => { setIsUpdateDropdownOpen(!isUpdateDropdownOpen); setIsCreateDropdownOpen(false); }}
+                                        style={{
+                                        height: '38px', padding: '0 14px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 800, border: '1px solid #e2e8f0',
+                                            background: openTabs.some(t => t.id === activeTabId && t.type === 'update') ? 'var(--primary-color)' : '#fff',
+                                            color: openTabs.some(t => t.id === activeTabId && t.type === 'update') ? '#fff' : '#64748b',
+                                            display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', transition: 'all 0.2s',
+                                            boxShadow: isUpdateDropdownOpen ? '0 0 0 2px var(--primary-color)22' : 'none', whiteSpace: 'nowrap'
+                                        }}
+                                    >
+                                        <Edit3 size={14} /> View/Edit ({openTabs.filter(t => t.type === 'update').length}/5) <ChevronRight size={14} style={{ transform: isUpdateDropdownOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }} />
+                                    </button>
+                                    {isUpdateDropdownOpen && (
+                                        <div style={{ position: 'absolute', top: '110%', right: 0, width: '250px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', zIndex: 200, padding: '8px' }}>
+                                            {openTabs.filter(t => t.type === 'update').length === 0 ? (
+                                                <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8', fontSize: '0.75rem' }}>No active reports being viewed.</div>
+                                            ) : openTabs.filter(t => t.type === 'update').map(tab => (
+                                                <div
+                                                    key={tab.id}
+                                                    onClick={() => { setActiveTabId(tab.id); setIsUpdateDropdownOpen(false); }}
+                                                    style={{ padding: '8px 12px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', background: activeTabId === tab.id ? '#f1f5f9' : 'transparent', marginBottom: '2px' }}
+                                                >
+                                                    <div style={{ fontSize: '0.8rem', fontWeight: 700, color: activeTabId === tab.id ? 'var(--primary-color)' : '#334155', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                        {tab.title}
+                                                    </div>
+                                                    <X size={14} onClick={(e) => handleCloseTab(tab.id, e)} style={{ color: '#94a3b8' }} />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                             <button
                                 className="btn btn-primary"
                                 onClick={handleAddCreateTab}
                                 style={{
-                                    display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, padding: '10px 20px', borderRadius: '12px', fontSize: '0.85rem',
+                                    height: '38px', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, padding: '0 18px', borderRadius: '10px', fontSize: '0.85rem',
                                     boxShadow: '0 4px 12px rgba(99, 102, 241, 0.2)', whiteSpace: 'nowrap'
                                 }}
                             >
@@ -419,7 +489,7 @@ const Reports: React.FC = () => {
                     )}
                 </div>
 
-                <div style={{ display: 'flex', gap: '2rem', height: 'calc(100vh - 210px)', minHeight: '650px', marginTop: '0.25rem' }}>
+                <div style={{ display: 'flex', gap: '2rem', height: 'calc(100vh - 175px)', minHeight: '620px', marginTop: '0.25rem' }}>
 
                     {/* Left Column: List content */}
                     <div style={{
@@ -464,86 +534,10 @@ const Reports: React.FC = () => {
                         overflow: 'hidden',
                         display: openTabs.length > 0 ? 'flex' : 'none',
                         flexDirection: 'column',
-                        background: 'var(--surface-color)',
-                        borderRadius: '16px',
-                        border: '1px solid var(--border-color)',
-                        padding: '1rem'
                     }}>
-                        {/* Dropdown-based Tab System */}
-                        <div style={{ display: 'flex', gap: '12px', marginBottom: '1rem', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.75rem' }}>
-                            {/* Create Dropdown */}
-                            <div style={{ position: 'relative' }} ref={createDropdownRef}>
-                                <button
-                                    onClick={() => { setIsCreateDropdownOpen(!isCreateDropdownOpen); setIsUpdateDropdownOpen(false); }}
-                                    style={{
-                                        padding: '8px 16px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 800, border: '1px solid #e2e8f0',
-                                        background: openTabs.some(t => t.id === activeTabId && t.type === 'create') ? 'var(--primary-color)' : '#fff',
-                                        color: openTabs.some(t => t.id === activeTabId && t.type === 'create') ? '#fff' : '#64748b',
-                                        display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', transition: 'all 0.2s',
-                                        boxShadow: isCreateDropdownOpen ? '0 0 0 2px var(--primary-color)22' : 'none'
-                                    }}
-                                >
-                                    <Plus size={14} /> New Report ({openTabs.filter(t => t.type === 'create').length}/5) <ChevronRight size={14} style={{ transform: isCreateDropdownOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }} />
-                                </button>
-                                {isCreateDropdownOpen && (
-                                    <div style={{ position: 'absolute', top: '110%', left: 0, width: '250px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', zIndex: 100, padding: '8px' }}>
-                                        {openTabs.filter(t => t.type === 'create').length === 0 ? (
-                                            <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8', fontSize: '0.75rem' }}>No new reports open.</div>
-                                        ) : openTabs.filter(t => t.type === 'create').map(tab => (
-                                            <div
-                                                key={tab.id}
-                                                onClick={() => { setActiveTabId(tab.id); setIsCreateDropdownOpen(false); }}
-                                                style={{ padding: '8px 12px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', background: activeTabId === tab.id ? '#f1f5f9' : 'transparent', marginBottom: '2px' }}
-                                            >
-                                                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: activeTabId === tab.id ? 'var(--primary-color)' : '#334155', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                    {tab.title}
-                                                </div>
-                                                <X size={14} onClick={(e) => handleCloseTab(tab.id, e)} style={{ color: '#94a3b8' }} />
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Update Dropdown */}
-                            <div style={{ position: 'relative' }} ref={updateDropdownRef}>
-                                <button
-                                    onClick={() => { setIsUpdateDropdownOpen(!isUpdateDropdownOpen); setIsCreateDropdownOpen(false); }}
-                                    style={{
-                                        padding: '8px 16px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 800, border: '1px solid #e2e8f0',
-                                        background: openTabs.some(t => t.id === activeTabId && t.type === 'update') ? 'var(--primary-color)' : '#fff',
-                                        color: openTabs.some(t => t.id === activeTabId && t.type === 'update') ? '#fff' : '#64748b',
-                                        display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', transition: 'all 0.2s',
-                                        boxShadow: isUpdateDropdownOpen ? '0 0 0 2px var(--primary-color)22' : 'none'
-                                    }}
-                                >
-                                    <Edit3 size={14} /> View/Edit ({openTabs.filter(t => t.type === 'update').length}/5) <ChevronRight size={14} style={{ transform: isUpdateDropdownOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }} />
-                                </button>
-                                {isUpdateDropdownOpen && (
-                                    <div style={{ position: 'absolute', top: '110%', left: 0, width: '250px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', zIndex: 100, padding: '8px' }}>
-                                        {openTabs.filter(t => t.type === 'update').length === 0 ? (
-                                            <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8', fontSize: '0.75rem' }}>No active reports being viewed.</div>
-                                        ) : openTabs.filter(t => t.type === 'update').map(tab => (
-                                            <div
-                                                key={tab.id}
-                                                onClick={() => { setActiveTabId(tab.id); setIsUpdateDropdownOpen(false); }}
-                                                style={{ padding: '8px 12px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', background: activeTabId === tab.id ? '#f1f5f9' : 'transparent', marginBottom: '2px' }}
-                                            >
-                                                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: activeTabId === tab.id ? 'var(--primary-color)' : '#334155', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                    {tab.title}
-                                                </div>
-                                                <X size={14} onClick={(e) => handleCloseTab(tab.id, e)} style={{ color: '#94a3b8' }} />
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
                         {/* Mounted Panels (one for each tab, to preserve state) */}
-                        <div style={{ flex: 1, position: 'relative', overflowY: 'auto' }} className="custom-scrollbar">
-                            {openTabs.map(tab => (
-                                <div key={tab.id} style={{ display: activeTabId === tab.id ? 'block' : 'none', height: '100%' }}>
+                        {openTabs.map(tab => (
+                            <div key={tab.id} style={{ display: activeTabId === tab.id ? 'flex' : 'none', flex: 1, flexDirection: 'column', overflowY: 'auto', position: 'relative' }} className="custom-scrollbar">
                                     <ReportPanel
                                         reportId={tab.type === 'update' ? tab.reportId! : null}
                                         isAdding={tab.type === 'create'}
@@ -569,9 +563,8 @@ const Reports: React.FC = () => {
                                         }}
                                         onTitleChange={(title) => handleTitleChange(tab.id, title)}
                                     />
-                                </div>
-                            ))}
-                        </div>
+                            </div>
+                        ))}
                     </div>
 
                 </div>

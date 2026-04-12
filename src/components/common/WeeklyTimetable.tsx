@@ -556,22 +556,7 @@ const WeeklyTimetable: React.FC<WeeklyTimetableProps> = ({ events, onEventClick 
                         </div>
                     </div>
 
-                    <div style={{ padding: '12px 16px', background: 'var(--surface-hover)', borderTop: '1px solid var(--border-light)', display: 'flex', justifyContent: 'flex-end' }}>
-                        <button
-                            onClick={() => {
-                                setActivePopover(null);
-                                onEventClick?.(activePopover.event);
-                            }}
-                            style={{
-                                display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 14px',
-                                borderRadius: '8px', background: '#fff', border: '1px solid var(--border-color)',
-                                color: 'var(--accent-color)', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer',
-                                transition: 'all 0.2s', boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
-                            }}
-                        >
-                            <ExternalLink size={14} /> View Details
-                        </button>
-                    </div>
+
                 </div>
             )}
 

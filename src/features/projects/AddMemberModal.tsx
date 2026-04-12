@@ -85,7 +85,7 @@ const AddMemberModal: React.FC<AddMemberModalProps> = ({
 
         try {
             const payload = {
-                userId: foundUser.userId || foundUser.id,
+                email: foundUser.email,
                 projectId: projectId,
                 projectRoleId: selectedRoleId
             };

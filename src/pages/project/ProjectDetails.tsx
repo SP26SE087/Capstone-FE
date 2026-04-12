@@ -6,6 +6,7 @@ import { Project, ProjectStatus, ProjectRoleEnum, MemberStatus, Milestone, Task,
 import { getProjectStatusStyle, isDefaultDate, formatProjectDate, toApiDate } from '@/utils/projectUtils';
 import { validateSpecialChars } from '@/utils/validation';
 import Modal from '@/components/common/Modal';
+import ConfirmModal from '@/components/common/ConfirmModal';
 import Toast, { ToastType } from '@/components/common/Toast';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -831,20 +832,38 @@ const ProjectDetails: React.FC = () => {
 
 
 
-<Modal
+<ConfirmModal
                 isOpen={isStatusConfirmOpen}
                 onClose={() => setIsStatusConfirmOpen(false)}
-                title="Update Status"
+                onConfirm={confirmStatusChange}
+                title="Change Project Status"
                 variant="info"
-                footer={(
-                    <>
-                        <button className="btn btn-secondary" onClick={() => setIsStatusConfirmOpen(false)}>Cancel</button>
-                        <button className="btn btn-primary" onClick={confirmStatusChange}>Confirm</button>
-                    </>
-                )}
-            >
-                <p>Are you sure you want to change the project status to <strong>{ProjectStatus[pendingStatus || 0]}</strong>?</p>
-            </Modal>
+                confirmText="Confirm Change"
+                message={
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        <p style={{ margin: 0, color: '#475569' }}>Are you sure you want to transition the project status?</p>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                            {(() => {
+                                const statusColors: Record<number, { color: string; bg: string; label: string }> = {
+                                    [ProjectStatus.Inactive]:  { color: '#64748b', bg: '#f1f5f9', label: 'Inactive' },
+                                    [ProjectStatus.Active]:    { color: '#10b981', bg: '#ecfdf5', label: 'Active' },
+                                    [ProjectStatus.Completed]: { color: '#3b82f6', bg: '#eff6ff', label: 'Completed' },
+                                    [ProjectStatus.Archived]:  { color: '#ef4444', bg: '#fef2f2', label: 'Archived' },
+                                };
+                                const from = statusColors[project?.status ?? 0] ?? { color: '#64748b', bg: '#f1f5f9', label: 'Unknown' };
+                                const to   = statusColors[pendingStatus ?? 0]    ?? { color: '#64748b', bg: '#f1f5f9', label: 'Unknown' };
+                                return (
+                                    <>
+                                        <span style={{ padding: '4px 12px', borderRadius: '20px', background: from.bg, color: from.color, fontWeight: 700, fontSize: '0.82rem' }}>{from.label}</span>
+                                        <span style={{ color: '#94a3b8', fontWeight: 700, fontSize: '1rem' }}>→</span>
+                                        <span style={{ padding: '4px 12px', borderRadius: '20px', background: to.bg, color: to.color, fontWeight: 700, fontSize: '0.82rem' }}>{to.label}</span>
+                                    </>
+                                );
+                            })()}
+                        </div>
+                    </div>
+                }
+            />
 
             <Modal
                 isOpen={isDeleteConfirmOpen}

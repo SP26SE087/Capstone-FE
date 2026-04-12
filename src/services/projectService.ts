@@ -68,7 +68,8 @@ export const projectService = {
 
     update: async (projectData: any): Promise<any> => {
         try {
-            const response = await api.patch('/api/projects', projectData);
+            const { projectId, ...body } = projectData;
+            const response = await api.patch(`/api/projects/${projectId}`, body);
             return response.data;
         } catch (error) {
             console.error('Error updating project:', error);
@@ -90,8 +91,7 @@ export const projectService = {
 
     updateStatus: async (projectId: string, newStatus: number): Promise<any> => {
         try {
-            const response = await api.patch('/api/projects/status', {
-                projectId,
+            const response = await api.patch(`/api/projects/${projectId}/status`, {
                 newStatus
             });
             return response.data;

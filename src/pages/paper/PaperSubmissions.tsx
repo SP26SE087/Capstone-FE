@@ -74,7 +74,7 @@ const validateExternalAuthorField = (field: keyof ExternalAuthorValidationErrors
         case 'studentId':
             return value && !/^[A-Za-z]{2}\d{4}$/.test(value) ? 'Format: 2 letters + 4 digits (e.g. SE1234)' : '';
         case 'phoneNumber':
-            return value && !/^\+?[\d\s\-().]{7,20}$/.test(value) ? 'Invalid phone number' : '';
+            return value && !/^(\+[1-9]\d{6,14}|0\d{9})$/.test(value) ? 'Invalid phone number format (e.g. 0912345678 or +84912345678)' : '';
         case 'orcid':
             return value && !/^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/.test(value) ? 'Format: xxxx-xxxx-xxxx-xxxx' : '';
         case 'googleScholarUrl':
@@ -169,6 +169,8 @@ const PaperSubmissions: React.FC = () => {
     const [editEuShowAdd, setEditEuShowAdd] = useState(false);
     const [editEuDraft, setEditEuDraft] = useState(blankExternalForm);
     const [editEuHovered, setEditEuHovered] = useState<string | null>(null);
+    const [editEuDraftErrors, setEditEuDraftErrors] = useState<ExternalAuthorValidationErrors>(externalAuthorValidationDefaults);
+    const [editEuEditErrors, setEditEuEditErrors] = useState<ExternalAuthorValidationErrors>(externalAuthorValidationDefaults);
 
     // Action loading
     const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -372,7 +374,7 @@ const PaperSubmissions: React.FC = () => {
                 document: addDocument,
                 members: addMembers.map(m => ({ membershipId: m.membershipId, role: Number(m.role) })),
                 externalUsers: addExternalUsers,
-                createdByMembershipId: myMembershipId
+                createdByUserId: myMembershipId
             };
             const newPaper = await paperSubmissionService.create(payload);
             await loadPapers(1);
@@ -408,7 +410,7 @@ const PaperSubmissions: React.FC = () => {
                 submissionDeadline: editData.submissionDeadline ? new Date(editData.submissionDeadline).toISOString() : null,
                 document: editDocument,
                 members: editData.members?.map((m: any) => ({ membershipId: m.membershipId, role: Number(m.role) })) || [],
-                lastUpdatedByMembershipId: myMembershipId
+                lastUpdatedByUserId: myMembershipId
             };
             const paperId = selectedPaper.paperSubmissionId;
             let updated = await paperSubmissionService.update(paperId, payload);
@@ -1229,7 +1231,7 @@ const PaperSubmissions: React.FC = () => {
                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                             <label style={fieldLabelStyle}>External Authors</label>
                                             {!editEuShowAdd && editEuEditingKey === null && (
-                                                <button type="button" onClick={() => setEditEuShowAdd(true)}
+                                                <button type="button" onClick={() => { setEditEuShowAdd(true); setEditEuDraftErrors(externalAuthorValidationDefaults); setEditEuDraft(blankExternalForm); }}
                                                     style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', borderRadius: '7px', border: '1px solid #e2e8f0', background: '#f8fafc', color: '#475569', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700 }}>
                                                     <Plus size={11} /> Add
                                                 </button>
@@ -1246,15 +1248,24 @@ const PaperSubmissions: React.FC = () => {
                                                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
                                                                         <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem' }} placeholder="Full name *" value={editEuEditForm.fullName} onChange={e => setEditEuEditForm(f => ({ ...f, fullName: e.target.value }))} />
                                                                         <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem' }} placeholder="Email *" value={editEuEditForm.email} onChange={e => setEditEuEditForm(f => ({ ...f, email: e.target.value }))} />
-                                                                        <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem' }} placeholder="Phone number" value={editEuEditForm.phoneNumber} onChange={e => setEditEuEditForm(f => ({ ...f, phoneNumber: e.target.value }))} />
-                                                                        <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem' }} placeholder="Student ID" value={editEuEditForm.studentId} onChange={e => setEditEuEditForm(f => ({ ...f, studentId: e.target.value }))} />
-                                                                        <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem' }} placeholder="ORCID" value={editEuEditForm.orcid} onChange={e => setEditEuEditForm(f => ({ ...f, orcid: e.target.value }))} />
-                                                                        <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem' }} placeholder="Google Scholar URL" value={editEuEditForm.googleScholarUrl} onChange={e => setEditEuEditForm(f => ({ ...f, googleScholarUrl: e.target.value }))} />
-                                                                        <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem', gridColumn: '1 / -1' }} placeholder="GitHub URL" value={editEuEditForm.githubUrl} onChange={e => setEditEuEditForm(f => ({ ...f, githubUrl: e.target.value }))} />
+                                                                        <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: `1px solid ${editEuEditErrors.phoneNumber ? '#ef4444' : '#e2e8f0'}`, fontSize: '0.8rem' }} placeholder="Phone number" value={editEuEditForm.phoneNumber} onChange={e => { const v = e.target.value; setEditEuEditForm(f => ({ ...f, phoneNumber: v })); setEditEuEditErrors(prev => ({ ...prev, phoneNumber: validateExternalAuthorField('phoneNumber', v.trim()) })); }} />
+                                                                        <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: `1px solid ${editEuEditErrors.studentId ? '#ef4444' : '#e2e8f0'}`, fontSize: '0.8rem' }} placeholder="Student ID" value={editEuEditForm.studentId} onChange={e => { const v = e.target.value; setEditEuEditForm(f => ({ ...f, studentId: v })); setEditEuEditErrors(prev => ({ ...prev, studentId: validateExternalAuthorField('studentId', v.trim()) })); }} />
+                                                                        <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: `1px solid ${editEuEditErrors.orcid ? '#ef4444' : '#e2e8f0'}`, fontSize: '0.8rem' }} placeholder="ORCID" value={editEuEditForm.orcid} onChange={e => { const v = e.target.value; setEditEuEditForm(f => ({ ...f, orcid: v })); setEditEuEditErrors(prev => ({ ...prev, orcid: validateExternalAuthorField('orcid', v.trim()) })); }} />
+                                                                        <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: `1px solid ${editEuEditErrors.googleScholarUrl ? '#ef4444' : '#e2e8f0'}`, fontSize: '0.8rem' }} placeholder="Google Scholar URL" value={editEuEditForm.googleScholarUrl} onChange={e => { const v = e.target.value; setEditEuEditForm(f => ({ ...f, googleScholarUrl: v })); setEditEuEditErrors(prev => ({ ...prev, googleScholarUrl: validateExternalAuthorField('googleScholarUrl', v.trim()) })); }} />
+                                                                        <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: `1px solid ${editEuEditErrors.githubUrl ? '#ef4444' : '#e2e8f0'}`, fontSize: '0.8rem', gridColumn: '1 / -1' }} placeholder="GitHub URL" value={editEuEditForm.githubUrl} onChange={e => { const v = e.target.value; setEditEuEditForm(f => ({ ...f, githubUrl: v })); setEditEuEditErrors(prev => ({ ...prev, githubUrl: validateExternalAuthorField('githubUrl', v.trim()) })); }} />
                                                                     </div>
+                                                                    {hasExternalAuthorValidationErrors(editEuEditErrors) && (
+                                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                                                            {editEuEditErrors.studentId && <span style={{ color: '#ef4444', fontSize: '0.72rem' }}>{editEuEditErrors.studentId}</span>}
+                                                                            {editEuEditErrors.phoneNumber && <span style={{ color: '#ef4444', fontSize: '0.72rem' }}>{editEuEditErrors.phoneNumber}</span>}
+                                                                            {editEuEditErrors.orcid && <span style={{ color: '#ef4444', fontSize: '0.72rem' }}>{editEuEditErrors.orcid}</span>}
+                                                                            {editEuEditErrors.googleScholarUrl && <span style={{ color: '#ef4444', fontSize: '0.72rem' }}>{editEuEditErrors.googleScholarUrl}</span>}
+                                                                            {editEuEditErrors.githubUrl && <span style={{ color: '#ef4444', fontSize: '0.72rem' }}>{editEuEditErrors.githubUrl}</span>}
+                                                                        </div>
+                                                                    )}
                                                                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
-                                                                        <button type="button" onClick={() => setEditEuEditingKey(null)} style={{ padding: '5px 12px', borderRadius: '6px', border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', color: '#64748b', fontSize: '0.75rem', fontWeight: 700 }}>Cancel</button>
-                                                                        <button type="button" disabled={!editEuEditForm.fullName.trim() || !editEuEditForm.email.trim()} onClick={() => { setEditExternalUsers(prev => prev.map((x, i) => (eu.externalUserId ? x.externalUserId === eu.externalUserId : i === idx) ? { ...x, ...editEuEditForm } : x)); setEditEuEditingKey(null); }} style={{ padding: '5px 12px', borderRadius: '6px', border: 'none', background: '#16a34a', color: '#fff', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}>Save</button>
+                                                                        <button type="button" onClick={() => { setEditEuEditingKey(null); setEditEuEditErrors(externalAuthorValidationDefaults); }} style={{ padding: '5px 12px', borderRadius: '6px', border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', color: '#64748b', fontSize: '0.75rem', fontWeight: 700 }}>Cancel</button>
+                                                                        <button type="button" disabled={!editEuEditForm.fullName.trim() || !editEuEditForm.email.trim() || hasExternalAuthorValidationErrors(editEuEditErrors)} onClick={() => { setEditExternalUsers(prev => prev.map((x, i) => (eu.externalUserId ? x.externalUserId === eu.externalUserId : i === idx) ? { ...x, ...editEuEditForm } : x)); setEditEuEditingKey(null); setEditEuEditErrors(externalAuthorValidationDefaults); }} style={{ padding: '5px 12px', borderRadius: '6px', border: 'none', background: '#16a34a', color: '#fff', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}>Save</button>
                                                                     </div>
                                                                 </div>
                                                             ) : (
@@ -1264,7 +1275,7 @@ const PaperSubmissions: React.FC = () => {
                                                                             <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1e293b' }}>{eu.fullName || '—'}</div>
                                                                             {eu.email && <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '2px' }}>✉ {eu.email}</div>}
                                                                         </div>
-                                                                        <button type="button" onClick={() => { setEditEuEditingKey(key); setEditEuEditForm({ fullName: eu.fullName ?? '', email: eu.email ?? '', phoneNumber: eu.phoneNumber ?? '', studentId: eu.studentId ?? '', orcid: eu.orcid ?? '', googleScholarUrl: eu.googleScholarUrl ?? '', githubUrl: eu.githubUrl ?? '' }); setEditEuShowAdd(false); }} style={{ padding: '3px 7px', borderRadius: '5px', border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', color: '#64748b', flexShrink: 0 }}><Edit2 size={11} /></button>
+                                                                        <button type="button" onClick={() => { setEditEuEditingKey(key); setEditEuEditForm({ fullName: eu.fullName ?? '', email: eu.email ?? '', phoneNumber: eu.phoneNumber ?? '', studentId: eu.studentId ?? '', orcid: eu.orcid ?? '', googleScholarUrl: eu.googleScholarUrl ?? '', githubUrl: eu.githubUrl ?? '' }); setEditEuEditErrors(externalAuthorValidationDefaults); setEditEuShowAdd(false); }} style={{ padding: '3px 7px', borderRadius: '5px', border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', color: '#64748b', flexShrink: 0 }}><Edit2 size={11} /></button>
                                                                         <button type="button" onClick={() => { if (eu.externalUserId) setEditDeletedExternalUserIds(prev => [...prev, eu.externalUserId]); setEditExternalUsers(prev => prev.filter((_, i) => i !== idx)); }} style={{ padding: '3px 7px', borderRadius: '5px', border: '1px solid #fecaca', background: '#fef2f2', cursor: 'pointer', color: '#ef4444', flexShrink: 0 }}><Trash2 size={11} /></button>
                                                                     </div>
                                                                 </div>
@@ -1282,15 +1293,24 @@ const PaperSubmissions: React.FC = () => {
                                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
                                                     <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem' }} placeholder="Full name *" value={editEuDraft.fullName} onChange={e => setEditEuDraft(f => ({ ...f, fullName: e.target.value }))} />
                                                     <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem' }} placeholder="Email *" value={editEuDraft.email} onChange={e => setEditEuDraft(f => ({ ...f, email: e.target.value }))} />
-                                                    <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem' }} placeholder="Phone number" value={editEuDraft.phoneNumber} onChange={e => setEditEuDraft(f => ({ ...f, phoneNumber: e.target.value }))} />
-                                                    <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem' }} placeholder="Student ID" value={editEuDraft.studentId} onChange={e => setEditEuDraft(f => ({ ...f, studentId: e.target.value }))} />
-                                                    <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem' }} placeholder="ORCID" value={editEuDraft.orcid} onChange={e => setEditEuDraft(f => ({ ...f, orcid: e.target.value }))} />
-                                                    <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem' }} placeholder="Google Scholar URL" value={editEuDraft.googleScholarUrl} onChange={e => setEditEuDraft(f => ({ ...f, googleScholarUrl: e.target.value }))} />
-                                                    <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem', gridColumn: '1 / -1' }} placeholder="GitHub URL" value={editEuDraft.githubUrl} onChange={e => setEditEuDraft(f => ({ ...f, githubUrl: e.target.value }))} />
+                                                    <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: `1px solid ${editEuDraftErrors.phoneNumber ? '#ef4444' : '#e2e8f0'}`, fontSize: '0.8rem' }} placeholder="Phone number" value={editEuDraft.phoneNumber} onChange={e => { const v = e.target.value; setEditEuDraft(f => ({ ...f, phoneNumber: v })); setEditEuDraftErrors(prev => ({ ...prev, phoneNumber: validateExternalAuthorField('phoneNumber', v.trim()) })); }} />
+                                                    <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: `1px solid ${editEuDraftErrors.studentId ? '#ef4444' : '#e2e8f0'}`, fontSize: '0.8rem' }} placeholder="Student ID" value={editEuDraft.studentId} onChange={e => { const v = e.target.value; setEditEuDraft(f => ({ ...f, studentId: v })); setEditEuDraftErrors(prev => ({ ...prev, studentId: validateExternalAuthorField('studentId', v.trim()) })); }} />
+                                                    <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: `1px solid ${editEuDraftErrors.orcid ? '#ef4444' : '#e2e8f0'}`, fontSize: '0.8rem' }} placeholder="ORCID" value={editEuDraft.orcid} onChange={e => { const v = e.target.value; setEditEuDraft(f => ({ ...f, orcid: v })); setEditEuDraftErrors(prev => ({ ...prev, orcid: validateExternalAuthorField('orcid', v.trim()) })); }} />
+                                                    <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: `1px solid ${editEuDraftErrors.googleScholarUrl ? '#ef4444' : '#e2e8f0'}`, fontSize: '0.8rem' }} placeholder="Google Scholar URL" value={editEuDraft.googleScholarUrl} onChange={e => { const v = e.target.value; setEditEuDraft(f => ({ ...f, googleScholarUrl: v })); setEditEuDraftErrors(prev => ({ ...prev, googleScholarUrl: validateExternalAuthorField('googleScholarUrl', v.trim()) })); }} />
+                                                    <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: `1px solid ${editEuDraftErrors.githubUrl ? '#ef4444' : '#e2e8f0'}`, fontSize: '0.8rem', gridColumn: '1 / -1' }} placeholder="GitHub URL" value={editEuDraft.githubUrl} onChange={e => { const v = e.target.value; setEditEuDraft(f => ({ ...f, githubUrl: v })); setEditEuDraftErrors(prev => ({ ...prev, githubUrl: validateExternalAuthorField('githubUrl', v.trim()) })); }} />
                                                 </div>
+                                                {hasExternalAuthorValidationErrors(editEuDraftErrors) && (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                                        {editEuDraftErrors.studentId && <span style={{ color: '#ef4444', fontSize: '0.72rem' }}>{editEuDraftErrors.studentId}</span>}
+                                                        {editEuDraftErrors.phoneNumber && <span style={{ color: '#ef4444', fontSize: '0.72rem' }}>{editEuDraftErrors.phoneNumber}</span>}
+                                                        {editEuDraftErrors.orcid && <span style={{ color: '#ef4444', fontSize: '0.72rem' }}>{editEuDraftErrors.orcid}</span>}
+                                                        {editEuDraftErrors.googleScholarUrl && <span style={{ color: '#ef4444', fontSize: '0.72rem' }}>{editEuDraftErrors.googleScholarUrl}</span>}
+                                                        {editEuDraftErrors.githubUrl && <span style={{ color: '#ef4444', fontSize: '0.72rem' }}>{editEuDraftErrors.githubUrl}</span>}
+                                                    </div>
+                                                )}
                                                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
-                                                    <button type="button" onClick={() => { setEditEuShowAdd(false); setEditEuDraft(blankExternalForm); }} style={{ padding: '5px 12px', borderRadius: '6px', border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', color: '#64748b', fontSize: '0.75rem', fontWeight: 700 }}>Cancel</button>
-                                                    <button type="button" disabled={!editEuDraft.fullName.trim() || !editEuDraft.email.trim()} onClick={() => { setEditExternalUsers(prev => [...prev, { ...editEuDraft, _key: Date.now().toString() }]); setEditEuDraft(blankExternalForm); setEditEuShowAdd(false); }} style={{ padding: '5px 12px', borderRadius: '6px', border: 'none', background: 'var(--accent-color)', color: '#fff', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}>Add Author</button>
+                                                    <button type="button" onClick={() => { setEditEuShowAdd(false); setEditEuDraft(blankExternalForm); setEditEuDraftErrors(externalAuthorValidationDefaults); }} style={{ padding: '5px 12px', borderRadius: '6px', border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', color: '#64748b', fontSize: '0.75rem', fontWeight: 700 }}>Cancel</button>
+                                                    <button type="button" disabled={!editEuDraft.fullName.trim() || !editEuDraft.email.trim() || hasExternalAuthorValidationErrors(editEuDraftErrors)} onClick={() => { const errs = validateExternalAuthorProfileFields(editEuDraft); setEditEuDraftErrors(errs); if (hasExternalAuthorValidationErrors(errs)) return; setEditExternalUsers(prev => [...prev, { ...editEuDraft, _key: Date.now().toString() }]); setEditEuDraft(blankExternalForm); setEditEuDraftErrors(externalAuthorValidationDefaults); setEditEuShowAdd(false); }} style={{ padding: '5px 12px', borderRadius: '6px', border: 'none', background: 'var(--accent-color)', color: '#fff', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}>Add Author</button>
                                                 </div>
                                             </div>
                                         )}
@@ -1322,6 +1342,30 @@ const PaperSubmissions: React.FC = () => {
                                             </div>
                                         ))}
                                     </div>
+
+                                    {/* Creator / Last updater */}
+                                    {(selectedPaper.creatorFullName || selectedPaper.lastUpdatedByFullName) && (
+                                        <div style={{ display: 'grid', gridTemplateColumns: detailInfoGridColumns, gap: '12px' }}>
+                                            {selectedPaper.creatorFullName && (
+                                                <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '10px 12px', border: '1px solid #e2e8f0' }}>
+                                                    <div style={{ fontSize: '0.62rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' as const, letterSpacing: '0.6px', marginBottom: '4px' }}>Created By</div>
+                                                    <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#1e293b' }}>{selectedPaper.creatorFullName}</div>
+                                                    {selectedPaper.creatorEmail && (
+                                                        <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '2px' }}>{selectedPaper.creatorEmail}</div>
+                                                    )}
+                                                </div>
+                                            )}
+                                            {selectedPaper.lastUpdatedByFullName && (
+                                                <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '10px 12px', border: '1px solid #e2e8f0' }}>
+                                                    <div style={{ fontSize: '0.62rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' as const, letterSpacing: '0.6px', marginBottom: '4px' }}>Last Updated By</div>
+                                                    <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#1e293b' }}>{selectedPaper.lastUpdatedByFullName}</div>
+                                                    {selectedPaper.lastUpdatedByEmail && (
+                                                        <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '2px' }}>{selectedPaper.lastUpdatedByEmail}</div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
 
                                     {/* Paper URL */}
                                     {selectedPaper.paperUrl && [SubmissionStatus.Approved, SubmissionStatus.Revision, SubmissionStatus.Decision].includes(selectedPaper.status) && (
