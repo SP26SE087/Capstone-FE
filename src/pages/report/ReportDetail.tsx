@@ -23,7 +23,7 @@ import reportService, { Report } from '@/services/reportService';
 import { projectService } from '@/services/projectService';
 import { userService } from '@/services/userService';
 import { milestoneService } from '@/services/milestoneService';
-import Toast, { ToastType } from '@/components/common/Toast';
+import { useToastStore } from '@/store/slices/toastSlice';
 
 const ReportDetail: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -34,7 +34,6 @@ const ReportDetail: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [isEditMode, setIsEditMode] = useState(false);
     const [submitting, setSubmitting] = useState(false);
-    const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
 
     // Metadata
     const [projects, setProjects] = useState<any[]>([]);
@@ -173,9 +172,8 @@ const ReportDetail: React.FC = () => {
         }
     };
 
-    const showToast = (message: string, type: ToastType = 'info') => {
-        setToast({ message, type });
-    };
+    const { addToast } = useToastStore();
+    const showToast = (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => addToast(message, type);
 
     const handleUpdate = async (isSubmission: boolean = false) => {
         if (!id) return;
@@ -380,7 +378,6 @@ const ReportDetail: React.FC = () => {
     return (
         <MainLayout role={user.role} userName={user.name}>
             <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '1.5rem' }}>
-                {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
                 {/* Header Navigation */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>

@@ -18,7 +18,7 @@ import reportService, { Report, UpdateReportRequest } from '@/services/reportSer
 import { projectService } from '@/services/projectService';
 import { userService } from '@/services/userService';
 import { milestoneService } from '@/services/milestoneService';
-import Toast, { ToastType } from '@/components/common/Toast';
+import { useToastStore } from '@/store/slices/toastSlice';
 import { useAuth } from '@/hooks/useAuth';
 import FeedbackSidebar from './FeedbackSidebar';
 
@@ -43,7 +43,6 @@ const ReportPanel: React.FC<ReportPanelProps> = ({
     const [report, setReport] = useState<Report | null>(null);
     const [loading, setLoading] = useState(false);
     const [isEditMode, setIsEditMode] = useState(isAdding);
-    const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
 
     // Metadata
     const [projects, setProjects] = useState<any[]>([]);
@@ -240,9 +239,8 @@ const ReportPanel: React.FC<ReportPanelProps> = ({
         }
     };
 
-    const showToast = (message: string, type: ToastType = 'info') => {
-        setToast({ message, type });
-    };
+    const { addToast } = useToastStore();
+    const showToast = (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => addToast(message, type);
 
     const handleSave = async (isSubmission: boolean = false, e?: React.MouseEvent, forceSkipConfirm: boolean = false) => {
         if (e) e.preventDefault();
@@ -430,7 +428,6 @@ const handleAiSuggest = async () => {
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'white', borderRadius: '24px', border: '1px solid #e2e8f0', boxShadow: '0 10px 30px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
-            {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
             
             {/* Header */}
             <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fcfdfe' }}>
@@ -823,17 +820,10 @@ const handleAiSuggest = async () => {
                     {isEditMode ? (
                         <>
                             <button type="button" onClick={isAdding ? onClose : () => setIsEditMode(false)} className="btn btn-secondary" disabled={submitting}>Cancel</button>
-                            <button type="button" onClick={(e) => handleSave(false, e)} disabled={submitting} className="btn btn-secondary" style={{ gap: '8px' }}>
+                            <button type="button" onClick={(e) => handleSave(false, e)} disabled={submitting} className="btn btn-primary" style={{ gap: '8px' }}>
                                 {submitting ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
                                 {isAdding ? 'Save Draft' : 'Save Changes'}
                             </button>
-                            {/* Only allow Submit directly for NEW reports. Existing reports must Save first. */}
-                            {isAdding && (
-                                <button type="button" onClick={(e) => handleSave(true, e)} disabled={submitting} className="btn btn-primary" style={{ gap: '8px' }}>
-                                    {submitting ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-                                    Submit
-                                </button>
-                            )}
                         </>
                     ) : (
                         <>

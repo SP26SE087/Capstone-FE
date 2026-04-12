@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { Resource, CreateBookingRequest, Booking, BookingStatus } from '@/types/booking';
 import { X, Calendar, Clock, ChevronLeft, ChevronRight, Package, FileText, AlertCircle } from 'lucide-react';
 import { bookingService } from '@/services/bookingService';
+import { validateTextField } from '@/utils/validation';
 
 interface BookingModalProps {
   resource: Resource;
@@ -39,6 +40,7 @@ const BookingModal: React.FC<BookingModalProps> = ({ resource, onClose, onSubmit
 
   const [title, setTitle] = useState('');
   const [purpose, setPurpose] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<{ title?: string; purpose?: string }>({});
   const [activeTab, setActiveTab] = useState<'schedule' | 'details'>('details');
   const [startTime, setStartTime] = useState(fmt(now));
   const [endTime, setEndTime] = useState(fmt(new Date(now.getTime() + 7200000)));
@@ -342,10 +344,14 @@ const BookingModal: React.FC<BookingModalProps> = ({ resource, onClose, onSubmit
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (error || quantity < 1) return;
-    if (!title || !purpose) {
+    const titleErr = validateTextField(title, 'Booking name', { required: true, maxLength: 300 });
+    const purposeErr = validateTextField(purpose, 'Purpose', { maxLength: 2000 });
+    if (titleErr || purposeErr) {
+      setFieldErrors({ title: titleErr, purpose: purposeErr });
       setActiveTab('details');
       return;
     }
+    setFieldErrors({});
     onSubmit({
       resourceIds: [resource.id],
       title,
@@ -417,12 +423,14 @@ const BookingModal: React.FC<BookingModalProps> = ({ resource, onClose, onSubmit
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', animation: 'fadeIn 0.2s ease' }}>
               <div>
                 <label style={S.label}><FileText size={13} /> Booking Name</label>
-                <input value={title} onChange={e => setTitle(e.target.value)} maxLength={300} placeholder="e.g., Lab session A" required style={S.input} />
+                <input value={title} onChange={e => { setTitle(e.target.value); setFieldErrors(prev => ({ ...prev, title: validateTextField(e.target.value, 'Booking name', { required: true, maxLength: 300 }) })); }} maxLength={300} placeholder="e.g., Lab session A" required style={{ ...S.input, borderColor: fieldErrors.title ? '#ef4444' : undefined }} />
+                {fieldErrors.title && <div style={{ fontSize: '0.72rem', color: '#ef4444', marginTop: '4px' }}>{fieldErrors.title}</div>}
                 <div style={{ textAlign: 'right', fontSize: '0.6rem', color: '#94a3b8', marginTop: '4px' }}>{title.length}/300</div>
               </div>
               <div>
                 <label style={S.label}><FileText size={13} /> Purpose & Impact</label>
-                <textarea value={purpose} onChange={e => setPurpose(e.target.value)} maxLength={2000} placeholder="Describe what you need this resource for..." required style={{ ...S.input, height: '120px', resize: 'none', lineHeight: 1.6 }} />
+                <textarea value={purpose} onChange={e => { setPurpose(e.target.value); setFieldErrors(prev => ({ ...prev, purpose: validateTextField(e.target.value, 'Purpose', { maxLength: 2000 }) })); }} maxLength={2000} placeholder="Describe what you need this resource for..." required style={{ ...S.input, height: '120px', resize: 'none', lineHeight: 1.6, borderColor: fieldErrors.purpose ? '#ef4444' : undefined }} />
+                {fieldErrors.purpose && <div style={{ fontSize: '0.72rem', color: '#ef4444', marginTop: '4px' }}>{fieldErrors.purpose}</div>}
               </div>
             </div>
           ) : (

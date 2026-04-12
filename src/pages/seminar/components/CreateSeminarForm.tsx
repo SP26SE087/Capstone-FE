@@ -27,6 +27,7 @@ import {
     Mail
 } from 'lucide-react';
 import AttendeeSelector, { SelectedAttendee } from '@/components/common/AttendeeSelector';
+import { validateTextField } from '@/utils/validation';
 
 interface CreateSeminarFormProps {
     onClose: () => void;
@@ -86,6 +87,7 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
     const [dateError, setDateError] = useState('');
+    const [fieldErrors, setFieldErrors] = useState<{ title?: string; description?: string; location?: string }>({});
     const { addToast } = useToastStore();
 
     // Core
@@ -219,6 +221,15 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
     const handleSave = async () => {
         if (!title.trim() || !firstSessionStartTime) return;
 
+        const titleErr = validateTextField(title, 'Title', { required: true });
+        const descErr = validateTextField(description, 'Description');
+        const locErr = validateTextField(location, 'Location');
+        if (titleErr || descErr || locErr) {
+            setFieldErrors({ title: titleErr, description: descErr, location: locErr });
+            return;
+        }
+        setFieldErrors({});
+
         // Validate date before saving
         if (!validateDate(firstSessionStartTime)) return;
 
@@ -298,41 +309,45 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
                     <div style={{ marginBottom: '18px' }}>
                         <label style={{ ...labelStyle, fontSize: '0.68rem' }}>Title *</label>
                         <input
-                            style={inputStyle}
+                            style={{ ...inputStyle, ...(fieldErrors.title ? { borderColor: '#ef4444' } : {}) }}
                             value={title}
                             onChange={e => {
                                 setTitle(e.target.value);
+                                setFieldErrors(prev => ({ ...prev, title: validateTextField(e.target.value, 'Title', { required: true }) }));
                                 onTitleChange?.(e.target.value || 'New Seminar');
                             }}
                             placeholder="Seminar series title..."
-                            onFocus={e => { e.currentTarget.style.borderColor = 'var(--accent-color)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,114,12,0.08)'; }}
-                            onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.boxShadow = 'none'; }}
+                            onFocus={e => { e.currentTarget.style.borderColor = fieldErrors.title ? '#ef4444' : 'var(--accent-color)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,114,12,0.08)'; }}
+                            onBlur={e => { e.currentTarget.style.borderColor = fieldErrors.title ? '#ef4444' : 'var(--border-color)'; e.currentTarget.style.boxShadow = 'none'; }}
                         />
+                        {fieldErrors.title && <span style={{ fontSize: '0.72rem', color: '#ef4444', marginTop: '4px', display: 'block' }}>{fieldErrors.title}</span>}
                     </div>
 
                     <div style={{ marginBottom: '18px' }}>
                         <label style={{ ...labelStyle, fontSize: '0.68rem' }}>Description</label>
                         <textarea
-                            style={{ ...inputStyle, minHeight: '80px', resize: 'vertical' as const }}
+                            style={{ ...inputStyle, minHeight: '80px', resize: 'vertical' as const, ...(fieldErrors.description ? { borderColor: '#ef4444' } : {}) }}
                             value={description}
-                            onChange={e => setDescription(e.target.value)}
+                            onChange={e => { setDescription(e.target.value); setFieldErrors(prev => ({ ...prev, description: validateTextField(e.target.value, 'Description') })); }}
                             placeholder="Seminar description..."
-                            onFocus={e => { e.currentTarget.style.borderColor = 'var(--accent-color)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,114,12,0.08)'; }}
-                            onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.boxShadow = 'none'; }}
+                            onFocus={e => { e.currentTarget.style.borderColor = fieldErrors.description ? '#ef4444' : 'var(--accent-color)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,114,12,0.08)'; }}
+                            onBlur={e => { e.currentTarget.style.borderColor = fieldErrors.description ? '#ef4444' : 'var(--border-color)'; e.currentTarget.style.boxShadow = 'none'; }}
                         />
+                        {fieldErrors.description && <span style={{ fontSize: '0.72rem', color: '#ef4444', marginTop: '4px', display: 'block' }}>{fieldErrors.description}</span>}
                     </div>
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                         <div>
                             <label style={{ ...labelStyle, fontSize: '0.68rem' }}><MapPin size={12} /> Location</label>
                             <input
-                                style={inputStyle}
+                                style={{ ...inputStyle, ...(fieldErrors.location ? { borderColor: '#ef4444' } : {}) }}
                                 value={location}
-                                onChange={e => setLocation(e.target.value)}
+                                onChange={e => { setLocation(e.target.value); setFieldErrors(prev => ({ ...prev, location: validateTextField(e.target.value, 'Location') })); }}
                                 placeholder="Room, building..."
-                                onFocus={e => { e.currentTarget.style.borderColor = 'var(--accent-color)'; }}
-                                onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; }}
+                                onFocus={e => { e.currentTarget.style.borderColor = fieldErrors.location ? '#ef4444' : 'var(--accent-color)'; }}
+                                onBlur={e => { e.currentTarget.style.borderColor = fieldErrors.location ? '#ef4444' : 'var(--border-color)'; }}
                             />
+                            {fieldErrors.location && <span style={{ fontSize: '0.72rem', color: '#ef4444', marginTop: '4px', display: 'block' }}>{fieldErrors.location}</span>}
                         </div>
                         <div>
                             <label style={{ ...labelStyle, fontSize: '0.68rem' }}><FileText size={12} /> Project</label>

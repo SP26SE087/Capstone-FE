@@ -17,8 +17,9 @@ import {
     type ExternalUserCreateDto,
     type ExternalUserResponse,
 } from '@/types/paperSubmission';
-import Toast, { ToastType } from '@/components/common/Toast';
+import { useToastStore } from '@/store/slices/toastSlice';
 import ConfirmModal from '@/components/common/ConfirmModal';
+import { validateSpecialChars } from '@/utils/validation';
 import {
     Plus, Search, ExternalLink, X, Loader2, Trash2,
     Send, Edit2, Link as LinkIcon, FileText, CheckCircle2, XCircle,
@@ -109,8 +110,8 @@ const PaperSubmissions: React.FC = () => {
     const { user } = useAuth();
     const isDirector = user?.role === 'LabDirector' || user?.role === 'Lab Director';
 
-    const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
-    const showToast = (message: string, type: ToastType = 'info') => setToast({ message, type });
+    const { addToast } = useToastStore();
+    const showToast = (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => addToast(message, type);
 
     const [papers, setPapers] = useState<PaperSubmissionResponse[]>([]);
     const [loading, setLoading] = useState(true);
@@ -325,10 +326,13 @@ const PaperSubmissions: React.FC = () => {
         }
     };
 
-    const validateForm = (data: { title: string; conferenceName: string; paperUrl?: string }) => {
+    const validateForm = (data: { title: string; conferenceName: string; paperUrl?: string; abstract?: string }) => {
         const errs: Record<string, string> = {};
         if (!data.title?.trim()) errs.title = 'Title is required';
+        else if (validateSpecialChars(data.title)) errs.title = validateSpecialChars(data.title);
         if (!data.conferenceName?.trim()) errs.conferenceName = 'Conference / Journal name is required';
+        else if (validateSpecialChars(data.conferenceName)) errs.conferenceName = validateSpecialChars(data.conferenceName);
+        if (data.abstract?.trim() && validateSpecialChars(data.abstract)) errs.abstract = validateSpecialChars(data.abstract);
         if (data.paperUrl?.trim() && !data.paperUrl.match(/^https?:\/\/.+/)) {
             errs.paperUrl = 'Please enter a valid URL (http:// or https://)';
         }
@@ -337,7 +341,7 @@ const PaperSubmissions: React.FC = () => {
     };
 
     const handleCreate = async () => {
-        if (!validateForm({ title: addTitle, conferenceName: addConference, paperUrl: addPaperUrl })) return;
+        if (!validateForm({ title: addTitle, conferenceName: addConference, paperUrl: addPaperUrl, abstract: addAbstract })) return;
         const hasInvalidExternalAuthor = addExternalUsers.some(eu =>
             hasExternalAuthorValidationErrors(validateExternalAuthorProfileFields({
                 ...blankEu,
@@ -390,7 +394,7 @@ const PaperSubmissions: React.FC = () => {
 
     const handleUpdate = async () => {
         if (!selectedPaper) return;
-        if (!validateForm({ title: editData.title || '', conferenceName: editData.conferenceName || '', paperUrl: editData.paperUrl })) return;
+        if (!validateForm({ title: editData.title || '', conferenceName: editData.conferenceName || '', paperUrl: editData.paperUrl, abstract: editData.abstract })) return;
         if (isPdfFile(editDocument)) {
             showToast('PDF upload is currently disabled.', 'error');
             return;
@@ -797,18 +801,6 @@ const PaperSubmissions: React.FC = () => {
     return (
         <MainLayout role={user?.role} userName={user?.name}>
             <div className="page-container" style={{ padding: '1.5rem 2rem', maxWidth: '1600px', margin: '0 auto' }}>
-                {toast && (
-                    <div style={{
-                        position: 'fixed',
-                        right: '24px',
-                        top: '92px',
-                        zIndex: 1200,
-                        pointerEvents: 'auto'
-                    }}>
-                        <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
-                    </div>
-                )}
-
                 <ConfirmModal
                     isOpen={confirmModal.isOpen}
                     onClose={closeConfirm}
@@ -1738,8 +1730,9 @@ const PaperFormFields: React.FC<PaperFormFieldsProps> = ({
         {extraField}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
             <label style={fieldLabelStyle}>Abstract</label>
-            <textarea className="form-input" style={{ ...fieldInputStyle, resize: 'vertical' as const }} rows={4}
+            <textarea className="form-input" style={{ ...fieldInputStyle, resize: 'vertical' as const, ...(formErrors.abstract ? { borderColor: '#ef4444' } : {}) }} rows={4}
                 value={data.abstract} onChange={e => onChange('abstract', e.target.value)} placeholder="Brief description of the paper..." />
+            {formErrors.abstract && <span style={{ color: '#ef4444', fontSize: '0.72rem' }}>{formErrors.abstract}</span>}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
             <label style={fieldLabelStyle}>Authors / Members</label>

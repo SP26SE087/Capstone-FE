@@ -5,9 +5,6 @@ import Projects from '@/pages/project/Projects';
 import Tasks from '@/pages/task/Tasks';
 import Members from '@/pages/member/Members';
 import ProjectDetails from '@/pages/project/ProjectDetails';
-import CreateProject from '@/pages/project/CreateProject';
-import EditProject from '@/pages/project/EditProject';
-import CreateTask from '@/pages/task/CreateTask';
 import Home from '@/pages/home/Home';
 import PublicProjectDetails from '@/pages/project/PublicProjectDetails';
 import AuthGuard from '@/components/auth/AuthGuard';
@@ -47,10 +44,6 @@ export const router = createBrowserRouter([
         element: <AuthGuard><Projects /></AuthGuard>,
     },
     {
-        path: '/projects/new',
-        element: <AuthGuard><CreateProject /></AuthGuard>,
-    },
-    {
         path: '/projects/:id',
         element: <AuthGuard><ProjectDetails /></AuthGuard>,
     },
@@ -59,16 +52,8 @@ export const router = createBrowserRouter([
         element: <AuthGuard><PublicProjectDetails /></AuthGuard>,
     },
     {
-        path: '/projects/edit/:id',
-        element: <AuthGuard><EditProject /></AuthGuard>,
-    },
-    {
         path: '/tasks',
         element: <AuthGuard><Tasks /></AuthGuard>,
-    },
-    {
-        path: '/tasks/new',
-        element: <AuthGuard><CreateTask /></AuthGuard>,
     },
     {
         path: '/members',

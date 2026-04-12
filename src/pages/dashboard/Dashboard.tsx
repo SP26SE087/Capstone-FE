@@ -6,24 +6,17 @@ import {
     CheckCircle2,
     AlertCircle,
     ArrowUpRight,
-    Plus,
     Layers,
     Calendar,
     Presentation,
     ClipboardList,
     BookOpen,
     FileText,
-    X,
-    Save,
-    Briefcase,
-    Search,
-    Check,
-    ShieldAlert
 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
-import { TaskStatus, DashboardStats, Project, Task, ResearchField } from '@/types';
-import { dashboardService, projectService, taskService, researchFieldService } from '@/services';
-import { getProjectStatusStyle, getVietnamDateInputValue, toApiDate } from '@/utils/projectUtils';
+import { TaskStatus, DashboardStats, Project, Task } from '@/types';
+import { dashboardService, projectService, taskService } from '@/services';
+import { getProjectStatusStyle } from '@/utils/projectUtils';
 import { useAuth } from '@/hooks/useAuth';
 import seminarService from '@/services/seminarService';
 import { SeminarMeetingResponse } from '@/types/seminar';
@@ -37,15 +30,7 @@ function Dashboard() {
     const [seminars, setSeminars] = useState<SeminarMeetingResponse[]>([]);
     const [loading, setLoading] = useState(true);
 
-    // Create Project panel
-    const [showCreatePanel, setShowCreatePanel] = useState(false);
-    const [submitting, setSubmitting] = useState(false);
-    const [availableFields, setAvailableFields] = useState<ResearchField[]>([]);
-    const [selectedFieldIds, setSelectedFieldIds] = useState<string[]>([]);
-    const [fieldSearch, setFieldSearch] = useState('');
-    const [createForm, setCreateForm] = useState({ projectName: '', projectDescription: '', startDate: '', endDate: '' });
-    const [createError, setCreateError] = useState<string | null>(null);
-    const todayVn = getVietnamDateInputValue();
+
 
     useEffect(() => {
         const fetchData = async () => {
@@ -78,53 +63,6 @@ function Dashboard() {
         fetchData();
     }, []);
 
-    const openCreatePanel = async () => {
-        setShowCreatePanel(true);
-        setCreateForm({ projectName: '', projectDescription: '', startDate: todayVn, endDate: '' });
-        setSelectedFieldIds([]);
-        setFieldSearch('');
-        setCreateError(null);
-        if (availableFields.length === 0) {
-            const fields = await researchFieldService.getAll();
-            setAvailableFields(fields);
-        }
-    };
-
-    const handleCreateSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setCreateError(null);
-        try {
-            const startDate = createForm.startDate || todayVn;
-
-            if (startDate < todayVn) {
-                setCreateError('Start date cannot be in the past.');
-                return;
-            }
-
-            if (createForm.endDate && createForm.endDate < startDate) {
-                setCreateError('End date cannot be earlier than start date.');
-                return;
-            }
-
-            setSubmitting(true);
-
-            await projectService.create({
-                projectName: createForm.projectName,
-                projectDescription: createForm.projectDescription,
-                startDate: toApiDate(startDate),
-                endDate: toApiDate(createForm.endDate),
-                researchFieldIds: selectedFieldIds
-            });
-            setShowCreatePanel(false);
-            // Refresh projects list
-            const updated = await projectService.getAll();
-            setProjects(updated || []);
-        } catch (err: any) {
-            setCreateError(err.response?.data?.message || err.message || 'Failed to create project.');
-        } finally {
-            setSubmitting(false);
-        }
-    };
 
     const getGreeting = () => {
         const h = new Date().getHours();
@@ -152,9 +90,6 @@ function Dashboard() {
         { label: 'Papers', Icon: FileText, path: isReviewer ? '/paper-review' : '/papers', color: 'var(--danger)' },
         { label: 'Projects', Icon: BookOpen, path: '/projects', color: 'var(--primary-color)' },
     ];
-
-    const canCreateProject = Number(user.role) === 1 || Number(user.role) === 2 ||
-        user.role === 'Admin' || user.role === 'Lab Director' || user.role === 'LabDirector';
 
     return (
         <MainLayout role={user.role} userName={user.name}>
@@ -233,15 +168,6 @@ function Dashboard() {
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
                                 <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>My Projects</h3>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                    {canCreateProject && (
-                                        <button
-                                            onClick={openCreatePanel}
-                                            className="btn btn-primary"
-                                            style={{ padding: '0.35rem 0.85rem', fontSize: '0.8rem', height: 'auto' }}
-                                        >
-                                            <Plus size={14} /> New
-                                        </button>
-                                    )}
                                     <Link
                                         to="/projects"
                                         style={{
@@ -587,229 +513,7 @@ function Dashboard() {
                     </div>
                 </div>
             </div>
-            {/* Create Project Side Panel */}
-            {showCreatePanel && (
-                <>
-                    {/* Backdrop */}
-                    <div
-                        onClick={() => setShowCreatePanel(false)}
-                        style={{
-                            position: 'fixed', inset: 0,
-                            background: 'rgba(15,23,42,0.35)',
-                            zIndex: 1100,
-                            backdropFilter: 'blur(2px)'
-                        }}
-                    />
-                    {/* Panel */}
-                    <div style={{
-                        position: 'fixed', top: 0, right: 0, bottom: 0,
-                        width: '480px', maxWidth: '95vw',
-                        background: 'var(--card-bg)',
-                        boxShadow: 'var(--shadow-lg)',
-                        zIndex: 1101,
-                        display: 'flex', flexDirection: 'column',
-                        overflowY: 'auto'
-                    }} className="custom-scrollbar">
-                        {/* Panel Header */}
-                        <div style={{
-                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                            padding: '1.25rem 1.5rem',
-                            borderBottom: '1px solid var(--border-color)',
-                            position: 'sticky', top: 0,
-                            background: 'var(--card-bg)',
-                            zIndex: 1
-                        }}>
-                            <div>
-                                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>New Project</h3>
-                                <p style={{ margin: '2px 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                                    Initialize a new research initiative
-                                </p>
-                            </div>
-                            <button
-                                onClick={() => setShowCreatePanel(false)}
-                                style={{
-                                    width: 34, height: 34, borderRadius: 'var(--radius-sm)',
-                                    border: '1px solid var(--border-color)',
-                                    background: 'var(--surface-hover)', cursor: 'pointer',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    color: 'var(--text-secondary)'
-                                }}
-                            >
-                                <X size={16} />
-                            </button>
-                        </div>
 
-                        {/* Panel Form */}
-                        <form onSubmit={handleCreateSubmit} style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', flex: 1 }}>
-
-                            {/* Name */}
-                            <div className="form-group" style={{ marginBottom: 0 }}>
-                                <label className="form-label">Project Name</label>
-                                <div style={{ position: 'relative' }}>
-                                    <Briefcase size={16} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                                    <input
-                                        className="form-input"
-                                        style={{ paddingLeft: 36 }}
-                                        type="text"
-                                        placeholder="e.g. AI-Powered Medical Diagnosis"
-                                        value={createForm.projectName}
-                                        onChange={e => setCreateForm(p => ({ ...p, projectName: e.target.value }))}
-                                        required
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Description */}
-                            <div className="form-group" style={{ marginBottom: 0 }}>
-                                <label className="form-label">Description</label>
-                                <div style={{ position: 'relative' }}>
-                                    <FileText size={16} style={{ position: 'absolute', left: 11, top: 11, color: 'var(--text-muted)' }} />
-                                    <textarea
-                                        className="form-input"
-                                        style={{ paddingLeft: 36, minHeight: 100, resize: 'vertical' }}
-                                        placeholder="Briefly describe the goals and scope..."
-                                        value={createForm.projectDescription}
-                                        onChange={e => setCreateForm(p => ({ ...p, projectDescription: e.target.value }))}
-                                        required
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Dates */}
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                                <div className="form-group" style={{ marginBottom: 0 }}>
-                                    <label className="form-label">Start Date</label>
-                                    <div style={{ position: 'relative' }}>
-                                        <Calendar size={15} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                                        <input
-                                            className="form-input"
-                                            style={{ paddingLeft: 34 }}
-                                            type="date"
-                                            min={todayVn}
-                                            value={createForm.startDate}
-                                            onChange={e => setCreateForm(p => ({
-                                                ...p,
-                                                startDate: e.target.value,
-                                                endDate: p.endDate && p.endDate < e.target.value ? e.target.value : p.endDate
-                                            }))}
-                                        />
-                                    </div>
-                                </div>
-                                <div className="form-group" style={{ marginBottom: 0 }}>
-                                    <label className="form-label">End Date</label>
-                                    <div style={{ position: 'relative' }}>
-                                        <Calendar size={15} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                                        <input
-                                            className="form-input"
-                                            style={{ paddingLeft: 34 }}
-                                            type="date"
-                                            min={createForm.startDate || todayVn}
-                                            value={createForm.endDate}
-                                            onChange={e => setCreateForm(p => ({
-                                                ...p,
-                                                endDate: e.target.value && p.startDate && e.target.value < p.startDate ? p.startDate : e.target.value
-                                            }))}
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Research Fields */}
-                            <div className="form-group" style={{ marginBottom: 0 }}>
-                                <label className="form-label">Research Fields</label>
-                                <div style={{ position: 'relative', marginBottom: '0.6rem' }}>
-                                    <Search size={14} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                                    <input
-                                        type="text"
-                                        placeholder="Search fields..."
-                                        className="form-input"
-                                        style={{ paddingLeft: 32, height: 38, fontSize: '0.875rem' }}
-                                        value={fieldSearch}
-                                        onChange={e => setFieldSearch(e.target.value)}
-                                    />
-                                </div>
-                                <div style={{
-                                    display: 'flex', flexWrap: 'wrap', gap: '8px',
-                                    padding: '0.85rem',
-                                    background: 'var(--surface-hover)',
-                                    borderRadius: 'var(--radius-md)',
-                                    border: '1px solid var(--border-color)',
-                                    maxHeight: 180, overflowY: 'auto'
-                                }} className="custom-scrollbar">
-                                    {availableFields
-                                        .filter(f => f.name.toLowerCase().includes(fieldSearch.toLowerCase()))
-                                        .map(field => (
-                                            <button
-                                                key={field.researchFieldId}
-                                                type="button"
-                                                onClick={() => setSelectedFieldIds(prev =>
-                                                    prev.includes(field.researchFieldId)
-                                                        ? prev.filter(id => id !== field.researchFieldId)
-                                                        : [...prev, field.researchFieldId]
-                                                )}
-                                                className={`filter-chip ${selectedFieldIds.includes(field.researchFieldId) ? 'active' : ''}`}
-                                                style={{ display: 'flex', alignItems: 'center', gap: 5 }}
-                                            >
-                                                {selectedFieldIds.includes(field.researchFieldId) ? <Check size={12} /> : <Plus size={12} />}
-                                                {field.name}
-                                            </button>
-                                        ))
-                                    }
-                                    {availableFields.length === 0 && (
-                                        <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>Loading fields...</span>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Approval notice */}
-                            <div style={{
-                                display: 'flex', gap: '10px', alignItems: 'flex-start',
-                                padding: '0.85rem', borderRadius: 'var(--radius-md)',
-                                background: 'var(--info-bg)', color: 'var(--info)',
-                                border: '1px solid var(--border-color)', fontSize: '0.82rem'
-                            }}>
-                            </div>
-
-                            {createError && (
-                                <div style={{
-                                    padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)',
-                                    background: 'var(--danger-bg)', color: 'var(--danger)',
-                                    fontSize: '0.85rem', fontWeight: 500,
-                                    border: '1px solid rgba(239,68,68,0.2)'
-                                }}>
-                                    {createError}
-                                </div>
-                            )}
-
-                            {/* Actions */}
-                            <div style={{
-                                display: 'flex', gap: '0.75rem',
-                                paddingTop: '0.75rem',
-                                borderTop: '1px solid var(--border-color)',
-                                marginTop: 'auto'
-                            }}>
-                                <button
-                                    type="button"
-                                    onClick={() => setShowCreatePanel(false)}
-                                    className="btn btn-secondary"
-                                    style={{ flex: 1 }}
-                                    disabled={submitting}
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="btn btn-primary"
-                                    style={{ flex: 2 }}
-                                    disabled={submitting}
-                                >
-                                    {submitting ? 'Creating...' : <><Save size={16} /> Create Project</>}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </>
-            )}
         </MainLayout>
     );
 }

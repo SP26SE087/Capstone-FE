@@ -7,7 +7,8 @@ import { getProjectStatusStyle, isDefaultDate, formatProjectDate, toApiDate } fr
 import { validateSpecialChars } from '@/utils/validation';
 import Modal from '@/components/common/Modal';
 import ConfirmModal from '@/components/common/ConfirmModal';
-import Toast, { ToastType } from '@/components/common/Toast';
+import { ToastType } from '@/components/common/Toast';
+import { useToastStore } from '@/store/slices/toastSlice';
 import { useAuth } from '@/hooks/useAuth';
 
 import {
@@ -83,7 +84,6 @@ const ProjectDetails: React.FC = () => {
     const [isStatusConfirmOpen, setIsStatusConfirmOpen] = useState(false);
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
     const [pendingStatus, setPendingStatus] = useState<ProjectStatus | null>(null);
-    const [toast, setToast] = useState<{ message: string; type: ToastType; duration?: number } | null>(null);
 
     // Quick creation state
     const [newMilestoneData, setNewMilestoneData] = useState({ name: '', description: '', startDate: '', dueDate: '', status: 0 });
@@ -92,8 +92,10 @@ const ProjectDetails: React.FC = () => {
     const [isMilestoneSaving, setIsMilestoneSaving] = useState(false);
     const milestoneContainerRef = useRef<HTMLDivElement>(null);
 
-    const showToast = (message: string, type: ToastType = 'info', duration: number = 3000) => {
-        setToast({ message, type, duration });
+    const { addToast } = useToastStore();
+
+    const showToast = (message: string, type: ToastType = 'info', _duration: number = 3000) => {
+        addToast(message, type);
     };
 
     // Data fetching
@@ -551,12 +553,6 @@ const ProjectDetails: React.FC = () => {
             userName={currentUser.name}
             hideBreadcrumbs={true}
         >
-            {toast && (
-                <div style={{ position: 'fixed', top: '24px', right: '24px', zIndex: 9999 }}>
-                    <Toast message={toast.message} type={toast.type} duration={toast.duration} onClose={() => setToast(null)} />
-                </div>
-            )}
-
             <div style={{ padding: '0 0 2rem 0' }}>
                 {/* Header Breadcrumb */}
                 <div style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

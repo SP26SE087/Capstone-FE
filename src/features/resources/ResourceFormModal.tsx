@@ -3,6 +3,7 @@ import { Resource, ResourceType } from '@/types/booking';
 import { userService } from '@/services/userService';
 import { useAuth } from '@/hooks/useAuth';
 import { X, Save, Box, Info, MapPin, Hash, AlertTriangle, Type, Package, User, Loader2 } from 'lucide-react';
+import { validateTextField } from '@/utils/validation';
 
 interface ResourceFormModalProps {
   resource?: Resource;
@@ -20,6 +21,7 @@ const ResourceFormModal: React.FC<ResourceFormModalProps> = ({ resource, onClose
   const [location, setLocation] = useState(resource?.location || '');
   const [totalQuantity, setTotalQuantity] = useState(resource?.totalQuantity || 1);
   const [damagedQuantity, setDamagedQuantity] = useState(resource?.damagedQuantity || 0);
+  const [fieldErrors, setFieldErrors] = useState<{ name?: string; description?: string; location?: string }>({});
   
   // Managed By selection state
   const [managedBy, setManagedBy] = useState(resource?.managedBy || "");
@@ -55,6 +57,14 @@ const ResourceFormModal: React.FC<ResourceFormModalProps> = ({ resource, onClose
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const nameErr = validateTextField(name, 'Resource title', { required: true, maxLength: 200 });
+    const descErr = validateTextField(description, 'Description', { required: true, maxLength: 2000 });
+    const locErr = validateTextField(location, 'Location', { maxLength: 200 });
+    if (nameErr || descErr || locErr) {
+      setFieldErrors({ name: nameErr, description: descErr, location: locErr });
+      return;
+    }
+    setFieldErrors({});
     
     // Đảm bảo managedBy không bị trống trước khi gửi
     const finalManagedBy = managedBy || currentUser.userId;
@@ -118,11 +128,13 @@ const ResourceFormModal: React.FC<ResourceFormModalProps> = ({ resource, onClose
                     type="text"
                     className="form-input"
                     value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    onChange={(e) => { setName(e.target.value); setFieldErrors(prev => ({ ...prev, name: validateTextField(e.target.value, 'Resource title', { required: true, maxLength: 200 }) })); }}
                     placeholder="e.g., NVIDIA RTX 4090 GPU Node"
                     required
                     maxLength={200}
+                    style={fieldErrors.name ? { borderColor: '#ef4444' } : undefined}
                   />
+                  {fieldErrors.name && <span style={{ fontSize: '0.72rem', color: '#ef4444', marginTop: '4px', display: 'block' }}>{fieldErrors.name}</span>}
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
@@ -150,10 +162,12 @@ const ResourceFormModal: React.FC<ResourceFormModalProps> = ({ resource, onClose
                           type="text"
                           className="form-input"
                           value={location}
-                          onChange={(e) => setLocation(e.target.value)}
+                          onChange={(e) => { setLocation(e.target.value); setFieldErrors(prev => ({ ...prev, location: validateTextField(e.target.value, 'Location', { maxLength: 200 }) })); }}
                           placeholder="Rack A4"
                           maxLength={200}
+                          style={fieldErrors.location ? { borderColor: '#ef4444' } : undefined}
                       />
+                      {fieldErrors.location && <span style={{ fontSize: '0.72rem', color: '#ef4444', marginTop: '4px', display: 'block' }}>{fieldErrors.location}</span>}
                   </div>
                 </div>
 
@@ -195,13 +209,14 @@ const ResourceFormModal: React.FC<ResourceFormModalProps> = ({ resource, onClose
                   <textarea
                     className="form-input"
                     value={description}
-                    onChange={(e) => setDescription(e.target.value)}
+                    onChange={(e) => { setDescription(e.target.value); setFieldErrors(prev => ({ ...prev, description: validateTextField(e.target.value, 'Description', { required: true, maxLength: 2000 }) })); }}
                     placeholder="Technical specifications, serial numbers, owner, etc."
                     rows={4}
                     maxLength={2000}
                     required
-                    style={{ resize: 'none' }}
+                    style={{ resize: 'none', ...(fieldErrors.description ? { borderColor: '#ef4444' } : {}) }}
                   />
+                  {fieldErrors.description && <span style={{ fontSize: '0.72rem', color: '#ef4444', marginTop: '4px', display: 'block' }}>{fieldErrors.description}</span>}
                 </div>
               </div>
 

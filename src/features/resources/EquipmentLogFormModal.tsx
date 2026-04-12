@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Resource, EquipmentLog } from '@/types/booking';
 import { X, Save, Clock, Package, Edit3 } from 'lucide-react';
+import { validateTextField } from '@/utils/validation';
 
 interface EquipmentLogFormModalProps {
   resources: Resource[];
@@ -14,12 +15,20 @@ const EquipmentLogFormModal: React.FC<EquipmentLogFormModalProps> = ({ resources
   const [resourceId, setResourceId] = useState(log?.resourceId || resources[0]?.id || '');
   const [action, setAction] = useState<any>(log?.action || 'Maintenance Check');
   const [note, setNote] = useState(log?.note || '');
+  const [fieldErrors, setFieldErrors] = useState<{ action?: string; note?: string }>({});
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const actionErr = validateTextField(action, 'Event action', { required: true });
+    const noteErr = validateTextField(note, 'Narrative / Details');
+    if (actionErr || noteErr) {
+      setFieldErrors({ action: actionErr, note: noteErr });
+      return;
+    }
+    setFieldErrors({});
     const selectedRes = resources.find(r => r.id === resourceId);
     onSubmit({
-      id: log?.id, // ID preserved for update
+      id: log?.id,
       resourceId,
       resourceName: selectedRes?.name || log?.resourceName || 'Selected Equipment',
       action,
@@ -66,10 +75,12 @@ const EquipmentLogFormModal: React.FC<EquipmentLogFormModalProps> = ({ resources
               type="text"
               className="form-input"
               value={action}
-              onChange={(e) => setAction(e.target.value)}
+              onChange={(e) => { setAction(e.target.value); setFieldErrors(prev => ({ ...prev, action: validateTextField(e.target.value, 'Event action', { required: true }) })); }}
               placeholder="e.g., Firmware Update, Maintenance Check"
               required
+              style={fieldErrors.action ? { borderColor: '#ef4444' } : undefined}
             />
+            {fieldErrors.action && <span style={{ fontSize: '0.72rem', color: '#ef4444', marginTop: '4px', display: 'block' }}>{fieldErrors.action}</span>}
           </div>
 
           <div className="form-group">
@@ -77,10 +88,12 @@ const EquipmentLogFormModal: React.FC<EquipmentLogFormModalProps> = ({ resources
             <textarea
               className="form-input"
               value={note}
-              onChange={(e) => setNote(e.target.value)}
+              onChange={(e) => { setNote(e.target.value); setFieldErrors(prev => ({ ...prev, note: validateTextField(e.target.value, 'Narrative / Details') })); }}
               placeholder="Provide a detailed technical narrative of the event..."
               rows={4}
+              style={fieldErrors.note ? { borderColor: '#ef4444' } : undefined}
             />
+            {fieldErrors.note && <span style={{ fontSize: '0.72rem', color: '#ef4444', marginTop: '4px', display: 'block' }}>{fieldErrors.note}</span>}
           </div>
 
           <div className="modal-footer" style={{ padding: '1.25rem 0 0 0', marginTop: '1rem', borderTop: '1px solid var(--border-color)' }}>

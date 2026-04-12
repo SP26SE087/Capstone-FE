@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import reportService, { Report } from '@/services/reportService';
 import { projectService, userService } from '@/services';
-import Toast, { ToastType } from '@/components/common/Toast';
+import { useToastStore } from '@/store/slices/toastSlice';
 
 // Internal Components
 import ReportList from './components/ReportList';
@@ -41,7 +41,6 @@ const Reports: React.FC = () => {
     const [projectsMap, setProjectsMap] = useState<Record<string, string>>({});
     const [usersMap, setUsersMap] = useState<Record<string, string>>({});
 
-    const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
 
     // Search Filters
     const [filterProjectId, setFilterProjectId] = useState<string>('');
@@ -80,9 +79,8 @@ const Reports: React.FC = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    const showToast = (message: string, type: ToastType = 'info') => {
-        setToast({ message, type });
-    };
+    const { addToast } = useToastStore();
+    const showToast = (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => addToast(message, type);
 
     const activeTabObj = openTabs.find(t => t.id === activeTabId);
 
@@ -282,7 +280,6 @@ const Reports: React.FC = () => {
     return (
         <MainLayout role={user?.role} userName={user?.name}>
             <div className="page-container" style={{ padding: '1rem 2rem', maxWidth: '1600px', margin: '0 auto' }}>
-                {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
                 {/* Header Section */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>

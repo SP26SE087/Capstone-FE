@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { validateSpecialChars } from '@/utils/validation';
+import { useToastStore } from '@/store/slices/toastSlice';
 import MainLayout from '@/layout/MainLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { userService, ProfileResponse } from '@/services/userService';
@@ -17,7 +19,7 @@ const ProfilePage: React.FC = () => {
     const [imgError, setImgError] = useState(false);
     const [isEditMode, setIsEditMode] = useState(false);
     const [submitting, setSubmitting] = useState(false);
-    const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+    const { addToast } = useToastStore();
 
     const [editData, setEditData] = useState({ fullName: '', studentId: '', phoneNumber: '', orcid: '', googleScholarUrl: '', githubUrl: '' });
     const [fieldErrors, setFieldErrors] = useState({ studentId: '', phoneNumber: '', orcid: '', googleScholarUrl: '', githubUrl: '' });
@@ -63,7 +65,7 @@ const ProfilePage: React.FC = () => {
             })
             .catch(() => {
                 if (cancelled) return;
-                setToast({ message: 'Failed to load profile data.', type: 'error' });
+                addToast('Failed to load profile data.', 'error');
             })
             .finally(() => {
                 if (!cancelled) setLoading(false);
@@ -71,12 +73,6 @@ const ProfilePage: React.FC = () => {
 
         return () => { cancelled = true; };
     }, [authUser.userId]);
-    useEffect(() => {
-        if (toast) {
-            const timer = setTimeout(() => setToast(null), 4000);
-            return () => clearTimeout(timer);
-        }
-    }, [toast]);
 
     const fetchProfile = async () => {
         setLoading(true);
@@ -92,7 +88,7 @@ const ProfilePage: React.FC = () => {
                 githubUrl: data.githubUrl || ''
             });
         } catch (error) {
-            setToast({ message: 'Failed to load profile data.', type: 'error' });
+            addToast('Failed to load profile data.', 'error');
         } finally { setLoading(false); }
     };
 
@@ -117,6 +113,11 @@ const ProfilePage: React.FC = () => {
             googleScholarUrl: validate.googleScholarUrl(editData.googleScholarUrl.trim()),
             githubUrl: validate.githubUrl(editData.githubUrl.trim()),
         };
+        const fullNameSpecialErr = validateSpecialChars(editData.fullName);
+        if (fullNameSpecialErr) {
+            addToast(`Full name: ${fullNameSpecialErr}`, 'error');
+            return;
+        }
         setFieldErrors(errors);
         if (Object.values(errors).some(Boolean)) return;
 
@@ -130,12 +131,12 @@ const ProfilePage: React.FC = () => {
                 googleScholarUrl: editData.googleScholarUrl.trim() || null,
                 githubUrl: editData.githubUrl.trim() || null
             });
-            setToast({ message: 'Profile updated successfully!', type: 'success' });
+            addToast('Profile updated successfully!', 'success');
             setIsEditMode(false);
             refreshUser();
             fetchProfile();
         } catch (error: any) {
-            setToast({ message: error.response?.data?.message || 'Update failed.', type: 'error' });
+            addToast(error.response?.data?.message || 'Update failed.', 'error');
         } finally { setSubmitting(false); }
     };
 
@@ -172,22 +173,6 @@ const ProfilePage: React.FC = () => {
     return (
         <MainLayout role={authUser.role} userName={authUser.name}>
             <div className="page-container" style={{ margin: '0 auto' }}>
-                {/* Toast */}
-                {toast && (
-                    <div style={{
-                        position: 'fixed', top: '80px', right: '1.5rem', zIndex: 2000,
-                        padding: '1rem 1.5rem', borderRadius: '12px',
-                        background: toast.type === 'success' ? '#f0fdf4' : '#fef2f2',
-                        border: `1px solid ${toast.type === 'success' ? '#bbf7d0' : '#fecaca'}`,
-                        color: toast.type === 'success' ? '#166534' : '#991b1b',
-                        display: 'flex', alignItems: 'center', gap: '10px', boxShadow: 'var(--shadow-lg)',
-                        fontSize: '0.9rem', fontWeight: 600, animation: 'slideInRight 0.3s'
-                    }}>
-                        {toast.type === 'success' ? <CheckCircle size={18} /> : <AlertTriangle size={18} />}
-                        {toast.message}
-                    </div>
-                )}
-
                 {/* Page Header */}
                 <div className="page-header">
                     <div>

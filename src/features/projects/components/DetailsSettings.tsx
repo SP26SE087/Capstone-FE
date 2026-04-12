@@ -1,4 +1,5 @@
 import React from 'react';
+import { validateSpecialChars } from '@/utils/validation';
 import { ChevronDown, Briefcase, Save, Search, Calendar, Trash2, Lock } from 'lucide-react';
 import { Project, ResearchField, ProjectStatus } from '@/types';
 
@@ -34,6 +35,19 @@ const DetailsSettings: React.FC<DetailsSettingsProps> = ({
 
     const isReadOnly = permissionReadOnly || !isEditing;
     const isProjectNameInvalid = isEditing && !projectNameValue.trim();
+    const [localFieldErrors, setLocalFieldErrors] = React.useState({ projectName: '', projectDescription: '' });
+
+    const onSave = () => {
+        const nameErr = validateSpecialChars(projectNameValue);
+        const descErr = validateSpecialChars(projectDescriptionValue);
+        if (nameErr || descErr) {
+            setLocalFieldErrors({ projectName: nameErr, projectDescription: descErr });
+            return;
+        }
+        setLocalFieldErrors({ projectName: '', projectDescription: '' });
+        handleSubmit();
+        setIsEditing(false);
+    };
 
     const now = new Date();
     const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
@@ -157,6 +171,11 @@ const DetailsSettings: React.FC<DetailsSettingsProps> = ({
                                     Project name is required.
                                 </p>
                             )}
+                            {!isProjectNameInvalid && localFieldErrors.projectName && (
+                                <p style={{ fontSize: '0.75rem', fontWeight: 600, color: '#dc2626', marginTop: '6px' }}>
+                                    {localFieldErrors.projectName}
+                                </p>
+                            )}
                         </div>
                         <div style={{ textAlign: 'right', flexShrink: 0 }}>
                             <p style={{ margin: 0, fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase' }}>Lab Director / Creator</p>
@@ -180,6 +199,11 @@ const DetailsSettings: React.FC<DetailsSettingsProps> = ({
                             placeholder="Describe the research goals..."
                             maxLength={2000}
                         />
+                        {localFieldErrors.projectDescription && (
+                            <p style={{ fontSize: '0.75rem', fontWeight: 600, color: '#dc2626', marginTop: '4px' }}>
+                                {localFieldErrors.projectDescription}
+                            </p>
+                        )}
                     </div>
                 </div>
 
@@ -338,7 +362,7 @@ const DetailsSettings: React.FC<DetailsSettingsProps> = ({
                     <div style={{ display: 'flex', gap: '8px', height: '36px' }}>
                         {isEditing && (
                             <button
-                                onClick={() => { handleSubmit(); setIsEditing(false); }}
+                            onClick={onSave}
                                 className="btn btn-primary"
                                 style={{ height: '36px', padding: '0 20px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}
                                 disabled={submitting || isDateInvalid || isStartDateInPast || isEndDateInPast || isEndDateBeforeMilestone || isStartDateAfterMilestone || isProjectNameInvalid}

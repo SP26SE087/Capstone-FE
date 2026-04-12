@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { validateSpecialChars } from '@/utils/validation';
+import { useToastStore } from '@/store/slices/toastSlice';
 import MainLayout from '@/layout/MainLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { userService, AddUserRequest } from '@/services/userService';
@@ -25,7 +27,7 @@ const UserManagement: React.FC = () => {
     const [members, setMembers] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+    const { addToast } = useToastStore();
 
     // Search & Filter
     const [searchQuery, setSearchQuery] = useState('');
@@ -72,16 +74,11 @@ const UserManagement: React.FC = () => {
     const [pageSize, setPageSize] = useState(10);
 
     const showToast = (message: string, type: 'success' | 'error' = 'success') => {
-        setToast({ type, message });
+        addToast(message, type);
     };
 
     useEffect(() => { loadMembers(); }, []);
     useEffect(() => { editingUserIdRef.current = editingUserId; }, [editingUserId]);
-    useEffect(() => {
-        if (!toast) return;
-        const timer = setTimeout(() => setToast(null), 3500);
-        return () => clearTimeout(timer);
-    }, [toast]);
 
     const loadMembers = async () => {
         try {
@@ -140,6 +137,8 @@ const UserManagement: React.FC = () => {
 
     const handleAddUser = async (e: React.FormEvent) => {
         e.preventDefault();
+        const fullNameErr = validateSpecialChars(formData.fullName);
+        if (fullNameErr) { showToast(`Full name: ${fullNameErr}`, 'error'); return; }
         setActionLoadingId('new');
         try {
             const newUser = await userService.addUser(formData as AddUserRequest);
@@ -243,20 +242,6 @@ const UserManagement: React.FC = () => {
         <MainLayout>
             <div className="page-container" style={{ margin: '0 auto' }}>
                 {/* Toast Notification */}
-                {toast && (
-                    <div style={{
-                        position: 'fixed', top: '80px', right: '24px', zIndex: 1100,
-                        background: toast.type === 'success' ? '#f0fdf4' : '#fef2f2',
-                        color: toast.type === 'success' ? '#166534' : '#991b1b',
-                        border: `1px solid ${toast.type === 'success' ? '#bbf7d0' : '#fecaca'}`,
-                        padding: '12px 20px', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
-                        display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 600
-                    }}>
-                        {toast.type === 'success' ? <CheckCircle size={18} /> : <AlertTriangle size={18} />}
-                        {toast.message}
-                    </div>
-                )}
-
                 {/* Page Header */}
                 <div className="page-header" style={{ marginBottom: '2rem' }}>
                     <div>

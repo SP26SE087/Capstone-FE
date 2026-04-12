@@ -5,6 +5,7 @@ import { projectService, researchFieldService } from '@/services';
 import { Project, ProjectStatus, ResearchField } from '@/types';
 import { getProjectStatusStyle, getVietnamDateInputValue, toApiDate } from '@/utils/projectUtils';
 import { validateSpecialChars } from '@/utils/validation';
+import { useToastStore } from '@/store/slices/toastSlice';
 import {
     Plus,
     Search,
@@ -48,6 +49,7 @@ const PROJECT_SORT_ORDER: Record<number, number> = {
 const Projects: React.FC = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
+    const { addToast } = useToastStore();
     const [projects, setProjects] = useState<Project[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -157,6 +159,7 @@ const Projects: React.FC = () => {
                 researchFieldIds: selectedFieldIds
             });
             setShowPanel(false);
+            addToast('Project created successfully!', 'success');
             await fetchProjects();
         } catch (err: any) {
             setCreateError(err.response?.data?.message || err.message || 'Failed to create project.');
@@ -198,16 +201,17 @@ const Projects: React.FC = () => {
                 {/* Focus Toolbar */}
                 <div style={{
                     display: 'flex',
-                    gap: '1rem',
+                    flexDirection: 'column',
+                    gap: '0.75rem',
                     marginBottom: '2rem',
-                    alignItems: 'center',
                     background: 'var(--surface-color)',
                     padding: '1rem',
                     borderRadius: '16px',
                     border: '1px solid var(--border-color)',
                     boxShadow: 'var(--shadow-sm)'
                 }}>
-                    <div style={{ position: 'relative', flex: 1 }}>
+                    {/* Row 1: Search */}
+                    <div style={{ position: 'relative' }}>
                         <Search size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                         <input
                             type="text"
@@ -219,23 +223,29 @@ const Projects: React.FC = () => {
                                 border: 'none',
                                 background: 'var(--surface-hover)',
                                 borderRadius: '10px',
-                                fontSize: '0.95rem'
+                                fontSize: '0.95rem',
+                                width: '100%'
                             }}
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
                     </div>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        {(['All', ProjectStatus.Active, ProjectStatus.Completed] as const).map(status => (
-                            <button
-                                key={status}
-                                onClick={() => setStatusFilter(status as any)}
-                                className={`filter-chip ${statusFilter === status ? 'active' : ''}`}
-                                style={{ height: '44px', padding: '0 1.25rem', borderRadius: '10px' }}
-                            >
-                                {status === 'All' ? 'All' : status === ProjectStatus.Active ? 'Active' : 'Completed'}
-                            </button>
-                        ))}
+
+                    {/* Row 2: Status chips */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.6px', flexShrink: 0 }}>Status:</span>
+                        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                            {(['All', ProjectStatus.Active, ProjectStatus.Inactive, ProjectStatus.Completed, ProjectStatus.Archived] as const).map(status => (
+                                <button
+                                    key={status}
+                                    onClick={() => setStatusFilter(status as any)}
+                                    className={`filter-chip ${statusFilter === status ? 'active' : ''}`}
+                                    style={{ height: '32px', padding: '0 0.9rem', borderRadius: '8px', fontSize: '0.78rem' }}
+                                >
+                                    {status === 'All' ? 'All' : getProjectStatusStyle(status as ProjectStatus).label}
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 </div>
 

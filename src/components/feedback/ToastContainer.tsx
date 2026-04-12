@@ -1,11 +1,12 @@
 import React from 'react';
+import ReactDOM from 'react-dom';
 import { useToastStore } from '@/store/slices/toastSlice';
 import Toast from '@/components/common/Toast';
 
 const ToastContainer: React.FC = () => {
   const { toasts, removeToast } = useToastStore();
 
-  return (
+  return ReactDOM.createPortal(
     <div style={{ position: 'fixed', top: '24px', right: '24px', zIndex: 10001, display: 'flex', flexDirection: 'column', gap: '12px' }}>
       {toasts.map((toast) => (
         <Toast
@@ -16,7 +17,8 @@ const ToastContainer: React.FC = () => {
           onClose={() => removeToast(toast.id)}
         />
       ))}
-    </div>
+    </div>,
+    document.body
   );
 };
 

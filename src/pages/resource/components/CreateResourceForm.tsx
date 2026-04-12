@@ -17,6 +17,7 @@ import {
     Search,
     Layers
 } from 'lucide-react';
+import { validateTextField } from '@/utils/validation';
 
 interface CreateResourceFormProps {
     onClose: () => void;
@@ -181,10 +182,15 @@ const CreateResourceForm: React.FC<CreateResourceFormProps> = ({
     const validate = (): boolean => {
         const newErrors: Record<string, string> = {};
         if (!name.trim()) newErrors.name = 'Name is required.';
-        if (name.trim().length > 200) newErrors.name = 'Name must be under 200 characters.';
+        else if (name.trim().length > 200) newErrors.name = 'Name must be under 200 characters.';
+        else { const err = validateTextField(name, 'Name'); if (err) newErrors.name = err; }
         if (!resourceTypeId) newErrors.resourceTypeId = 'Please select a resource type.';
         if (!managedBy) newErrors.managedBy = 'Please select a manager.';
         if (serialNumbers.length === 0) newErrors.serial = 'At least one serial number is required.';
+        const descErr = validateTextField(description, 'Description');
+        if (descErr) newErrors.description = descErr;
+        const locErr = validateTextField(location, 'Location');
+        if (locErr) newErrors.location = locErr;
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
@@ -255,6 +261,7 @@ const CreateResourceForm: React.FC<CreateResourceFormProps> = ({
                             onChange={e => {
                                 setName(e.target.value);
                                 onTitleChange?.(e.target.value || 'New Resource');
+                                setErrors(prev => ({ ...prev, name: validateTextField(e.target.value, 'Name', { required: true, maxLength: 200 }) }));
                             }}
                             placeholder="e.g. NVIDIA RTX 4090"
                             onFocus={handleFocus}
@@ -408,13 +415,14 @@ const CreateResourceForm: React.FC<CreateResourceFormProps> = ({
                     <div style={{ marginBottom: '14px' }}>
                         <label style={{ ...labelStyle, fontSize: '0.68rem' }}>Description</label>
                         <textarea
-                            style={{ ...inputStyle, minHeight: '70px', resize: 'vertical' as const }}
+                            style={{ ...inputStyle, minHeight: '70px', resize: 'vertical' as const, ...(errors.description ? { borderColor: '#ef4444' } : {}) }}
                             value={description}
-                            onChange={e => setDescription(e.target.value)}
+                            onChange={e => { setDescription(e.target.value); setErrors(prev => ({ ...prev, description: validateTextField(e.target.value, 'Description') })); }}
                             placeholder="Brief description of this resource..."
                             onFocus={handleFocus}
                             onBlur={handleBlur}
                         />
+                        {errors.description && <span style={{ fontSize: '0.72rem', color: '#ef4444', marginTop: '4px', display: 'block' }}>{errors.description}</span>}
                     </div>
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
@@ -455,13 +463,14 @@ const CreateResourceForm: React.FC<CreateResourceFormProps> = ({
                         <div>
                             <label style={{ ...labelStyle, fontSize: '0.68rem' }}><MapPin size={12} /> Location</label>
                             <input
-                                style={inputStyle}
+                                style={{ ...inputStyle, ...(errors.location ? { borderColor: '#ef4444' } : {}) }}
                                 value={location}
-                                onChange={e => setLocation(e.target.value)}
+                                onChange={e => { setLocation(e.target.value); setErrors(prev => ({ ...prev, location: validateTextField(e.target.value, 'Location') })); }}
                                 placeholder="e.g. Lab Room A3"
                                 onFocus={handleFocus}
                                 onBlur={handleBlur}
                             />
+                            {errors.location && <span style={{ fontSize: '0.72rem', color: '#ef4444', marginTop: '4px', display: 'block' }}>{errors.location}</span>}
                         </div>
                     </div>
                 </div>

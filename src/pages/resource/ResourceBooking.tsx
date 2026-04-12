@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import MainLayout from '@/layout/MainLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { Resource, Booking, BookingStatus, EquipmentLog, EquipmentLogAction } from '@/types/booking';
@@ -6,7 +6,7 @@ import { bookingService } from '@/services/bookingService';
 import { resourceService } from '@/services/resourceService';
 import { equipmentLogService } from '@/services/equipmentLogService';
 import { resourceTypeService, ResourceTypeItem } from '@/services/resourceTypeService';
-import Toast, { ToastType } from '@/components/common/Toast';
+import { useToastStore } from '@/store/slices/toastSlice';
 import {
     Search,
     Package,
@@ -39,7 +39,7 @@ import BookingListView from './components/BookingListView';
 import BookingDetailPanel from './components/BookingDetailPanel';
 import ResourceTypePanel from './components/ResourceTypePanel';
 
-// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Types ───────────────────────────────────────────────────────────────────
 type MainTab = 'resources' | 'bookings' | 'logs';
 type ResourceSubTab = 'all' | 'my_managed' | 'types';
 type BookingSubTab = 'my' | 'all' | 'managed';
@@ -56,7 +56,7 @@ interface ActivePanel {
     log?: EquipmentLog;
 }
 
-// â”€â”€â”€ Equipment log action label â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Equipment log action label ──────────────────────────────────────────────
 const getLogActionConfig = (action: EquipmentLogAction) =>
     action === EquipmentLogAction.CheckOut
         ? { label: 'Check Out', color: '#2563eb', bg: '#eff6ff', icon: <LogOut size={12} /> }
@@ -69,7 +69,7 @@ const formatDate = (s: string) => {
     return `${vn.getUTCDate().toString().padStart(2,'0')}/${(vn.getUTCMonth()+1).toString().padStart(2,'0')}/${vn.getUTCFullYear()} ${vn.getUTCHours().toString().padStart(2,'0')}:${vn.getUTCMinutes().toString().padStart(2,'0')}`;
 };
 
-// â”€â”€â”€ Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Component ───────────────────────────────────────────────────────────────
 const ResourceBooking: React.FC = () => {
     const { user } = useAuth();
 
@@ -102,7 +102,7 @@ const ResourceBooking: React.FC = () => {
     const [searchQuery, setSearchQuery] = useState('');
     const [filterStatus, setFilterStatus] = useState('');
     const [filterType, setFilterType] = useState('');
-    const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+    const { addToast } = useToastStore();
     const [activePanel, setActivePanel] = useState<ActivePanel | null>(null);
 
     const isLabDirector = useMemo(() => {
@@ -172,7 +172,7 @@ const ResourceBooking: React.FC = () => {
 
     useEffect(() => { fetchData(); }, [fetchData]);
 
-    const showToast = (msg: string, type: ToastType = 'info') => setToast({ message: msg, type });
+    const showToast = (msg: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => addToast(msg, type);
 
     // Panel handlers
     const handleCreateResource = () =>
@@ -239,7 +239,7 @@ const ResourceBooking: React.FC = () => {
         setFilterStatus('');
     };
 
-    // â”€â”€â”€ Derived state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── Derived state ───────────────────────────────────────────────────────
     const isResourceTab = activeTab === 'resources' || activeTab === 'my_managed';
     const isBookingTab = activeTab === 'my_bookings' || activeTab === 'all_bookings' || activeTab === 'managed_bookings';
     const isLogTab = activeTab === 'equipment_logs';
@@ -282,7 +282,7 @@ const ResourceBooking: React.FC = () => {
     const damagedResourceCount = resources.reduce((sum, r) => sum + (r.damagedQuantity ?? 0), 0);
     const inUseResourceCount = resources.reduce((sum, r) => sum + (r.inUseCount ?? 0), 0);
 
-    // â”€â”€â”€ Style helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── Style helpers ────────────────────────────────────────────────────────
     const mainTabStyle = (tab: MainTab): React.CSSProperties => {
         const isActive = mainTab === tab;
         const hasPills = mainTab === 'resources' || mainTab === 'bookings';
@@ -325,13 +325,12 @@ const ResourceBooking: React.FC = () => {
         color: isActive ? '#fff' : '#475569',
     });
 
-    // â”€â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── Render ──────────────────────────────────────────────────────────────
     return (
         <MainLayout role={user?.role} userName={user?.name}>
             <div style={{ padding: '1.5rem 2rem', maxWidth: '1600px', margin: '0 auto' }}>
-                {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
-                {/* â”€â”€ Page Header â”€â”€ */}
+                {/* ── Page Header ── */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '1.5rem' }}>
                     <div style={{
                         width: '44px', height: '44px', borderRadius: '14px', flexShrink: 0,
@@ -351,7 +350,7 @@ const ResourceBooking: React.FC = () => {
                     </div>
                 </div>
 
-                {/* ─ Unified Nav Card ─ */}
+                {/* - Unified Nav Card - */}
                 {(() => {
                     const tabMeta: Record<MainTab, { color: string; accentBg: string; borderColor: string }> = {
                         resources: { color: '#ea580c', accentBg: '#fff7ed', borderColor: '#fdba74' },
@@ -366,7 +365,7 @@ const ResourceBooking: React.FC = () => {
                             border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
                             marginBottom: '1rem', overflow: 'hidden',
                         }}>
-                            {/* Row 1 — Main tabs */}
+                            {/* Row 1 � Main tabs */}
                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '6px 6px 0', position: 'relative', zIndex: 1 }}>
                                 <button style={mainTabStyle('resources')} onClick={() => switchMainTab('resources')}>
                                     <Package size={17} /> Resources
@@ -388,7 +387,7 @@ const ResourceBooking: React.FC = () => {
                                     <ScrollText size={17} /> Equipment Logs
                                 </button>
                             </div>
-                            {/* Row 2 — Sub-filter pills + CTA, visually linked to active tab */}
+                            {/* Row 2 � Sub-filter pills + CTA, visually linked to active tab */}
                             {hasPills && (
                                 <div style={{
                                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -539,7 +538,7 @@ const ResourceBooking: React.FC = () => {
                     )}
                     </div>
                 </div>
-                {/* â”€â”€ Breadcrumb when panel open â”€â”€ */}
+                {/* ── Breadcrumb when panel open ── */}
                 {activePanel && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '0.75rem', fontSize: '0.78rem', fontWeight: 600 }}>
                         <button
@@ -557,7 +556,7 @@ const ResourceBooking: React.FC = () => {
                     </div>
                 )}
 
-                {/* â”€â”€ Main content â”€â”€ */}
+                {/* ── Main content ── */}
                 <div style={{ display: 'flex', gap: '1.5rem', height: 'calc(100vh - 320px)', minHeight: '560px' }}>
                     {/* Left: List */}
                     <div style={{
@@ -617,7 +616,7 @@ const ResourceBooking: React.FC = () => {
                                                 </div>
                                                 <div style={{ flex: 1, minWidth: 0 }}>
                                                     <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{log.resourceName || 'Unknown Resource'}</div>
-                                                    <div style={{ fontSize: '0.72rem', color: '#64748b' }}>by {log.userFullName || log.userName} {log.note ? `· ${log.note}` : ''}</div>
+                                                    <div style={{ fontSize: '0.72rem', color: '#64748b' }}>by {log.userFullName || log.userName} {log.note ? `� ${log.note}` : ''}</div>
                                                 </div>
                                                 <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600, flexShrink: 0 }}>{formatDate(log.loggedAt)}</div>
                                             </div>
@@ -729,7 +728,7 @@ const ResourceBooking: React.FC = () => {
                                                     </span>
                                                 </div>
                                             </div>
-                                            <button onClick={handleClosePanel} style={{ width: '30px', height: '30px', border: 'none', background: '#f1f5f9', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '1.1rem' }}>×</button>
+                                            <button onClick={handleClosePanel} style={{ width: '30px', height: '30px', border: 'none', background: '#f1f5f9', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '1.1rem' }}>�</button>
                                         </div>
 
                                         {/* Date */}

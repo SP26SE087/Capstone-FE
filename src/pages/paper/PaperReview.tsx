@@ -9,7 +9,7 @@ import {
     PaperRoleLabel,
     type PaperSubmissionResponse,
 } from '@/types/paperSubmission';
-import Toast, { type ToastType } from '@/components/common/Toast';
+import { useToastStore } from '@/store/slices/toastSlice';
 import ConfirmModal from '@/components/common/ConfirmModal';
 import {
     FileSearch, CheckCircle2, XCircle, Loader2, AlertTriangle,
@@ -80,8 +80,8 @@ const PaperReview: React.FC = () => {
     const [reviewViewerKind, setReviewViewerKind] = useState<'pdf' | 'office' | 'link'>('pdf');
 
     // Toast
-    const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
-    const showToast = (message: string, type: ToastType = 'info') => setToast({ message, type });
+    const { addToast } = useToastStore();
+    const showToast = (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => addToast(message, type);
 
     // Confirm modal
     const [confirmModal, setConfirmModal] = useState<{
@@ -309,13 +309,6 @@ const PaperReview: React.FC = () => {
     return (
         <MainLayout>
             <div className="page-container" style={{ padding: '1.5rem 2rem', maxWidth: '1600px', margin: '0 auto' }}>
-                {/* Toast */}
-                {toast && (
-                    <div style={{ position: 'fixed', right: '24px', top: '92px', zIndex: 1200, pointerEvents: 'auto' }}>
-                        <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
-                    </div>
-                )}
-
                 {/* Confirm Modal */}
                 <ConfirmModal
                     isOpen={confirmModal.isOpen}

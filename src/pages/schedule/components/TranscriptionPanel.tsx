@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { validateTextField } from '@/utils/validation';
 import {
     transcriptionService,
     TranscriptionResponse,
@@ -12,7 +13,6 @@ import { taskService } from '@/services/taskService';
 import { userService } from '@/services';
 import { membershipService } from '@/services/membershipService';
 import { useToastStore } from '@/store/slices/toastSlice';
-import { toApiDate } from '@/utils/projectUtils';
 import {
     Mic, FileAudio, Loader2, ChevronDown, ChevronUp,
     Sparkles, ClipboardList, Plus, Save, X, Check,
@@ -380,6 +380,10 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
 
     const handleSaveTask = async (idx: number) => {
         const task = suggestedTasks[idx];
+        const nameErr = validateTextField(task.name, 'Task name', { required: true });
+        if (nameErr) { addToast(nameErr, 'error'); return; }
+        const descErr = validateTextField(task.description || '', 'Description');
+        if (descErr) { addToast(`Description: ${descErr}`, 'error'); return; }
         setSuggestedTasks(prev => prev.map((t, i) => i === idx ? { ...t, _saving: true } : t));
         try {
             await taskService.create({
@@ -390,8 +394,8 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                 memberId: task._assigneeId || task.assigneeId || null,
                 projectId: selectedProjectId,
                 milestoneId: task.milestoneId || selectedMilestoneId || null,
-                startDate: toApiDate(task.startDate) || null,
-                dueDate: toApiDate(task.dueDate) || null,
+                startDate: task.startDate || null,
+                dueDate: task.dueDate || null,
                 estimatedHours: task.estimatedHours ?? null,
                 tags: task.tags ?? [],
                 // Add any other fields from suggestion

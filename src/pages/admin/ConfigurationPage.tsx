@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { validateSpecialChars } from '@/utils/validation';
+import { useToastStore } from '@/store/slices/toastSlice';
 import MainLayout from '@/layout/MainLayout';
 import { researchFieldService, CreateResearchFieldRequest, UpdateResearchFieldRequest } from '@/services/researchFieldService';
 import { ResearchField, ResearchFieldStatus } from '@/types/project';
@@ -10,7 +12,7 @@ const ConfigurationPage: React.FC = () => {
     const [fields, setFields] = useState<ResearchField[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+    const { addToast } = useToastStore();
 
     const [modalMode, setModalMode] = useState<ModalMode>(null);
     const [editingField, setEditingField] = useState<ResearchField | null>(null);
@@ -24,8 +26,7 @@ const ConfigurationPage: React.FC = () => {
     const [deleteLoading, setDeleteLoading] = useState(false);
 
     const showToast = (message: string, type: 'success' | 'error' = 'success') => {
-        setToast({ type, message });
-        setTimeout(() => setToast(null), 3000);
+        addToast(message, type);
     };
 
     const fetchFields = async () => {
@@ -73,6 +74,10 @@ const ConfigurationPage: React.FC = () => {
             setFormError('Name is required.');
             return;
         }
+        const nameSpecialErr = validateSpecialChars(formName);
+        if (nameSpecialErr) { setFormError(`Name: ${nameSpecialErr}`); return; }
+        const descSpecialErr = validateSpecialChars(formDescription);
+        if (descSpecialErr) { setFormError(`Description: ${descSpecialErr}`); return; }
         setFormLoading(true);
         setFormError(null);
         try {
@@ -122,18 +127,6 @@ const ConfigurationPage: React.FC = () => {
     return (
         <MainLayout>
             <div className="page-container" style={{ padding: '24px', maxWidth: '900px', margin: '0 auto' }}>
-                {/* Toast */}
-                {toast && (
-                    <div style={{
-                        position: 'fixed', top: '20px', right: '20px', zIndex: 9999,
-                        padding: '12px 20px', borderRadius: '8px', fontSize: '0.875rem',
-                        background: toast.type === 'success' ? '#22c55e' : '#ef4444',
-                        color: 'white', boxShadow: 'var(--shadow-lg)',
-                    }}>
-                        {toast.message}
-                    </div>
-                )}
-
                 <div style={{ marginBottom: '24px' }}>
                     <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0 }}>Configuration</h1>
                     <p style={{ color: 'var(--text-muted)', marginTop: '4px', fontSize: '0.875rem' }}>

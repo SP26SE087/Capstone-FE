@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { validateSpecialChars } from '@/utils/validation';
 import {
     Search, X, User, Calendar, Loader2, Play, Send,
     Upload, Paperclip, Target, ChevronDown, Check, RotateCw, CheckCircle2, Pencil, Save, Edit3, LayoutGrid
@@ -436,6 +437,10 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
         if (!activeTask) return;
         const tId = activeTask.taskId || (activeTask as any).id;
         if (!editForm.name.trim()) { setEditError('Task name is required.'); return; }
+        const nameSpecialErr = validateSpecialChars(editForm.name);
+        if (nameSpecialErr) { setEditError(`Task name: ${nameSpecialErr}`); return; }
+        const descSpecialErr = validateSpecialChars(editForm.description);
+        if (descSpecialErr) { setEditError(`Description: ${descSpecialErr}`); return; }
         if (editStartDateHasError || editDueDateHasError || editMilestoneHasError) {
             setEditError('Please fix the highlighted errors (dates cannot be in the past, and must be within the milestone range).');
             return;

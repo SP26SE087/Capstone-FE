@@ -22,14 +22,14 @@ import reportService, { BulkReportCreateResult } from '@/services/reportService'
 import { projectService } from '@/services/projectService';
 import { userService } from '@/services/userService';
 import { milestoneService } from '@/services/milestoneService';
-import Toast, { ToastType } from '@/components/common/Toast';
+import { useToastStore } from '@/store/slices/toastSlice';
+import { validateSpecialChars } from '@/utils/validation';
 
 const CreateReport: React.FC = () => {
     const { user } = useAuth();
     const navigate = useNavigate();
 
     const [submitting, setSubmitting] = useState(false);
-    const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
     const [userSearchQuery, setUserSearchQuery] = useState('');
 
     const [bulkResults, setBulkResults] = useState<BulkReportCreateResult[] | null>(null);
@@ -131,9 +131,8 @@ const CreateReport: React.FC = () => {
         return () => window.removeEventListener('beforeunload', handleBeforeUnload);
     }, [isDirty]);
 
-    const showToast = (message: string, type: ToastType = 'info') => {
-        setToast({ message, type });
-    };
+    const { addToast } = useToastStore();
+    const showToast = (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => addToast(message, type);
 
     const handleBack = () => {
         if (isDirty) {
@@ -168,15 +167,21 @@ const CreateReport: React.FC = () => {
 
     const validateReport = (report: typeof initialFormState, index: number, isFinal: boolean) => {
         if (!report.title.trim()) return `Report #${index + 1}: Title is required.`;
+        if (validateSpecialChars(report.title)) return `Report #${index + 1}: Title — ${validateSpecialChars(report.title)}`;
         if (report.assigneeEmails.length === 0) return `Report #${index + 1}: At least one assignee is required.`;
         
         if (isFinal) {
             if (!report.projectId) return `Report #${index + 1}: Project is required.`;
             if (!report.milestoneId) return `Report #${index + 1}: Milestone is required.`;
             if (!report.goals.trim()) return `Report #${index + 1}: Goals are required.`;
+            if (validateSpecialChars(report.goals)) return `Report #${index + 1}: Goals — ${validateSpecialChars(report.goals)}`;
             if (!report.achievements.trim()) return `Report #${index + 1}: Achievements are required.`;
+            if (validateSpecialChars(report.achievements)) return `Report #${index + 1}: Achievements — ${validateSpecialChars(report.achievements)}`;
             if (!report.blockers.trim()) return `Report #${index + 1}: Blockers are required.`;
+            if (validateSpecialChars(report.blockers)) return `Report #${index + 1}: Blockers — ${validateSpecialChars(report.blockers)}`;
             if (!report.nextWeek.trim()) return `Report #${index + 1}: Future plans are required.`;
+            if (validateSpecialChars(report.nextWeek)) return `Report #${index + 1}: Future plans — ${validateSpecialChars(report.nextWeek)}`;
+            if (report.description && validateSpecialChars(report.description)) return `Report #${index + 1}: Description — ${validateSpecialChars(report.description)}`;
         }
         return null;
     };
@@ -365,7 +370,6 @@ const CreateReport: React.FC = () => {
                 `}
             </style>
             <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '1.5rem' }}>
-                {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
 
                 {/* Header */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2rem' }}>
