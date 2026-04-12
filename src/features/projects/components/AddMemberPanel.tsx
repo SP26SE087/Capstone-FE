@@ -155,7 +155,7 @@ const AddMemberPanel: React.FC<AddMemberPanelProps> = ({
         setError(null);
         try {
             await membershipService.addMember({
-                userId: selectedUser.userId || selectedUser.id,
+                email: selectedUser.email,
                 projectId,
                 projectRoleId: selectedRoleId,
             });
