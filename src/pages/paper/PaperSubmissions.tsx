@@ -177,6 +177,7 @@ const PaperSubmissions: React.FC = () => {
     const [actionLoading, setActionLoading] = useState<string | null>(null);
     const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
     const [submitReviewLoading, setSubmitReviewLoading] = useState(false);
+    const [indexingLoading, setIndexingLoading] = useState(false);
 
     // Confirm modal
     const [confirmModal, setConfirmModal] = useState<{
@@ -498,6 +499,19 @@ const PaperSubmissions: React.FC = () => {
                 }
             },
         });
+    };
+
+    const handleIndexing = async () => {
+        if (!selectedPaper) return;
+        setIndexingLoading(true);
+        try {
+            await paperSubmissionService.ensureEmbedding(selectedPaper.paperSubmissionId);
+            showToast('AI Indexing started.', 'success');
+        } catch {
+            showToast('Indexing failed.', 'error');
+        } finally {
+            setIndexingLoading(false);
+        }
     };
 
     const handleDirectorReview = (approve: boolean) => {
@@ -1114,8 +1128,9 @@ const PaperSubmissions: React.FC = () => {
                             display: 'flex', flexDirection: 'column',
                             boxShadow: '0 4px 20px rgba(0,0,0,0.04)',
                             transition: 'all 0.4s cubic-bezier(0.4,0,0.2,1)',
-                            maxHeight: 'calc(100vh - 240px)', overflowY: 'auto'
-                        }} className="custom-scrollbar">
+                            maxHeight: 'calc(100vh - 160px)', overflow: 'hidden'
+                        }}>
+                        <div style={{ flex: 1, overflowY: 'auto' }} className="custom-scrollbar">
 
                             {/* Panel Header */}
                             <div style={{
@@ -1564,8 +1579,18 @@ const PaperSubmissions: React.FC = () => {
                                     </div>
                                         );
                                     })()}
+
                                 </div>
                             )}
+                        </div>
+                        {activePanel === 'view' && selectedPaper && (
+                            <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '12px', display: 'flex', justifyContent: 'flex-start', flexShrink: 0 }}>
+                                <button onClick={handleIndexing} disabled={indexingLoading}
+                                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>
+                                    <RefreshCw size={14} className={indexingLoading ? 'animate-spin' : ''} /> Insert to Semantic Search
+                                </button>
+                            </div>
+                        )}
                         </div>
                     )}
 

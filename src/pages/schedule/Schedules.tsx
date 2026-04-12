@@ -547,6 +547,7 @@ const Schedules: React.FC = () => {
                                 <SchedulePanel
                                     key={activePanel.meetingId || activePanel.id}
                                     meetingId={activePanel.type === 'view' ? activePanel.meetingId! : null}
+                                    actualMeetingId={activePanel.type === 'view' ? activePanel.actualMeetingId : null}
                                     initialData={activePanel.initialData}
                                     isCreating={activePanel.type === 'create'}
                                     onClose={() => { handleClosePanel(); setShowTranscription(false); }}

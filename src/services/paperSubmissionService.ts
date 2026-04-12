@@ -65,6 +65,11 @@ export const paperSubmissionService = {
         return response.data.data ?? response.data ?? [];
     },
 
+    /** Ensure a paper is indexed/embedded for semantic search */
+    ensureEmbedding: async (id: string): Promise<void> => {
+        await api.post(`${BASE}/${id}/ensure-embedding`);
+    },
+
     /** Get paper detail by ID */
     getById: async (id: string): Promise<PaperSubmissionResponse> => {
         const response = await api.get(`${BASE}/${id}`);

@@ -806,12 +806,12 @@ const handleAiSuggest = async () => {
                        <button
                             type="button"
                             onClick={handleIndexing}
-                            disabled={submitting || (report as any)?.hasEmbedding}
+                            disabled={submitting}
                             className="btn btn-secondary"
                             style={{ gap: '6px', fontSize: '0.8rem' }}
                         >
-                            {(report as any)?.hasEmbedding ? <Check size={14} /> : <RefreshCw size={14} className={submitting ? 'animate-spin' : ''} />}
-                            {(report as any)?.hasEmbedding ? 'Semantic Search' : 'Insert to Semantic Search'}
+                            <RefreshCw size={14} className={submitting ? 'animate-spin' : ''} />
+                            {(report as any)?.hasEmbedding ? 'Re-index for AI Search' : 'Insert to Semantic Search'}
                        </button>
                     )}
                 </div>

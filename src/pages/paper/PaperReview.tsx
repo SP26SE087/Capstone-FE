@@ -13,7 +13,7 @@ import { useToastStore } from '@/store/slices/toastSlice';
 import ConfirmModal from '@/components/common/ConfirmModal';
 import {
     FileSearch, CheckCircle2, XCircle, Loader2, AlertTriangle,
-    FileText, Link as LinkIcon, Clock, Eye, Send, Repeat, Gavel, Search, X, RefreshCw
+    FileText, Link as LinkIcon, Clock, Eye, Send, Repeat, Gavel, Search, X, RefreshCw, Sparkles
 } from 'lucide-react';
 
 const STATUS_COLOR: Record<SubmissionStatus, string> = {
@@ -71,10 +71,13 @@ const PaperReview: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<FilterTab>('all');
     const [search, setSearch] = useState('');
+    const [semanticResults, setSemanticResults] = useState<PaperSubmissionResponse[] | null>(null);
+    const [isSemanticLoading, setIsSemanticLoading] = useState(false);
     const [selectedPaper, setSelectedPaper] = useState<PaperSubmissionResponse | null>(null);
     const [projects, setProjects] = useState<any[]>([]);
     const [projectMembers, setProjectMembers] = useState<any[]>([]);
     const [actionLoading, setActionLoading] = useState<string | null>(null);
+    const [indexingLoading, setIndexingLoading] = useState(false);
     const [showReviewViewer, setShowReviewViewer] = useState(false);
     const [reviewViewerUrl, setReviewViewerUrl] = useState<string | null>(null);
     const [reviewViewerKind, setReviewViewerKind] = useState<'pdf' | 'office' | 'link'>('pdf');
@@ -234,7 +237,8 @@ const PaperReview: React.FC = () => {
     const decisionCount = papers.filter(p => p.status === SubmissionStatus.Decision).length;
     const rejectedCount = papers.filter(p => p.status === SubmissionStatus.Rejected).length;
 
-    const filteredPapers = papers.filter((p) => {
+    const filteredPapers = (semanticResults !== null ? semanticResults : papers).filter((p) => {
+        if (semanticResults !== null) return true;
         // Status filter
         if (activeTab === 'pending' && p.status !== SubmissionStatus.InternalReview) return false;
         if (activeTab !== 'all' && activeTab !== 'pending' && p.status.toString() !== activeTab) return false;
@@ -267,6 +271,32 @@ const PaperReview: React.FC = () => {
     const closePaperDetail = () => {
         setSelectedPaper(null);
         closeReviewDocument();
+    };
+
+    const handleIndexing = async () => {
+        if (!selectedPaper) return;
+        setIndexingLoading(true);
+        try {
+            await paperSubmissionService.ensureEmbedding(selectedPaper.paperSubmissionId);
+            showToast('AI Indexing started.', 'success');
+        } catch {
+            showToast('Indexing failed.', 'error');
+        } finally {
+            setIndexingLoading(false);
+        }
+    };
+
+    const handleSemanticSearch = async () => {
+        if (!search.trim()) return;
+        setIsSemanticLoading(true);
+        try {
+            const results = await paperSubmissionService.search({ query: search, topK: 20 });
+            setSemanticResults(Array.isArray(results) ? results : []);
+        } catch {
+            showToast('Semantic search failed.', 'error');
+        } finally {
+            setIsSemanticLoading(false);
+        }
     };
 
     const openReviewDocument = (_paper: PaperSubmissionResponse, url: string) => {
@@ -381,11 +411,25 @@ const PaperReview: React.FC = () => {
                         <Search size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
                         <input
                             type="text" placeholder="Search by title or conference..."
-                            value={search} onChange={(e) => setSearch(e.target.value)}
+                            value={search} onChange={(e) => { setSearch(e.target.value); setSemanticResults(null); }}
                             className="form-input"
                             style={{ paddingLeft: '44px', height: '44px', border: 'none', background: '#f8fafc', borderRadius: '10px', fontSize: '0.92rem', width: '100%' }}
                         />
                     </div>
+                    <button
+                        onClick={handleSemanticSearch}
+                        disabled={isSemanticLoading || !search.trim()}
+                        style={{
+                            height: '44px', padding: '0 16px', borderRadius: '10px', border: 'none',
+                            background: semanticResults !== null ? 'var(--primary-color)' : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                            color: '#fff', cursor: isSemanticLoading || !search.trim() ? 'not-allowed' : 'pointer',
+                            display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, fontSize: '0.85rem',
+                            opacity: !search.trim() ? 0.5 : 1, flexShrink: 0, whiteSpace: 'nowrap'
+                        }}
+                    >
+                        {isSemanticLoading ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
+                        AI Search
+                    </button>
                     <select
                         value={activeTab}
                         onChange={(e) => setActiveTab(e.target.value)}
@@ -408,6 +452,19 @@ const PaperReview: React.FC = () => {
                         <option value={SubmissionStatus.Rejected.toString()}>Rejected</option>
                     </select>
                 </div>
+
+                {/* Semantic result badge */}
+                {semanticResults !== null && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '1rem', padding: '8px 14px', borderRadius: '10px', background: '#f5f3ff', border: '1px solid #ddd6fe' }}>
+                        <Sparkles size={14} style={{ color: '#7c3aed' }} />
+                        <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#7c3aed', flex: 1 }}>
+                            AI Search — {semanticResults.length} paper{semanticResults.length !== 1 ? 's' : ''} found
+                        </span>
+                        <button onClick={() => setSemanticResults(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#7c3aed', display: 'flex', alignItems: 'center' }}>
+                            <X size={14} />
+                        </button>
+                    </div>
+                )}
 
                 {/* Content */}
                 {loading ? (
@@ -485,9 +542,10 @@ const PaperReview: React.FC = () => {
                                 display: 'flex',
                                 flexDirection: 'column',
                                 boxShadow: '0 4px 20px rgba(0,0,0,0.04)',
-                                maxHeight: 'calc(100vh - 260px)',
-                                overflowY: 'auto'
-                            }} className="custom-scrollbar">
+                                maxHeight: 'calc(100vh - 180px)',
+                                overflow: 'hidden'
+                            }}>
+                            <div style={{ flex: 1, overflowY: 'auto' }} className="custom-scrollbar">
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '12px', borderBottom: '1px solid #f1f5f9' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                         <div style={{ width: '32px', height: '32px', borderRadius: '10px', background: 'var(--primary-color)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -672,26 +730,22 @@ const PaperReview: React.FC = () => {
                                         </div>
                                     )}
 
-                                    {/* Decision: allow reverting to Revision */}
+                                    {/* Decision: final status */}
                                     {selectedPaper.status === SubmissionStatus.Decision && (
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', paddingTop: '1rem', borderTop: '1px solid #f1f5f9' }}>
                                             <span style={{ flex: 1, fontSize: '0.82rem', fontWeight: 600, color: STATUS_COLOR[SubmissionStatus.Decision] }}>Decision recorded.</span>
-                                            <button
-                                                onClick={() => handleMarkRevision(selectedPaper.paperSubmissionId)}
-                                                disabled={!!actionLoading}
-                                                className="btn"
-                                                style={{
-                                                    border: `1px solid ${STATUS_COLOR[SubmissionStatus.Revision]}55`, background: STATUS_BG[SubmissionStatus.Revision],
-                                                    color: STATUS_COLOR[SubmissionStatus.Revision], borderRadius: '10px',
-                                                    padding: '10px 18px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
-                                                    fontSize: '0.88rem', fontWeight: 600, fontFamily: 'inherit', transition: 'all 0.2s'
-                                                }}
-                                            >
-                                                {actionLoading === selectedPaper.paperSubmissionId ? <Loader2 size={18} className="animate-spin" /> : <Repeat size={18} />} Mark Revision
-                                            </button>
                                         </div>
                                     )}
+
+                                    {/* Footer: Semantic Search */}
                                 </div>
+                            </div>
+                            <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '12px', display: 'flex', justifyContent: 'flex-start', flexShrink: 0 }}>
+                                <button onClick={handleIndexing} disabled={indexingLoading}
+                                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', cursor: 'pointer', fontWeight: 700, fontSize: '0.88rem' }}>
+                                    <RefreshCw size={14} className={indexingLoading ? 'animate-spin' : ''} /> Insert to Semantic Search
+                                </button>
+                            </div>
                             </div>
                         )}
 
@@ -705,7 +759,7 @@ const PaperReview: React.FC = () => {
                                 display: 'flex',
                                 flexDirection: 'column',
                                 boxShadow: '0 4px 20px rgba(0,0,0,0.04)',
-                                maxHeight: 'calc(100vh - 260px)',
+                                maxHeight: 'calc(100vh - 180px)',
                             }}>
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid #f1f5f9', flexShrink: 0 }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, fontSize: '0.85rem', color: '#1e293b' }}>

@@ -29,11 +29,13 @@ import {
     Lock,
     X,
     Mic,
-    FileSearch
+    FileSearch,
+    RefreshCw
 } from 'lucide-react';
 
 interface SchedulePanelProps {
     meetingId: string | null;
+    actualMeetingId?: string | null;
     isCreating: boolean;
     onClose: () => void;
     onSaved: (shouldClose?: boolean, message?: string, newEventId?: string) => void;
@@ -109,6 +111,7 @@ const sectionStyle: React.CSSProperties = {
 
 const SchedulePanel: React.FC<SchedulePanelProps> = ({
     meetingId,
+    actualMeetingId,
     isCreating,
     onClose,
     onSaved,
@@ -124,6 +127,7 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [deleting, setDeleting] = useState(false);
+    const [indexing, setIndexing] = useState(false);
 
     // Form fields
     const [title, setTitle] = useState('');
@@ -263,6 +267,21 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
             alert(msg);
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleIndexing = async () => {
+        const idToUse = actualMeetingId || meeting?.id;
+        if (!idToUse) return;
+        setIndexing(true);
+        try {
+            await meetingService.ensureEmbedding(idToUse);
+            onSaved(false, 'AI Indexing started.');
+            if (meetingId) loadMeeting(meetingId, true);
+        } catch {
+            alert('Indexing failed.');
+        } finally {
+            setIndexing(false);
         }
     };
 
@@ -915,10 +934,29 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                 paddingTop: '14px',
                 borderTop: '1px solid var(--border-light)',
                 display: 'flex',
-                justifyContent: 'flex-end',
+                justifyContent: 'space-between',
+                alignItems: 'center',
                 gap: '10px',
                 marginTop: 'auto'
             }}>
+                {!isCreating && meeting?.id && (
+                    <button
+                        onClick={handleIndexing}
+                        disabled={indexing}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: '5px',
+                            padding: '6px 12px', borderRadius: '8px', cursor: 'pointer',
+                            fontSize: '0.75rem', fontWeight: 700,
+                            border: '1px solid #e2e8f0',
+                            background: '#fff',
+                            color: '#64748b',
+                            transition: 'all 0.2s'
+                        }}
+                    >
+                        <RefreshCw size={13} className={indexing ? 'animate-spin' : ''} />
+                        Insert to Semantic Search
+                    </button>
+                )}
                 {canEdit && (
                     <button
                         onClick={handleSave}

@@ -83,6 +83,16 @@ const meetingService = {
         }
     },
 
+    // Ensure a meeting is indexed/embedded before semantic search
+    ensureEmbedding: async (id: string): Promise<void> => {
+        try {
+            await api.post(`/api/Meetings/${id}/ensure-embedding`);
+        } catch (error) {
+            console.error(`Error ensuring embedding for meeting ${id}:`, error);
+            throw error;
+        }
+    },
+
     // Update meeting details (agenda, notes, action items, etc.)
     updateMeetingDetails: async (eventId: string, data: UpdateMeetingDetailsRequest): Promise<MeetingResponse> => {
         try {
