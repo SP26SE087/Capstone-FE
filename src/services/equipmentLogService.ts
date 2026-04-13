@@ -6,6 +6,11 @@ export type { AddEquipmentLogRequest, UpdateEquipmentLogRequest } from '@/types/
 
 const BASE_URL = '/api/equipment-logs';
 
+const normalize = (item: any): EquipmentLog => ({
+  ...item,
+  resourceName: item.resourceTitle || item.resourceName || '',
+});
+
 export const equipmentLogService = {
   getAll: async (pageIndex = 1, pageSize = 50): Promise<PaginatedResponse<EquipmentLog>> => {
     const response = await api.get(BASE_URL, {
@@ -13,17 +18,18 @@ export const equipmentLogService = {
     });
     const data = response.data.data || response.data;
     if (Array.isArray(data)) {
-      return { items: data, totalCount: data.length, pageIndex: 1, pageSize: data.length, totalPages: 1 };
+      const items = data.map(normalize);
+      return { items, totalCount: items.length, pageIndex: 1, pageSize: items.length, totalPages: 1 };
     }
     // Handle .NET wrappers
-    if (data.items) return data;
-    const items = data.value || data.result || [];
+    if (data.items) return { ...data, items: data.items.map(normalize) };
+    const items = (data.value || data.result || []).map(normalize);
     return { items, totalCount: items.length, pageIndex: 1, pageSize: items.length, totalPages: 1 };
   },
 
   getById: async (id: string): Promise<EquipmentLog> => {
     const response = await api.get(`${BASE_URL}/${id}`);
-    return response.data.data || response.data;
+    return normalize(response.data.data || response.data);
   },
 
   create: async (request: AddEquipmentLogRequest): Promise<EquipmentLog> => {

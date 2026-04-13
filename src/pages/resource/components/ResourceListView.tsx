@@ -1,6 +1,6 @@
 import React from 'react';
 import { Resource, ResourceType } from '@/types/booking';
-import { Cpu, HardDrive, Box, Monitor, Package, MapPin, ChevronRight, Calendar } from 'lucide-react';
+import { Cpu, HardDrive, Box, Monitor, Package, MapPin, ChevronRight, Calendar, UserCog } from 'lucide-react';
 
 interface ResourceListViewProps {
     resources: Resource[];
@@ -135,6 +135,14 @@ const ResourceListView: React.FC<ResourceListViewProps> = ({
                                     {resource.availableQuantity}/{resource.totalQuantity} available
                                 </span>
                             </div>
+                            {(resource.managerName || resource.managerEmail) && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', color: '#64748b', marginTop: '3px' }}>
+                                    <UserCog size={11} />
+                                    {resource.managerName && <span style={{ fontWeight: 600, color: '#475569' }}>{resource.managerName}</span>}
+                                    {resource.managerName && resource.managerEmail && <span>·</span>}
+                                    {resource.managerEmail && <span style={{ color: '#2563eb' }}>{resource.managerEmail}</span>}
+                                </div>
+                            )}
                         </div>
 
                         {/* Book button */}

@@ -37,6 +37,7 @@ export interface Resource {
   serials?: string[];
   managedBy?: string;
   managerName?: string;
+  managerEmail?: string;
 }
 
 export interface Booking {

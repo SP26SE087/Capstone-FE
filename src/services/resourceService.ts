@@ -65,7 +65,8 @@ const normalize = (item: any): Resource => {
     isInUse: item.isInUse ?? false,
     serials: item.serials || [],
     managedBy: item.managedBy,
-    managerName: item.managerName
+    managerName: item.managedByFullName || item.managerName,
+    managerEmail: item.managedByEmail || item.managerEmail
   };
 };
 

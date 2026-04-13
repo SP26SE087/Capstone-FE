@@ -86,15 +86,14 @@ const EquipmentLogList: React.FC<EquipmentLogListProps> = ({ logs, loading, onEd
                   )}
                   <td style={{ padding: '1rem', textAlign: 'center' }}>
                     {(() => {
-                      const d = new Date((log.loggedAt.endsWith('Z') ? log.loggedAt : log.loggedAt + 'Z'));
-                      const vn = new Date(d.getTime() + 7 * 3600000);
+                      const d = new Date(log.loggedAt);
                       return (
                         <>
                           <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#475569' }}>
-                            {vn.getUTCDate().toString().padStart(2,'0')}/{(vn.getUTCMonth()+1).toString().padStart(2,'0')}/{vn.getUTCFullYear()}
+                            {d.getDate().toString().padStart(2,'0')}/{(d.getMonth()+1).toString().padStart(2,'0')}/{d.getFullYear()}
                           </div>
                           <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>
-                            {vn.getUTCHours().toString().padStart(2,'0')}:{vn.getUTCMinutes().toString().padStart(2,'0')}
+                            {d.getHours().toString().padStart(2,'0')}:{d.getMinutes().toString().padStart(2,'0')}
                           </div>
                         </>
                       );

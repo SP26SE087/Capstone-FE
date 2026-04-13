@@ -217,10 +217,10 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
     const currentUserEmail = (user?.email || '').trim().toLowerCase();
     const bookingUserEmail = (booking.userEmail || '').trim().toLowerCase();
     const isRequester = !!currentUserEmail && !!bookingUserEmail && currentUserEmail === bookingUserEmail;
-    const canApproveReject = isManagedView && !isRequester && booking.status === BookingStatus.Pending;
+    const canApproveReject = isManagedView && booking.status === BookingStatus.Pending;
     const canCancel = isRequester && (booking.status === BookingStatus.Pending || booking.status === BookingStatus.Approved);
-    const canCheckOut = isRequester && booking.status === BookingStatus.Approved;
-    const canCheckIn = isRequester && booking.status === BookingStatus.InUse;
+    const canCheckOut = isManagedView && booking.status === BookingStatus.Approved;
+    const canCheckIn = isManagedView && booking.status === BookingStatus.InUse;
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: 'auto' }}>

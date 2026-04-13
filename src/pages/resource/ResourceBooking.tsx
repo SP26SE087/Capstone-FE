@@ -63,10 +63,9 @@ const getLogActionConfig = (action: EquipmentLogAction) =>
         : { label: 'Check In', color: '#16a34a', bg: '#f0fdf4', icon: <LogIn size={12} /> };
 
 const formatDate = (s: string) => {
-    const d = new Date(s.endsWith('Z') ? s : s + 'Z');
+    const d = new Date(s);
     if (isNaN(d.getTime())) return 'N/A';
-    const vn = new Date(d.getTime() + 7 * 3600000);
-    return `${vn.getUTCDate().toString().padStart(2,'0')}/${(vn.getUTCMonth()+1).toString().padStart(2,'0')}/${vn.getUTCFullYear()} ${vn.getUTCHours().toString().padStart(2,'0')}:${vn.getUTCMinutes().toString().padStart(2,'0')}`;
+    return `${d.getDate().toString().padStart(2,'0')}/${(d.getMonth()+1).toString().padStart(2,'0')}/${d.getFullYear()} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
 };
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -728,7 +727,7 @@ const ResourceBooking: React.FC = () => {
                                                     </span>
                                                 </div>
                                             </div>
-                                            <button onClick={handleClosePanel} style={{ width: '30px', height: '30px', border: 'none', background: '#f1f5f9', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '1.1rem' }}>�</button>
+                                            <button onClick={handleClosePanel} style={{ width: '30px', height: '30px', border: 'none', background: '#f1f5f9', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}><X size={16} /></button>
                                         </div>
 
                                         {/* Date */}
