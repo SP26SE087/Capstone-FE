@@ -19,9 +19,11 @@ import {
     FileText,
     Check,
     AlertTriangle,
-    Clock
+    Clock,
+    FlaskConical
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import ResearchFieldManager from '@/features/projects/components/ResearchFieldManager';
 
 const DEADLINE_WARN_DAYS = 7;
 
@@ -97,6 +99,8 @@ const Projects: React.FC = () => {
         border: '1px solid var(--border-light)',
         marginBottom: '16px'
     };
+
+    const [showResearchPanel, setShowResearchPanel] = React.useState(false);
 
     const isLabDirector = Number(user.role) === 1 || Number(user.role) === 2 ||
         user.role === 'Admin' || user.role === 'Lab Director' || user.role === 'LabDirector';
@@ -188,13 +192,31 @@ const Projects: React.FC = () => {
                         <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>Management hub for your research initiatives and active workflows.</p>
                     </div>
                     {isLabDirector && (
-                        <button
-                            onClick={openPanel}
-                            className="btn btn-primary"
-                            style={{ padding: '0.75rem 1.5rem', borderRadius: '12px', fontWeight: 700 }}
-                        >
-                            <Plus size={18} /> New Project
-                        </button>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <button
+                                onClick={() => setShowResearchPanel(true)}
+                                title="Manage Research Fields"
+                                style={{
+                                    padding: '0.65rem 0.9rem', borderRadius: '12px', fontWeight: 600,
+                                    border: '1.5px solid #f59e0b', background: 'var(--surface-color)',
+                                    color: '#b45309', cursor: 'pointer',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.45rem',
+                                    transition: 'all 0.15s',
+                                }}
+                                onMouseEnter={e => { e.currentTarget.style.borderColor = '#d97706'; e.currentTarget.style.color = '#92400e'; }}
+                                onMouseLeave={e => { e.currentTarget.style.borderColor = '#f59e0b'; e.currentTarget.style.color = '#b45309'; }}
+                            >
+                                <FlaskConical size={18} />
+                                <span style={{ fontSize: '0.82rem', fontWeight: 700 }}>Research Fields</span>
+                            </button>
+                            <button
+                                onClick={openPanel}
+                                className="btn btn-primary"
+                                style={{ padding: '0.65rem 1.3rem', borderRadius: '12px', fontWeight: 700 }}
+                            >
+                                <Plus size={18} /> New Project
+                            </button>
+                        </div>
                     )}
                 </div>
 
@@ -620,6 +642,10 @@ const Projects: React.FC = () => {
                         </div>
                     )}
                 </div>
+
+                {isLabDirector && (
+                    <ResearchFieldManager open={showResearchPanel} onClose={() => setShowResearchPanel(false)} />
+                )}
             </div>
         </MainLayout>
     );

@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Bell, LogIn, LogOut, UserCircle, FlaskConical, Cog, CheckCheck, Trash2, X } from 'lucide-react';
+import { Bell, LogIn, LogOut, UserCircle, FlaskConical, CheckCheck, Trash2, X } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { SystemRoleEnum, SystemRoleMap } from '@/types/enums';
+import { SystemRoleMap } from '@/types/enums';
 import { notificationService, Notification } from '@/services/notificationService';
 
 const Header: React.FC = () => {
@@ -17,8 +17,6 @@ const Header: React.FC = () => {
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [notiLoading, setNotiLoading] = useState(false);
-
-    const isLabDirector = Number(user.role) === SystemRoleEnum.Admin || Number(user.role) === SystemRoleEnum.LabDirector;
 
     const fetchUnreadCount = useCallback(async () => {
         try {
@@ -244,15 +242,7 @@ const Header: React.FC = () => {
                                         <span>My Profile</span>
                                     </Link>
 
-                                    {isLabDirector && (
-                                        <Link to="/configuration" className="dropdown-link" style={{
-                                            display: 'flex', alignItems: 'center', gap: '10px',
-                                            padding: '10px 12px', borderRadius: '4px', fontSize: '0.875rem', color: 'var(--text-primary)'
-                                        }}>
-                                            <Cog size={18} style={{ color: 'var(--text-muted)' }} />
-                                            <span>Configuration</span>
-                                        </Link>
-                                    )}
+
 
                                     <div style={{ height: '1px', background: 'var(--border-color)', margin: '4px 0' }} />
                                     
