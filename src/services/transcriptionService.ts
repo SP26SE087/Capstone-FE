@@ -19,6 +19,7 @@ export interface TranscriptionSegment {
 export interface TranscriptionResponse {
     id: string;
     meetingId: string;
+    createdByEmail: string | null;
     fileName: string | null;
     language: string | null;
     transcribedText: string | null;
@@ -135,6 +136,10 @@ export const transcriptionService = {
             customPrompt: opts?.customPrompt || null
         }, { timeout: 300000 });
         return res.data;
+    },
+
+    updateSummary: async (id: string, summary: string): Promise<void> => {
+        await api.patch(`/api/Transcriptions/${id}/summary`, { summary });
     },
 
     suggestTasks: async (text: string, projectId?: string, milestoneId?: string, maxResults = 10): Promise<TaskSuggestion[]> => {

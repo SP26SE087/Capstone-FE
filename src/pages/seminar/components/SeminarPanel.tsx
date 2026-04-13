@@ -5,6 +5,8 @@ import { API_BASE_URL } from '@/services/api';
 import { useAuth } from '@/hooks/useAuth';
 import { useToastStore } from '@/store/slices/toastSlice';
 import DateTimePicker from '@/components/common/DateTimePicker';
+import Modal from '@/components/common/Modal';
+import ConfirmModal from '@/components/common/ConfirmModal';
 import {
     Save,
     Loader2,
@@ -33,7 +35,6 @@ interface SeminarPanelProps {
     emailsMap: Record<string, string>;
     onToggleAINote?: () => void;
     showAINote?: boolean;
-    onGetTranscribe?: () => void;
     initialData?: SeminarMeetingResponse;
     isCreating?: boolean;
     projectsMap?: Record<string, string>;
@@ -103,7 +104,6 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
     usersMap,
     emailsMap,
     onToggleAINote,
-    onGetTranscribe,
     showAINote,
     initialData
 }) => {
@@ -127,6 +127,7 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
     const [swapReason, setSwapReason] = useState('');
     const [swapExpiry, setSwapExpiry] = useState('');
     const [submittingSwap, setSubmittingSwap] = useState(false);
+    const [showSwapConfirm, setShowSwapConfirm] = useState(false);
 
     useEffect(() => {
         if (meetingId) {
@@ -191,9 +192,15 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
         if (allMeetings.length === 0) {
             try {
                 const data = await seminarService.getAllSeminarMeetings();
-                setAllMeetings(Array.isArray(data) ? data.filter(m =>
-                    m.seminarMeetingId !== meetingId && m.seminarId === meeting?.seminarId
-                ) : []);
+                const threeDaysFromNow = Date.now() + 3 * 24 * 60 * 60 * 1000;
+                const filtered = Array.isArray(data) ? data.filter(m =>
+                    m.seminarMeetingId !== meetingId &&
+                    m.seminarId === meeting?.seminarId &&
+                    m.presenterId !== meeting?.presenterId &&
+                    new Date(m.meetingDate).getTime() > threeDaysFromNow
+                ) : [];
+                filtered.sort((a, b) => new Date(a.meetingDate).getTime() - new Date(b.meetingDate).getTime());
+                setAllMeetings(filtered);
             } catch (err) {
                 console.error('Failed to load meetings for swap:', err);
             }
@@ -276,7 +283,7 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             {/* Panel Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '12px', borderBottom: '1px solid var(--border-light)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
                     <div style={{
                         width: '32px',
                         height: '32px',
@@ -285,12 +292,13 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
                         color: '#fff',
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'center'
+                        justifyContent: 'center',
+                        flexShrink: 0
                     }}>
                         <Presentation size={16} />
                     </div>
-                    <div>
-                        <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                    <div style={{ minWidth: 0 }}>
+                        <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {meeting.title || 'Seminar Details'}
                         </h3>
                         <span style={{
@@ -305,24 +313,7 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
                         </span>
                     </div>
                 </div>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    {onGetTranscribe && (
-                        <button
-                            onClick={onGetTranscribe}
-                            title="Get Transcribe"
-                            style={{
-                                display: 'flex', alignItems: 'center', gap: '5px',
-                                padding: '6px 12px', borderRadius: '8px', cursor: 'pointer',
-                                fontSize: '0.75rem', fontWeight: 700,
-                                border: '1px solid #e2e8f0',
-                                background: '#fff',
-                                color: '#64748b',
-                                transition: 'all 0.2s'
-                            }}
-                        >
-                            <FileSearch size={13} /> Get Transcribe
-                        </button>
-                    )}
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }}>
                     {onToggleAINote && (
                         <button
                             onClick={onToggleAINote}
@@ -443,6 +434,7 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
                                 <div style={{
                                     width: '24px',
                                     height: '24px',
+                                    flexShrink: 0,
                                     borderRadius: '50%',
                                     background: 'linear-gradient(135deg, #6366f1, #818cf8)',
                                     color: '#fff',
@@ -678,71 +670,7 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
                     </div>
                 </div>
 
-                {/* Swap Request Form */}
-                {showSwapForm && canEdit && (
-                    <div style={{ ...sectionStyle, background: '#f5f3ff', border: '1px solid #e9d5ff' }}>
-                        <div style={{ ...labelStyle, color: '#7c3aed' }}><ArrowLeftRight size={12} /> Request Session Swap</div>
 
-                        <div style={{ marginBottom: '10px' }}>
-                            <label style={{ ...labelStyle, fontSize: '0.68rem' }}>Target Session</label>
-                            <select
-                                value={swapTargetId}
-                                onChange={e => setSwapTargetId(e.target.value)}
-                                style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1.5px solid #e9d5ff', fontSize: '0.85rem', fontFamily: 'inherit', outline: 'none', background: '#fff' }}
-                            >
-                                <option value="">Select a session to swap with...</option>
-                                {allMeetings.map(m => (
-                                    <option key={m.seminarMeetingId} value={m.seminarMeetingId}>
-                                        {m.title || 'Untitled'} — {new Date(m.meetingDate).toLocaleDateString()}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-
-                        <div style={{ marginBottom: '10px' }}>
-                            <label style={{ ...labelStyle, fontSize: '0.68rem' }}>Reason (optional)</label>
-                            <textarea
-                                value={swapReason}
-                                onChange={e => setSwapReason(e.target.value)}
-                                placeholder="Why do you want to swap this session?"
-                                style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1.5px solid #e9d5ff', fontSize: '0.85rem', fontFamily: 'inherit', outline: 'none', minHeight: '60px', resize: 'vertical' as const, background: '#fff' }}
-                            />
-                        </div>
-
-                        <div style={{ marginBottom: '12px' }}>
-                            <label style={{ ...labelStyle, fontSize: '0.68rem' }}>Expires At (optional)</label>
-                            <DateTimePicker
-                                value={swapExpiry}
-                                onChange={setSwapExpiry}
-                                accentColor="#7c3aed"
-                                min={new Date().toISOString()}
-                            />
-                        </div>
-
-                        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                            <button
-                                onClick={() => { setShowSwapForm(false); setSwapTargetId(''); setSwapReason(''); setSwapExpiry(''); }}
-                                style={{ padding: '6px 14px', borderRadius: '8px', border: '1px solid var(--border-color)', background: '#fff', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700 }}
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleSubmitSwap}
-                                disabled={submittingSwap || !swapTargetId}
-                                style={{
-                                    padding: '6px 16px', borderRadius: '8px', border: 'none',
-                                    background: !swapTargetId ? '#e2e8f0' : '#7c3aed',
-                                    color: '#fff', cursor: submittingSwap || !swapTargetId ? 'not-allowed' : 'pointer',
-                                    fontSize: '0.78rem', fontWeight: 700,
-                                    display: 'flex', alignItems: 'center', gap: '4px'
-                                }}
-                            >
-                                {submittingSwap ? <Loader2 size={12} className="animate-spin" /> : <ArrowLeftRight size={12} />}
-                                Submit Swap
-                            </button>
-                        </div>
-                    </div>
-                )}
             </div>
 
             {/* Footer */}
@@ -755,7 +683,7 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
                 marginTop: 'auto'
             }}>
                 <div>
-                    {canEdit && !showSwapForm && (
+                    {canEdit && (
                         <button
                             onClick={handleOpenSwapForm}
                             style={{
@@ -813,6 +741,189 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
                     )}
                 </div>
             </div>
+
+            {/* Swap Request Modal */}
+            <Modal
+                isOpen={showSwapForm}
+                onClose={() => { setShowSwapForm(false); setSwapTargetId(''); setSwapReason(''); setSwapExpiry(''); }}
+                title="Request Session Swap"
+                maxWidth="780px"
+                disableBackdropClose={true}
+                footer={
+                    <div style={{ display: 'flex', gap: '10px', width: '100%' }}>
+                        <button
+                            onClick={() => { setShowSwapForm(false); setSwapTargetId(''); setSwapReason(''); setSwapExpiry(''); }}
+                            className="btn btn-secondary"
+                            style={{ flex: 1, padding: '0.75rem 1.5rem', borderRadius: '12px', fontWeight: 600, border: '1px solid #e2e8f0' }}
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={() => setShowSwapConfirm(true)}
+                            disabled={!swapTargetId}
+                            style={{
+                                flex: 2, padding: '0.75rem 1.5rem', borderRadius: '12px', border: 'none',
+                                background: !swapTargetId ? '#e2e8f0' : '#7c3aed',
+                                color: '#fff', cursor: !swapTargetId ? 'not-allowed' : 'pointer',
+                                fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                                boxShadow: !swapTargetId ? 'none' : '0 4px 12px rgba(124,58,237,0.3)',
+                                transition: 'all 0.2s'
+                            }}
+                        >
+                            <ArrowLeftRight size={15} /> Review & Submit
+                        </button>
+                    </div>
+                }
+            >
+                <div style={{ padding: '0 1.75rem 1.25rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', alignItems: 'start' }}>
+                    {/* LEFT: Swap visual */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+                        {/* Your session (readonly chip) */}
+                        <div style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Your Session</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', background: '#f8fafc', border: '1px solid var(--border-color)', borderRadius: '12px 12px 0 0', borderBottom: 'none' }}>
+                            <div style={{ width: '28px', height: '28px', flexShrink: 0, borderRadius: '8px', background: '#e0e7ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <Presentation size={14} color="#6366f1" />
+                            </div>
+                            <div style={{ minWidth: 0 }}>
+                                <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.4 }}>
+                                    {meeting.title || 'Untitled'}
+                                </div>
+                                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 500, marginTop: '1px' }}>
+                                    {new Date(meeting.meetingDate).toLocaleDateString('vi-VN')}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Arrow connector */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '28px', background: '#f5f3ff', borderLeft: '1px solid #e9d5ff', borderRight: '1px solid #e9d5ff', position: 'relative' }}>
+                            <div style={{ width: '1px', height: '100%', background: '#c4b5fd', position: 'absolute' }} />
+                            <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1 }}>
+                                <ArrowLeftRight size={12} color="#fff" />
+                            </div>
+                        </div>
+
+                        {/* Target session list */}
+                        <div style={{ border: `1.5px solid ${swapTargetId ? '#7c3aed' : '#e9d5ff'}`, borderRadius: '0 0 12px 12px', transition: 'all 0.2s', overflow: 'hidden' }}>
+                            <div style={{ padding: '6px 14px 4px', fontSize: '0.65rem', fontWeight: 700, color: swapTargetId ? '#7c3aed' : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', background: swapTargetId ? '#faf5ff' : '#fff' }}>
+                                Swap With <span style={{ color: '#ef4444' }}>*</span>
+                            </div>
+                            <div style={{ maxHeight: '180px', overflowY: 'auto', background: '#fff' }} className="custom-scrollbar">
+                                {allMeetings.length === 0 ? (
+                                    <div style={{ padding: '12px 14px', fontSize: '0.82rem', color: '#94a3b8', fontStyle: 'italic' }}>No other sessions available.</div>
+                                ) : (
+                                    allMeetings.map(m => {
+                                        const isSelected = swapTargetId === m.seminarMeetingId;
+                                        return (
+                                            <div
+                                                key={m.seminarMeetingId}
+                                                onClick={() => setSwapTargetId(m.seminarMeetingId)}
+                                                style={{
+                                                    display: 'flex', alignItems: 'center', gap: '10px',
+                                                    padding: '8px 14px', cursor: 'pointer', transition: 'background 0.15s',
+                                                    background: isSelected ? '#f5f3ff' : 'transparent',
+                                                    borderTop: '1px solid #f1f5f9'
+                                                }}
+                                                onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = '#faf5ff'; }}
+                                                onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent'; }}
+                                            >
+                                                <div style={{ width: '16px', height: '16px', flexShrink: 0, borderRadius: '50%', border: `2px solid ${isSelected ? '#7c3aed' : '#cbd5e1'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}>
+                                                    {isSelected && <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#7c3aed' }} />}
+                                                </div>
+                                                <div style={{ minWidth: 0 }}>
+                                                    <div style={{ fontSize: '0.85rem', fontWeight: isSelected ? 700 : 600, color: isSelected ? '#6d28d9' : 'var(--text-primary)', lineHeight: 1.3 }}>
+                                                        {m.title || 'Untitled'}
+                                                    </div>
+                                                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+                                                        {new Date(m.meetingDate).toLocaleDateString('vi-VN')}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* RIGHT: Reason + Expires At */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                        {/* Reason */}
+                        <div>
+                            <label style={{ ...labelStyle, fontSize: '0.68rem' }}>
+                                Reason <span style={{ color: 'var(--text-muted)', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>(optional)</span>
+                            </label>
+                            <textarea
+                                value={swapReason}
+                                onChange={e => setSwapReason(e.target.value)}
+                                placeholder="Briefly explain why you need to swap..."
+                                style={{ width: '100%', padding: '9px 12px', borderRadius: '10px', border: '1.5px solid #e9d5ff', fontSize: '0.85rem', fontFamily: 'inherit', outline: 'none', minHeight: '90px', resize: 'none' as const, background: '#fff', boxSizing: 'border-box', transition: 'border-color 0.2s' }}
+                                onFocus={e => { e.currentTarget.style.borderColor = '#7c3aed'; }}
+                                onBlur={e => { e.currentTarget.style.borderColor = '#e9d5ff'; }}
+                            />
+                        </div>
+
+                        {/* Expires At */}
+                        <div>
+                            <label style={{ ...labelStyle, fontSize: '0.68rem' }}>
+                                Expires At <span style={{ color: 'var(--text-muted)', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>(optional)</span>
+                            </label>
+                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                <input
+                                    type="date"
+                                    min={new Date().toISOString().split('T')[0]}
+                                    value={swapExpiry ? swapExpiry.split('T')[0] : ''}
+                                    onChange={e => {
+                                        const d = e.target.value;
+                                        const h = swapExpiry ? new Date(swapExpiry).getHours() : 17;
+                                        setSwapExpiry(d ? `${d}T${String(h).padStart(2, '0')}:00:00` : '');
+                                    }}
+                                    style={{ flex: 1, padding: '8px 8px', borderRadius: '10px', border: '1.5px solid #e9d5ff', fontSize: '0.82rem', fontFamily: 'inherit', outline: 'none', background: '#fff', color: 'var(--text-primary)', minWidth: 0 }}
+                                />
+                                <select
+                                    value={swapExpiry ? new Date(swapExpiry).getHours() : ''}
+                                    onChange={e => {
+                                        const h = e.target.value;
+                                        const d = swapExpiry ? swapExpiry.split('T')[0] : new Date().toISOString().split('T')[0];
+                                        setSwapExpiry(h !== '' ? `${d}T${String(h).padStart(2, '0')}:00:00` : '');
+                                    }}
+                                    disabled={!swapExpiry}
+                                    style={{ width: '80px', flexShrink: 0, padding: '8px 6px', borderRadius: '10px', border: '1.5px solid #e9d5ff', fontSize: '0.82rem', fontFamily: 'inherit', outline: 'none', background: swapExpiry ? '#fff' : '#f8fafc', color: swapExpiry ? 'var(--text-primary)' : '#94a3b8', cursor: swapExpiry ? 'pointer' : 'not-allowed' }}
+                                >
+                                    {[7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23].map(i => (
+                                        <option key={i} value={i}>{String(i).padStart(2, '0')}:00</option>
+                                    ))}
+                                </select>
+                            </div>
+                            {swapExpiry && (
+                                <button
+                                    type="button"
+                                    onClick={() => setSwapExpiry('')}
+                                    style={{ marginTop: '4px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.72rem', color: '#94a3b8', padding: 0, display: 'flex', alignItems: 'center', gap: '3px' }}
+                                >
+                                    <X size={11} /> Clear expiry
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Swap Confirm Modal */}
+            <ConfirmModal
+                isOpen={showSwapConfirm}
+                onClose={() => setShowSwapConfirm(false)}
+                onConfirm={() => { setShowSwapConfirm(false); handleSubmitSwap(); }}
+                title="Confirm Swap Request"
+                message={
+                    <span>
+                        Are you sure you want to submit this swap request?<br />
+                        The other presenter will be notified and must accept before the swap takes effect.
+                    </span>
+                }
+                confirmText={submittingSwap ? 'Submitting...' : 'Submit Swap'}
+                cancelText="Go Back"
+                variant="info"
+            />
         </div>
     );
 };

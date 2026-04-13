@@ -152,10 +152,32 @@ const ProjectDetails: React.FC = () => {
 
             console.log('ProjectDetails: timelineRaw sample:', (timelineRaw as any)?.milestones?.[0] || timelineRaw?.[0] || 'empty');
 
+            // Build taskId → milestoneId map from timeline data so milestone filter works
+            // even when tasks returned by getByProject lack milestoneId
+            const taskMilestoneMap = new Map<string, string>();
+            const timelineMilestones = (timelineRaw as any)?.milestones ?? (Array.isArray(timelineRaw) ? timelineRaw : []);
+            for (const entry of timelineMilestones) {
+                const mId: string = entry?.milestone?.milestoneId || entry?.milestone?.id || entry?.milestoneId || entry?.id;
+                const taskList: any[] = entry?.tasks ?? [];
+                for (const t of taskList) {
+                    const tId: string = t?.taskId || t?.id;
+                    if (tId && mId) taskMilestoneMap.set(tId, mId);
+                }
+            }
+
+            // Enrich tasks with milestoneId where missing
+            const enrichedTasks = (tasksRaw as Task[]).map(t => {
+                const tId = (t as any).taskId || (t as any).id;
+                if (!t.milestoneId && tId && taskMilestoneMap.has(tId)) {
+                    return { ...t, milestoneId: taskMilestoneMap.get(tId) };
+                }
+                return t;
+            });
+
             setMilestones(mRaw as Milestone[]);
             setMembers(membersRaw as any[]);
             setAvailableFields(fieldsRaw as ResearchField[]);
-            setTasks(tasksRaw as Task[]);
+            setTasks(enrichedTasks);
             setTimelineData(timelineRaw);
             console.log('ProjectDetails: All data states updated.');
         } catch (error) {
@@ -192,8 +214,27 @@ const ProjectDetails: React.FC = () => {
     const refetchTasks = async () => {
         if (!id) return;
         try {
-            const tasksData = await taskService.getByProject(id);
-            setTasks(tasksData || []);
+            const [tasksData, timelineRaw] = await Promise.all([
+                taskService.getByProject(id),
+                milestoneService.getMilestoneTasksByProject(id)
+            ]);
+            const taskMilestoneMap = new Map<string, string>();
+            const timelineMilestones = (timelineRaw as any)?.milestones ?? (Array.isArray(timelineRaw) ? timelineRaw : []);
+            for (const entry of timelineMilestones) {
+                const mId: string = entry?.milestone?.milestoneId || entry?.milestone?.id || entry?.milestoneId || entry?.id;
+                for (const t of (entry?.tasks ?? [])) {
+                    const tId: string = t?.taskId || t?.id;
+                    if (tId && mId) taskMilestoneMap.set(tId, mId);
+                }
+            }
+            const enriched = (tasksData || []).map((t: Task) => {
+                const tId = (t as any).taskId || (t as any).id;
+                if (!t.milestoneId && tId && taskMilestoneMap.has(tId)) {
+                    return { ...t, milestoneId: taskMilestoneMap.get(tId) };
+                }
+                return t;
+            });
+            setTasks(enriched);
         } catch (error) {
             console.error('Failed to refetch tasks:', error);
         }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useTranscriptionStore } from '@/store/slices/transcriptionStore';
 import { validateTextField } from '@/utils/validation';
 import {
     transcriptionService,
@@ -16,29 +17,30 @@ import { useToastStore } from '@/store/slices/toastSlice';
 import {
     Mic, FileAudio, Loader2, ChevronDown, ChevronUp,
     Sparkles, ClipboardList, Plus, Save, X, Check,
-    User, FileText, Video, Target, RefreshCw, FileSearch, AlertTriangle
+    User, FileText, Video, Target, RefreshCw, FileSearch, AlertTriangle, Edit3
 } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { SystemRoleEnum } from '@/types/enums';
 
 interface TranscriptionPanelProps {
     onClose: () => void;
     meetingId?: string;
     meetingName?: string;
-    mode?: 'full' | 'view';
     onProcessingChange?: (processing: boolean) => void;
 }
 
 const sectionStyle: React.CSSProperties = {
     background: '#fff',
     border: '1px solid #e2e8f0',
-    borderRadius: '14px',
-    padding: '16px',
-    marginBottom: '14px'
+    borderRadius: '12px',
+    padding: '12px',
+    marginBottom: '10px'
 };
 
 const labelStyle: React.CSSProperties = {
     fontSize: '0.68rem', fontWeight: 800, color: '#64748b',
     textTransform: 'uppercase', letterSpacing: '0.8px',
-    marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '5px'
+    marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '5px'
 };
 
 const inputStyle: React.CSSProperties = {
@@ -60,9 +62,11 @@ interface SuggestedTask extends TaskSuggestion {
     _saved: boolean;
 }
 
-const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetingId, meetingName, mode = 'full', onProcessingChange }) => {
-    const isViewMode = mode === 'view';
+const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetingId, meetingName, onProcessingChange }) => {
     const { addToast } = useToastStore();
+    const { user: authUser } = useAuth();
+    const authRole = String(authUser.role ?? '');
+    const isLabDirector = Number(authRole) === SystemRoleEnum.LabDirector || authRole === 'LabDirector' || authRole === 'Lab Director';
 
     // Meeting transcriptions
     const [meetingTranscriptions, setMeetingTranscriptions] = useState<TranscriptionMeetingListItemResponse[]>([]);
@@ -76,8 +80,11 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
     const [transcribing, setTranscribing] = useState(false);
     const fileRef = useRef<HTMLInputElement>(null);
 
-    // Step 2 – Transcript result
-    const [transcription, setTranscription] = useState<TranscriptionResponse | null>(null);
+    // Step 2 – Transcript result  (lazy-initialised from global store when same meeting)
+    const [transcription, setTranscription] = useState<TranscriptionResponse | null>(() => {
+        const s = useTranscriptionStore.getState();
+        return (s.transcription && (meetingId ?? null) === s.meetingId) ? s.transcription : null;
+    });
 
     // Step 2b – Reload
     const [reloading, setReloading] = useState(false);
@@ -85,7 +92,10 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
 
     // Step 3 – Summary
     const [summarizing, setSummarizing] = useState(false);
-    const [summary, setSummary] = useState<string | null>(null);
+    const [summary, setSummary] = useState<string | null>(() => {
+        const s = useTranscriptionStore.getState();
+        return (s.transcription && (meetingId ?? null) === s.meetingId) ? s.summary : null;
+    });
     const [summaryLanguage, setSummaryLanguage] = useState('vi');
     const [summaryLength, setSummaryLength] = useState('medium');
     const [summaryStyle, setSummaryStyle] = useState('paragraph');
@@ -93,17 +103,52 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
 
     // Step 4 – Suggest tasks
     const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
-    const [selectedProjectId, setSelectedProjectId] = useState('');
+    const [selectedProjectId, setSelectedProjectId] = useState(() => {
+        const s = useTranscriptionStore.getState();
+        return (s.transcription && (meetingId ?? null) === s.meetingId) ? s.selectedProjectId : '';
+    });
     const [milestones, setMilestones] = useState<{ id: string; name: string; startDate?: string; dueDate?: string }[]>([]);
     const [selectedMilestoneId, setSelectedMilestoneId] = useState('');
     const selectedMilestone = milestones.find(m => m.id === selectedMilestoneId) || null;
     const [suggesting, setSuggesting] = useState(false);
-    const [suggestedTasks, setSuggestedTasks] = useState<SuggestedTask[]>([]);
+    const [suggestedTasks, setSuggestedTasks] = useState<SuggestedTask[]>(() => {
+        const s = useTranscriptionStore.getState();
+        return (s.transcription && (meetingId ?? null) === s.meetingId)
+            ? s.suggestedTasks.map(t => ({ ...t, _saving: false } as SuggestedTask))
+            : [];
+    });
     const [allUsers, setAllUsers] = useState<{ id: string; name: string; email: string }[]>([]);
     const [projectMembers, setProjectMembers] = useState<{ id: string; name: string; email: string }[]>([]);
     const [currentUserRole, setCurrentUserRole] = useState<number | null>(null);
-    const [activeTab, setActiveTab] = useState<'transcript' | 'summary' | 'tasks'>('transcript');
+    const [activeTab, setActiveTab] = useState<'transcript' | 'summary' | 'tasks'>(() => {
+        const s = useTranscriptionStore.getState();
+        return (s.transcription && (meetingId ?? null) === s.meetingId) ? s.activeTab : 'transcript';
+    });
     const [showConfirmClose, setShowConfirmClose] = useState(false);
+
+    // Edit summary — only the user who created the transcription can edit summary
+    const [editingSummary, setEditingSummary] = useState(false);
+    const [editSummaryText, setEditSummaryText] = useState('');
+    const [savingSummary, setSavingSummary] = useState(false);
+    const canEditSummary = !!transcription && (isLabDirector || (!!authUser.email && transcription.createdByEmail === authUser.email));
+
+    // Sync state changes to the global store so they survive route navigation
+    // Use getState() instead of subscribing to avoid re-render loops
+    useEffect(() => {
+        if (meetingId !== undefined) useTranscriptionStore.getState().setTranscription(transcription);
+    }, [transcription, meetingId]);
+    useEffect(() => {
+        if (meetingId !== undefined) useTranscriptionStore.getState().setSummary(summary);
+    }, [summary, meetingId]);
+    useEffect(() => {
+        if (meetingId !== undefined) useTranscriptionStore.getState().setSuggestedTasks(suggestedTasks as any);
+    }, [suggestedTasks, meetingId]);
+    useEffect(() => {
+        if (meetingId !== undefined) useTranscriptionStore.getState().setActiveTab(activeTab);
+    }, [activeTab, meetingId]);
+    useEffect(() => {
+        if (meetingId !== undefined) useTranscriptionStore.getState().setSelectedProjectId(selectedProjectId);
+    }, [selectedProjectId, meetingId]);
 
     // Confirm before leaving if processing
     useEffect(() => {
@@ -380,12 +425,14 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
 
     const handleSaveTask = async (idx: number) => {
         const task = suggestedTasks[idx];
+        if (!selectedProjectId) { addToast('Please select a project first.', 'error'); return; }
         const nameErr = validateTextField(task.name, 'Task name', { required: true });
         if (nameErr) { addToast(nameErr, 'error'); return; }
         const descErr = validateTextField(task.description || '', 'Description');
         if (descErr) { addToast(`Description: ${descErr}`, 'error'); return; }
         setSuggestedTasks(prev => prev.map((t, i) => i === idx ? { ...t, _saving: true } : t));
         try {
+            const today = new Date().toISOString().split('T')[0];
             await taskService.create({
                 name: task.name,
                 description: task.description || '',
@@ -394,8 +441,8 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                 memberId: task._assigneeId || task.assigneeId || null,
                 projectId: selectedProjectId,
                 milestoneId: task.milestoneId || selectedMilestoneId || null,
-                startDate: task.startDate || null,
-                dueDate: task.dueDate || null,
+                startDate: new Date(task.startDate || today).toISOString(),
+                dueDate: task.dueDate ? new Date(task.dueDate).toISOString() : null,
                 estimatedHours: task.estimatedHours ?? null,
                 tags: task.tags ?? [],
                 // Add any other fields from suggestion
@@ -416,41 +463,62 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
     const hasTranscript = !!transcription?.transcribedText;
     const hasSummary = !!summary;
 
+    const handleStartEditSummary = () => {
+        setEditSummaryText(summary || '');
+        setEditingSummary(true);
+    };
+
+    const handleCancelEditSummary = () => {
+        setEditingSummary(false);
+        setEditSummaryText('');
+    };
+
+    const handleSaveSummary = async () => {
+        if (!transcription?.id) return;
+        setSavingSummary(true);
+        try {
+            await transcriptionService.updateSummary(transcription.id, editSummaryText);
+            setSummary(editSummaryText);
+            setEditingSummary(false);
+            addToast('Summary updated successfully!', 'success');
+        } catch (err: any) {
+            const msg = err?.response?.data?.message || 'Failed to update summary.';
+            addToast(msg, 'error');
+        } finally {
+            setSavingSummary(false);
+        }
+    };
+
     return (
         <div style={{ display: 'flex', gap: '16px', height: '100%' }}>
 
-            {/* ════════ LEFT: AI Notes Controls (24% / 30%) ════════ */}
+            {/* ════════ LEFT: AI Notes Controls ════════ */}
             <div style={{
-                flex: isViewMode ? '0 0 24%' : '0 0 30%', maxWidth: isViewMode ? '24%' : '30%',
+                flex: '0 0 25%', maxWidth: '25%',
                 display: 'flex', flexDirection: 'column',
                 background: '#fff', borderRadius: '16px',
-                border: '1.5px solid #e0e7ff', padding: '16px',
+                border: '1.5px solid #e0e7ff', padding: '12px',
                 boxShadow: '0 4px 20px rgba(99,102,241,0.08)',
                 overflow: 'hidden'
             }}>
                 {/* Header */}
                 <div style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    marginBottom: '14px', paddingBottom: '10px', borderBottom: '1px solid #f1f5f9'
+                    marginBottom: '10px', paddingBottom: '8px', borderBottom: '1px solid #f1f5f9'
                 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
                         <div style={{
-                            width: '30px', height: '30px', borderRadius: '8px',
+                            width: '28px', height: '28px', borderRadius: '7px',
                             background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
                             color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
                             boxShadow: '0 4px 12px rgba(99,102,241,0.25)'
                         }}>
-                            <Mic size={14} />
+                            <Mic size={13} />
                         </div>
                         <div>
-                            <h3 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 800, color: '#1e293b' }}>{isViewMode ? 'Transcriptions' : 'AI Notes'}</h3>
+                            <h3 style={{ margin: 0, fontSize: '0.82rem', fontWeight: 800, color: '#1e293b' }}>AI Notes</h3>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '3px', marginTop: '2px' }}>
-                                {isViewMode ? (
-                                    <span style={{
-                                        fontSize: '0.55rem', fontWeight: 700, padding: '1px 5px', borderRadius: '20px',
-                                        background: '#e0e7ff', color: '#6366f1'
-                                    }}>View Only</span>
-                                ) : ((['Upload', 'Transcript', 'Summary', 'Tasks'] as const).map((step, i) => {
+                                {(['Upload', 'Transcript', 'Summary', 'Tasks'] as const).map((step, i) => {
                                     const reached = i === 0 ? true : i === 1 ? hasTranscript : i === 2 ? hasSummary : suggestedTasks.length > 0;
                                     const active = i === 0 ? !hasTranscript : i === 1 ? hasTranscript && !hasSummary : i === 2 ? hasSummary && suggestedTasks.length === 0 : suggestedTasks.length > 0;
                                     return (
@@ -461,10 +529,10 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                                                 color: active ? '#fff' : reached ? '#6366f1' : '#94a3b8',
                                                 transition: 'all 0.3s'
                                             }}>{step}</span>
-                                            {i < 3 && <span style={{ fontSize: '0.5rem', color: '#cbd5e1' }}>›</span>}
+                                            {i < 3 && <span style={{ fontSize: '0.5rem', color: '#cbd5e1' }}>{'\u203A'}</span>}
                                         </React.Fragment>
                                     );
-                                }))}
+                                })}
                             </div>
                         </div>
                     </div>
@@ -488,8 +556,8 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                 {/* Scrollable controls */}
                 <div style={{ flex: 1, overflowY: 'auto', paddingRight: '2px' }} className="custom-scrollbar">
 
-                    {/* Load meeting transcriptions — view mode only */}
-                    {isViewMode && meetingId && (
+                    {/* Load meeting transcriptions */}
+                    {meetingId && (
                         <div style={sectionStyle}>
                             <div style={labelStyle}><FileSearch size={12} /> Meeting Transcriptions</div>
                             <button
@@ -514,17 +582,16 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                     )}
 
                     {/* Upload section */}
-                    {!isViewMode && (
                     <div style={sectionStyle}>
                         <div style={labelStyle}><FileAudio size={12} /> Audio File</div>
                         <div
                             onClick={() => fileRef.current?.click()}
                             style={{
                                 border: `2px dashed ${file ? '#6366f1' : '#e2e8f0'}`,
-                                borderRadius: '10px', padding: '12px 14px',
+                                borderRadius: '10px', padding: '10px 12px',
                                 textAlign: 'center', cursor: 'pointer',
                                 background: file ? '#f5f3ff' : '#fafafa',
-                                marginBottom: '10px', transition: 'all 0.2s'
+                                marginBottom: '8px', transition: 'all 0.2s'
                             }}
                             onMouseEnter={e => { e.currentTarget.style.borderColor = '#6366f1'; e.currentTarget.style.background = '#f5f3ff'; }}
                             onMouseLeave={e => { e.currentTarget.style.borderColor = file ? '#6366f1' : '#e2e8f0'; e.currentTarget.style.background = file ? '#f5f3ff' : '#fafafa'; }}
@@ -548,19 +615,19 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                         </div>
 
                         {/* Model + Language */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '10px' }}>
-                            <div>
+                        <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
+                            <div style={{ flex: 1 }}>
                                 <label style={{ ...labelStyle, fontSize: '0.6rem', marginBottom: '3px' }}>Model</label>
-                                <select value={selectedModel} onChange={e => setSelectedModel(e.target.value)} style={{ ...inputStyle, height: '34px', fontSize: '0.78rem' }}>
+                                <select value={selectedModel} onChange={e => setSelectedModel(e.target.value)} style={{ ...inputStyle, height: '32px', fontSize: '0.76rem' }}>
                                     {models.length === 0
                                         ? <option value="">Default</option>
                                         : models.map(m => <option key={m.id || ''} value={m.id || ''}>{m.name || m.id}</option>)
                                     }
                                 </select>
                             </div>
-                            <div>
+                            <div style={{ flex: '0 0 90px' }}>
                                 <label style={{ ...labelStyle, fontSize: '0.6rem', marginBottom: '3px' }}>Language</label>
-                                <select value={language} onChange={e => setLanguage(e.target.value)} style={{ ...inputStyle, height: '34px', fontSize: '0.78rem' }}>
+                                <select value={language} onChange={e => setLanguage(e.target.value)} style={{ ...inputStyle, height: '32px', fontSize: '0.76rem' }}>
                                     {LANGUAGES.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
                                 </select>
                             </div>
@@ -582,10 +649,9 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                             {transcribing ? <><Loader2 size={13} className="animate-spin" /> Transcribing...</> : <><Mic size={13} /> Transcribe</>}
                         </button>
                     </div>
-                    )}
 
                     {/* Reload button when pending */}
-                    {!isViewMode && transcription && !hasTranscript && (
+                    {transcription && !hasTranscript && (
                         <div style={sectionStyle}>
                             <div style={{ fontSize: '0.75rem', color: '#92400e', marginBottom: '8px', textAlign: 'center', fontWeight: 600 }}>
                                 <Loader2 size={14} className="animate-spin" style={{ display: 'inline', marginRight: '4px', verticalAlign: 'middle' }} />
@@ -613,28 +679,30 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                     )}
 
                     {/* Summarize controls */}
-                    {!isViewMode && hasTranscript && (
+                    {hasTranscript && (
                         <div style={sectionStyle}>
                             <div style={labelStyle}><Sparkles size={12} /> {hasSummary ? 'Re-generate Summary' : 'Summary'}</div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '10px' }}>
-                                <div>
-                                    <label style={{ ...labelStyle, fontSize: '0.6rem', marginBottom: '3px' }}>Language</label>
-                                    <select value={summaryLanguage} onChange={e => setSummaryLanguage(e.target.value)} style={{ ...inputStyle, height: '34px', fontSize: '0.78rem' }}>
-                                        <option value="vi">Tiếng Việt</option>
-                                        <option value="en">English</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label style={{ ...labelStyle, fontSize: '0.6rem', marginBottom: '3px' }}>Length</label>
-                                    <select value={summaryLength} onChange={e => setSummaryLength(e.target.value)} style={{ ...inputStyle, height: '34px', fontSize: '0.78rem' }}>
-                                        <option value="short">Short</option>
-                                        <option value="medium">Medium</option>
-                                        <option value="long">Long</option>
-                                    </select>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '8px' }}>
+                                <div style={{ display: 'flex', gap: '6px' }}>
+                                    <div style={{ flex: 1 }}>
+                                        <label style={{ ...labelStyle, fontSize: '0.6rem', marginBottom: '3px' }}>Language</label>
+                                        <select value={summaryLanguage} onChange={e => setSummaryLanguage(e.target.value)} style={{ ...inputStyle, height: '32px', fontSize: '0.76rem' }}>
+                                            <option value="vi">Tiếng Việt</option>
+                                            <option value="en">English</option>
+                                        </select>
+                                    </div>
+                                    <div style={{ flex: 1 }}>
+                                        <label style={{ ...labelStyle, fontSize: '0.6rem', marginBottom: '3px' }}>Length</label>
+                                        <select value={summaryLength} onChange={e => setSummaryLength(e.target.value)} style={{ ...inputStyle, height: '32px', fontSize: '0.76rem' }}>
+                                            <option value="short">Short</option>
+                                            <option value="medium">Medium</option>
+                                            <option value="long">Long</option>
+                                        </select>
+                                    </div>
                                 </div>
                                 <div>
                                     <label style={{ ...labelStyle, fontSize: '0.6rem', marginBottom: '3px' }}>Format</label>
-                                    <select value={summaryStyle} onChange={e => setSummaryStyle(e.target.value)} style={{ ...inputStyle, height: '34px', fontSize: '0.78rem' }}>
+                                    <select value={summaryStyle} onChange={e => setSummaryStyle(e.target.value)} style={{ ...inputStyle, height: '32px', fontSize: '0.76rem' }}>
                                         <option value="paragraph">Paragraph</option>
                                         <option value="bullet_points">Bullet Points</option>
                                         <option value="key_points">Key Points</option>
@@ -647,8 +715,8 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                                         onChange={e => setCustomPrompt(e.target.value)}
                                         placeholder="e.g. Focus on action items and deadlines..."
                                         style={{
-                                            ...inputStyle, minHeight: '60px', resize: 'vertical',
-                                            fontSize: '0.78rem', fontFamily: 'inherit'
+                                            ...inputStyle, minHeight: '48px', resize: 'vertical',
+                                            fontSize: '0.76rem', fontFamily: 'inherit'
                                         }}
                                     />
                                 </div>
@@ -680,13 +748,13 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                     {(hasTranscript || hasSummary) && (
                         <div style={sectionStyle}>
                             <div style={labelStyle}><ClipboardList size={12} /> Suggest Tasks</div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '10px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '8px' }}>
                                 <div>
                                     <label style={{ ...labelStyle, fontSize: '0.6rem', marginBottom: '3px' }}>Project *</label>
                                     <select
                                         value={selectedProjectId}
                                         onChange={e => { setSelectedProjectId(e.target.value); setSelectedMilestoneId(''); setSuggestedTasks([]); }}
-                                        style={{ ...inputStyle, height: '34px', fontSize: '0.78rem' }}
+                                        style={{ ...inputStyle, height: '32px', fontSize: '0.76rem' }}
                                     >
                                         <option value="">Select project...</option>
                                         {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -698,7 +766,7 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                                         value={selectedMilestoneId}
                                         onChange={e => setSelectedMilestoneId(e.target.value)}
                                         disabled={!selectedProjectId || milestones.length === 0}
-                                        style={{ ...inputStyle, height: '34px', fontSize: '0.78rem', background: !selectedProjectId ? '#f8fafc' : '#fff' }}
+                                        style={{ ...inputStyle, height: '32px', fontSize: '0.76rem', background: !selectedProjectId ? '#f8fafc' : '#fff' }}
                                     >
                                         <option value="">No milestone</option>
                                         {milestones.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
@@ -738,39 +806,66 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                 border: '1px solid var(--border-color)',
                 overflow: 'hidden'
             }}>
-                <div style={{ display: 'flex', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', userSelect: 'none' }}>
-                    <div onClick={() => setActiveTab('transcript')} style={{ flex: 1, textAlign: 'center', padding: '14px 20px', cursor: 'pointer', borderBottom: activeTab === 'transcript' ? '2px solid #6366f1' : '2px solid transparent', fontWeight: 600, color: activeTab === 'transcript' ? '#6366f1' : '#64748b', fontSize: '0.85rem', transition: 'all 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-                        <FileText size={14} /> Transcript
+                <div style={{ display: 'flex', background: '#f8fafc', borderBottom: '1.5px solid #e2e8f0', userSelect: 'none', flexShrink: 0 }}>
+                    <div onClick={() => setActiveTab('transcript')} style={{
+                        flex: 1, textAlign: 'center', padding: '10px 12px', cursor: 'pointer',
+                        borderBottom: activeTab === 'transcript' ? '2.5px solid #6366f1' : '2.5px solid transparent',
+                        fontWeight: activeTab === 'transcript' ? 700 : 600,
+                        color: activeTab === 'transcript' ? '#6366f1' : '#94a3b8',
+                        background: activeTab === 'transcript' ? '#fff' : 'transparent',
+                        fontSize: '0.82rem', transition: 'all 0.2s',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px'
+                    }}>
+                        <FileText size={13} /> Transcript
                     </div>
-                    <div onClick={() => setActiveTab('summary')} style={{ flex: 1, textAlign: 'center', padding: '14px 20px', cursor: 'pointer', borderBottom: activeTab === 'summary' ? '2px solid #10b981' : '2px solid transparent', fontWeight: 600, color: activeTab === 'summary' ? '#10b981' : '#64748b', fontSize: '0.85rem', transition: 'all 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-                        <Sparkles size={14} /> Summary
+                    <div onClick={() => setActiveTab('summary')} style={{
+                        flex: 1, textAlign: 'center', padding: '10px 12px', cursor: 'pointer',
+                        borderBottom: activeTab === 'summary' ? '2.5px solid #10b981' : '2.5px solid transparent',
+                        fontWeight: activeTab === 'summary' ? 700 : 600,
+                        color: activeTab === 'summary' ? '#10b981' : '#94a3b8',
+                        background: activeTab === 'summary' ? '#fff' : 'transparent',
+                        fontSize: '0.82rem', transition: 'all 0.2s',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px'
+                    }}>
+                        <Sparkles size={13} /> Summary
                     </div>
-                    <div onClick={() => setActiveTab('tasks')} style={{ flex: 1, textAlign: 'center', padding: '14px 20px', cursor: 'pointer', borderBottom: activeTab === 'tasks' ? '2px solid #f59e0b' : '2px solid transparent', fontWeight: 600, color: activeTab === 'tasks' ? '#f59e0b' : '#64748b', fontSize: '0.85rem', transition: 'all 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-                        <ClipboardList size={14} /> Suggested Tasks {suggestedTasks.length > 0 && `(${suggestedTasks.length})`}
+                    <div onClick={() => setActiveTab('tasks')} style={{
+                        flex: 1, textAlign: 'center', padding: '10px 12px', cursor: 'pointer',
+                        borderBottom: activeTab === 'tasks' ? '2.5px solid #f59e0b' : '2.5px solid transparent',
+                        fontWeight: activeTab === 'tasks' ? 700 : 600,
+                        color: activeTab === 'tasks' ? '#f59e0b' : '#94a3b8',
+                        background: activeTab === 'tasks' ? '#fff' : 'transparent',
+                        fontSize: '0.82rem', transition: 'all 0.2s',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px'
+                    }}>
+                        <ClipboardList size={13} /> Tasks {suggestedTasks.length > 0 && <span style={{
+                            fontSize: '0.65rem', background: '#fef3c7', color: '#b45309',
+                            padding: '1px 6px', borderRadius: '10px', fontWeight: 700
+                        }}>{suggestedTasks.length}</span>}
                     </div>
                 </div>
 
-                <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }} className="custom-scrollbar">
+                <div style={{ flex: 1, overflowY: 'auto', padding: '14px' }} className="custom-scrollbar">
                     {meetingName && (
                         <div style={{ 
-                            marginBottom: '16px', padding: '10px 14px', 
-                            background: '#f8fafc', borderRadius: '12px', 
+                            marginBottom: '12px', padding: '8px 12px', 
+                            background: '#f8fafc', borderRadius: '10px', 
                             border: '1px solid #e2e8f0', display: 'flex', 
-                            alignItems: 'center', gap: '10px' 
+                            alignItems: 'center', gap: '8px' 
                         }}>
                             <div style={{ 
-                                width: '32px', height: '32px', borderRadius: '8px', 
+                                width: '28px', height: '28px', borderRadius: '7px', 
                                 background: '#fff', border: '1px solid #e2e8f0', 
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
+                                flexShrink: 0
                             }}>
-                                <Video size={14} color="#6366f1" />
+                                <Video size={13} color="#6366f1" />
                             </div>
-                            <div>
-                                <span style={{ display: 'block', fontSize: '0.62rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                                    Meeting Name
+                            <div style={{ minWidth: 0 }}>
+                                <span style={{ display: 'block', fontSize: '0.58rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                    Meeting
                                 </span>
-                                <span style={{ display: 'block', fontSize: '0.88rem', fontWeight: 700, color: '#1e293b' }}>
+                                <span style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                     {meetingName}
                                 </span>
                             </div>
@@ -782,10 +877,10 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94a3b8' }}>
                             <Mic size={48} style={{ opacity: 0.15, marginBottom: '14px' }} />
                             <p style={{ fontSize: '0.9rem', fontWeight: 600, margin: 0 }}>
-                                {isViewMode ? 'No transcriptions for this meeting' : 'Upload an audio file to get started'}
+                                Upload an audio file to get started
                             </p>
                             <p style={{ fontSize: '0.78rem', marginTop: '4px', color: '#cbd5e1' }}>
-                                {isViewMode ? 'Select from the list to view' : 'Transcript, summary & task suggestions will appear here'}
+                                Transcript, summary & task suggestions will appear here
                             </p>
                         </div>
                     )}
@@ -864,10 +959,72 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                                     <Loader2 size={24} className="animate-spin" style={{ color: '#10b981', margin: '0 auto 8px' }} />
                                     <p style={{ fontSize: '0.82rem', fontWeight: 700, color: '#059669', margin: 0 }}>Generating summary...</p>
                                 </div>
-                            ) : hasSummary ? (
+                            ) : editingSummary ? (
                                 <div style={{ ...sectionStyle, border: '1px solid #a7f3d0', background: '#f0fdf4' }}>
                                     <div style={{ ...labelStyle, color: '#059669' }}>
-                                        <Sparkles size={12} /> Summary
+                                        <Sparkles size={12} /> Edit Summary
+                                    </div>
+                                    <textarea
+                                        value={editSummaryText}
+                                        onChange={e => setEditSummaryText(e.target.value)}
+                                        style={{
+                                            width: '100%', minHeight: '400px', resize: 'vertical',
+                                            fontSize: '0.85rem', color: '#065f46', lineHeight: '1.7',
+                                            padding: '12px 14px', background: '#fff', borderRadius: '10px',
+                                            border: '1.5px solid #6366f1', fontFamily: 'inherit',
+                                            outline: 'none', boxSizing: 'border-box' as const
+                                        }}
+                                    />
+                                    <div style={{ display: 'flex', gap: '8px', marginTop: '10px', justifyContent: 'flex-end' }}>
+                                        <button
+                                            onClick={handleCancelEditSummary}
+                                            disabled={savingSummary}
+                                            style={{
+                                                padding: '6px 14px', borderRadius: '8px',
+                                                border: '1px solid #e2e8f0', background: '#fff',
+                                                color: '#64748b', fontWeight: 700, fontSize: '0.75rem',
+                                                cursor: savingSummary ? 'not-allowed' : 'pointer'
+                                            }}
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            onClick={handleSaveSummary}
+                                            disabled={savingSummary}
+                                            style={{
+                                                padding: '6px 14px', borderRadius: '8px', border: 'none',
+                                                background: savingSummary ? '#e2e8f0' : '#059669',
+                                                color: savingSummary ? '#94a3b8' : '#fff',
+                                                fontWeight: 700, fontSize: '0.75rem',
+                                                cursor: savingSummary ? 'not-allowed' : 'pointer',
+                                                display: 'flex', alignItems: 'center', gap: '4px'
+                                            }}
+                                        >
+                                            {savingSummary ? <><Loader2 size={12} className="animate-spin" /> Saving...</> : <><Save size={12} /> Save</>}
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : hasSummary ? (
+                                <div style={{ ...sectionStyle, border: '1px solid #a7f3d0', background: '#f0fdf4' }}>
+                                    <div style={{ ...labelStyle, color: '#059669', justifyContent: 'space-between' }}>
+                                        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                            <Sparkles size={12} /> Summary
+                                        </span>
+                                        {canEditSummary && (
+                                            <button
+                                                onClick={handleStartEditSummary}
+                                                style={{
+                                                    display: 'flex', alignItems: 'center', gap: '4px',
+                                                    background: 'none', border: '1px solid #a7f3d0', borderRadius: '6px',
+                                                    padding: '3px 8px', cursor: 'pointer', color: '#059669',
+                                                    fontSize: '0.65rem', fontWeight: 700, transition: 'all 0.2s'
+                                                }}
+                                                onMouseEnter={e => { e.currentTarget.style.background = '#dcfce7'; }}
+                                                onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
+                                            >
+                                                <Edit3 size={10} /> Edit
+                                            </button>
+                                        )}
                                     </div>
                                     <div style={{
                                         fontSize: '0.85rem', color: '#065f46', lineHeight: '1.7', padding: '12px 14px',
@@ -881,6 +1038,19 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                                 <div style={{ textAlign: 'center', padding: '40px 20px', color: '#94a3b8' }}>
                                     <Sparkles size={32} style={{ opacity: 0.2, margin: '0 auto 10px' }} />
                                     <p style={{ fontSize: '0.85rem' }}>No summary generated yet.</p>
+                                    {canEditSummary && (
+                                        <button
+                                            onClick={handleStartEditSummary}
+                                            style={{
+                                                marginTop: '12px', display: 'inline-flex', alignItems: 'center', gap: '5px',
+                                                padding: '7px 16px', borderRadius: '8px', border: '1px solid #a7f3d0',
+                                                background: '#f0fdf4', color: '#059669', fontWeight: 700,
+                                                fontSize: '0.78rem', cursor: 'pointer'
+                                            }}
+                                        >
+                                            <Edit3 size={12} /> Write Summary
+                                        </button>
+                                    )}
                                 </div>
                             )}
                         </>
@@ -929,61 +1099,48 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                                                     )}
                                                 </div>
                                                 {task._expanded && !task._saved && (
-                                                    <div style={{ padding: '12px', borderTop: '1px solid #f1f5f9', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                    <div style={{ padding: '10px 12px', borderTop: '1px solid #f1f5f9', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                                                         <div>
-                                                            <label style={{ ...labelStyle, fontSize: '0.62rem', marginBottom: '4px' }}>Task Name *</label>
-                                                            <input value={task.name || ''} onChange={e => updateTaskField(idx, 'name', e.target.value)} style={{ ...inputStyle }} />
+                                                            <label style={{ ...labelStyle, fontSize: '0.62rem', marginBottom: '3px' }}>Task Name *</label>
+                                                            <input value={task.name || ''} onChange={e => updateTaskField(idx, 'name', e.target.value)} style={{ ...inputStyle, padding: '7px 10px' }} />
                                                         </div>
                                                         <div>
-                                                            <label style={{ ...labelStyle, fontSize: '0.62rem', marginBottom: '4px' }}>Description</label>
-                                                            <textarea value={task.description || ''} onChange={e => updateTaskField(idx, 'description', e.target.value)} style={{ ...inputStyle, minHeight: '60px', resize: 'vertical' }} />
+                                                            <label style={{ ...labelStyle, fontSize: '0.62rem', marginBottom: '3px' }}>Description</label>
+                                                            <textarea value={task.description || ''} onChange={e => updateTaskField(idx, 'description', e.target.value)} style={{ ...inputStyle, minHeight: '48px', resize: 'vertical' }} />
                                                         </div>
-                                                        <div style={{ display: 'flex', gap: '8px' }}>
-                                                            <div style={{ flex: 1 }}>
-                                                                <label style={{ ...labelStyle, fontSize: '0.62rem', marginBottom: '4px' }}>Priority</label>
-                                                                <select value={task.priority ?? 2} onChange={e => updateTaskField(idx, 'priority', parseInt(e.target.value))} style={{ ...inputStyle, height: '34px' }}>
+                                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                                                            <div>
+                                                                <label style={{ ...labelStyle, fontSize: '0.62rem', marginBottom: '3px' }}>Priority</label>
+                                                                <select value={task.priority ?? 2} onChange={e => updateTaskField(idx, 'priority', parseInt(e.target.value))} style={{ ...inputStyle, height: '32px' }}>
                                                                     <option value={1}>Low</option>
                                                                     <option value={2}>Normal</option>
                                                                     <option value={3}>High</option>
                                                                     <option value={4}>Urgent</option>
                                                                 </select>
                                                             </div>
-                                                            <div style={{ flex: 1 }}>
-                                                                <label style={{ ...labelStyle, fontSize: '0.62rem', marginBottom: '4px' }}>Status</label>
-                                                                <select value={1} disabled onChange={undefined} style={{ ...inputStyle, height: '34px', background: '#f8fafc', color: '#94a3b8' }}>
-                                                                    <option value={1}>Todo</option>
-                                                                    <option value={2}>In Progress</option>
-                                                                    <option value={3}>Submitted</option>
-                                                                    <option value={4}>Missed</option>
-                                                                    <option value={5}>Adjusting</option>
-                                                                    <option value={6}>Completed</option>
-                                                                </select>
-                                                            </div>
-                                                        </div>
-                                                        <div style={{ display: 'flex', gap: '8px' }}>
-                                                            <div style={{ flex: 1 }}>
-                                                                <label style={{ ...labelStyle, fontSize: '0.62rem', marginBottom: '4px' }}>Start Date</label>
-                                                                <input type="date" value={task.startDate ? task.startDate.split('T')[0] : ''} onChange={e => updateTaskField(idx, 'startDate', e.target.value)} style={{ ...inputStyle }} />
-                                                            </div>
-                                                            <div style={{ flex: 1 }}>
-                                                                <label style={{ ...labelStyle, fontSize: '0.62rem', marginBottom: '4px' }}>Due Date</label>
-                                                                <input type="date" value={task.dueDate ? task.dueDate.split('T')[0] : ''} onChange={e => updateTaskField(idx, 'dueDate', e.target.value)} style={{ ...inputStyle }} />
-                                                            </div>
-                                                        </div>
-                                                        <div style={{ marginBottom: '8px' }}>
-                                                                <label style={{ ...labelStyle, fontSize: '0.62rem', marginBottom: '4px' }}>
-                                                                    <User size={10} style={{ marginRight: '2px' }} /> Assignee
+                                                            <div>
+                                                                <label style={{ ...labelStyle, fontSize: '0.62rem', marginBottom: '3px' }}>
+                                                                    <User size={9} /> Assignee
                                                                 </label>
                                                                 <select
                                                                     value={task._assigneeId || task.assigneeId || ''}
                                                                     onChange={e => { updateTaskField(idx, '_assigneeId', e.target.value); updateTaskField(idx, 'assigneeId', e.target.value); }}
-                                                                    style={{ ...inputStyle, height: '34px' }}
+                                                                    style={{ ...inputStyle, height: '32px' }}
                                                                 >
                                                                     <option value="">Unassigned</option>
                                                                     {projectMembers.map(u => (
                                                                         <option key={u.id} value={u.id}>{u.name || u.email}</option>
                                                                     ))}
                                                                 </select>
+                                                            </div>
+                                                            <div>
+                                                                <label style={{ ...labelStyle, fontSize: '0.62rem', marginBottom: '3px' }}>Start Date</label>
+                                                                <input type="date" value={task.startDate ? task.startDate.split('T')[0] : ''} onChange={e => updateTaskField(idx, 'startDate', e.target.value)} style={{ ...inputStyle, height: '32px' }} />
+                                                            </div>
+                                                            <div>
+                                                                <label style={{ ...labelStyle, fontSize: '0.62rem', marginBottom: '3px' }}>Due Date</label>
+                                                                <input type="date" value={task.dueDate ? task.dueDate.split('T')[0] : ''} onChange={e => updateTaskField(idx, 'dueDate', e.target.value)} style={{ ...inputStyle, height: '32px' }} />
+                                                            </div>
                                                         </div>
                                                         <button
                                                             onClick={() => handleSaveTask(idx)}
@@ -994,7 +1151,8 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                                                                 color: task._saving ? '#94a3b8' : '#fff',
                                                                 cursor: task._saving ? 'not-allowed' : 'pointer',
                                                                 fontWeight: 700, fontSize: '0.78rem',
-                                                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px'
+                                                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
+                                                                marginTop: '2px'
                                                             }}
                                                         >
                                                             {task._saving
@@ -1019,18 +1177,18 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                 </div>
             </div>
 
-            {/* ════════ RIGHT: Meeting Transcriptions List (24%) ════════ */}
-            {isViewMode && (
+            {/* ════════ RIGHT: Meeting Transcriptions List ════════ */}
+            {meetingId && meetingTranscriptions.length > 0 && (
                 <div style={{
-                    flex: '0 0 24%', maxWidth: '24%',
+                    flex: '0 0 20%', maxWidth: '20%',
                     display: 'flex', flexDirection: 'column',
                     background: '#fff', borderRadius: '16px',
-                    border: '1px solid var(--border-color)', padding: '16px',
+                    border: '1px solid var(--border-color)', padding: '12px',
                     overflow: 'hidden'
                 }}>
-                    <div style={{ ...labelStyle, color: '#6366f1', justifyContent: 'space-between', marginBottom: '12px' }}>
+                    <div style={{ ...labelStyle, color: '#6366f1', justifyContent: 'space-between', marginBottom: '8px' }}>
                         <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                            <FileSearch size={12} /> Transcriptions ({meetingTranscriptions.length})
+                            <FileSearch size={11} /> Transcriptions ({meetingTranscriptions.length})
                         </span>
                         <button
                             onClick={() => handleLoadMeetingTranscriptions(false)}
@@ -1038,15 +1196,15 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                             style={{ background: 'none', border: 'none', cursor: loadingMeeting ? 'not-allowed' : 'pointer', color: '#6366f1', padding: '2px', display: 'flex', alignItems: 'center' }}
                             title="Refresh"
                         >
-                            <RefreshCw size={12} className={loadingMeeting ? 'animate-spin' : ''} />
+                            <RefreshCw size={11} className={loadingMeeting ? 'animate-spin' : ''} />
                         </button>
                     </div>
                     
-                    <div style={{ flex: 1, overflowY: 'auto', paddingRight: '4px', display: 'flex', flexDirection: 'column', gap: '6px' }} className="custom-scrollbar">
+                    <div style={{ flex: 1, overflowY: 'auto', paddingRight: '2px', display: 'flex', flexDirection: 'column', gap: '5px' }} className="custom-scrollbar">
                         {loadingMeeting && !meetingTranscriptions.length ? (
-                            <div style={{ textAlign: 'center', padding: '2rem 0', color: '#6366f1' }}>
-                                <Loader2 size={24} className="animate-spin" style={{ margin: '0 auto 10px' }} />
-                                <p style={{ fontSize: '0.75rem', fontWeight: 600, margin: 0 }}>Loading...</p>
+                            <div style={{ textAlign: 'center', padding: '1.5rem 0', color: '#6366f1' }}>
+                                <Loader2 size={20} className="animate-spin" style={{ margin: '0 auto 8px' }} />
+                                <p style={{ fontSize: '0.72rem', fontWeight: 600, margin: 0 }}>Loading...</p>
                             </div>
                         ) : meetingTranscriptions.length === 0 ? (
                             <div style={{ textAlign: 'center', padding: '2rem 0', color: '#94a3b8', fontSize: '0.8rem' }}>
@@ -1060,31 +1218,31 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                                     key={t.id}
                                     onClick={() => handleSelectTranscription(t)}
                                     style={{
-                                        padding: '10px 12px', borderRadius: '10px',
+                                        padding: '8px 10px', borderRadius: '8px',
                                         border: isSelected ? '1.5px solid #6366f1' : '1px solid #e2e8f0',
                                         background: isSelected ? '#ede9fe' : isFailed ? '#fef2f2' : '#fff',
                                         cursor: 'pointer', transition: 'all 0.2s'
                                     }}
                                 >
-                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
-                                        <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '60%' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '3px' }}>
+                                        <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>
                                             {t.fileName || 'Untitled'}
                                         </span>
                                         <span style={{
-                                            fontSize: '0.6rem', padding: '2px 7px', borderRadius: '20px', fontWeight: 700,
+                                            fontSize: '0.56rem', padding: '1px 6px', borderRadius: '20px', fontWeight: 700, flexShrink: 0, marginLeft: '4px',
                                             background: t.status === 'Completed' ? '#dcfce7' : isFailed ? '#fee2e2' : '#fef9c3',
                                             color: t.status === 'Completed' ? '#16a34a' : isFailed ? '#dc2626' : '#b45309'
                                         }}>
                                             {t.status}
                                         </span>
                                     </div>
-                                    <div style={{ fontSize: '0.68rem', color: '#94a3b8', display: 'flex', gap: '10px' }}>
+                                    <div style={{ fontSize: '0.62rem', color: '#94a3b8', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                                         {t.language && <span>{t.language.toUpperCase()}</span>}
                                         <span>{new Date(t.createdAt).toLocaleString()}</span>
                                     </div>
                                     {isFailed && (
-                                        <div style={{ marginTop: '6px', fontSize: '0.7rem', color: '#dc2626', display: 'flex', alignItems: 'flex-start', gap: '4px' }}>
-                                            <AlertTriangle size={11} style={{ flexShrink: 0, marginTop: '2px' }} />
+                                        <div style={{ marginTop: '4px', fontSize: '0.65rem', color: '#dc2626', display: 'flex', alignItems: 'flex-start', gap: '3px' }}>
+                                            <AlertTriangle size={10} style={{ flexShrink: 0, marginTop: '2px' }} />
                                             <span style={{ lineHeight: '1.4' }}>Click to view error details</span>
                                         </div>
                                     )}

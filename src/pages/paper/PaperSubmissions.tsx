@@ -179,6 +179,11 @@ const PaperSubmissions: React.FC = () => {
     const [submitReviewLoading, setSubmitReviewLoading] = useState(false);
     const [indexingLoading, setIndexingLoading] = useState(false);
 
+    // Submit-to-conference modal
+    const [showSubmitUrlModal, setShowSubmitUrlModal] = useState(false);
+    const [submitNewUrl, setSubmitNewUrl] = useState('');
+    const [submitUrlLoading, setSubmitUrlLoading] = useState(false);
+
     // Confirm modal
     const [confirmModal, setConfirmModal] = useState<{
         isOpen: boolean;
@@ -540,6 +545,44 @@ const PaperSubmissions: React.FC = () => {
         });
     };
 
+    const handleSubmitToConference = () => {
+        if (!selectedPaper) return;
+        setSubmitNewUrl('');
+        setShowSubmitUrlModal(true);
+    };
+
+    const confirmSubmitToConference = async () => {
+        if (!selectedPaper) return;
+        const finalUrl = submitNewUrl.trim() || selectedPaper.paperUrl || '';
+        if (!finalUrl) return;
+        setSubmitUrlLoading(true);
+        try {
+            // Update paperUrl if changed
+            if (submitNewUrl.trim() && submitNewUrl.trim() !== (selectedPaper.paperUrl || '')) {
+                const updatePayload: UpdatePaperRequest = {
+                    projectId: selectedPaper.projectId,
+                    title: selectedPaper.title,
+                    abstract: selectedPaper.abstract,
+                    paperUrl: submitNewUrl.trim(),
+                    conferenceName: selectedPaper.conferenceName,
+                    members: selectedPaper.members.map(m => ({ membershipId: m.membershipId, role: m.role })),
+                    lastUpdatedByUserId: user?.id ?? null,
+                };
+                await paperSubmissionService.update(selectedPaper.paperSubmissionId, updatePayload);
+            }
+            // Change status to Submitted
+            const updated = await paperSubmissionService.changeStatus(selectedPaper.paperSubmissionId, SubmissionStatus.Submitted);
+            setPapers(prev => prev.map(p => p.paperSubmissionId === updated.paperSubmissionId ? updated : p));
+            setSelectedPaper(updated);
+            showToast('Paper submitted to conference!', 'success');
+            setShowSubmitUrlModal(false);
+        } catch (err: any) {
+            showToast(err.response?.data?.message || 'Failed to submit paper.', 'error');
+        } finally {
+            setSubmitUrlLoading(false);
+        }
+    };
+
     const handleMarkRevision = () => {
         if (!selectedPaper) return;
         openConfirm({
@@ -824,6 +867,85 @@ const PaperSubmissions: React.FC = () => {
                     confirmText={confirmModal.confirmText}
                     variant={confirmModal.variant}
                 />
+
+                {/* Submit to Conference URL Modal */}
+                {showSubmitUrlModal && selectedPaper && (
+                    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
+                        onClick={() => !submitUrlLoading && setShowSubmitUrlModal(false)}>
+                        <div style={{ background: '#fff', borderRadius: '16px', padding: '28px', width: '100%', maxWidth: '480px', boxShadow: '0 20px 60px rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column', gap: '18px' }}
+                            onClick={e => e.stopPropagation()}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <Send size={18} style={{ color: '#3b82f6' }} />
+                                    </div>
+                                    <div>
+                                        <div style={{ fontWeight: 700, fontSize: '1rem', color: '#1e293b' }}>Submit to Conference</div>
+                                        <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Provide the submission URL</div>
+                                    </div>
+                                </div>
+                                <button onClick={() => !submitUrlLoading && setShowSubmitUrlModal(false)}
+                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: '4px' }}>
+                                    <X size={18} />
+                                </button>
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                <div>
+                                    <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#64748b', marginBottom: '6px', display: 'block' }}>Current URL</label>
+                                    {selectedPaper.paperUrl ? (
+                                        <div style={{ padding: '9px 12px', borderRadius: '8px', background: '#f8fafc', border: '1px solid #e2e8f0', fontSize: '0.85rem', color: '#475569', wordBreak: 'break-all' }}>
+                                            <a href={selectedPaper.paperUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#3b82f6', textDecoration: 'none' }}>
+                                                {selectedPaper.paperUrl}
+                                            </a>
+                                        </div>
+                                    ) : (
+                                        <div style={{ padding: '9px 12px', borderRadius: '8px', background: '#fefce8', border: '1px solid #fde68a', fontSize: '0.82rem', color: '#92400e', fontStyle: 'italic' }}>
+                                            No URL provided yet
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div>
+                                    <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#64748b', marginBottom: '6px', display: 'block' }}>New URL (optional)</label>
+                                    <input
+                                        type="url"
+                                        value={submitNewUrl}
+                                        onChange={e => setSubmitNewUrl(e.target.value)}
+                                        placeholder="https://..."
+                                        style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.85rem', outline: 'none', boxSizing: 'border-box', transition: 'border-color 0.15s' }}
+                                        onFocus={e => (e.target.style.borderColor = '#3b82f6')}
+                                        onBlur={e => (e.target.style.borderColor = '#e2e8f0')}
+                                        disabled={submitUrlLoading}
+                                    />
+                                    {submitNewUrl.trim() && !submitNewUrl.trim().match(/^https?:\/\/.+/) && (
+                                        <div style={{ fontSize: '0.75rem', color: '#dc2626', marginTop: '4px' }}>Please enter a valid URL (http:// or https://)</div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '4px' }}>
+                                <button onClick={() => !submitUrlLoading && setShowSubmitUrlModal(false)}
+                                    style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', cursor: 'pointer', fontWeight: 600, fontSize: '0.82rem' }}
+                                    disabled={submitUrlLoading}>
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={confirmSubmitToConference}
+                                    disabled={submitUrlLoading || (!(submitNewUrl.trim() && submitNewUrl.trim().match(/^https?:\/\/.+/)) && !selectedPaper.paperUrl)}
+                                    style={{
+                                        padding: '8px 18px', borderRadius: '8px', border: 'none',
+                                        background: (submitUrlLoading || (!(submitNewUrl.trim() && submitNewUrl.trim().match(/^https?:\/\/.+/)) && !selectedPaper.paperUrl)) ? '#94a3b8' : '#3b82f6',
+                                        color: '#fff', cursor: (submitUrlLoading || (!(submitNewUrl.trim() && submitNewUrl.trim().match(/^https?:\/\/.+/)) && !selectedPaper.paperUrl)) ? 'not-allowed' : 'pointer',
+                                        fontWeight: 700, fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '6px',
+                                    }}>
+                                    {submitUrlLoading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                                    Confirm
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* External Author Detail Modal */}
                 {viewingExternalUser && (
@@ -1230,7 +1352,7 @@ const PaperSubmissions: React.FC = () => {
                                         projectMembers={projectMembers}
                                         membersLoading={membersLoading}
                                         formErrors={formErrors}
-                                        hidePaperUrl={![SubmissionStatus.Approved, SubmissionStatus.Revision, SubmissionStatus.Decision].includes(selectedPaper.status)}
+                                        hidePaperUrl={![SubmissionStatus.Approved, SubmissionStatus.Submitted, SubmissionStatus.Revision, SubmissionStatus.Decision].includes(selectedPaper.status)}
                                     />
 
                                     {/* External Authors — edit mode local staging */}
@@ -1375,7 +1497,7 @@ const PaperSubmissions: React.FC = () => {
                                     )}
 
                                     {/* Paper URL */}
-                                    {selectedPaper.paperUrl && [SubmissionStatus.Approved, SubmissionStatus.Revision, SubmissionStatus.Decision].includes(selectedPaper.status) && (
+                                    {selectedPaper.paperUrl && [SubmissionStatus.Approved, SubmissionStatus.Submitted, SubmissionStatus.Revision, SubmissionStatus.Decision].includes(selectedPaper.status) && (
                                         <div>
                                             <div style={{ fontSize: '0.62rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' as const, letterSpacing: '0.6px', marginBottom: '6px' }}>Paper URL</div>
                                             <a href={selectedPaper.paperUrl} target="_blank" rel="noreferrer"
@@ -1525,8 +1647,18 @@ const PaperSubmissions: React.FC = () => {
                                             </div>
                                         )}
 
-                                        {/* Approved → Record Decision / Mark Revision */}
+                                        {/* Approved → Submit to Conference */}
                                         {selectedPaper.status === SubmissionStatus.Approved && canEdit && (
+                                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' as const }}>
+                                                <button onClick={handleSubmitToConference} disabled={!!actionLoading}
+                                                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: 'none', background: '#3b82f6', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem', boxShadow: '0 2px 8px rgba(59,130,246,0.25)' }}>
+                                                    {actionLoading ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Submit to Conference
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        {/* Submitted → Record Decision / Mark Revision */}
+                                        {selectedPaper.status === SubmissionStatus.Submitted && canEdit && (
                                             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' as const }}>
                                                 <button onClick={handleVenueDecision} disabled={!!actionLoading}
                                                     style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: 'none', background: '#8b5cf6', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem', boxShadow: '0 2px 8px rgba(139,92,246,0.25)' }}>

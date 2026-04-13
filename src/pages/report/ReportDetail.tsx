@@ -64,23 +64,21 @@ const ReportDetail: React.FC = () => {
 
     const isAssignee = React.useMemo(() => {
         if (!report || !user) return false;
-        
-        // 1. Role-based check (Admins and Lab Directors should see these)
-        const role = Number(user.role);
-        if (role === 1 || role === 2) return true;
 
-        // 2. Assignee-based check (Using email if possible)
-        const assigneeEmails = (report as any).assigneeEmails || (report as any).AssigneeEmails || [];
-        const assignees = (report as any).assignees || (report as any).Assignees || [];
-        
-        // Check in email array
-        if (assigneeEmails.includes(user.email)) return true;
-        
-        // Check in object array
-        if (assignees.some((a: any) => (a.email || a.Email) === user.email)) return true;
+        const currentEmail = (user.email || '').toLowerCase().trim();
+        if (!currentEmail) return false;
 
-        // Fallback to ID check for existing data if necessary
-        if ((report as any).assigneeIds?.includes(user.userId)) return true;
+        // Only users explicitly assigned as reviewers can approve/reject
+        const assigneeEmails: string[] = (report as any).assigneeEmails || (report as any).AssigneeEmails || [];
+        const assignees: any[] = (report as any).assignees || (report as any).Assignees || [];
+
+        console.log('[isAssignee] currentEmail:', currentEmail, '| assigneeEmails:', assigneeEmails, '| assignees:', assignees);
+
+        // Check in email array (case-insensitive)
+        if (assigneeEmails.some(e => (e || '').toLowerCase().trim() === currentEmail)) return true;
+
+        // Check in object array (case-insensitive)
+        if (assignees.some((a: any) => ((a.email || a.Email) || '').toLowerCase().trim() === currentEmail)) return true;
 
         return false;
     }, [report, user]);

@@ -375,7 +375,7 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                                                     <span style={{ fontSize: '0.6rem', fontWeight: taskMilestoneFilter.includes('ungrouped') ? 700 : 500, color: taskMilestoneFilter.includes('ungrouped') ? 'var(--text-primary)' : '#64748b' }}>Ungrouped</span>
                                                 </div>
                                                 {milestones.slice(0, 5).map(m => {
-                                                    const val = m.milestoneId;
+                                                    const val = m.milestoneId || (m as any).id;
                                                     const isChecked = taskMilestoneFilter.includes(val);
                                                     return (
                                                         <div key={val} onClick={() => {

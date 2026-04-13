@@ -12,7 +12,9 @@ import {
     Check,
     Clock,
     MessageSquare,
-    Sparkles
+    Sparkles,
+    CheckCircle2,
+    XCircle
 } from 'lucide-react';
 import reportService, { Report, UpdateReportRequest } from '@/services/reportService';
 import { projectService } from '@/services/projectService';
@@ -105,15 +107,17 @@ const ReportPanel: React.FC<ReportPanelProps> = ({
 
 
     const isReviewer = React.useMemo(() => {
-        if (isAdding || !report) return false;
+        if (isAdding || !report || !user?.email) return false;
+        const currentEmail = user.email.toLowerCase().trim();
         const assigneesList = (report as any).assignees || (report as any).Assignees || [];
-        return assigneesList.some((a: any) => a.email === user?.email);
+        return assigneesList.some((a: any) => ((a.email || a.Email) || '').toLowerCase().trim() === currentEmail);
     }, [report, user?.email, isAdding]);
 
     const currentUserHasReviewed = React.useMemo(() => {
-        if (isAdding || !report) return false;
+        if (isAdding || !report || !user?.email) return false;
+        const currentEmail = user.email.toLowerCase().trim();
         const assigneesList = (report as any).assignees || (report as any).Assignees || [];
-        const myEntry = assigneesList.find((a: any) => a.email === user?.email);
+        const myEntry = assigneesList.find((a: any) => ((a.email || a.Email) || '').toLowerCase().trim() === currentEmail);
         return myEntry && (myEntry.status === 2 || myEntry.status === 3);
     }, [report, user?.email, isAdding]);
 
@@ -335,7 +339,6 @@ const ReportPanel: React.FC<ReportPanelProps> = ({
         try {
             await reportService.updateAssignee(reportId, { status, feedback: feedbackText });
             const msg = `Report ${status === 2 ? 'approved' : 'rejected'}.`;
-            showToast(msg, 'success');
             fetchReport(reportId);
             onSaved(false, msg);
         } catch (error: any) {
@@ -774,9 +777,17 @@ const handleAiSuggest = async () => {
                             <textarea
                                 className="form-input"
                                 value={feedbackText}
-                                onChange={e => setFeedbackText(e.target.value)}
+                                onChange={e => {
+                                    setFeedbackText(e.target.value);
+                                    e.target.style.height = 'auto';
+                                    e.target.style.height = `${e.target.scrollHeight}px`;
+                                }}
+                                onFocus={e => {
+                                    e.target.style.height = 'auto';
+                                    e.target.style.height = `${e.target.scrollHeight}px`;
+                                }}
                                 placeholder="Add comments for the author (optional)..."
-                                style={{ minHeight: '100px', fontSize: '0.85rem', borderRadius: '12px', border: '1px solid #e2e8f0' }}
+                                style={{ minHeight: '140px', fontSize: '0.9rem', lineHeight: '1.6', borderRadius: '12px', border: '1px solid #e2e8f0', resize: 'vertical', overflowY: 'hidden', width: '100%', boxSizing: 'border-box' }}
                             />
                         </div>
                     )}
@@ -852,25 +863,39 @@ const handleAiSuggest = async () => {
                             )}
                             {isReviewer && !currentUserHasReviewed && formData.status !== 0 && (
                                 <>
-                                    <button type="button" onClick={() => handleFeedbackSubmit(3)} disabled={submitting} className="btn btn-secondary" style={{ color: '#f59e0b', gap: '6px' }}>
-                                        {submitting ? <Loader2 size={14} className="animate-spin" /> : null}
+                                    <button
+                                        type="button"
+                                        onClick={() => handleFeedbackSubmit(3)}
+                                        disabled={submitting}
+                                        style={{
+                                            display: 'flex', alignItems: 'center', gap: '6px',
+                                            padding: '0.55rem 1.1rem', borderRadius: '10px',
+                                            fontSize: '0.8rem', fontWeight: 700, cursor: submitting ? 'not-allowed' : 'pointer',
+                                            border: '1.5px solid #fcd34d', background: '#fffbeb', color: '#b45309',
+                                            opacity: submitting ? 0.6 : 1, transition: 'all 0.2s'
+                                        }}
+                                        onMouseOver={e => { if (!submitting) { e.currentTarget.style.background = '#fef3c7'; e.currentTarget.style.borderColor = '#f59e0b'; }}}
+                                        onMouseOut={e => { e.currentTarget.style.background = '#fffbeb'; e.currentTarget.style.borderColor = '#fcd34d'; }}
+                                    >
+                                        {submitting ? <Loader2 size={14} className="animate-spin" /> : <XCircle size={14} />}
                                         Request Revision
                                     </button>
-                                    <button type="button" onClick={() => handleFeedbackSubmit(2)} disabled={submitting} className="btn btn-primary" style={{ background: '#10b981', gap: '6px' }}>
-                                        {submitting ? <Loader2 size={14} className="animate-spin" /> : null}
-                                        Approve Report
-                                    </button>
-                                </>
-                            )}
-                            {(formData.status === 1) && isLabDirector && !isReviewer && (
-                                <>
-                                    <button type="button" onClick={(e) => handleStatusUpdate(3, e)} disabled={submitting} className="btn btn-secondary" style={{ color: '#f59e0b', gap: '6px' }}>
-                                        {submitting ? <Loader2 size={14} className="animate-spin" /> : null}
-                                        Request Revision
-                                    </button>
-                                    <button type="button" onClick={(e) => handleStatusUpdate(2, e)} disabled={submitting} className="btn btn-primary" style={{ background: '#10b981', gap: '6px' }}>
-                                        {submitting ? <Loader2 size={14} className="animate-spin" /> : null}
-                                        Approve Report
+                                    <button
+                                        type="button"
+                                        onClick={() => handleFeedbackSubmit(2)}
+                                        disabled={submitting}
+                                        style={{
+                                            display: 'flex', alignItems: 'center', gap: '6px',
+                                            padding: '0.55rem 1.1rem', borderRadius: '10px',
+                                            fontSize: '0.8rem', fontWeight: 700, cursor: submitting ? 'not-allowed' : 'pointer',
+                                            border: '1.5px solid #34d399', background: '#ecfdf5', color: '#065f46',
+                                            opacity: submitting ? 0.6 : 1, transition: 'all 0.2s'
+                                        }}
+                                        onMouseOver={e => { if (!submitting) { e.currentTarget.style.background = '#d1fae5'; e.currentTarget.style.borderColor = '#10b981'; }}}
+                                        onMouseOut={e => { e.currentTarget.style.background = '#ecfdf5'; e.currentTarget.style.borderColor = '#34d399'; }}
+                                    >
+                                        {submitting ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                                        Approve
                                     </button>
                                 </>
                             )}

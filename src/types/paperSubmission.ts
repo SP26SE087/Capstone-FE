@@ -64,6 +64,7 @@ export interface PaperSubmissionResponse {
     status: SubmissionStatus;
     conferenceName: string;
     paperUrl: string;
+    submissionDeadline?: string | null;
     document?: string | null;
     documents?: string | null;
     createdAt: string;
@@ -115,6 +116,7 @@ export interface CreatePaperRequest {
     title: string;
     abstract: string;
     paperUrl?: string;
+    submissionDeadline?: string | null;
     document?: File | string | null;
     documents?: string;
     conferenceName: string;
@@ -128,6 +130,7 @@ export interface UpdatePaperRequest {
     title: string;
     abstract: string;
     paperUrl?: string;
+    submissionDeadline?: string | null;
     document?: File | string | null;
     documents?: string;
     conferenceName: string;

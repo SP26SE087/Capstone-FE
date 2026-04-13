@@ -923,7 +923,7 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                                 <div><label style={labelStyle}>Start Date</label><div style={{ fontSize: '0.85rem', fontWeight: 700 }}>{formatDate(activeMilestone.startDate)}</div></div>
                                                 <div><label style={labelStyle}>Due Date</label><div style={{ fontSize: '0.85rem', fontWeight: 700 }}>{formatDate(activeMilestone.dueDate)}</div></div>
                                             </div>
-                                            <div><label style={labelStyle}>Goal</label><div style={{ fontSize: '0.8rem', color: '#475569', lineHeight: 1.5, background: '#f8fafc', padding: '0.85rem', borderRadius: '12px' }}>{activeMilestone.description || "No goal defined."}</div></div>
+                                            <div><label style={labelStyle}>Goal</label><div style={{ fontSize: '0.8rem', color: '#475569', lineHeight: 1.5, background: '#f8fafc', padding: '0.85rem', borderRadius: '12px', wordBreak: 'break-word', overflowWrap: 'break-word', whiteSpace: 'pre-wrap' }}>{activeMilestone.description || "No goal defined."}</div></div>
                                             <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                                                     {renderMilestoneActions(activeMilestone)}
                                                 <button onClick={protectedCancelEdit} style={{ ...btnSecondary, width: '100%', padding: '0.75rem' }}>{cancelBtnLabel}</button>

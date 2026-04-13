@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useBlocker } from 'react-router-dom';
+import { useTranscriptionStore } from '@/store/slices/transcriptionStore';
 import MainLayout from '@/layout/MainLayout';
 import { useAuth } from '@/hooks/useAuth';
 import {
@@ -68,7 +70,55 @@ const Schedules: React.FC = () => {
     const [isTranscriptionProcessing, setIsTranscriptionProcessing] = useState(false);
     const [showConfirmSwitch, setShowConfirmSwitch] = useState(false);
     const [pendingTab, setPendingTab] = useState<ListTabType | null>(null);
-    const [transcriptionMode, setTranscriptionMode] = useState<'full' | 'view'>('full');
+
+    // Transcription store – persists panel state across route navigation
+    const {
+        transcription: storeTranscription,
+        meetingId: storeMeetingId,
+        meetingName: storeMeetingName,
+        showPanel: storeShowPanel,
+        source: storeSource,
+        setPanelContext: storeSetPanelContext,
+        setShowPanel: storeSetShowPanel,
+        clear: storeClearTranscription,
+    } = useTranscriptionStore();
+
+    const hasCompletedTranscription = !!(
+        storeTranscription?.transcribedText || storeTranscription?.status === 'Completed'
+    );
+
+    // Route-navigation blocker: only warn AFTER transcription succeeds (not during processing).
+    // During processing the user can freely navigate away; state is preserved in the store
+    // and polling will resume when they return.
+    const shouldBlockNav = showTranscription && hasCompletedTranscription && !isTranscriptionProcessing;
+    const blocker = useBlocker(shouldBlockNav);
+
+    // On mount: restore the transcription panel if it was open when the user navigated away
+    useEffect(() => {
+        const s = useTranscriptionStore.getState();
+        if (s.showPanel && s.source === 'schedule') {
+            setShowTranscription(true);
+        }
+    }, []); // eslint-disable-line
+
+    // ── Panel open/close helpers that also sync the store ──────────────────────
+    const handleOpenAINote = () => {
+        const next = !showTranscription;
+        const mId = activePanel?.type === 'view' ? (activePanel.actualMeetingId ?? null) : null;
+        const mName = activePanel?.title ?? null;
+
+        setShowTranscription(next);
+        if (next) {
+            storeSetPanelContext({ meetingId: mId, meetingName: mName, showPanel: true, source: 'schedule' });
+        } else {
+            storeSetShowPanel(false);
+        }
+    };
+
+    const handleCloseTranscription = () => {
+        setShowTranscription(false);
+        storeClearTranscription();
+    };
 
     // Fetch metadata
     useEffect(() => {
@@ -171,6 +221,7 @@ const Schedules: React.FC = () => {
         } else {
             setActiveListTab(tabId);
             setShowTranscription(false);
+            storeSetShowPanel(false);
             setActivePanel(null);
         }
     };
@@ -179,6 +230,7 @@ const Schedules: React.FC = () => {
         if (pendingTab) {
             setActiveListTab(pendingTab);
             setShowTranscription(false);
+            storeSetShowPanel(false);
             setActivePanel(null);
             setPendingTab(null);
         }
@@ -406,7 +458,7 @@ const Schedules: React.FC = () => {
                         <List size={16} /> List View
                     </button>
                     <button
-                        onClick={() => { setViewMode('timetable'); setActivePanel(null); setShowTranscription(false); }}
+                        onClick={() => { setViewMode('timetable'); setActivePanel(null); setShowTranscription(false); storeSetShowPanel(false); }}
                         style={{
                             padding: '8px 16px', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 700,
                             border: viewMode === 'timetable' ? '1.5px solid var(--accent-color)' : '1px solid var(--border-color)',
@@ -423,7 +475,7 @@ const Schedules: React.FC = () => {
                 {activePanel && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '0.75rem', fontSize: '0.78rem', fontWeight: 600 }}>
                         <button
-                            onClick={() => { setActivePanel(null); setShowTranscription(false); }}
+                            onClick={() => { setActivePanel(null); setShowTranscription(false); storeSetShowPanel(false); }}
                             style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent-color)', fontWeight: 700, padding: '2px 6px', borderRadius: '6px', fontSize: '0.78rem', transition: 'background 0.15s' }}
                             onMouseEnter={e => (e.currentTarget.style.background = 'var(--accent-bg)')}
                             onMouseLeave={e => (e.currentTarget.style.background = 'none')}
@@ -510,7 +562,7 @@ const Schedules: React.FC = () => {
                                 transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
                                 overflow: 'hidden'
                             }}>
-                                <div style={{ flex: 1, overflowY: 'auto', paddingRight: '0.5rem' }} className="custom-scrollbar">
+                                <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingRight: '0.5rem' }} className="custom-scrollbar">
                                     {loading ? (
                                         <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
                                             <Loader2 className="animate-spin" size={32} style={{ color: 'var(--accent-color)' }} />
@@ -550,7 +602,7 @@ const Schedules: React.FC = () => {
                                     actualMeetingId={activePanel.type === 'view' ? activePanel.actualMeetingId : null}
                                     initialData={activePanel.initialData}
                                     isCreating={activePanel.type === 'create'}
-                                    onClose={() => { handleClosePanel(); setShowTranscription(false); }}
+                                    onClose={() => { handleClosePanel(); handleCloseTranscription(); }}
                                     onSaved={(shouldClose = false, message?: string, newEventId?: string) => {
                                         fetchMeetings();
                                         if (message) showToast(message, 'success');
@@ -562,9 +614,8 @@ const Schedules: React.FC = () => {
                                     }}
                                     onTitleChange={handleTitleChange}
                                     projectsMap={projectsMap}
-                                    onToggleAINote={() => { setTranscriptionMode('full'); setShowTranscription(v => !v); }}
+                                    onToggleAINote={handleOpenAINote}
                                     showAINote={showTranscription}
-                                    onGetTranscribe={() => { setTranscriptionMode('view'); setShowTranscription(true); }}
                                 />
                             </div>
                         )}
@@ -577,10 +628,16 @@ const Schedules: React.FC = () => {
                                 transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
                             }}>
                                 <TranscriptionPanel
-                                    onClose={() => setShowTranscription(false)}
-                                    meetingId={activePanel?.type === 'view' ? activePanel.actualMeetingId : undefined}
-                                    meetingName={activePanel?.title}
-                                    mode={transcriptionMode}
+                                    onClose={handleCloseTranscription}
+                                    meetingId={
+                                        activePanel?.type === 'view'
+                                            ? activePanel.actualMeetingId
+                                            : (storeShowPanel && storeSource === 'schedule' ? (storeMeetingId ?? undefined) : undefined)
+                                    }
+                                    meetingName={
+                                        activePanel?.title
+                                        ?? (storeShowPanel && storeSource === 'schedule' ? (storeMeetingName ?? undefined) : undefined)
+                                    }
                                     onProcessingChange={setIsTranscriptionProcessing}
                                 />
                             </div>
@@ -642,6 +699,68 @@ const Schedules: React.FC = () => {
                                 onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
                             >
                                 Yes, Switch
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Route Navigation Blocker Modal — only fires after transcription completes */}
+            {blocker.state === 'blocked' && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(15, 23, 42, 0.4)', backdropFilter: 'blur(8px)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    zIndex: 10000, animation: 'fadeIn 0.2s ease-out'
+                }}>
+                    <div style={{
+                        background: '#fff', borderRadius: '24px', padding: '32px',
+                        width: '90%', maxWidth: '420px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
+                        textAlign: 'center', animation: 'slideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)'
+                    }}>
+                        <div style={{
+                            width: '64px', height: '64px', borderRadius: '20px',
+                            background: '#fef2f2', color: '#ef4444',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            margin: '0 auto 20px auto',
+                            border: '1px solid #fee2e2'
+                        }}>
+                            <AlertTriangle size={32} />
+                        </div>
+                        <h3 style={{ margin: '0 0 10px 0', fontSize: '1.3rem', fontWeight: 900, color: '#1e293b' }}>
+                            Leave Transcription Session?
+                        </h3>
+                        <p style={{ margin: '0 0 28px 0', fontSize: '1rem', color: '#64748b', lineHeight: '1.6' }}>
+                            You have a completed transcription session. If you navigate away, the current summary and suggested tasks will no longer be accessible.
+                        </p>
+                        <div style={{ display: 'flex', gap: '14px' }}>
+                            <button
+                                onClick={() => blocker.reset?.()}
+                                style={{
+                                    flex: 1, padding: '14px', borderRadius: '14px', border: '2px solid #f1f5f9',
+                                    background: '#fff', color: '#64748b', fontWeight: 800, fontSize: '0.9rem', cursor: 'pointer',
+                                    transition: 'all 0.2s'
+                                }}
+                                onMouseEnter={e => e.currentTarget.style.background = '#f8fafc'}
+                                onMouseLeave={e => e.currentTarget.style.background = '#fff'}
+                            >
+                                Stay Here
+                            </button>
+                            <button
+                                onClick={() => {
+                                    storeClearTranscription();
+                                    blocker.proceed?.();
+                                }}
+                                style={{
+                                    flex: 1, padding: '14px', borderRadius: '14px', border: 'none',
+                                    background: 'linear-gradient(135deg, #ef4444, #dc2626)', color: '#fff', fontWeight: 800, fontSize: '0.9rem',
+                                    cursor: 'pointer', boxShadow: '0 8px 16px rgba(239,68,68,0.25)',
+                                    transition: 'all 0.2s'
+                                }}
+                                onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+                                onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+                            >
+                                Leave & Clear
                             </button>
                         </div>
                     </div>

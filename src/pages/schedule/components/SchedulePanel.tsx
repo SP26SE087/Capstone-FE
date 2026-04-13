@@ -43,7 +43,6 @@ interface SchedulePanelProps {
     projectsMap: Record<string, string>;
     onToggleAINote?: () => void;
     showAINote?: boolean;
-    onGetTranscribe?: () => void;
     initialData?: MeetingResponse;
 }
 
@@ -119,7 +118,6 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
     projectsMap,
     onToggleAINote,
     showAINote,
-    onGetTranscribe,
     initialData
 }) => {
     const { user } = useAuth();
@@ -365,23 +363,6 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                             <Mic size={13} /> AI Notes
                         </button>
                     )}
-                    {!isCreating && meetingId && onGetTranscribe && (
-                        <button
-                            onClick={onGetTranscribe}
-                            title="Get Transcribe"
-                            style={{
-                                display: 'flex', alignItems: 'center', gap: '5px',
-                                padding: '6px 12px', borderRadius: '8px', cursor: 'pointer',
-                                fontSize: '0.75rem', fontWeight: 700,
-                                border: '1px solid #e2e8f0',
-                                background: '#fff',
-                                color: '#64748b',
-                                transition: 'all 0.2s'
-                            }}
-                        >
-                            <FileSearch size={13} /> Get Transcribe
-                        </button>
-                    )}
                     {!isCreating && meetingId && isOwner && (
                         <button
                             onClick={handleDelete}
@@ -625,7 +606,7 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                                 disabled={!canEdit || durationMinutes <= 5}
                                 onClick={() => setDurationMinutes(d => Math.max(5, d - 5))}
                                 style={{
-                                    width: '40px', height: '40px', border: 'none', background: 'transparent',
+                                    width: '44px', height: '52px', border: 'none', background: 'transparent',
                                     fontSize: '1.1rem', fontWeight: 700, color: '#64748b',
                                     cursor: (!canEdit || durationMinutes <= 5) ? 'not-allowed' : 'pointer',
                                     opacity: (!canEdit || durationMinutes <= 5) ? 0.4 : 1,
@@ -636,7 +617,7 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                             >−</button>
                             <div style={{
                                 flex: 1, textAlign: 'center', borderLeft: '1px solid #e2e8f0', borderRight: '1px solid #e2e8f0',
-                                padding: '0 8px', height: '40px', display: 'flex', flexDirection: 'column',
+                                padding: '0 8px', height: '52px', display: 'flex', flexDirection: 'column',
                                 alignItems: 'center', justifyContent: 'center'
                             }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -661,9 +642,12 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                                     <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>min</span>
                                 </div>
                                 {startTime && (
-                                    <span style={{ fontSize: '0.66rem', fontWeight: 600, color: '#10b981', lineHeight: 1 }}>
-                                        ends {(() => { const e = new Date(new Date(startTime).getTime() + durationMinutes * 60000); return `${String(e.getHours()).padStart(2, '0')}:${String(e.getMinutes()).padStart(2, '0')}`; })()}
-                                    </span>
+                                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', marginTop: '2px' }}>
+                                        <span style={{ fontSize: '0.63rem', color: '#10b981', fontWeight: 600, letterSpacing: '0.02em' }}>ends at</span>
+                                        <span style={{ fontSize: '0.78rem', color: '#047857', fontWeight: 800, letterSpacing: '0.05em', fontVariantNumeric: 'tabular-nums' }}>
+                                            {(() => { const e = new Date(new Date(startTime).getTime() + durationMinutes * 60000); return `${String(e.getHours()).padStart(2, '0')}:${String(e.getMinutes()).padStart(2, '0')}`; })()}
+                                        </span>
+                                    </div>
                                 )}
                             </div>
                             <button
@@ -671,7 +655,7 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                                 disabled={!canEdit || durationMinutes >= 480}
                                 onClick={() => setDurationMinutes(d => Math.min(480, d + 5))}
                                 style={{
-                                    width: '40px', height: '40px', border: 'none', background: 'transparent',
+                                    width: '44px', height: '52px', border: 'none', background: 'transparent',
                                     fontSize: '1.1rem', fontWeight: 700, color: '#64748b',
                                     cursor: (!canEdit || durationMinutes >= 480) ? 'not-allowed' : 'pointer',
                                     opacity: (!canEdit || durationMinutes >= 480) ? 0.4 : 1,

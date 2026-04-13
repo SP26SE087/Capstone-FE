@@ -117,7 +117,7 @@ const SeminarList: React.FC<SeminarListProps> = ({
                                     transition: 'all 0.2s'
                                 }}
                             >
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
                                     <div style={{
                                         width: '32px',
                                         height: '32px',
@@ -126,12 +126,13 @@ const SeminarList: React.FC<SeminarListProps> = ({
                                         color: '#fff',
                                         display: 'flex',
                                         alignItems: 'center',
-                                        justifyContent: 'center'
+                                        justifyContent: 'center',
+                                        flexShrink: 0
                                     }}>
                                         <Folder size={16} />
                                     </div>
-                                    <div>
-                                        <div style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)' }}>{group.title}</div>
+                                    <div style={{ minWidth: 0 }}>
+                                        <div style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{group.title}</div>
                                         <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
                                             {group.meetings.length} Sessions
                                         </div>

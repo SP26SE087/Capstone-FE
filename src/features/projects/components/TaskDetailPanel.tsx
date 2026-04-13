@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { validateSpecialChars } from '@/utils/validation';
 import {
     Search, X, User, Calendar, Loader2, Play, Send,
-    Upload, Paperclip, Target, ChevronDown, Check, RotateCw, CheckCircle2, Pencil, Save, Edit3, LayoutGrid
+    Upload, Paperclip, Target, ChevronDown, Check, RotateCw, CheckCircle2, Pencil, Save, Edit3, Download
 } from 'lucide-react';
 import { Task, TaskStatus, Priority, Milestone, MilestoneStatus, Project, ProjectRoleEnum } from '@/types';
 import { milestoneService, taskService } from '@/services';
@@ -1063,9 +1063,9 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
                                                     })()}
                                                 </div>
                                                 <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
-                                                    <a href={getInlineCloudinaryRawUrl(previewEvidence.fileUrl)} target="_blank" rel="noopener noreferrer"
+                                                    <a href={getInlineCloudinaryRawUrl(previewEvidence.fileUrl)} download={previewEvidence.fileName} rel="noopener noreferrer"
                                                         style={{ padding: '0.5rem 0.85rem', background: '#1e293b', color: 'white', borderRadius: '8px', fontSize: '0.65rem', fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                        <LayoutGrid size={12} /> View
+                                                        <Download size={12} /> Download
                                                     </a>
                                                     <button onClick={() => handleDeleteEvidence(taskId, previewEvidence.id)}
                                                         style={{ padding: '0.5rem 0.85rem', background: '#fff1f1', color: '#ef4444', borderRadius: '8px', fontSize: '0.65rem', fontWeight: 700, border: '1px solid #fee2e2', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>

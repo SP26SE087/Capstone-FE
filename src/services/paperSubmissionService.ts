@@ -20,6 +20,7 @@ function buildFormData(data: CreatePaperRequest | UpdatePaperRequest, extra?: Re
     fd.append('Title', data.title);
     fd.append('Abstract', data.abstract ?? '');
     if (data.paperUrl) fd.append('PaperUrl', data.paperUrl);
+    if (data.submissionDeadline) fd.append('SubmissionDeadline', data.submissionDeadline);
     fd.append('ConferenceName', data.conferenceName ?? '');
     if (data.document instanceof File) {
         fd.append('Document', data.document, data.document.name);
