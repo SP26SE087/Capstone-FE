@@ -679,6 +679,37 @@ const PaperReview: React.FC = () => {
                                         </div>
                                     )}
 
+                                    {/* Submitted: Mark Revision / Record Decision */}
+                                    {selectedPaper.status === SubmissionStatus.Submitted && (
+                                        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', paddingTop: '1rem', borderTop: '1px solid #f1f5f9' }}>
+                                            <button
+                                                onClick={() => handleMarkRevision(selectedPaper.paperSubmissionId)}
+                                                disabled={!!actionLoading}
+                                                className="btn"
+                                                style={{
+                                                    background: '#fff7ed', color: '#ea580c', border: '1px solid #fed7aa', borderRadius: '10px',
+                                                    padding: '10px 18px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
+                                                    fontSize: '0.88rem', fontWeight: 600, fontFamily: 'inherit', transition: 'all 0.2s'
+                                                }}
+                                            >
+                                                {actionLoading === selectedPaper.paperSubmissionId ? <Loader2 size={18} className="animate-spin" /> : <Repeat size={18} />} Mark Revision
+                                            </button>
+                                            <button
+                                                onClick={() => handleDecision(selectedPaper.paperSubmissionId)}
+                                                disabled={!!actionLoading}
+                                                className="btn"
+                                                style={{
+                                                    border: 'none', background: '#8b5cf6', color: 'white', borderRadius: '10px',
+                                                    padding: '10px 18px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
+                                                    fontSize: '0.88rem', fontWeight: 600, fontFamily: 'inherit', transition: 'all 0.2s',
+                                                    boxShadow: '0 2px 4px rgba(139,92,246,0.2)'
+                                                }}
+                                            >
+                                                {actionLoading === selectedPaper.paperSubmissionId ? <Loader2 size={18} className="animate-spin" /> : <Gavel size={18} />} Record Decision
+                                            </button>
+                                        </div>
+                                    )}
+
                                     {/* Revision: Record Decision / Reject */}
                                     {selectedPaper.status === SubmissionStatus.Revision && (
                                         <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', paddingTop: '1rem', borderTop: '1px solid #f1f5f9' }}>
