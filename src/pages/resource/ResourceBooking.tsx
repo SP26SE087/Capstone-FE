@@ -720,7 +720,7 @@ const ResourceBooking: React.FC = () => {
                                 const valueSt: React.CSSProperties = { fontSize: '0.88rem', fontWeight: 600, color: '#1e293b', wordBreak: 'break-word' };
                                 const subValueSt: React.CSSProperties = { fontSize: '0.78rem', color: '#64748b', marginTop: '3px', wordBreak: 'break-word' };
                                 return (
-                                    <div style={{ display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 280px)', overflowY: 'auto' }} className="custom-scrollbar">
+                                    <div style={{ display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 200px)', overflowY: 'auto' }} className="custom-scrollbar">
                                         {/* Header */}
                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', paddingBottom: '14px', borderBottom: '1px solid #f1f5f9' }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
