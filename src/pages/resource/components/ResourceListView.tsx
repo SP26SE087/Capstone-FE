@@ -118,7 +118,7 @@ const ResourceListView: React.FC<ResourceListViewProps> = ({
                                     borderRadius: '6px',
                                     flexShrink: 0
                                 }}>
-                                    {getResourceTypeLabel(resource.type)}
+                                    {resource.resourceTypeName || getResourceTypeLabel(resource.type)}
                                 </span>
                             </div>
 

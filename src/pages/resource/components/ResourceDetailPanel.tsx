@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Resource, ResourceType, UpdateResourceRequest } from '@/types/booking';
 import { resourceService } from '@/services/resourceService';
 import { userService, UserResponse } from '@/services/userService';
+import { resourceTypeService, ResourceTypeItem } from '@/services/resourceTypeService';
 import {
     Save,
     Loader2,
@@ -104,6 +105,7 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
     const [assigning, setAssigning] = useState(false);
     const [selectedManagerId, setSelectedManagerId] = useState(initialResource.managedBy || '');
     const [users, setUsers] = useState<UserResponse[]>([]);
+    const [resourceTypes, setResourceTypes] = useState<ResourceTypeItem[]>([]);
 
     const [selectedSerial, setSelectedSerial] = useState<string>('');
     const [serialLoading, setSerialLoading] = useState(false);
@@ -130,6 +132,10 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
             setUsers(list);
         }).catch(() => {});
     }, [isLabDirector]);
+
+    useEffect(() => {
+        resourceTypeService.getAll().then(setResourceTypes).catch(() => {});
+    }, []);
 
     useEffect(() => {
         setTargetResource(initialResource);
@@ -400,15 +406,18 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
                                             onBlur={handleBlur}
                                         />
 
-                                        <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b' }}>Resource Type ID</div>
-                                        <input
+                                        <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b' }}>Resource Type</div>
+                                        <select
                                             style={{ ...inputStyle, ...(!canEdit ? { background: '#f8fafc', color: 'var(--text-secondary)', cursor: 'default' } : {}) }}
                                             value={resourceTypeId}
                                             onChange={e => { if (canEdit) setResourceTypeId(e.target.value); }}
-                                            readOnly={!canEdit}
-                                            onFocus={handleFocus}
-                                            onBlur={handleBlur}
-                                        />
+                                            disabled={!canEdit}
+                                        >
+                                            <option value="">— Select type —</option>
+                                            {resourceTypes.map(rt => (
+                                                <option key={rt.id} value={rt.id}>{rt.name}</option>
+                                            ))}
+                                        </select>
 
                                         <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b' }}>Flags</div>
                                         <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>

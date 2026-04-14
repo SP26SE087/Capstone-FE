@@ -115,13 +115,21 @@ const ResourceBooking: React.FC = () => {
         try {
             switch (activeTab) {
                 case 'resources': {
-                    const data = await resourceService.getAll(1, 200);
+                    const [data, types] = await Promise.all([
+                        resourceService.getAll(1, 200),
+                        resourceTypeService.getAll()
+                    ]);
                     setResources(data.items || []);
+                    setResourceTypes(types);
                     break;
                 }
                 case 'my_managed': {
-                    const data = await resourceService.getManaged(1, 200);
+                    const [data, types] = await Promise.all([
+                        resourceService.getManaged(1, 200),
+                        resourceTypeService.getAll()
+                    ]);
                     setResources(data.items || []);
+                    setResourceTypes(types);
                     break;
                 }
                 case 'my_bookings': {
@@ -259,7 +267,7 @@ const ResourceBooking: React.FC = () => {
     const displayResources = useMemo(() => resources.filter(r => {
         const q = searchQuery.toLowerCase();
         return (!q || r.name.toLowerCase().includes(q) || (r.description || '').toLowerCase().includes(q) || (r.location || '').toLowerCase().includes(q))
-            && (!filterType || String(r.type) === filterType);
+            && (!filterType || r.resourceTypeId === filterType);
     }), [resources, searchQuery, filterType]);
 
     const displayBookings = useMemo(() => bookingListForTab.filter(b => {
@@ -513,10 +521,9 @@ const ResourceBooking: React.FC = () => {
                             <select value={filterType} onChange={e => setFilterType(e.target.value)}
                                 style={{ height: '34px', border: '1px solid #e2e8f0', borderRadius: '10px', fontSize: '0.82rem', paddingLeft: '26px', paddingRight: '10px', background: '#fff', outline: 'none', color: '#475569', appearance: 'none' as const }}>
                                 <option value="">All Types</option>
-                                <option value="1">GPU</option>
-                                <option value="2">Equipment</option>
-                                <option value="3">Dataset</option>
-                                <option value="4">Lab Station</option>
+                                {resourceTypes.map(rt => (
+                                    <option key={rt.id} value={rt.id}>{rt.name}</option>
+                                ))}
                             </select>
                         </div>
                     )}
@@ -615,7 +622,7 @@ const ResourceBooking: React.FC = () => {
                                                 </div>
                                                 <div style={{ flex: 1, minWidth: 0 }}>
                                                     <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{log.resourceName || 'Unknown Resource'}</div>
-                                                    <div style={{ fontSize: '0.72rem', color: '#64748b' }}>by {log.userFullName || log.userName} {log.note ? `� ${log.note}` : ''}</div>
+                                                    <div style={{ fontSize: '0.72rem', color: '#64748b' }}>by {log.userFullName || log.userName}</div>
                                                 </div>
                                                 <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600, flexShrink: 0 }}>{formatDate(log.loggedAt)}</div>
                                             </div>
@@ -713,7 +720,7 @@ const ResourceBooking: React.FC = () => {
                                 const valueSt: React.CSSProperties = { fontSize: '0.88rem', fontWeight: 600, color: '#1e293b', wordBreak: 'break-word' };
                                 const subValueSt: React.CSSProperties = { fontSize: '0.78rem', color: '#64748b', marginTop: '3px', wordBreak: 'break-word' };
                                 return (
-                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 280px)', overflowY: 'auto' }} className="custom-scrollbar">
                                         {/* Header */}
                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', paddingBottom: '14px', borderBottom: '1px solid #f1f5f9' }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
