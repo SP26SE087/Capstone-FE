@@ -46,8 +46,7 @@ const UserDetailModal: React.FC<UserDetailModalProps> = ({ onClose, userId, syst
         }
     };
 
-    const handleDelete = async () => {
-        if (!userData?.email) return;
+    const handleDeactivate = async () => {
         const selectedId = String(userData?.userId || userData?.id || '').trim().toLowerCase();
         const selectedEmail = String(userData?.email || '').trim().toLowerCase();
         const myId = String(currentUserId || '').trim().toLowerCase();
@@ -55,18 +54,20 @@ const UserDetailModal: React.FC<UserDetailModalProps> = ({ onClose, userId, syst
         const isSelf = (selectedId && myId && selectedId === myId) || (selectedEmail && myEmail && selectedEmail === myEmail);
         if (isSelf) {
             setShowDeleteConfirm(false);
-            addToast('You cannot remove your own account.', 'error');
+            addToast('You cannot deactivate your own account.', 'error');
             return;
         }
+        const userId = userData?.userId || userData?.id;
+        if (!userId) return;
         setDeleting(true);
         try {
-            await userService.deleteByEmail(userData.email);
+            await userService.updateUser(userId, { isActive: false });
             setShowDeleteConfirm(false);
             onDeleted?.();
             onClose();
         } catch (err: any) {
             setShowDeleteConfirm(false);
-            const msg = err?.response?.data?.message || err?.message || 'Failed to delete user.';
+            const msg = err?.response?.data?.message || err?.message || 'Failed to deactivate user.';
             addToast(msg, 'error');
         } finally {
             setDeleting(false);
@@ -253,7 +254,7 @@ const UserDetailModal: React.FC<UserDetailModalProps> = ({ onClose, userId, syst
                             onMouseLeave={e => { e.currentTarget.style.background = '#fef2f2'; }}
                         >
                             {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                            Remove Member
+                            Deactivate Member
                         </button>
                     )}
                 </div>
@@ -262,10 +263,10 @@ const UserDetailModal: React.FC<UserDetailModalProps> = ({ onClose, userId, syst
             <ConfirmModal
                 isOpen={showDeleteConfirm}
                 onClose={() => setShowDeleteConfirm(false)}
-                onConfirm={handleDelete}
-                title="Remove Member"
-                message={`Remove ${name || 'this user'} from the lab? This action cannot be undone.`}
-                confirmText="Remove"
+                onConfirm={handleDeactivate}
+                title="Deactivate Member"
+                message={`Deactivate ${name || 'this user'}? They will no longer be able to access the system.`}
+                confirmText="Deactivate"
                 cancelText="Cancel"
                 variant="danger"
             />
