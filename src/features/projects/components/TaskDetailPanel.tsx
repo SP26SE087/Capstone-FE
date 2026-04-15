@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import AppSelect from '@/components/common/AppSelect';
 import { validateSpecialChars } from '@/utils/validation';
 import {
     Search, X, User, Calendar, Loader2, Play, Send,
@@ -613,25 +614,31 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                             <div>
                                 <label style={{ ...labelStyle, marginBottom: '4px' }}>Priority</label>
-                                <select value={editForm.priority} onChange={e => setEditForm(f => ({ ...f, priority: parseInt(e.target.value) }))} style={inputStyle}>
-                                    <option value={Priority.Low}>Low</option>
-                                    <option value={Priority.Medium}>Medium</option>
-                                    <option value={Priority.High}>High</option>
-                                    <option value={Priority.Critical}>Critical</option>
-                                </select>
+                                <AppSelect
+                                    value={String(editForm.priority)}
+                                    onChange={val => setEditForm(f => ({ ...f, priority: parseInt(val) }))}
+                                    options={[
+                                        { value: String(Priority.Low), label: 'Low' },
+                                        { value: String(Priority.Medium), label: 'Medium' },
+                                        { value: String(Priority.High), label: 'High' },
+                                        { value: String(Priority.Critical), label: 'Critical' },
+                                    ]}
+                                />
                             </div>
                             <div>
                                 <label style={{ ...labelStyle, marginBottom: '4px' }}>Milestone</label>
-                                <select
+                                <AppSelect
                                     value={editForm.milestoneId}
-                                    onChange={e => setEditForm(f => ({ ...f, milestoneId: e.target.value }))}
-                                    style={{ ...inputStyle, border: editMilestoneHasError ? '1.5px solid #ef4444' : '1.5px solid #e2e8f0' }}
-                                >
-                                    <option value="">No Milestone</option>
-                                    {milestones.filter(m => m.status !== MilestoneStatus.Cancelled).map(m => (
-                                        <option key={getMilestoneOptionId(m)} value={getMilestoneOptionId(m)}>{m.name}</option>
-                                    ))}
-                                </select>
+                                    onChange={val => setEditForm(f => ({ ...f, milestoneId: val }))}
+                                    placeholder="No Milestone"
+                                    options={[
+                                        { value: '', label: 'No Milestone' },
+                                        ...milestones.filter(m => m.status !== MilestoneStatus.Cancelled).map(m => ({
+                                            value: getMilestoneOptionId(m),
+                                            label: m.name,
+                                        })),
+                                    ]}
+                                />
                             </div>
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>

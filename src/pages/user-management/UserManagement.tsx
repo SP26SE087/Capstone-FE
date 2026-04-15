@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import AppSelect from '@/components/common/AppSelect';
 import { validateSpecialChars } from '@/utils/validation';
 import { useToastStore } from '@/store/slices/toastSlice';
 import MainLayout from '@/layout/MainLayout';
@@ -291,12 +292,16 @@ const UserManagement: React.FC = () => {
                             </div>
                             <div>
                                 <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.85rem', fontWeight: 600 }}>Role</label>
-                                <select className="form-input" value={formData.role} onChange={e => setFormData({ ...formData, role: Number(e.target.value) })}>
-                                    <option value={4}>Member</option>
-                                    <option value={3}>Senior Researcher</option>
-                                    <option value={2}>Lab Director</option>
-                                    {isAdmin && <option value={1}>Admin</option>}
-                                </select>
+                                <AppSelect
+                                    value={String(formData.role)}
+                                    onChange={val => setFormData({ ...formData, role: Number(val) })}
+                                    options={[
+                                        { value: '4', label: 'Member' },
+                                        { value: '3', label: 'Senior Researcher' },
+                                        { value: '2', label: 'Lab Director' },
+                                        ...(isAdmin ? [{ value: '1', label: 'Admin' }] : []),
+                                    ]}
+                                />
                             </div>
                             <button type="submit" className="btn btn-primary" style={{ height: '42px' }} disabled={actionLoadingId === 'new'}>
                                 {actionLoadingId === 'new' ? <Loader2 size={18} className="spin" /> : 'Save Member'}
@@ -579,19 +584,27 @@ const UserManagement: React.FC = () => {
                                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                                                 <div>
                                                     <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Role</label>
-                                                    <select className="form-input" value={editData.role} onChange={e => setEditData({ ...editData, role: Number(e.target.value) })}>
-                                                        <option value={4}>Member</option>
-                                                        <option value={3}>Senior Researcher</option>
-                                                        <option value={2}>Lab Director</option>
-                                                        {isAdmin && <option value={1}>Admin</option>}
-                                                    </select>
+                                                    <AppSelect
+                                                        value={String(editData.role)}
+                                                        onChange={val => setEditData({ ...editData, role: Number(val) })}
+                                                        options={[
+                                                            { value: '4', label: 'Member' },
+                                                            { value: '3', label: 'Senior Researcher' },
+                                                            { value: '2', label: 'Lab Director' },
+                                                            ...(isAdmin ? [{ value: '1', label: 'Admin' }] : []),
+                                                        ]}
+                                                    />
                                                 </div>
                                                 <div>
                                                     <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Status</label>
-                                                    <select className="form-input" value={editData.isActive ? 'true' : 'false'} onChange={e => setEditData({ ...editData, isActive: e.target.value === 'true' })}>
-                                                        <option value="true">Active</option>
-                                                        <option value="false">Inactive</option>
-                                                    </select>
+                                                    <AppSelect
+                                                        value={editData.isActive ? 'true' : 'false'}
+                                                        onChange={val => setEditData({ ...editData, isActive: val === 'true' })}
+                                                        options={[
+                                                            { value: 'true', label: 'Active' },
+                                                            { value: 'false', label: 'Inactive' },
+                                                        ]}
+                                                    />
                                                 </div>
                                             </div>
                                             <div>

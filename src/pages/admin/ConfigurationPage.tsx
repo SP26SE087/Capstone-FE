@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import AppSelect from '@/components/common/AppSelect';
 import { validateSpecialChars } from '@/utils/validation';
 import { useToastStore } from '@/store/slices/toastSlice';
 import MainLayout from '@/layout/MainLayout';
@@ -253,15 +254,14 @@ const ConfigurationPage: React.FC = () => {
                             {modalMode === 'edit' && (
                                 <div>
                                     <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, marginBottom: '6px' }}>Status</label>
-                                    <select
-                                        className="input"
-                                        value={formStatus}
-                                        onChange={e => setFormStatus(Number(e.target.value))}
-                                        style={{ width: '100%' }}
-                                    >
-                                        <option value={ResearchFieldStatus.Active}>Active</option>
-                                        <option value={ResearchFieldStatus.Inactive}>Inactive</option>
-                                    </select>
+                                    <AppSelect
+                                        value={String(formStatus)}
+                                        onChange={val => setFormStatus(Number(val))}
+                                        options={[
+                                            { value: String(ResearchFieldStatus.Active), label: 'Active' },
+                                            { value: String(ResearchFieldStatus.Inactive), label: 'Inactive' },
+                                        ]}
+                                    />
                                 </div>
                             )}
                             {formError && (

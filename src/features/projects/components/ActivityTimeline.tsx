@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import AppSelect from '@/components/common/AppSelect';
 import {
     Clock, Loader2, Info
 } from 'lucide-react';
@@ -496,16 +497,17 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
                                     <button onClick={() => setTimelineMode('member')} style={{ padding: '4px 10px', borderRadius: '6px', border: 'none', fontSize: '0.65rem', fontWeight: 700, cursor: 'pointer', background: timelineMode === 'member' ? 'white' : 'transparent', color: timelineMode === 'member' ? 'var(--primary-color)' : '#64748b' }}>By Member</button>
                                 </div>
                             )}
-                            <select
-                                value={timelineMode === 'milestone' ? selectedMilestoneId : selectedMemberId}
-                                onChange={(e) => timelineMode === 'milestone' ? setSelectedMilestoneId(e.target.value) : setSelectedMemberId(e.target.value)}
-                                style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.7rem', fontWeight: 700, background: 'white', minWidth: '180px' }}
-                            >
-                                {timelineMode === 'milestone'
-                                    ? milestones.map(m => (<option key={resolveMilestoneId(m)} value={resolveMilestoneId(m)}>{m.name || (m as any).title}</option>))
-                                    : localMembers.map(m => (<option key={resolveMemberId(m)} value={resolveMemberId(m)}>{m.fullName || m.userName}</option>))
-                                }
-                            </select>
+                            <div style={{ minWidth: '180px' }}>
+                                <AppSelect
+                                    size="sm"
+                                    value={timelineMode === 'milestone' ? selectedMilestoneId : selectedMemberId}
+                                    onChange={val => timelineMode === 'milestone' ? setSelectedMilestoneId(val) : setSelectedMemberId(val)}
+                                    options={timelineMode === 'milestone'
+                                        ? milestones.map(m => ({ value: resolveMilestoneId(m), label: m.name || (m as any).title }))
+                                        : localMembers.map(m => ({ value: resolveMemberId(m), label: m.fullName || m.userName }))
+                                    }
+                                />
+                            </div>
                         </div>
 
                     </div>

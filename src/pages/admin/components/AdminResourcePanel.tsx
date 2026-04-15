@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import AppSelect from '@/components/common/AppSelect';
 import { Resource } from '@/types/booking';
 import { resourceService } from '@/services/resourceService';
 import { X, Layers, Loader2, Save, Info } from 'lucide-react';
@@ -109,16 +110,16 @@ const AdminResourcePanel: React.FC<AdminResourcePanelProps> = ({
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '6px' }}>Category</label>
-                  <select 
-                    value={formData.type}
-                    onChange={e => setFormData({...formData, type: Number(e.target.value)})}
-                    style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '0.88rem', outline: 'none', background: '#fff' }}
-                  >
-                    <option value="1">GPU</option>
-                    <option value="2">Equipment</option>
-                    <option value="3">Dataset</option>
-                    <option value="4">Lab Station</option>
-                  </select>
+                  <AppSelect
+                    value={String(formData.type)}
+                    onChange={val => setFormData({...formData, type: Number(val)})}
+                    options={[
+                        { value: '1', label: 'GPU' },
+                        { value: '2', label: 'Equipment' },
+                        { value: '3', label: 'Dataset' },
+                        { value: '4', label: 'Lab Station' },
+                    ]}
+                  />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '6px' }}>Internal Location</label>

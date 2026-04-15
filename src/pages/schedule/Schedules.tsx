@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import AppSelect from '@/components/common/AppSelect';
 import { useBlocker } from 'react-router-dom';
 import { useTranscriptionStore } from '@/store/slices/transcriptionStore';
 import MainLayout from '@/layout/MainLayout';
@@ -416,29 +417,31 @@ const Schedules: React.FC = () => {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <Filter size={14} color="var(--text-muted)" />
                             <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' as const }}>Status:</span>
-                            <select
-                                style={{ height: '32px', border: 'none', background: 'transparent', fontSize: '0.85rem', fontWeight: 700, color: 'var(--accent-color)' }}
+                            <AppSelect
+                                size="sm"
                                 value={filterStatus}
-                                onChange={e => setFilterStatus(e.target.value)}
-                            >
-                                <option value="">Any Status</option>
-                                <option value="0">Scheduled</option>
-                                <option value="1">In Progress</option>
-                                <option value="2">Completed</option>
-                                <option value="3">Cancelled</option>
-                            </select>
+                                onChange={setFilterStatus}
+                                options={[
+                                    { value: '', label: 'Any Status' },
+                                    { value: '0', label: 'Scheduled' },
+                                    { value: '1', label: 'In Progress' },
+                                    { value: '2', label: 'Completed' },
+                                    { value: '3', label: 'Cancelled' },
+                                ]}
+                            />
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <Briefcase size={14} color="var(--text-muted)" />
                             <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' as const }}>Project:</span>
-                            <select
-                                style={{ height: '32px', border: 'none', background: 'transparent', fontSize: '0.85rem', fontWeight: 700, color: 'var(--accent-color)' }}
+                            <AppSelect
+                                size="sm"
                                 value={filterProjectId}
-                                onChange={e => setFilterProjectId(e.target.value)}
-                            >
-                                <option value="">All Projects</option>
-                                {Object.entries(projectsMap).map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-                            </select>
+                                onChange={setFilterProjectId}
+                                options={[
+                                    { value: '', label: 'All Projects' },
+                                    ...Object.entries(projectsMap).map(([id, name]) => ({ value: id, label: name as string })),
+                                ]}
+                            />
                         </div>
                     </div>
                 </div>

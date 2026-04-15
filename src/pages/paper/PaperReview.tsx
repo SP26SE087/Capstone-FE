@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import AppSelect from '@/components/common/AppSelect';
 import MainLayout from '@/layout/MainLayout';
 import { paperSubmissionService } from '@/services/paperSubmissionService';
 import { projectService } from '@/services/projectService';
@@ -430,27 +431,23 @@ const PaperReview: React.FC = () => {
                         {isSemanticLoading ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
                         AI Search
                     </button>
-                    <select
-                        value={activeTab}
-                        onChange={(e) => setActiveTab(e.target.value)}
-                        className="form-input"
-                        style={{ 
-                            height: '44px', width: '200px', borderRadius: '10px', 
-                            background: '#f8fafc', border: 'none',
-                            fontSize: '0.9rem', fontWeight: 600, cursor: 'pointer',
-                            color: '#1e293b', padding: '0 12px'
-                        }}
-                    >
-                        <option value="all">All Status</option>
-                        <option value="pending">Pending Review</option>
-                        <option value={SubmissionStatus.Draft.toString()}>Draft</option>
-                        <option value={SubmissionStatus.InternalReview.toString()}>In Review</option>
-                        <option value={SubmissionStatus.Approved.toString()}>Approved</option>
-                        <option value={SubmissionStatus.Submitted.toString()}>Submitted</option>
-                        <option value={SubmissionStatus.Revision.toString()}>Revision</option>
-                        <option value={SubmissionStatus.Decision.toString()}>Decision</option>
-                        <option value={SubmissionStatus.Rejected.toString()}>Rejected</option>
-                    </select>
+                    <div style={{ width: '200px' }}>
+                        <AppSelect
+                            value={activeTab}
+                            onChange={setActiveTab}
+                            options={[
+                                { value: 'all', label: 'All Status' },
+                                { value: 'pending', label: 'Pending Review' },
+                                { value: String(SubmissionStatus.Draft), label: 'Draft' },
+                                { value: String(SubmissionStatus.InternalReview), label: 'In Review' },
+                                { value: String(SubmissionStatus.Approved), label: 'Approved' },
+                                { value: String(SubmissionStatus.Submitted), label: 'Submitted' },
+                                { value: String(SubmissionStatus.Revision), label: 'Revision' },
+                                { value: String(SubmissionStatus.Decision), label: 'Decision' },
+                                { value: String(SubmissionStatus.Rejected), label: 'Rejected' },
+                            ]}
+                        />
+                    </div>
                 </div>
 
                 {/* Semantic result badge */}

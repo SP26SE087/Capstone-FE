@@ -312,19 +312,18 @@ const DetailsSettings: React.FC<DetailsSettingsProps> = ({
                                             onChange={(e) => handleStatusChange(parseInt(e.target.value))}
                                             className="form-input"
                                             style={{
-                                                padding: '0 20px 0 0',
+                                                padding: '0 28px 0 10px',
                                                 fontSize: '0.9rem',
                                                 fontWeight: 700,
                                                 color: 'var(--text-primary)',
-                                                background: 'transparent',
-                                                border: 'none',
-                                                borderRadius: 0,
-                                                appearance: 'none',
+                                                background: permissionReadOnly ? '#f8fafc' : '#fff',
+                                                border: '1.5px solid #e2e8f0',
+                                                borderRadius: '8px',
+                                                appearance: 'none' as const,
+                                                outline: 'none',
                                                 cursor: permissionReadOnly ? 'not-allowed' : 'pointer',
                                                 width: 'auto',
                                                 height: '36px',
-                                                display: 'flex',
-                                                alignItems: 'center'
                                             }}
                                             disabled={permissionReadOnly}
                                         >

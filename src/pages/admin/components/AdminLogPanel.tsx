@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import AppSelect from '@/components/common/AppSelect';
 import { EquipmentLog, Resource } from '@/types/booking';
 import { equipmentLogService } from '@/services/equipmentLogService';
 import { X, Activity, MessageSquare, Tag, Loader2, Info } from 'lucide-react';
@@ -96,17 +97,15 @@ const AdminLogPanel: React.FC<AdminLogPanelProps> = ({
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '6px' }}>Target Resource</label>
-                <select 
+                <AppSelect
                   value={formData.resourceId}
-                  onChange={e => setFormData({...formData, resourceId: e.target.value})}
-                  required
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '0.88rem', outline: 'none', background: '#fff' }}
-                >
-                  <option value="">Select resource...</option>
-                  {resources.map(res => (
-                    <option key={res.id} value={res.id}>{res.name} ({res.location || 'Unknown location'})</option>
-                  ))}
-                </select>
+                  onChange={val => setFormData({...formData, resourceId: val})}
+                  placeholder="Select resource..."
+                  options={resources.map(res => ({
+                      value: res.id,
+                      label: `${res.name} (${res.location || 'Unknown location'})`,
+                  }))}
+                />
               </div>
 
               <div>

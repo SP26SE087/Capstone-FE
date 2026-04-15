@@ -1,4 +1,5 @@
 import React from 'react';
+import AppSelect from '@/components/common/AppSelect';
 import { Search, Calendar, X } from 'lucide-react';
 import { TaskStatus } from '@/types';
 
@@ -50,20 +51,32 @@ const TaskFilters: React.FC<TaskFiltersProps> = ({
                 </div>
             </div>
 
-            <select className="form-input" style={{ width: 'auto', minWidth: '140px' }} value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-                <option value="all">All Status</option>
-                <option value={TaskStatus.Todo.toString()}>To Do</option>
-                <option value={TaskStatus.InProgress.toString()}>In Progress</option>
-                <option value={TaskStatus.Submitted.toString()}>Submitted</option>
-                <option value={TaskStatus.Missed.toString()}>Missed</option>
-                <option value={TaskStatus.Adjusting.toString()}>Adjusting</option>
-                <option value={TaskStatus.Completed.toString()}>Completed</option>
-            </select>
+            <div style={{ minWidth: '140px' }}>
+                <AppSelect
+                    value={filterStatus}
+                    onChange={setFilterStatus}
+                    options={[
+                        { value: 'all', label: 'All Status' },
+                        { value: String(TaskStatus.Todo), label: 'To Do' },
+                        { value: String(TaskStatus.InProgress), label: 'In Progress' },
+                        { value: String(TaskStatus.Submitted), label: 'Submitted' },
+                        { value: String(TaskStatus.Missed), label: 'Missed' },
+                        { value: String(TaskStatus.Adjusting), label: 'Adjusting' },
+                        { value: String(TaskStatus.Completed), label: 'Completed' },
+                    ]}
+                />
+            </div>
 
-            <select className="form-input" style={{ width: 'auto', minWidth: '160px' }} value={filterProject} onChange={(e) => setFilterProject(e.target.value)}>
-                <option value="all">All Projects</option>
-                {projects.map(proj => <option key={proj} value={proj}>{proj}</option>)}
-            </select>
+            <div style={{ minWidth: '160px' }}>
+                <AppSelect
+                    value={filterProject}
+                    onChange={setFilterProject}
+                    options={[
+                        { value: 'all', label: 'All Projects' },
+                        ...projects.map(proj => ({ value: proj, label: proj })),
+                    ]}
+                />
+            </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Calendar size={16} color="var(--text-muted)" />

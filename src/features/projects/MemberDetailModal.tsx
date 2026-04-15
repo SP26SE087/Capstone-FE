@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import AppSelect from '@/components/common/AppSelect';
 import Modal from '@/components/common/Modal';
 import { membershipService, projectService, userService } from '@/services';
 import { Mail, Trash2, Loader2, Check, User, Calendar, ShieldCheck, Settings, Info } from 'lucide-react';
@@ -275,44 +276,25 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
                                     Update Member's Project Role
                                 </label>
                                 <div style={{ display: 'flex', gap: '12px' }}>
-                                    <select 
+                                    <AppSelect
                                         value={selectedRoleId}
-                                        onChange={(e) => setSelectedRoleId(e.target.value)}
-                                        style={{
-                                            flex: 1,
-                                            padding: '12px',
-                                            borderRadius: '10px',
-                                            border: '1.5px solid #e2e8f0',
-                                            outline: 'none',
-                                            fontSize: '0.95rem',
-                                            background: 'white'
-                                        }}
-                                        disabled={loadingRoles || updating}
-                                    >
-                                        {roles
+                                        onChange={setSelectedRoleId}
+                                        isDisabled={loadingRoles || updating}
+                                        options={roles
                                             .filter(role => {
                                                 const roleId = Number(role.id);
                                                 const name = role.name;
-
                                                 if (isAdmin) return true;
-
-                                                // Non-admins cannot assign Lab Director
                                                 if (name === 'Lab Director' || roleId === ProjectRoleEnum.LabDirector) return false;
-
-                                                // Leaders can only assign Member and Senior Researcher
                                                 if (isCurrentUserLeader) {
-                                                    return roleId === ProjectRoleEnum.Member || roleId === ProjectRoleEnum.SeniorResearcher || 
+                                                    return roleId === ProjectRoleEnum.Member || roleId === ProjectRoleEnum.SeniorResearcher ||
                                                            name === 'Member' || name === 'Senior Researcher';
                                                 }
-
-                                                // Lab Directors can see all except Lab Director (already filtered)
                                                 return true;
                                             })
-                                            .map(role => (
-                                                <option key={role.id} value={role.id}>{role.name}</option>
-                                            ))
+                                            .map(role => ({ value: role.id, label: role.name }))
                                         }
-                                    </select>
+                                    />
                                     <button 
                                         className="btn btn-primary"
                                         onClick={handleUpdateRole}

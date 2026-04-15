@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import AppSelect from '@/components/common/AppSelect';
 import { Resource, ResourceType } from '@/types/booking';
 import { userService } from '@/services/userService';
 import { useAuth } from '@/hooks/useAuth';
-import { X, Save, Box, Info, MapPin, Hash, AlertTriangle, Type, Package, User, Loader2 } from 'lucide-react';
+import { X, Save, Box, Info, MapPin, Hash, AlertTriangle, Type, Package, User } from 'lucide-react';
 import { validateTextField } from '@/utils/validation';
 
 interface ResourceFormModalProps {
@@ -142,17 +143,16 @@ const ResourceFormModal: React.FC<ResourceFormModalProps> = ({ resource, onClose
                       <label className="form-label">
                         <Package size={14} className="text-muted" /> Type <span style={{ color: 'var(--danger)' }}>*</span>
                       </label>
-                      <select
-                          className="form-input"
-                          value={type}
-                          onChange={(e) => setType(parseInt(e.target.value) as ResourceType)}
-                          required
-                      >
-                          <option value={ResourceType.GPU}>GPU Node</option>
-                          <option value={ResourceType.Equipment}>Equipment / Hardware</option>
-                          <option value={ResourceType.Dataset}>Dataset / Storage</option>
-                          <option value={ResourceType.LabStation}>Lab Station / Desk</option>
-                      </select>
+                      <AppSelect
+                          value={String(type)}
+                          onChange={val => setType(parseInt(val) as ResourceType)}
+                          options={[
+                              { value: String(ResourceType.GPU), label: 'GPU Node' },
+                              { value: String(ResourceType.Equipment), label: 'Equipment / Hardware' },
+                              { value: String(ResourceType.Dataset), label: 'Dataset / Storage' },
+                              { value: String(ResourceType.LabStation), label: 'Lab Station / Desk' },
+                          ]}
+                      />
                   </div>
                   <div className="form-group">
                       <label className="form-label">
@@ -175,31 +175,20 @@ const ResourceFormModal: React.FC<ResourceFormModalProps> = ({ resource, onClose
                       <label className="form-label">
                       <User size={14} className="text-muted" /> Managed By <span style={{ color: 'var(--danger)' }}>*</span>
                     </label>
-                    <div style={{ position: 'relative' }}>
-                      <select
-                          className="form-input"
-                          value={managedBy}
-                          onChange={(e) => setManagedBy(e.target.value)}
-                          required
-                          disabled={loadingUsers}
-                          style={{ paddingRight: '40px' }}
-                      >
-                          <option value="" disabled>Select a manager...</option>
-                          {currentUser.userId && (
-                             <option value={currentUser.userId}>Me ({currentUser.name})</option>
-                          )}
-                          {directors.filter(d => d.id !== currentUser.userId).map(dir => (
-                              <option key={dir.id} value={dir.id}>
-                                  {dir.fullName || dir.name}
-                              </option>
-                          ))}
-                      </select>
-                      {loadingUsers && (
-                          <div style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)' }}>
-                              <Loader2 size={16} className="animate-spin" />
-                          </div>
-                      )}
-                    </div>
+                    <AppSelect
+                        value={managedBy}
+                        onChange={setManagedBy}
+                        placeholder="Select a manager..."
+                        isDisabled={loadingUsers}
+                        isLoading={loadingUsers}
+                        options={[
+                            ...(currentUser.userId ? [{ value: currentUser.userId, label: `Me (${currentUser.name})` }] : []),
+                            ...directors.filter(d => d.id !== currentUser.userId).map(dir => ({
+                                value: dir.id,
+                                label: dir.fullName || dir.name,
+                            })),
+                        ]}
+                    />
                 </div>
 
                 <div className="form-group" style={{ marginBottom: 0 }}>

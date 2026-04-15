@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import AppSelect from '@/components/common/AppSelect';
 import {
     X, Mail, Calendar, ShieldCheck, Settings,
     Loader2, Check, Trash2, User, Crown, Shield, Users, AlertTriangle,
@@ -436,23 +437,14 @@ const MemberProfilePanel: React.FC<MemberProfilePanelProps> = ({
                                     Change Project Role
                                 </p>
                                 <div style={{ display: 'flex', gap: '8px' }}>
-                                    <select
-                                        value={selectedRoleId}
-                                        onChange={e => setSelectedRoleId(e.target.value)}
-                                        disabled={loadingRoles || updating}
-                                        style={{
-                                            flex: 1, padding: '8px 10px',
-                                            borderRadius: '8px',
-                                            border: `1.5px solid ${roleChanged ? 'var(--primary-color)' : '#e2e8f0'}`,
-                                            outline: 'none', fontSize: '0.82rem',
-                                            background: 'white', cursor: 'pointer',
-                                            color: '#1e293b',
-                                        }}
-                                    >
-                                        {visibleRoles.map(role => (
-                                            <option key={role.id} value={role.id}>{role.name}</option>
-                                        ))}
-                                    </select>
+                                    <div style={{ flex: 1 }}>
+                                        <AppSelect
+                                            value={selectedRoleId}
+                                            onChange={setSelectedRoleId}
+                                            isDisabled={loadingRoles || updating}
+                                            options={visibleRoles.map(role => ({ value: role.id, label: role.name }))}
+                                        />
+                                    </div>
                                     <button
                                         onClick={handleUpdateRole}
                                         disabled={updating || !roleChanged}

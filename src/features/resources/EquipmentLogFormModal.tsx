@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import AppSelect from '@/components/common/AppSelect';
 import { Resource, EquipmentLog } from '@/types/booking';
 import { X, Save, Clock, Package, Edit3 } from 'lucide-react';
 import { validateTextField } from '@/utils/validation';
@@ -53,20 +54,17 @@ const EquipmentLogFormModal: React.FC<EquipmentLogFormModalProps> = ({ resources
         <form onSubmit={handleSubmit} className="modal-body">
           <div className="form-group">
             <label className="form-label"><Package size={14}/> Resource Association</label>
-            <select
-              className="form-input"
+            <AppSelect
               value={resourceId}
-              onChange={(e) => setResourceId(e.target.value)}
-              required
-              disabled={isEditing} // Usually log resource shouldn't change
-            >
-              {resources.map((resource) => (
-                <option key={resource.id} value={resource.id}>{resource.name}</option>
-              ))}
-              {isEditing && !resources.some(r => r.id === log?.resourceId) && (
-                 <option value={log?.resourceId}>{log?.resourceName}</option>
-              )}
-            </select>
+              onChange={setResourceId}
+              isDisabled={isEditing}
+              options={[
+                  ...resources.map(r => ({ value: r.id, label: r.name })),
+                  ...(isEditing && !resources.some(r => r.id === log?.resourceId) && log?.resourceId
+                      ? [{ value: log.resourceId, label: log.resourceName || log.resourceId }]
+                      : []),
+              ]}
+            />
           </div>
 
           <div className="form-group">

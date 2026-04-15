@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import AppSelect from '@/components/common/AppSelect';
 import MainLayout from '@/layout/MainLayout';
 import { useAuth } from '@/hooks/useAuth';
 import {
@@ -354,21 +355,31 @@ const Reports: React.FC = () => {
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <Briefcase size={14} color="var(--text-muted)" />
                                 <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Project:</span>
-                                <select style={{ height: '32px', border: 'none', background: 'transparent', fontSize: '0.85rem', fontWeight: 700, color: 'var(--primary-color)' }} value={filterProjectId} onChange={e => setFilterProjectId(e.target.value)}>
-                                    <option value="">All Projects</option>
-                                    {Object.entries(projectsMap).map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-                                </select>
+                                <AppSelect
+                                    size="sm"
+                                    value={filterProjectId}
+                                    onChange={setFilterProjectId}
+                                    options={[
+                                        { value: '', label: 'All Projects' },
+                                        ...Object.entries(projectsMap).map(([id, name]) => ({ value: id, label: name as string })),
+                                    ]}
+                                />
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <Filter size={14} color="var(--text-muted)" />
                                 <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Status:</span>
-                                <select style={{ height: '32px', border: 'none', background: 'transparent', fontSize: '0.85rem', fontWeight: 700, color: 'var(--primary-color)' }} value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
-                                    <option value="">Any Status</option>
-                                    <option value="0">Drafting</option>
-                                    <option value="1">Submitted</option>
-                                    <option value="2">Approved</option>
-                                    <option value="3">Revision Required</option>
-                                </select>
+                                <AppSelect
+                                    size="sm"
+                                    value={filterStatus}
+                                    onChange={setFilterStatus}
+                                    options={[
+                                        { value: '', label: 'Any Status' },
+                                        { value: '0', label: 'Drafting' },
+                                        { value: '1', label: 'Submitted' },
+                                        { value: '2', label: 'Approved' },
+                                        { value: '3', label: 'Revision Required' },
+                                    ]}
+                                />
                             </div>
                         </div>
                     </form>

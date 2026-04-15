@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import AppSelect from '@/components/common/AppSelect';
 import { useBlocker } from 'react-router-dom';
 import { useTranscriptionStore } from '@/store/slices/transcriptionStore';
 import MainLayout from '@/layout/MainLayout';
@@ -401,28 +402,30 @@ const Seminars: React.FC = () => {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <Filter size={14} color="var(--text-muted)" />
                             <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' as const }}>Timeframe:</span>
-                            <select
-                                style={{ height: '32px', border: 'none', background: 'transparent', fontSize: '0.85rem', fontWeight: 700, color: 'var(--accent-color)' }}
+                            <AppSelect
+                                size="sm"
                                 value={filterTimeframe}
-                                onChange={e => setFilterTimeframe(e.target.value)}
-                            >
-                                <option value="">All</option>
-                                <option value="upcoming">Upcoming</option>
-                                <option value="past">Past</option>
-                            </select>
+                                onChange={setFilterTimeframe}
+                                options={[
+                                    { value: '', label: 'All' },
+                                    { value: 'upcoming', label: 'Upcoming' },
+                                    { value: 'past', label: 'Past' },
+                                ]}
+                            />
                         </div>
                         {activeTab !== 'swap_requests' && (
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <Presentation size={14} color="var(--text-muted)" />
                                 <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' as const }}>Season:</span>
-                                <select
-                                    style={{ height: '32px', border: 'none', background: 'transparent', fontSize: '0.85rem', fontWeight: 700, color: 'var(--accent-color)' }}
+                                <AppSelect
+                                    size="sm"
                                     value={filterSeason}
-                                    onChange={e => setFilterSeason(e.target.value)}
-                                >
-                                    <option value="">All Seasons</option>
-                                    {seasons.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}
-                                </select>
+                                    onChange={setFilterSeason}
+                                    options={[
+                                        { value: '', label: 'All Seasons' },
+                                        ...seasons.map(s => ({ value: s.id, label: s.title })),
+                                    ]}
+                                />
                             </div>
                         )}
                     </div>

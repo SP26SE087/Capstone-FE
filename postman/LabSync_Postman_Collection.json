@@ -1,0 +1,1638 @@
+{
+  "info": {
+    "name": "LabSync API Collection",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Complete API collection for all LabSync microservices"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+  },
+  "variable": [
+    { "key": "token", "value": "YOUR_JWT_TOKEN_HERE" },
+    { "key": "userServiceUrl", "value": "http://localhost:5101" },
+    { "key": "projectServiceUrl", "value": "http://localhost:5192" },
+    { "key": "bookingServiceUrl", "value": "http://localhost:5057" },
+    { "key": "reportServiceUrl", "value": "http://localhost:5184" },
+    { "key": "notificationServiceUrl", "value": "http://localhost:7310" },
+    { "key": "meetingServiceUrl", "value": "http://localhost:5024" },
+    { "key": "paperServiceUrl", "value": "http://localhost:5075" },
+    { "key": "transcriptionServiceUrl", "value": "http://localhost:5003" },
+    { "key": "userId", "value": "00000000-0000-0000-0000-000000000001" },
+    { "key": "projectId", "value": "00000000-0000-0000-0000-000000000001" },
+    { "key": "milestoneId", "value": "00000000-0000-0000-0000-000000000001" },
+    { "key": "taskId", "value": "00000000-0000-0000-0000-000000000001" },
+    { "key": "memberId", "value": "00000000-0000-0000-0000-000000000001" },
+    { "key": "bookingId", "value": "00000000-0000-0000-0000-000000000001" },
+    { "key": "resourceId", "value": "00000000-0000-0000-0000-000000000001" },
+    { "key": "resourceTypeId", "value": "00000000-0000-0000-0000-000000000001" },
+    { "key": "reportId", "value": "00000000-0000-0000-0000-000000000001" },
+    { "key": "notificationId", "value": "00000000-0000-0000-0000-000000000001" },
+    { "key": "eventId", "value": "google_calendar_event_id" },
+    { "key": "paperId", "value": "00000000-0000-0000-0000-000000000001" },
+    { "key": "transcriptionId", "value": "00000000-0000-0000-0000-000000000001" },
+    { "key": "meetingId", "value": "00000000-0000-0000-0000-000000000001" },
+    { "key": "seminarMeetingId", "value": "00000000-0000-0000-0000-000000000001" },
+    { "key": "swapRequestId", "value": "00000000-0000-0000-0000-000000000001" },
+    { "key": "taskMemberId", "value": "00000000-0000-0000-0000-000000000001" },
+    { "key": "evidenceId", "value": "1" },
+    { "key": "logId", "value": "00000000-0000-0000-0000-000000000001" },
+    { "key": "researchFieldId", "value": "00000000-0000-0000-0000-000000000001" }
+  ],
+  "item": [
+    {
+      "name": "01. User Service",
+      "item": [
+        {
+          "name": "Auth",
+          "item": [
+            {
+              "name": "Login with Google (IdToken)",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "POST",
+                "url": "{{userServiceUrl}}/api/auth/google",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"idToken\": \"GOOGLE_ID_TOKEN_HERE\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Login with Google Code",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "POST",
+                "url": "{{userServiceUrl}}/api/auth/google-code",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"code\": \"GOOGLE_AUTH_CODE\",\n  \"redirectUri\": \"http://localhost:3000/callback\",\n  \"codeVerifier\": \"CODE_VERIFIER\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Login with Google Mobile",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "POST",
+                "url": "{{userServiceUrl}}/api/auth/google-mobile",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"idToken\": \"GOOGLE_ID_TOKEN_HERE\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Refresh Token",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "POST",
+                "url": "{{userServiceUrl}}/api/auth/refresh",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"refreshToken\": \"YOUR_REFRESH_TOKEN\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Logout",
+              "request": {
+                "method": "POST",
+                "url": "{{userServiceUrl}}/api/auth/logout"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Users",
+          "item": [
+            {
+              "name": "Get All Users",
+              "request": {
+                "method": "GET",
+                "url": "{{userServiceUrl}}/api/users"
+              }
+            },
+            {
+              "name": "Get User By ID",
+              "request": {
+                "method": "GET",
+                "url": "{{userServiceUrl}}/api/users/{{userId}}"
+              }
+            },
+            {
+              "name": "Get User By Email",
+              "request": {
+                "method": "GET",
+                "url": "{{userServiceUrl}}/api/users/email/user@example.com"
+              }
+            },
+            {
+              "name": "Get User By Student ID",
+              "request": {
+                "method": "GET",
+                "url": "{{userServiceUrl}}/api/users/student/SV001"
+              }
+            },
+            {
+              "name": "Get My Information",
+              "request": {
+                "method": "GET",
+                "url": "{{userServiceUrl}}/api/users/me"
+              }
+            },
+            {
+              "name": "Get Checking Logs By Email",
+              "request": {
+                "method": "GET",
+                "url": "{{userServiceUrl}}/api/users/checking-logs/user@example.com"
+              }
+            },
+            {
+              "name": "Add User",
+              "request": {
+                "method": "POST",
+                "url": "{{userServiceUrl}}/api/users",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"newuser@example.com\",\n  \"fullName\": \"Nguyen Van A\",\n  \"phoneNumber\": \"0901234567\",\n  \"orcid\": \"0000-0000-0000-0001\",\n  \"googleScholarUrl\": \"https://scholar.google.com/citations?user=xxx\",\n  \"githubUrl\": \"https://github.com/username\",\n  \"studentId\": \"SV001\",\n  \"role\": 2\n}"
+                }
+              }
+            },
+            {
+              "name": "Update User",
+              "request": {
+                "method": "PUT",
+                "url": "{{userServiceUrl}}/api/users/{{userId}}",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"fullName\": \"Nguyen Van B\",\n  \"phoneNumber\": \"0901234568\",\n  \"orcid\": \"0000-0000-0000-0001\",\n  \"googleScholarUrl\": \"https://scholar.google.com/citations?user=xxx\",\n  \"githubUrl\": \"https://github.com/username\",\n  \"studentId\": \"SV001\",\n  \"role\": 2,\n  \"isActive\": true\n}"
+                }
+              }
+            },
+            {
+              "name": "Deactivate User By Email",
+              "request": {
+                "method": "PATCH",
+                "url": "{{userServiceUrl}}/api/users/email/user@example.com"
+              }
+            },
+            {
+              "name": "Add Checking Log",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "POST",
+                "url": "{{userServiceUrl}}/api/users/checking-log",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"studentId\": \"SV001\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Update My Profile",
+              "request": {
+                "method": "PUT",
+                "url": "{{userServiceUrl}}/api/users/me/profile",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"fullName\": \"Nguyen Van A\",\n  \"phoneNumber\": \"0901234567\",\n  \"orcid\": \"0000-0000-0000-0001\",\n  \"googleScholarUrl\": \"https://scholar.google.com/citations?user=xxx\",\n  \"githubUrl\": \"https://github.com/username\",\n  \"studentId\": \"SV001\"\n}"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02. Project Service",
+      "item": [
+        {
+          "name": "Research Fields",
+          "item": [
+            {
+              "name": "Get All Research Fields",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "GET",
+                "url": "{{projectServiceUrl}}/api/researchfield"
+              }
+            },
+            {
+              "name": "Get Research Field By ID",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "GET",
+                "url": "{{projectServiceUrl}}/api/researchfield/{{researchFieldId}}"
+              }
+            },
+            {
+              "name": "Create Research Field",
+              "request": {
+                "method": "POST",
+                "url": "{{projectServiceUrl}}/api/researchfield",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Artificial Intelligence\",\n  \"description\": \"Research in AI and machine learning\",\n  \"status\": 0\n}"
+                }
+              }
+            },
+            {
+              "name": "Update Research Field",
+              "request": {
+                "method": "PUT",
+                "url": "{{projectServiceUrl}}/api/researchfield/{{researchFieldId}}",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"id\": \"{{researchFieldId}}\",\n  \"name\": \"AI & Machine Learning\",\n  \"description\": \"Updated description\",\n  \"status\": 0\n}"
+                }
+              }
+            },
+            {
+              "name": "Delete Research Field",
+              "request": {
+                "method": "DELETE",
+                "url": "{{projectServiceUrl}}/api/researchfield/{{researchFieldId}}"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Project Roles",
+          "item": [
+            {
+              "name": "Get All Project Roles",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "GET",
+                "url": "{{projectServiceUrl}}/api/projectrole"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Projects",
+          "item": [
+            {
+              "name": "Get All Projects",
+              "request": {
+                "method": "GET",
+                "url": "{{projectServiceUrl}}/api/projects"
+              }
+            },
+            {
+              "name": "Get Project By ID",
+              "request": {
+                "method": "GET",
+                "url": "{{projectServiceUrl}}/api/projects/{{projectId}}"
+              }
+            },
+            {
+              "name": "Get Projects By Member Email",
+              "request": {
+                "method": "GET",
+                "url": "{{projectServiceUrl}}/api/projects/users/user@example.com"
+              }
+            },
+            {
+              "name": "Create Project",
+              "request": {
+                "method": "POST",
+                "url": "{{projectServiceUrl}}/api/projects",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"projectName\": \"LabSync Research Project\",\n  \"projectDescription\": \"A research project for lab management\",\n  \"startDate\": \"2026-01-01T00:00:00Z\",\n  \"endDate\": \"2026-12-31T00:00:00Z\",\n  \"researchFieldIds\": []\n}"
+                }
+              }
+            },
+            {
+              "name": "Update Project",
+              "request": {
+                "method": "PATCH",
+                "url": "{{projectServiceUrl}}/api/projects/{{projectId}}",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"projectId\": \"{{projectId}}\",\n  \"projectName\": \"Updated Project Name\",\n  \"projectDescription\": \"Updated description\",\n  \"startDate\": \"2026-01-01T00:00:00Z\",\n  \"endDate\": \"2026-12-31T00:00:00Z\",\n  \"researchFieldIds\": []\n}"
+                }
+              }
+            },
+            {
+              "name": "Update Project Status",
+              "request": {
+                "method": "PATCH",
+                "url": "{{projectServiceUrl}}/api/projects/{{projectId}}/status",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"projectId\": \"{{projectId}}\",\n  \"newStatus\": 0\n}"
+                }
+              }
+            },
+            {
+              "name": "Delete Project",
+              "request": {
+                "method": "DELETE",
+                "url": "{{projectServiceUrl}}/api/projects/{{projectId}}"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Memberships",
+          "item": [
+            {
+              "name": "Get Members By Project ID",
+              "request": {
+                "method": "GET",
+                "url": "{{projectServiceUrl}}/api/projects/{{projectId}}/members"
+              }
+            },
+            {
+              "name": "Get My Member Record By Project",
+              "request": {
+                "method": "GET",
+                "url": "{{projectServiceUrl}}/api/projects/{{projectId}}/member"
+              }
+            },
+            {
+              "name": "Get Member By ID",
+              "request": {
+                "method": "GET",
+                "url": "{{projectServiceUrl}}/api/projects/members/{{memberId}}"
+              }
+            },
+            {
+              "name": "Add Member to Project",
+              "request": {
+                "method": "POST",
+                "url": "{{projectServiceUrl}}/api/projects/memberships",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"projectId\": \"{{projectId}}\",\n  \"email\": \"member@example.com\",\n  \"projectRoleId\": \"00000000-0000-0000-0000-000000000001\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Update Member Role",
+              "request": {
+                "method": "PATCH",
+                "url": "{{projectServiceUrl}}/api/projects/memberships",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"memberId\": \"{{memberId}}\",\n  \"projectRoleId\": \"00000000-0000-0000-0000-000000000001\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Update Member Status",
+              "request": {
+                "method": "PATCH",
+                "url": "{{projectServiceUrl}}/api/projects/memberships/status",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"memberId\": \"{{memberId}}\",\n  \"status\": 0\n}"
+                }
+              }
+            },
+            {
+              "name": "Remove Member",
+              "request": {
+                "method": "DELETE",
+                "url": "{{projectServiceUrl}}/api/projects/memberships",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"projectId\": \"{{projectId}}\",\n  \"memberId\": \"{{memberId}}\"\n}"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Milestones",
+          "item": [
+            {
+              "name": "Get Milestones By Project ID",
+              "request": {
+                "method": "GET",
+                "url": "{{projectServiceUrl}}/api/projects/{{projectId}}/milestones"
+              }
+            },
+            {
+              "name": "Get Milestone By ID",
+              "request": {
+                "method": "GET",
+                "url": "{{projectServiceUrl}}/api/projects/milestones/{{milestoneId}}"
+              }
+            },
+            {
+              "name": "Get Project Milestones With Tasks",
+              "request": {
+                "method": "GET",
+                "url": "{{projectServiceUrl}}/api/projects/{{projectId}}/milestones/tasks"
+              }
+            },
+            {
+              "name": "Add Milestone",
+              "request": {
+                "method": "POST",
+                "url": "{{projectServiceUrl}}/api/projects/milestones",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"projectId\": \"{{projectId}}\",\n  \"name\": \"Milestone 1\",\n  \"description\": \"First milestone\",\n  \"startDate\": \"2026-01-01T00:00:00Z\",\n  \"dueDate\": \"2026-03-31T00:00:00Z\",\n  \"status\": 0\n}"
+                }
+              }
+            },
+            {
+              "name": "Update Milestone",
+              "request": {
+                "method": "PATCH",
+                "url": "{{projectServiceUrl}}/api/projects/milestones",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"milestoneId\": \"{{milestoneId}}\",\n  \"name\": \"Updated Milestone\",\n  \"description\": \"Updated description\",\n  \"startDate\": \"2026-01-01T00:00:00Z\",\n  \"dueDate\": \"2026-03-31T00:00:00Z\",\n  \"status\": 1\n}"
+                }
+              }
+            },
+            {
+              "name": "Update Milestone Status",
+              "request": {
+                "method": "PATCH",
+                "url": "{{projectServiceUrl}}/api/projects/milestones/{{milestoneId}}/status",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": 1\n}"
+                }
+              }
+            },
+            {
+              "name": "Delete Milestone",
+              "request": {
+                "method": "DELETE",
+                "url": "{{projectServiceUrl}}/api/projects/milestones/{{milestoneId}}"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Tasks",
+          "item": [
+            {
+              "name": "Get Task By ID",
+              "request": {
+                "method": "GET",
+                "url": "{{projectServiceUrl}}/api/projects/tasks/{{taskId}}"
+              }
+            },
+            {
+              "name": "Get Tasks By Project ID",
+              "request": {
+                "method": "GET",
+                "url": "{{projectServiceUrl}}/api/projects/{{projectId}}/tasks"
+              }
+            },
+            {
+              "name": "Get Tasks By Milestone ID",
+              "request": {
+                "method": "GET",
+                "url": "{{projectServiceUrl}}/api/projects/milestones/{{milestoneId}}/tasks"
+              }
+            },
+            {
+              "name": "Get My Tasks",
+              "request": {
+                "method": "GET",
+                "url": "{{projectServiceUrl}}/api/projects/tasks/me"
+              }
+            },
+            {
+              "name": "Get Task With Status Activities",
+              "request": {
+                "method": "GET",
+                "url": "{{projectServiceUrl}}/api/projects/tasks/{{taskId}}/status-activities"
+              }
+            },
+            {
+              "name": "Get Tasks By Milestone With Status Activities",
+              "request": {
+                "method": "GET",
+                "url": "{{projectServiceUrl}}/api/projects/milestones/{{milestoneId}}/tasks/status-activities"
+              }
+            },
+            {
+              "name": "Get Tasks By Assignee With Status Activities",
+              "request": {
+                "method": "GET",
+                "url": "{{projectServiceUrl}}/api/projects/tasks/member/{{memberId}}/status-activities"
+              }
+            },
+            {
+              "name": "Create Task",
+              "request": {
+                "method": "POST",
+                "url": "{{projectServiceUrl}}/api/projects/tasks",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Implement feature X\",\n  \"description\": \"Task description here\",\n  \"priority\": 1,\n  \"status\": 0,\n  \"memberId\": \"{{memberId}}\",\n  \"milestoneId\": \"{{milestoneId}}\",\n  \"projectId\": \"{{projectId}}\",\n  \"startDate\": \"2026-04-14T00:00:00Z\",\n  \"dueDate\": \"2026-04-30T00:00:00Z\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Update Task",
+              "request": {
+                "method": "PUT",
+                "url": "{{projectServiceUrl}}/api/projects/tasks",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"id\": \"{{taskId}}\",\n  \"name\": \"Updated Task Name\",\n  \"description\": \"Updated description\",\n  \"priority\": 2,\n  \"status\": 1,\n  \"memberId\": \"{{memberId}}\",\n  \"milestoneId\": \"{{milestoneId}}\",\n  \"startDate\": \"2026-04-14T00:00:00Z\",\n  \"dueDate\": \"2026-04-30T00:00:00Z\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Update Task Status",
+              "request": {
+                "method": "PATCH",
+                "url": "{{projectServiceUrl}}/api/projects/tasks/{{taskId}}/status",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"newStatus\": 1,\n  \"reason\": \"Started working on this task\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Delete Task",
+              "request": {
+                "method": "DELETE",
+                "url": "{{projectServiceUrl}}/api/projects/tasks/{{taskId}}"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Task Members",
+          "item": [
+            {
+              "name": "Get Members By Task ID",
+              "request": {
+                "method": "GET",
+                "url": "{{projectServiceUrl}}/api/projects/tasks/{{taskId}}/members"
+              }
+            },
+            {
+              "name": "Add Member to Task",
+              "request": {
+                "method": "POST",
+                "url": "{{projectServiceUrl}}/api/projects/tasks/{{taskId}}/members",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"memberId\": \"{{memberId}}\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Remove Member From Task",
+              "request": {
+                "method": "DELETE",
+                "url": "{{projectServiceUrl}}/api/projects/tasks/members/{{taskMemberId}}"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Evidences",
+          "item": [
+            {
+              "name": "Get Evidences By Task ID",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "GET",
+                "url": "{{projectServiceUrl}}/api/projects/tasks/{{taskId}}/evidences"
+              }
+            },
+            {
+              "name": "Upload Evidence",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "POST",
+                "url": "{{projectServiceUrl}}/api/projects/tasks/{{taskId}}/evidences/upload",
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    { "key": "files", "type": "file", "src": [] }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Delete Evidence",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "DELETE",
+                "url": "{{projectServiceUrl}}/api/projects/tasks/{{taskId}}/evidences/{{evidenceId}}"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Dashboard",
+          "item": [
+            {
+              "name": "Get Dashboard Stats",
+              "request": {
+                "method": "GET",
+                "url": "{{projectServiceUrl}}/api/dashboard/stats"
+              }
+            },
+            {
+              "name": "Get Milestone Overview",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{projectServiceUrl}}/api/dashboard/overview?milestoneId={{milestoneId}}",
+                  "host": ["{{projectServiceUrl}}"],
+                  "path": ["api", "dashboard", "overview"],
+                  "query": [{ "key": "milestoneId", "value": "{{milestoneId}}" }]
+                }
+              }
+            },
+            {
+              "name": "Get My Work Overview",
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{projectServiceUrl}}/api/dashboard/my-work?memberId={{memberId}}&milestoneId={{milestoneId}}",
+                  "host": ["{{projectServiceUrl}}"],
+                  "path": ["api", "dashboard", "my-work"],
+                  "query": [
+                    { "key": "memberId", "value": "{{memberId}}" },
+                    { "key": "milestoneId", "value": "{{milestoneId}}" }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03. Booking Service",
+      "item": [
+        {
+          "name": "Resource Types",
+          "item": [
+            {
+              "name": "Get All Resource Types",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "GET",
+                "url": "{{bookingServiceUrl}}/api/resource-types"
+              }
+            },
+            {
+              "name": "Get Resource Type By ID",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "GET",
+                "url": "{{bookingServiceUrl}}/api/resource-types/{{resourceTypeId}}"
+              }
+            },
+            {
+              "name": "Create Resource Type",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "POST",
+                "url": "{{bookingServiceUrl}}/api/resource-types",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Laboratory Equipment\",\n  \"description\": \"General lab equipment category\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Update Resource Type",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "PUT",
+                "url": "{{bookingServiceUrl}}/api/resource-types/{{resourceTypeId}}",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"id\": \"{{resourceTypeId}}\",\n  \"name\": \"Updated Type Name\",\n  \"description\": \"Updated description\",\n  \"isActive\": true\n}"
+                }
+              }
+            },
+            {
+              "name": "Delete Resource Type",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "DELETE",
+                "url": "{{bookingServiceUrl}}/api/resource-types/{{resourceTypeId}}"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Resources",
+          "item": [
+            {
+              "name": "Get All Resources",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "GET",
+                "url": {
+                  "raw": "{{bookingServiceUrl}}/api/resources?pageIndex=1&pageSize=10",
+                  "host": ["{{bookingServiceUrl}}"],
+                  "path": ["api", "resources"],
+                  "query": [
+                    { "key": "pageIndex", "value": "1" },
+                    { "key": "pageSize", "value": "10" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Get Managed Resources",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "GET",
+                "url": {
+                  "raw": "{{bookingServiceUrl}}/api/resources/managed?pageIndex=1&pageSize=10",
+                  "host": ["{{bookingServiceUrl}}"],
+                  "path": ["api", "resources", "managed"],
+                  "query": [
+                    { "key": "pageIndex", "value": "1" },
+                    { "key": "pageSize", "value": "10" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Get Resource By Serial",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "GET",
+                "url": {
+                  "raw": "{{bookingServiceUrl}}/api/resources/by-serial?serial=SN12345",
+                  "host": ["{{bookingServiceUrl}}"],
+                  "path": ["api", "resources", "by-serial"],
+                  "query": [{ "key": "serial", "value": "SN12345" }]
+                }
+              }
+            },
+            {
+              "name": "Create Resource",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "POST",
+                "url": "{{bookingServiceUrl}}/api/resources",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Microscope A1\",\n  \"description\": \"High-resolution microscope\",\n  \"resourceTypeId\": \"{{resourceTypeId}}\",\n  \"location\": \"Lab Room 101\",\n  \"managedBy\": \"{{userId}}\",\n  \"modelSeriesList\": [\"SN001\", \"SN002\"]\n}"
+                }
+              }
+            },
+            {
+              "name": "Update Resource",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "PUT",
+                "url": "{{bookingServiceUrl}}/api/resources/{{resourceId}}",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Updated Resource Name\",\n  \"description\": \"Updated description\",\n  \"location\": \"Lab Room 102\",\n  \"modelSeries\": \"SN001\",\n  \"resourceTypeId\": \"{{resourceTypeId}}\",\n  \"isDamaged\": false,\n  \"isInUse\": false\n}"
+                }
+              }
+            },
+            {
+              "name": "Assign Manager to Resource",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "PUT",
+                "url": "{{bookingServiceUrl}}/api/resources/{{resourceId}}/assign",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"managerId\": \"{{userId}}\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Delete Resource",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "DELETE",
+                "url": "{{bookingServiceUrl}}/api/resources/{{resourceId}}"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Bookings",
+          "item": [
+            {
+              "name": "Get All Bookings",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "GET",
+                "url": {
+                  "raw": "{{bookingServiceUrl}}/api/bookings?pageIndex=1&pageSize=10",
+                  "host": ["{{bookingServiceUrl}}"],
+                  "path": ["api", "bookings"],
+                  "query": [
+                    { "key": "pageIndex", "value": "1" },
+                    { "key": "pageSize", "value": "10" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Get Managed Bookings",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "GET",
+                "url": {
+                  "raw": "{{bookingServiceUrl}}/api/bookings/managed?pageIndex=1&pageSize=10",
+                  "host": ["{{bookingServiceUrl}}"],
+                  "path": ["api", "bookings", "managed"],
+                  "query": [
+                    { "key": "pageIndex", "value": "1" },
+                    { "key": "pageSize", "value": "10" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Get Booking By ID",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "GET",
+                "url": "{{bookingServiceUrl}}/api/bookings/{{bookingId}}"
+              }
+            },
+            {
+              "name": "Get My Upcoming Bookings",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "GET",
+                "url": "{{bookingServiceUrl}}/api/bookings/my/upcoming"
+              }
+            },
+            {
+              "name": "Get My Booking History",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "GET",
+                "url": {
+                  "raw": "{{bookingServiceUrl}}/api/bookings/my/history?pageIndex=1&pageSize=10",
+                  "host": ["{{bookingServiceUrl}}"],
+                  "path": ["api", "bookings", "my", "history"],
+                  "query": [
+                    { "key": "pageIndex", "value": "1" },
+                    { "key": "pageSize", "value": "10" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Create Booking",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "POST",
+                "url": "{{bookingServiceUrl}}/api/bookings",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"resourceIds\": [\"{{resourceId}}\"],\n  \"title\": \"Lab Session\",\n  \"purpose\": \"Experiment with microscope\",\n  \"startTime\": \"2026-04-15T08:00:00Z\",\n  \"endTime\": \"2026-04-15T10:00:00Z\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Cancel Booking",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "PUT",
+                "url": "{{bookingServiceUrl}}/api/bookings/{{bookingId}}/cancel",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"bookingId\": \"{{bookingId}}\",\n  \"cancelReason\": \"Schedule conflict\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Approve Booking",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "PUT",
+                "url": "{{bookingServiceUrl}}/api/bookings/{{bookingId}}/approve",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"bookingId\": \"{{bookingId}}\",\n  \"note\": \"Approved for lab use\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Reject Booking",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "PUT",
+                "url": "{{bookingServiceUrl}}/api/bookings/{{bookingId}}/reject",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"bookingId\": \"{{bookingId}}\",\n  \"rejectReason\": \"Resource not available at requested time\"\n}"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Equipment Logs",
+          "item": [
+            {
+              "name": "Get All Equipment Logs",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "GET",
+                "url": {
+                  "raw": "{{bookingServiceUrl}}/api/equipment-logs?pageIndex=1&pageSize=10",
+                  "host": ["{{bookingServiceUrl}}"],
+                  "path": ["api", "equipment-logs"],
+                  "query": [
+                    { "key": "pageIndex", "value": "1" },
+                    { "key": "pageSize", "value": "10" }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Create Equipment Log",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "POST",
+                "url": "{{bookingServiceUrl}}/api/equipment-logs",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"bookingId\": \"{{bookingId}}\",\n  \"action\": 0,\n  \"note\": \"Equipment checked out\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Update Equipment Log",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "PUT",
+                "url": "{{bookingServiceUrl}}/api/equipment-logs",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"resourceId\": \"{{resourceId}}\",\n  \"bookingId\": \"{{bookingId}}\",\n  \"action\": 1,\n  \"note\": \"Equipment returned in good condition\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Delete Equipment Log",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "DELETE",
+                "url": "{{bookingServiceUrl}}/api/equipment-logs/{{logId}}"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "04. Report Service",
+      "item": [
+        {
+          "name": "Get All Reports",
+          "request": {
+            "method": "GET",
+            "url": "{{reportServiceUrl}}/api/reports"
+          }
+        },
+        {
+          "name": "Get Report By ID",
+          "request": {
+            "method": "GET",
+            "url": "{{reportServiceUrl}}/api/reports/{{reportId}}"
+          }
+        },
+        {
+          "name": "Get My Reports",
+          "request": {
+            "method": "GET",
+            "url": "{{reportServiceUrl}}/api/reports/me"
+          }
+        },
+        {
+          "name": "Get My Assigned Reports",
+          "request": {
+            "method": "GET",
+            "url": "{{reportServiceUrl}}/api/reports/me/assigned"
+          }
+        },
+        {
+          "name": "Get AI Feedback",
+          "request": {
+            "method": "GET",
+            "url": "{{reportServiceUrl}}/api/reports/{{reportId}}/ai-feedback"
+          }
+        },
+        {
+          "name": "Create Report",
+          "request": {
+            "method": "POST",
+            "url": "{{reportServiceUrl}}/api/reports",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"projectId\": \"{{projectId}}\",\n  \"milestoneId\": \"{{milestoneId}}\",\n  \"title\": \"Weekly Progress Report\",\n  \"description\": \"Report for week 15\",\n  \"goals\": \"Complete feature X and Y\",\n  \"achievements\": \"Completed feature X\",\n  \"blockers\": \"Waiting for API documentation\",\n  \"nextWeek\": \"Will complete feature Y\",\n  \"assigneeEmails\": [\"supervisor@example.com\"]\n}"
+            }
+          }
+        },
+        {
+          "name": "Bulk Create Reports",
+          "request": {
+            "method": "POST",
+            "url": "{{reportServiceUrl}}/api/reports/bulk",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "[\n  {\n    \"projectId\": \"{{projectId}}\",\n    \"title\": \"Report 1\",\n    \"goals\": \"Goal 1\",\n    \"achievements\": \"Achievement 1\",\n    \"blockers\": \"None\",\n    \"nextWeek\": \"Plan for next week\"\n  },\n  {\n    \"projectId\": \"{{projectId}}\",\n    \"title\": \"Report 2\",\n    \"goals\": \"Goal 2\",\n    \"achievements\": \"Achievement 2\",\n    \"blockers\": \"None\",\n    \"nextWeek\": \"Plan for next week\"\n  }\n]"
+            }
+          }
+        },
+        {
+          "name": "Update Report",
+          "request": {
+            "method": "PUT",
+            "url": "{{reportServiceUrl}}/api/reports/{{reportId}}",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated Report Title\",\n  \"description\": \"Updated description\",\n  \"goals\": \"Updated goals\",\n  \"achievements\": \"Updated achievements\",\n  \"blockers\": \"Updated blockers\",\n  \"nextWeek\": \"Updated next week plan\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Patch Report Status",
+          "request": {
+            "method": "PATCH",
+            "url": "{{reportServiceUrl}}/api/reports/{{reportId}}/status",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "1"
+            }
+          }
+        },
+        {
+          "name": "Patch Assignee Status",
+          "request": {
+            "method": "PATCH",
+            "url": "{{reportServiceUrl}}/api/reports/{{reportId}}/assignee",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": 1,\n  \"feedback\": \"Looks good, approved!\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Ensure Embedding",
+          "request": {
+            "method": "POST",
+            "url": "{{reportServiceUrl}}/api/reports/{{reportId}}/ensure-embedding"
+          }
+        },
+        {
+          "name": "Semantic Search Reports",
+          "request": {
+            "method": "POST",
+            "url": "{{reportServiceUrl}}/api/reports/search",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"machine learning progress\",\n  \"topK\": 10,\n  \"userId\": null,\n  \"projectId\": \"{{projectId}}\",\n  \"milestoneId\": null,\n  \"status\": null\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete Report",
+          "request": {
+            "method": "DELETE",
+            "url": "{{reportServiceUrl}}/api/reports/{{reportId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "05. Notification Service",
+      "item": [
+        {
+          "name": "Get My Notifications",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{notificationServiceUrl}}/api/notifications?pageIndex=0&pageSize=20",
+              "host": ["{{notificationServiceUrl}}"],
+              "path": ["api", "notifications"],
+              "query": [
+                { "key": "pageIndex", "value": "0" },
+                { "key": "pageSize", "value": "20" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Unread Count",
+          "request": {
+            "method": "GET",
+            "url": "{{notificationServiceUrl}}/api/notifications/unread-count"
+          }
+        },
+        {
+          "name": "Mark As Read",
+          "request": {
+            "method": "PATCH",
+            "url": "{{notificationServiceUrl}}/api/notifications/{{notificationId}}/read"
+          }
+        },
+        {
+          "name": "Mark All As Read",
+          "request": {
+            "method": "PATCH",
+            "url": "{{notificationServiceUrl}}/api/notifications/read-all"
+          }
+        },
+        {
+          "name": "Delete Notification",
+          "request": {
+            "method": "DELETE",
+            "url": "{{notificationServiceUrl}}/api/notifications/{{notificationId}}"
+          }
+        },
+        {
+          "name": "Delete All Notifications",
+          "request": {
+            "method": "DELETE",
+            "url": "{{notificationServiceUrl}}/api/notifications"
+          }
+        }
+      ]
+    },
+    {
+      "name": "06. Meeting Service",
+      "item": [
+        {
+          "name": "Meetings",
+          "item": [
+            {
+              "name": "Get Meeting By ID",
+              "request": {
+                "method": "GET",
+                "url": "{{meetingServiceUrl}}/api/meetings/{{eventId}}"
+              }
+            },
+            {
+              "name": "Get My Meetings",
+              "request": {
+                "method": "GET",
+                "url": "{{meetingServiceUrl}}/api/meetings/me"
+              }
+            },
+            {
+              "name": "Get Invited Meetings",
+              "request": {
+                "method": "GET",
+                "url": "{{meetingServiceUrl}}/api/meetings/me/invited"
+              }
+            },
+            {
+              "name": "Create Meeting",
+              "request": {
+                "method": "POST",
+                "url": "{{meetingServiceUrl}}/api/meetings",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"Weekly Team Meeting\",\n  \"description\": \"Regular sync meeting\",\n  \"startTime\": \"2026-04-15T09:00:00Z\",\n  \"endTime\": \"2026-04-15T10:00:00Z\",\n  \"projectId\": \"{{projectId}}\",\n  \"attendeeEmails\": [\"member1@example.com\", \"member2@example.com\"]\n}"
+                }
+              }
+            },
+            {
+              "name": "Update Meeting",
+              "request": {
+                "method": "PUT",
+                "url": "{{meetingServiceUrl}}/api/meetings/{{eventId}}",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"Updated Meeting Title\",\n  \"description\": \"Updated description\",\n  \"startTime\": \"2026-04-15T10:00:00Z\",\n  \"endTime\": \"2026-04-15T11:00:00Z\",\n  \"attendeeEmails\": [\"member1@example.com\"],\n  \"status\": 0\n}"
+                }
+              }
+            },
+            {
+              "name": "Update Meeting Details",
+              "request": {
+                "method": "PUT",
+                "url": "{{meetingServiceUrl}}/api/meetings/{{eventId}}/details",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"Updated Meeting\",\n  \"description\": \"Updated description\",\n  \"startTime\": \"2026-04-15T10:00:00Z\",\n  \"endTime\": \"2026-04-15T11:00:00Z\",\n  \"attendeeEmails\": [\"member@example.com\"],\n  \"agendaItems\": [\"Item 1\", \"Item 2\"],\n  \"resources\": [\n    {\n      \"title\": \"Slides\",\n      \"url\": \"https://docs.google.com/presentation/d/xxx\",\n      \"description\": \"Meeting slides\"\n    }\n  ],\n  \"notes\": \"Meeting notes here\",\n  \"actionItems\": [\n    {\n      \"description\": \"Follow up on task X\",\n      \"assigneeEmail\": \"member@example.com\",\n      \"dueDate\": \"2026-04-20T00:00:00Z\",\n      \"isCompleted\": false\n    }\n  ],\n  \"presenter\": {\n    \"email\": \"presenter@example.com\",\n    \"name\": \"Dr. Nguyen\",\n    \"topic\": \"AI Research Updates\"\n  },\n  \"location\": \"Lab Room A\",\n  \"status\": 0\n}"
+                }
+              }
+            },
+            {
+              "name": "Delete Meeting",
+              "request": {
+                "method": "DELETE",
+                "url": "{{meetingServiceUrl}}/api/meetings/{{eventId}}"
+              }
+            },
+            {
+              "name": "Semantic Search Meetings",
+              "request": {
+                "method": "POST",
+                "url": "{{meetingServiceUrl}}/api/meetings/search",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"query\": \"AI research discussion\",\n  \"topK\": 10\n}"
+                }
+              }
+            },
+            {
+              "name": "Ensure Meeting Embedding",
+              "request": {
+                "method": "POST",
+                "url": "{{meetingServiceUrl}}/api/meetings/{{meetingId}}/ensure-embedding"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Seminars",
+          "item": [
+            {
+              "name": "Get All Seminar Meetings",
+              "request": {
+                "method": "GET",
+                "url": "{{meetingServiceUrl}}/api/seminars/meetings"
+              }
+            },
+            {
+              "name": "Get My Seminar Meetings",
+              "request": {
+                "method": "GET",
+                "url": "{{meetingServiceUrl}}/api/seminars/meetings/me"
+              }
+            },
+            {
+              "name": "Get Invited Seminar Meetings",
+              "request": {
+                "method": "GET",
+                "url": "{{meetingServiceUrl}}/api/seminars/meetings/invited"
+              }
+            },
+            {
+              "name": "Get My Swap Requests",
+              "request": {
+                "method": "GET",
+                "url": "{{meetingServiceUrl}}/api/seminars/swaps/me"
+              }
+            },
+            {
+              "name": "Create Recurring Seminar",
+              "request": {
+                "method": "POST",
+                "url": "{{meetingServiceUrl}}/api/seminars/recurring",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"Weekly Research Seminar\",\n  \"description\": \"Regular research presentations\",\n  \"firstSessionStartTime\": \"2026-04-21T09:00:00Z\",\n  \"durationMinutes\": 90,\n  \"numberOfWeeks\": 8,\n  \"dayOfWeek\": 1,\n  \"presenters\": [\n    {\n      \"email\": \"presenter@example.com\",\n      \"name\": \"Dr. Nguyen\",\n      \"topic\": \"Week 1 Topic\"\n    }\n  ],\n  \"additionalAttendeeEmails\": [\"attendee@example.com\"],\n  \"location\": \"Conference Room B\",\n  \"weeklyTopics\": [\"Topic 1\", \"Topic 2\", \"Topic 3\"]\n}"
+                }
+              }
+            },
+            {
+              "name": "Create Seminar Swap Request",
+              "request": {
+                "method": "POST",
+                "url": "{{meetingServiceUrl}}/api/seminars/swaps",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"sourceSeminarMeetingId\": \"{{seminarMeetingId}}\",\n  \"targetSeminarMeetingId\": \"00000000-0000-0000-0000-000000000002\",\n  \"reason\": \"Schedule conflict\",\n  \"expiresAtUtc\": \"2026-04-20T00:00:00Z\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Respond to Swap Request",
+              "request": {
+                "method": "POST",
+                "url": "{{meetingServiceUrl}}/api/seminars/swaps/{{swapRequestId}}/respond",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"accept\": true,\n  \"note\": \"Happy to swap sessions\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Update Seminar Meeting",
+              "request": {
+                "method": "PUT",
+                "url": "{{meetingServiceUrl}}/api/seminars/meetings/{{seminarMeetingId}}",
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    { "key": "Title", "value": "Updated Seminar Title", "type": "text" },
+                    { "key": "Description", "value": "Updated description", "type": "text" },
+                    { "key": "Location", "value": "Room 201", "type": "text" },
+                    { "key": "SlideUrl", "value": "https://slides.example.com/deck", "type": "text" },
+                    { "key": "File", "type": "file", "src": [] }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "07. Paper Submission Service",
+      "item": [
+        {
+          "name": "Get All Papers",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{paperServiceUrl}}/api/papersubmissions?pageIndex=1&pageSize=10",
+              "host": ["{{paperServiceUrl}}"],
+              "path": ["api", "papersubmissions"],
+              "query": [
+                { "key": "pageIndex", "value": "1" },
+                { "key": "pageSize", "value": "10" },
+                { "key": "projectId", "value": "{{projectId}}", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Paper",
+          "request": {
+            "method": "POST",
+            "url": "{{paperServiceUrl}}/api/papersubmissions",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "ProjectId", "value": "{{projectId}}", "type": "text" },
+                { "key": "Title", "value": "Deep Learning for Lab Automation", "type": "text" },
+                { "key": "Abstract", "value": "This paper presents a novel approach to lab automation using deep learning techniques.", "type": "text" },
+                { "key": "PaperUrl", "value": "https://arxiv.org/abs/xxxx", "type": "text" },
+                { "key": "ConferenceName", "value": "ICML 2026", "type": "text" },
+                { "key": "SubmissionDeadline", "value": "2026-05-01T00:00:00Z", "type": "text" },
+                { "key": "Document", "type": "file", "src": [] },
+                { "key": "Members[0].MembershipId", "value": "{{memberId}}", "type": "text" },
+                { "key": "Members[0].Role", "value": "0", "type": "text" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Paper",
+          "request": {
+            "method": "PUT",
+            "url": "{{paperServiceUrl}}/api/papersubmissions/{{paperId}}",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "Title", "value": "Updated Paper Title", "type": "text" },
+                { "key": "Abstract", "value": "Updated abstract content.", "type": "text" },
+                { "key": "ConferenceName", "value": "NeurIPS 2026", "type": "text" },
+                { "key": "SubmissionDeadline", "value": "2026-06-01T00:00:00Z", "type": "text" },
+                { "key": "Document", "type": "file", "src": [] }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Change Paper Status",
+          "request": {
+            "method": "PATCH",
+            "url": "{{paperServiceUrl}}/api/papersubmissions/{{paperId}}/status",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"newStatus\": 1\n}"
+            }
+          }
+        },
+        {
+          "name": "Add External Users",
+          "request": {
+            "method": "POST",
+            "url": "{{paperServiceUrl}}/api/papersubmissions/{{paperId}}/external-users",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "[\n  {\n    \"email\": \"external@university.edu\",\n    \"fullName\": \"Prof. Smith\",\n    \"avatarUrl\": null,\n    \"phoneNumber\": \"+1234567890\",\n    \"studentId\": null,\n    \"orcid\": \"0000-0000-0000-0002\",\n    \"googleScholarUrl\": \"https://scholar.google.com/citations?user=yyy\",\n    \"githubUrl\": null,\n    \"isActive\": true\n  }\n]"
+            }
+          }
+        },
+        {
+          "name": "Update External User",
+          "request": {
+            "method": "PUT",
+            "url": "{{paperServiceUrl}}/api/papersubmissions/{{paperId}}/external-users/{{userId}}",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"external@university.edu\",\n  \"fullName\": \"Prof. John Smith\",\n  \"avatarUrl\": null,\n  \"phoneNumber\": \"+1234567890\",\n  \"studentId\": null,\n  \"orcid\": \"0000-0000-0000-0002\",\n  \"googleScholarUrl\": \"https://scholar.google.com/citations?user=yyy\",\n  \"githubUrl\": \"https://github.com/profsmith\",\n  \"isActive\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete External User",
+          "request": {
+            "method": "DELETE",
+            "url": "{{paperServiceUrl}}/api/papersubmissions/{{paperId}}/external-users/{{userId}}"
+          }
+        },
+        {
+          "name": "Ensure Paper Embedding",
+          "request": {
+            "method": "POST",
+            "url": "{{paperServiceUrl}}/api/papersubmissions/{{paperId}}/ensure-embedding"
+          }
+        },
+        {
+          "name": "Semantic Search Papers",
+          "request": {
+            "method": "POST",
+            "url": "{{paperServiceUrl}}/api/papersubmissions/search",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"deep learning neural network\",\n  \"topK\": 10,\n  \"projectId\": null\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete Paper",
+          "request": {
+            "method": "DELETE",
+            "url": "{{paperServiceUrl}}/api/papersubmissions/{{paperId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "08. Transcription Service",
+      "item": [
+        {
+          "name": "Get All Transcriptions",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": "{{transcriptionServiceUrl}}/api/transcriptions"
+          }
+        },
+        {
+          "name": "Get Transcription By ID",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": "{{transcriptionServiceUrl}}/api/transcriptions/{{transcriptionId}}"
+          }
+        },
+        {
+          "name": "Get Transcriptions For Meeting",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": "{{transcriptionServiceUrl}}/api/transcriptions/meetings/{{meetingId}}"
+          }
+        },
+        {
+          "name": "Get Available Models",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": "{{transcriptionServiceUrl}}/api/transcriptions/models"
+          }
+        },
+        {
+          "name": "Create Transcription (Upload Audio)",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{transcriptionServiceUrl}}/api/transcriptions?meetingId={{meetingId}}&language=vi&model=whisper-1",
+              "host": ["{{transcriptionServiceUrl}}"],
+              "path": ["api", "transcriptions"],
+              "query": [
+                { "key": "meetingId", "value": "{{meetingId}}" },
+                { "key": "language", "value": "vi" },
+                { "key": "model", "value": "whisper-1" }
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "type": "file", "src": [] }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Generate Summary",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "PUT",
+            "url": "{{transcriptionServiceUrl}}/api/transcriptions/{{transcriptionId}}/summary",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"language\": \"vi\",\n  \"length\": \"medium\",\n  \"style\": \"paragraph\",\n  \"customPrompt\": null,\n  \"model\": null\n}"
+            }
+          }
+        },
+        {
+          "name": "Update Summary Manually",
+          "request": {
+            "method": "PATCH",
+            "url": "{{transcriptionServiceUrl}}/api/transcriptions/{{transcriptionId}}/summary",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"summary\": \"This is the manually edited summary of the meeting transcription.\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Sync Models",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": "{{transcriptionServiceUrl}}/api/transcriptions/models/sync"
+          }
+        },
+        {
+          "name": "Semantic Search Transcriptions",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "url": "{{transcriptionServiceUrl}}/api/transcriptions/semantic-search",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"query\": \"AI research discussion\",\n  \"topK\": 10,\n  \"meetingId\": null\n}"
+            }
+          }
+        },
+        {
+          "name": "Suggest Tasks from Text",
+          "request": {
+            "method": "POST",
+            "url": "{{transcriptionServiceUrl}}/api/tasks/suggest",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"We need to implement the login feature, fix the database migration bug, and write unit tests for the API.\",\n  \"projectId\": \"{{projectId}}\",\n  \"milestoneId\": \"{{milestoneId}}\",\n  \"maxResults\": 5\n}"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

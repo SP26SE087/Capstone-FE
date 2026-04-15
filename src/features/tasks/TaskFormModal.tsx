@@ -837,7 +837,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                                             <select
                                                 value={row.priority}
                                                 onChange={(e) => updateRow(row.id, 'priority', Number(e.target.value))}
-                                                style={{ padding: '0.75rem', borderRadius: '10px', border: '1.5px solid #e2e8f0', background: 'white', fontWeight: 600, fontSize: '0.85rem' }}
+                                                style={{ padding: '0.75rem', borderRadius: '10px', border: '1.5px solid #e2e8f0', background: 'white', fontWeight: 600, fontSize: '0.85rem', outline: 'none', cursor: 'pointer' }}
                                             >
                                                 <option value={Priority.Low}>Low</option>
                                                 <option value={Priority.Medium}>Medium</option>
@@ -850,7 +850,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                                             <select
                                                 value={row.status}
                                                 onChange={(e) => updateRow(row.id, 'status', Number(e.target.value))}
-                                                style={{ padding: '0.75rem', borderRadius: '10px', border: '1.5px solid #e2e8f0', background: 'white', fontWeight: 600, fontSize: '0.85rem' }}
+                                                style={{ padding: '0.75rem', borderRadius: '10px', border: '1.5px solid #e2e8f0', background: 'white', fontWeight: 600, fontSize: '0.85rem', outline: 'none', cursor: 'pointer' }}
                                             >
                                                 <option value={TaskStatus.Todo}>To Do</option>
                                                 <option value={TaskStatus.InProgress}>In Progress</option>

@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import AppSelect from '@/components/common/AppSelect';
 import MainLayout from '@/layout/MainLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { paperSubmissionService } from '@/services/paperSubmissionService';
@@ -566,7 +567,7 @@ const PaperSubmissions: React.FC = () => {
                     paperUrl: submitNewUrl.trim(),
                     conferenceName: selectedPaper.conferenceName,
                     members: selectedPaper.members.map(m => ({ membershipId: m.membershipId, role: m.role })),
-                    lastUpdatedByUserId: user?.id ?? null,
+                    lastUpdatedByUserId: user?.userId ?? null,
                 };
                 await paperSubmissionService.update(selectedPaper.paperSubmissionId, updatePayload);
             }
@@ -1110,20 +1111,28 @@ const PaperSubmissions: React.FC = () => {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <Filter size={14} color="#94a3b8" />
                             <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' as const }}>Status:</span>
-                            <select style={{ height: '32px', border: 'none', background: 'transparent', fontSize: '0.85rem', fontWeight: 700, color: 'var(--accent-color)' }}
-                                value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
-                                <option value="">All Statuses</option>
-                                {Object.entries(SubmissionStatusLabel).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                            </select>
+                            <AppSelect
+                                size="sm"
+                                value={filterStatus}
+                                onChange={setFilterStatus}
+                                options={[
+                                    { value: '', label: 'All Statuses' },
+                                    ...Object.entries(SubmissionStatusLabel).map(([k, v]) => ({ value: k, label: v as string })),
+                                ]}
+                            />
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <Briefcase size={14} color="#94a3b8" />
                             <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' as const }}>Project:</span>
-                            <select style={{ height: '32px', border: 'none', background: 'transparent', fontSize: '0.85rem', fontWeight: 700, color: 'var(--accent-color)' }}
-                                value={filterProjectId} onChange={e => setFilterProjectId(e.target.value)}>
-                                <option value="">All Projects</option>
-                                {projects.map((p: any) => <option key={p.projectId || p.id} value={p.projectId || p.id}>{p.projectName || p.name || p.title}</option>)}
-                            </select>
+                            <AppSelect
+                                size="sm"
+                                value={filterProjectId}
+                                onChange={setFilterProjectId}
+                                options={[
+                                    { value: '', label: 'All Projects' },
+                                    ...projects.map((p: any) => ({ value: p.projectId || p.id, label: p.projectName || p.name || p.title })),
+                                ]}
+                            />
                         </div>
                     </div>
                 </div>

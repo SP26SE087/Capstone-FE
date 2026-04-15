@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import AppSelect from '@/components/common/AppSelect';
 import MainLayout from '@/layout/MainLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { Resource, Booking, BookingStatus, EquipmentLog, EquipmentLogAction } from '@/types/booking';
@@ -25,7 +26,6 @@ import {
     Layers,
     Pencil,
     Trash2,
-    Filter,
     X,
     Wrench,
     Activity
@@ -637,30 +637,34 @@ const ResourceBooking: React.FC = () => {
                         )}
                     </div>
                     {isResourceTab && !isResourceTypeTab && (
-                        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                            <Filter size={12} style={{ position: 'absolute', left: '9px', color: '#94a3b8', pointerEvents: 'none' }} />
-                            <select value={filterType} onChange={e => setFilterType(e.target.value)}
-                                style={{ height: '34px', border: '1px solid #e2e8f0', borderRadius: '10px', fontSize: '0.82rem', paddingLeft: '26px', paddingRight: '10px', background: '#fff', outline: 'none', color: '#475569', appearance: 'none' as const }}>
-                                <option value="">All Types</option>
-                                {resourceTypes.map(rt => (
-                                    <option key={rt.id} value={rt.id}>{rt.name}</option>
-                                ))}
-                            </select>
+                        <div style={{ minWidth: '140px' }}>
+                            <AppSelect
+                                size="sm"
+                                value={filterType}
+                                onChange={setFilterType}
+                                options={[
+                                    { value: '', label: 'All Types' },
+                                    ...resourceTypes.map(rt => ({ value: rt.id, label: rt.name })),
+                                ]}
+                            />
                         </div>
                     )}
                     {isBookingTab && (
-                        <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                            <Filter size={12} style={{ position: 'absolute', left: '9px', color: '#94a3b8', pointerEvents: 'none' }} />
-                            <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-                                style={{ height: '34px', border: '1px solid #e2e8f0', borderRadius: '10px', fontSize: '0.82rem', paddingLeft: '26px', paddingRight: '10px', background: '#fff', outline: 'none', color: '#475569', appearance: 'none' as const }}>
-                                <option value="">All Status</option>
-                                <option value="1">Pending</option>
-                                <option value="2">Approved</option>
-                                <option value="3">Rejected</option>
-                                <option value="4">Cancelled</option>
-                                <option value="5">Completed</option>
-                                <option value="6">In Use</option>
-                            </select>
+                        <div style={{ minWidth: '140px' }}>
+                            <AppSelect
+                                size="sm"
+                                value={filterStatus}
+                                onChange={setFilterStatus}
+                                options={[
+                                    { value: '', label: 'All Status' },
+                                    { value: '1', label: 'Pending' },
+                                    { value: '2', label: 'Approved' },
+                                    { value: '3', label: 'Rejected' },
+                                    { value: '4', label: 'Cancelled' },
+                                    { value: '5', label: 'Completed' },
+                                    { value: '6', label: 'In Use' },
+                                ]}
+                            />
                         </div>
                     )}
                     </div>
