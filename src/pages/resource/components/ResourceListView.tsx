@@ -1,6 +1,6 @@
 import React from 'react';
 import { Resource, ResourceType } from '@/types/booking';
-import { Cpu, HardDrive, Box, Monitor, Package, MapPin, ChevronRight, Calendar, UserCog } from 'lucide-react';
+import { Cpu, HardDrive, Box, Monitor, Package, MapPin, ChevronRight, UserCog, Plus } from 'lucide-react';
 
 interface ResourceListViewProps {
     resources: Resource[];
@@ -12,11 +12,11 @@ interface ResourceListViewProps {
 
 const getResourceIcon = (type: ResourceType) => {
     switch (type) {
-        case ResourceType.GPU: return <Cpu size={18} />;
-        case ResourceType.Equipment: return <HardDrive size={18} />;
-        case ResourceType.Dataset: return <Box size={18} />;
-        case ResourceType.LabStation: return <Monitor size={18} />;
-        default: return <Package size={18} />;
+        case ResourceType.GPU: return <Cpu size={14} />;
+        case ResourceType.Equipment: return <HardDrive size={14} />;
+        case ResourceType.Dataset: return <Box size={14} />;
+        case ResourceType.LabStation: return <Monitor size={14} />;
+        default: return <Package size={14} />;
     }
 };
 
@@ -58,7 +58,7 @@ const ResourceListView: React.FC<ResourceListViewProps> = ({
     }
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
             {resources.map(resource => {
                 const isSelected = resource.id === selectedId;
                 const typeColors = getTypeColor(resource.type);
@@ -69,22 +69,22 @@ const ResourceListView: React.FC<ResourceListViewProps> = ({
                         key={resource.id}
                         onClick={() => onSelect(resource)}
                         style={{
-                            padding: '14px 16px',
-                            borderRadius: '12px',
+                            padding: '9px 12px',
+                            borderRadius: '10px',
                             border: isSelected ? '1.5px solid var(--accent-color)' : '1px solid var(--border-color)',
                             background: isSelected ? 'var(--accent-bg)' : '#fff',
                             cursor: 'pointer',
                             transition: 'all 0.2s',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '14px'
+                            gap: '10px'
                         }}
                     >
                         {/* Icon */}
                         <div style={{
-                            width: '40px',
-                            height: '40px',
-                            borderRadius: '10px',
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '8px',
                             background: typeColors.bg,
                             color: typeColors.color,
                             display: 'flex',
@@ -95,76 +95,45 @@ const ResourceListView: React.FC<ResourceListViewProps> = ({
                             {getResourceIcon(resource.type)}
                         </div>
 
-                        {/* Info */}
+                        {/* Info — name full, then meta */}
                         <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                                <span style={{
-                                    fontSize: '0.9rem',
-                                    fontWeight: 700,
-                                    color: '#1e293b',
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                    whiteSpace: 'nowrap'
-                                }}>
-                                    {resource.name}
-                                </span>
-                                <span style={{
-                                    fontSize: '0.62rem',
-                                    fontWeight: 700,
-                                    color: typeColors.color,
-                                    background: typeColors.bg,
-                                    border: `1px solid ${typeColors.border}`,
-                                    padding: '1px 6px',
-                                    borderRadius: '6px',
-                                    flexShrink: 0
-                                }}>
+                            <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1e293b', marginBottom: '3px', wordBreak: 'break-word' }}>
+                                {resource.name}
+                            </div>
+                            <div style={{ display: 'flex', gap: '8px', fontSize: '0.68rem', color: '#64748b', flexWrap: 'wrap' as const, alignItems: 'center' }}>
+                                <span style={{ fontSize: '0.58rem', fontWeight: 700, color: typeColors.color, background: typeColors.bg, border: `1px solid ${typeColors.border}`, padding: '1px 6px', borderRadius: '4px', whiteSpace: 'nowrap' as const }}>
                                     {resource.resourceTypeName || getResourceTypeLabel(resource.type)}
                                 </span>
-                            </div>
-
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.75rem', color: '#64748b' }}>
                                 {resource.location && (
-                                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
                                         <MapPin size={11} /> {resource.location}
                                     </span>
                                 )}
-                                <span style={{
-                                    fontWeight: 700,
-                                    color: isAvailable ? '#059669' : '#dc2626'
-                                }}>
-                                    {resource.availableQuantity}/{resource.totalQuantity} available
-                                </span>
+                                {resource.managerName && (
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: '3px', fontWeight: 600, color: '#475569' }}>
+                                        <UserCog size={11} /> {resource.managerName}
+                                    </span>
+                                )}
                             </div>
-                            {(resource.managerName || resource.managerEmail) && (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', color: '#64748b', marginTop: '3px' }}>
-                                    <UserCog size={11} />
-                                    {resource.managerName && <span style={{ fontWeight: 600, color: '#475569' }}>{resource.managerName}</span>}
-                                    {resource.managerName && resource.managerEmail && <span>·</span>}
-                                    {resource.managerEmail && <span style={{ color: '#2563eb' }}>{resource.managerEmail}</span>}
-                                </div>
-                            )}
                         </div>
 
-                        {/* Book button */}
-                        {onBook && isAvailable && (
-                            <button
-                                onClick={e => { e.stopPropagation(); onBook(resource); }}
-                                style={{
-                                    display: 'flex', alignItems: 'center', gap: '5px',
-                                    padding: '5px 12px', borderRadius: '8px', border: 'none',
-                                    background: isSelected ? 'rgba(255,255,255,0.9)' : 'linear-gradient(135deg, #6366f1, #4f46e5)',
-                                    color: isSelected ? '#4f46e5' : '#fff',
-                                    fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer',
-                                    flexShrink: 0, transition: 'all 0.15s',
-                                    boxShadow: '0 2px 6px rgba(99,102,241,0.25)'
-                                }}
-                            >
-                                <Calendar size={12} /> Book
-                            </button>
-                        )}
-
-                        {/* Arrow */}
-                        <ChevronRight size={16} style={{ color: isSelected ? 'var(--accent-color)' : '#cbd5e1', flexShrink: 0 }} />
+                        {/* Right column: available + Book + arrow */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                            <span style={{ fontSize: '0.68rem', fontWeight: 800, color: isAvailable ? '#059669' : '#dc2626', background: isAvailable ? '#ecfdf5' : '#fef2f2', border: `1px solid ${isAvailable ? '#a7f3d0' : '#fecaca'}`, padding: '1px 8px', borderRadius: '20px', whiteSpace: 'nowrap' as const }}>
+                                {resource.availableQuantity}/{resource.totalQuantity} available
+                            </span>
+                                {onBook && (
+                                    <button
+                                        type="button"
+                                        onClick={e => { e.stopPropagation(); onBook(resource); }}
+                                        disabled={!isAvailable}
+                                        style={{ padding: '3px 9px', borderRadius: '7px', border: 'none', background: isAvailable ? 'var(--accent-color, #f97316)' : '#e2e8f0', color: isAvailable ? '#fff' : '#94a3b8', cursor: isAvailable ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', fontWeight: 700, whiteSpace: 'nowrap' as const }}
+                                    >
+                                        <Plus size={11} /> Book
+                                    </button>
+                                )}
+                                <ChevronRight size={16} style={{ color: isSelected ? 'var(--accent-color)' : '#cbd5e1' }} />
+                        </div>
                     </div>
                 );
             })}

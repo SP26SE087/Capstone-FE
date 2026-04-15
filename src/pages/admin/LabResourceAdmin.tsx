@@ -81,7 +81,7 @@ const LabResourceAdmin: React.FC<LabResourceAdminProps> = ({ initialTab }) => {
 
       setAllBookings((bookingsData.items || []).map(b => ({
         ...b,
-        userName: userMap.get(b.userId) || b.userName || 'Unknown'
+        userName: userMap.get(b.userId ?? '') || b.userName || 'Unknown'
       })).sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime()));
 
     } catch (error: any) {

@@ -353,12 +353,12 @@ const BookingModal: React.FC<BookingModalProps> = ({ resource, onClose, onSubmit
     }
     setFieldErrors({});
     onSubmit({
-      resourceIds: [resource.id],
+      items: [{ resourceIds: [resource.id] }],
       title,
       purpose,
       startTime: new Date(startTime).toISOString(),
       endTime: new Date(endTime).toISOString()
-    } as any);
+    });
   };
 
   // ─── Render ──────────────────────────────────────────

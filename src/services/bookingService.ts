@@ -1,5 +1,5 @@
 import api from './api';
-import { Booking, CreateBookingRequest, UpdateBookingRequest, PaginatedResponse } from '@/types/booking';
+import { Booking, CreateBookingRequest, UpdateBookingRequest, ApproveBookingRequest, BulkApproveItem, BulkApproveResult, PaginatedResponse } from '@/types/booking';
 
 // Re-export for backward compatibility with existing feature components
 export type BookingResponse = Booking;
@@ -96,10 +96,11 @@ export const bookingService = {
     return data;
   },
 
-  create: async (request: CreateBookingRequest): Promise<Booking> => {
+  create: async (request: CreateBookingRequest): Promise<Booking[]> => {
     const response = await api.post('/api/bookings', request);
     const data = response.data.data || response.data;
-    return { ...data, id: data.id || data.bookingId };
+    const arr: any[] = Array.isArray(data) ? data : [data];
+    return arr.map((item: any) => ({ ...item, id: item.id || item.bookingId }));
   },
 
   update: async (id: string, request: UpdateBookingRequest): Promise<Booking> => {
@@ -118,11 +119,16 @@ export const bookingService = {
     });
   },
 
-  approve: async (id: string, note?: string): Promise<void> => {
+  approve: async (id: string, request?: ApproveBookingRequest): Promise<void> => {
     await api.put(`/api/bookings/${id}/approve`, {
       bookingId: id,
-      note
+      ...request
     });
+  },
+
+  bulkApprove: async (items: BulkApproveItem[]): Promise<BulkApproveResult[]> => {
+    const response = await api.post('/api/bookings/bulk-approve', { items });
+    return response.data.data || response.data;
   },
 
   reject: async (id: string, rejectReason: string): Promise<void> => {
@@ -130,5 +136,13 @@ export const bookingService = {
       bookingId: id,
       rejectReason
     });
-  }
+  },
+
+  checkIn: async (bookingId: string, note?: string): Promise<void> => {
+    await api.post('/api/equipment-logs', { bookingId, action: 1, note: note || undefined });
+  },
+
+  checkOut: async (bookingId: string, resourceId: string, note?: string): Promise<void> => {
+    await api.put('/api/equipment-logs', { resourceId, bookingId, action: 2, note: note || undefined });
+  },
 };

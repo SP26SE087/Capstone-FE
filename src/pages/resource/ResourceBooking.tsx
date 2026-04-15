@@ -95,6 +95,13 @@ const ResourceBooking: React.FC = () => {
     const [myBookings, setMyBookings] = useState<Booking[]>([]);
     const [allBookings, setAllBookings] = useState<Booking[]>([]);
     const [managedBookings, setManagedBookings] = useState<Booking[]>([]);
+    const [bulkSelectedIds, setBulkSelectedIds] = useState<string[]>([]);
+    const [bulkApproving, setBulkApproving] = useState(false);
+    const [showBulkModal, setShowBulkModal] = useState(false);
+    const [bulkApproveNote, setBulkApproveNote] = useState('');
+    const [bulkChecking, setBulkChecking] = useState(false);
+    const [bulkCheckInNote, setBulkCheckInNote] = useState('');
+    const [bulkCheckOutNote, setBulkCheckOutNote] = useState('');
     const [equipmentLogs, setEquipmentLogs] = useState<EquipmentLog[]>([]);
     const [resourceTypes, setResourceTypes] = useState<ResourceTypeItem[]>([]);
     const [loading, setLoading] = useState(false);
@@ -103,6 +110,7 @@ const ResourceBooking: React.FC = () => {
     const [filterType, setFilterType] = useState('');
     const { addToast } = useToastStore();
     const [activePanel, setActivePanel] = useState<ActivePanel | null>(null);
+    const [bookingCart, setBookingCart] = useState<{ resourceId: string; quantity: number }[]>([]);
 
     const isLabDirector = useMemo(() => {
         if (!user) return false;
@@ -188,8 +196,16 @@ const ResourceBooking: React.FC = () => {
     const handleViewResource = (resource: Resource) =>
         setActivePanel({ id: `view-res-${resource.id}`, type: 'view_resource', targetId: resource.id, title: resource.name, resource });
 
-    const handleCreateBooking = (preSelectedResource?: Resource) =>
-        setActivePanel({ id: `create-booking-${Date.now()}`, type: 'create_booking', title: 'New Booking', preSelectedResource });
+    const handleCreateBooking = (resource?: Resource) => {
+        if (resource) {
+            setBookingCart(prev =>
+                prev.find(i => i.resourceId === resource.id) ? prev : [...prev, { resourceId: resource.id, quantity: 1 }]
+            );
+        }
+        setActivePanel(prev =>
+            prev?.type === 'create_booking' ? prev : { id: `create-booking-${Date.now()}`, type: 'create_booking', title: 'New Booking' }
+        );
+    };
 
     const handleViewBooking = (booking: Booking) =>
         setActivePanel({ id: `view-booking-${booking.id}`, type: 'view_booking', targetId: booking.id, title: booking.title });
@@ -212,7 +228,10 @@ const ResourceBooking: React.FC = () => {
     };
 
     const handleViewLog = (log: EquipmentLog) => setActivePanel({ id: `view-log-${log.id}`, type: 'view_log', targetId: log.id, title: log.resourceName, log });
-    const handleClosePanel = () => setActivePanel(null);
+    const handleClosePanel = () => {
+        setActivePanel(null);
+        setBookingCart([]);
+    };
 
     const handleTitleChange = (newTitle: string) => {
         if (activePanel) setActivePanel({ ...activePanel, title: newTitle });
@@ -244,6 +263,92 @@ const ResourceBooking: React.FC = () => {
         setActivePanel(null);
         setSearchQuery('');
         setFilterStatus('');
+        setBulkSelectedIds([]);
+    };
+
+    const toggleBulkSelect = (id: string) =>
+        setBulkSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+
+    // ── Inline quick actions ─────────────────────────────────────────────────
+    const handleQuickApprove = async (bookingId: string, opts?: { note?: string; newResourceIds?: string[]; adjustReason?: string }) => {
+        try {
+            await bookingService.approve(bookingId, {
+                bookingId,
+                note: opts?.note,
+                newResourceIds: opts?.newResourceIds,
+                adjustReason: opts?.adjustReason,
+            });
+            showToast('Booking approved.', 'success');
+            fetchData();
+            if (activePanel?.type === 'view_booking' && activePanel.targetId === bookingId) setActivePanel(null);
+        } catch (err: any) {
+            showToast(err?.response?.data?.message || 'Failed to approve booking.', 'error');
+            throw err;
+        }
+    };
+
+    const handleQuickReject = async (bookingId: string, rejectReason: string) => {
+        try {
+            await bookingService.reject(bookingId, rejectReason);
+            showToast('Booking rejected.', 'success');
+            fetchData();
+            if (activePanel?.type === 'view_booking' && activePanel.targetId === bookingId) setActivePanel(null);
+        } catch (err: any) {
+            showToast(err?.response?.data?.message || 'Failed to reject booking.', 'error');
+            throw err;
+        }
+    };
+
+    const handleBulkCheckIn = async () => {
+        const targets = displayBookings.filter(b => bulkSelectedIds.includes(b.id) && b.status === BookingStatus.Approved);
+        if (!targets.length) return;
+        setBulkChecking(true);
+        try {
+            await Promise.all(targets.map(b => bookingService.checkIn(b.id, bulkCheckInNote.trim() || undefined)));
+            const n = targets.length;
+            showToast(`Check-in recorded for ${n} booking${n > 1 ? 's' : ''}.`, 'success');
+            setBulkSelectedIds([]); setBulkCheckInNote('');
+            fetchData();
+        } catch (err: any) {
+            showToast(err?.response?.data?.message || 'Check-in failed.', 'error');
+        } finally { setBulkChecking(false); }
+    };
+
+    const handleBulkCheckOut = async () => {
+        const targets = displayBookings.filter(b => bulkSelectedIds.includes(b.id) && b.status === BookingStatus.InUse);
+        if (!targets.length) return;
+        setBulkChecking(true);
+        try {
+            await Promise.all(targets.map(b => bookingService.checkOut(b.id, b.resourceIds?.[0] ?? '', bulkCheckOutNote.trim() || undefined)));
+            const n = targets.length;
+            showToast(`Check-out recorded for ${n} booking${n > 1 ? 's' : ''}.`, 'success');
+            setBulkSelectedIds([]); setBulkCheckOutNote('');
+            fetchData();
+        } catch (err: any) {
+            showToast(err?.response?.data?.message || 'Check-out failed.', 'error');
+        } finally { setBulkChecking(false); }
+    };
+
+    const handleBulkApprove = async () => {
+        if (bulkSelectedIds.length === 0) return;
+        setBulkApproving(true);
+        setShowBulkModal(false);
+        try {
+            const results = await bookingService.bulkApprove(
+                bulkSelectedIds.map(bookingId => ({ bookingId, note: bulkApproveNote.trim() || undefined }))
+            );
+            const succeeded = results.filter(r => r.success).length;
+            const failed = results.filter(r => !r.success).length;
+            if (succeeded > 0) showToast(`${succeeded} booking(s) approved.`, 'success');
+            if (failed > 0) showToast(`${failed} booking(s) could not be approved.`, 'warning');
+            setBulkSelectedIds([]);
+            setBulkApproveNote('');
+            fetchData();
+        } catch (err: any) {
+            showToast(err?.response?.data?.message || 'Bulk approve failed.', 'error');
+        } finally {
+            setBulkApproving(false);
+        }
     };
 
     // ─── Derived state ───────────────────────────────────────────────────────
@@ -420,7 +525,23 @@ const ResourceBooking: React.FC = () => {
                                         {mainTab === 'bookings' && (
                                             <>
                                                 <button style={pillStyle(bookingSubTab === 'my', meta.color)} onClick={() => switchBookingSubTab('my')}>My Bookings</button>
-                                                <button style={pillStyle(bookingSubTab === 'managed', meta.color)} onClick={() => switchBookingSubTab('managed')}>Managed</button>
+                                                <button style={pillStyle(bookingSubTab === 'managed', meta.color)} onClick={() => switchBookingSubTab('managed')}>
+                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                        Managed
+                                                        {managedBookings.filter(b => b.status === BookingStatus.Pending).length > 0 && (
+                                                            <span style={{
+                                                                fontSize: '0.62rem', fontWeight: 800,
+                                                                background: bookingSubTab === 'managed' ? '#fff' : '#f97316',
+                                                                color: bookingSubTab === 'managed' ? '#f97316' : '#fff',
+                                                                minWidth: '18px', height: '18px', borderRadius: '9px',
+                                                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                                                padding: '0 5px', lineHeight: 1
+                                                            }}>
+                                                                {managedBookings.filter(b => b.status === BookingStatus.Pending).length}
+                                                            </span>
+                                                        )}
+                                                    </span>
+                                                </button>
                                                 {isLabDirector && (
                                                     <button style={pillStyle(bookingSubTab === 'all', meta.color)} onClick={() => switchBookingSubTab('all')}>
                                                         <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><ClipboardList size={12} /> All Bookings</span>
@@ -430,14 +551,6 @@ const ResourceBooking: React.FC = () => {
                                         )}
                                     </div>
                                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                        {mainTab === 'bookings' && (
-                                            <button onClick={() => handleCreateBooking()} style={{
-                                                display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700,
-                                                padding: '0 14px', height: '32px', borderRadius: '8px', fontSize: '0.8rem',
-                                                background: meta.color, border: 'none',
-                                                color: '#fff', cursor: 'pointer', boxShadow: `0 2px 6px ${meta.color}55`
-                                            }}><Plus size={14} /> New Booking</button>
-                                        )}
                                         {mainTab === 'resources' && isResourceTypeTab && isLabDirector && (
                                             <button onClick={handleCreateResourceType} style={{
                                                 display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700,
@@ -453,6 +566,14 @@ const ResourceBooking: React.FC = () => {
                                                 background: meta.color, border: 'none',
                                                 color: '#fff', cursor: 'pointer', boxShadow: `0 2px 6px ${meta.color}55`
                                             }}><Plus size={14} /> Add Resource</button>
+                                        )}
+                                        {mainTab === 'resources' && !isResourceTypeTab && (
+                                            <button onClick={() => handleCreateBooking()} style={{
+                                                display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700,
+                                                padding: '0 14px', height: '32px', borderRadius: '8px', fontSize: '0.8rem',
+                                                background: '#8b5cf6', border: 'none',
+                                                color: '#fff', cursor: 'pointer', boxShadow: '0 2px 6px #8b5cf655'
+                                            }}><Plus size={14} /> New Booking</button>
                                         )}
                                     </div>
                                 </div>
@@ -563,15 +684,16 @@ const ResourceBooking: React.FC = () => {
                 )}
 
                 {/* ── Main content ── */}
-                <div style={{ display: 'flex', gap: '1.5rem', height: 'calc(100vh - 320px)', minHeight: '560px' }}>
+                <div style={{ display: 'flex', height: 'calc(100vh - 320px)', minHeight: '560px', background: '#fff', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', overflow: 'hidden' }}>
                     {/* Left: List */}
                     <div style={{
-                        flex: activePanel ? 4 : 10,
+                        flex: activePanel ? 5 : 10,
                         display: 'flex', flexDirection: 'column',
                         transition: 'flex 0.35s cubic-bezier(0.4,0,0.2,1)',
-                        overflow: 'hidden', minWidth: 0
+                        overflow: 'hidden', minWidth: 0,
+                        borderRight: activePanel ? '1px solid #f1f5f9' : 'none',
                     }}>
-                        <div style={{ flex: 1, overflowY: 'auto', paddingRight: '4px' }} className="custom-scrollbar">
+                        <div style={{ flex: 1, overflowY: 'auto', padding: '12px 12px 12px 12px' }} className="custom-scrollbar">
                             {loading ? (
                                 <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '5rem' }}>
                                     <Loader2 className="animate-spin" size={32} style={{ color: '#f97316' }} />
@@ -597,11 +719,114 @@ const ResourceBooking: React.FC = () => {
                                     />
                                 </>
                             ) : isBookingTab ? (
-                                <BookingListView
-                                    bookings={displayBookings}
-                                    selectedId={activePanel?.type === 'view_booking' ? activePanel.targetId ?? null : null}
-                                    onSelect={handleViewBooking}
-                                />
+                                <>
+                                    {/* Bulk action bar — managed tab only */}
+                                    {bookingSubTab === 'managed' && (() => {
+                                        const pendingIds   = displayBookings.filter(b => b.status === BookingStatus.Pending).map(b => b.id);
+                                        const approvedIds  = displayBookings.filter(b => b.status === BookingStatus.Approved).map(b => b.id);
+                                        const inUseIds     = displayBookings.filter(b => b.status === BookingStatus.InUse).map(b => b.id);
+                                        const selPending   = bulkSelectedIds.filter(id => pendingIds.includes(id));
+                                        const selApproved  = bulkSelectedIds.filter(id => approvedIds.includes(id));
+                                        const selInUse     = bulkSelectedIds.filter(id => inUseIds.includes(id));
+                                        const anySelected  = bulkSelectedIds.length > 0;
+                                        const isBusy       = bulkApproving || bulkChecking;
+                                        return (
+                                            <div style={{ ...(anySelected ? { position: 'sticky', top: 0, zIndex: 10, background: '#fff', padding: '8px 12px 10px', margin: '0 -12px 10px', borderBottom: '1.5px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.06)' } : { marginBottom: '10px' }), display: 'flex', flexDirection: 'column', gap: '6px' }}>
+
+                                                {/* Status pills — always visible, click to toggle-select all of that status */}
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' as const }}>
+                                                    {pendingIds.length > 0 && (
+                                                        <button
+                                                            onClick={() => setBulkSelectedIds(prev => selPending.length === pendingIds.length ? prev.filter(id => !pendingIds.includes(id)) : [...new Set([...prev, ...pendingIds])])}
+                                                            style={{ fontSize: '0.68rem', fontWeight: 700, color: '#d97706', background: selPending.length > 0 ? '#fef3c7' : '#fff', border: '1px solid #fde68a', borderRadius: '6px', cursor: 'pointer', padding: '2px 9px' }}>
+                                                            Pending ({selPending.length}/{pendingIds.length})
+                                                        </button>
+                                                    )}
+                                                    {approvedIds.length > 0 && (
+                                                        <button
+                                                            onClick={() => setBulkSelectedIds(prev => selApproved.length === approvedIds.length ? prev.filter(id => !approvedIds.includes(id)) : [...new Set([...prev, ...approvedIds])])}
+                                                            style={{ fontSize: '0.68rem', fontWeight: 700, color: '#059669', background: selApproved.length > 0 ? '#dcfce7' : '#fff', border: '1px solid #a7f3d0', borderRadius: '6px', cursor: 'pointer', padding: '2px 9px' }}>
+                                                            Approved ({selApproved.length}/{approvedIds.length})
+                                                        </button>
+                                                    )}
+                                                    {inUseIds.length > 0 && (
+                                                        <button
+                                                            onClick={() => setBulkSelectedIds(prev => selInUse.length === inUseIds.length ? prev.filter(id => !inUseIds.includes(id)) : [...new Set([...prev, ...inUseIds])])}
+                                                            style={{ fontSize: '0.68rem', fontWeight: 700, color: '#7c3aed', background: selInUse.length > 0 ? '#ede9fe' : '#fff', border: '1px solid #e9d5ff', borderRadius: '6px', cursor: 'pointer', padding: '2px 9px' }}>
+                                                            In Use ({selInUse.length}/{inUseIds.length})
+                                                        </button>
+                                                    )}
+                                                    {anySelected && (
+                                                        <button onClick={() => { setBulkSelectedIds([]); setBulkCheckInNote(''); setBulkCheckOutNote(''); }}
+                                                            style={{ fontSize: '0.68rem', color: '#94a3b8', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }}>
+                                                            Clear all
+                                                        </button>
+                                                    )}
+                                                </div>
+
+                                                {/* Approve row */}
+                                                {selPending.length > 0 && (
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 12px', background: '#fff', borderRadius: '9px', border: '1px solid #e0e7ff' }}>
+                                                        <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#4f46e5', flexShrink: 0 }}>Approve</span>
+                                                        <div style={{ flex: 1 }} />
+                                                        <button onClick={() => setShowBulkModal(true)} disabled={isBusy}
+                                                            style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 14px', borderRadius: '6px', border: 'none', background: isBusy ? '#94a3b8' : '#4f46e5', color: '#fff', fontSize: '0.72rem', fontWeight: 700, cursor: isBusy ? 'not-allowed' : 'pointer' }}>
+                                                            {bulkApproving ? <Loader2 size={11} className="animate-spin" /> : <CheckCircle2 size={11} />}
+                                                            Approve {selPending.length}
+                                                        </button>
+                                                    </div>
+                                                )}
+
+                                                {/* Check-in row */}
+                                                {selApproved.length > 0 && (
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#059669', flexShrink: 0, width: '64px' }}>Check In</span>
+                                                        <input
+                                                            value={bulkCheckInNote}
+                                                            onChange={e => setBulkCheckInNote(e.target.value)}
+                                                            placeholder="Note (optional)..."
+                                                            style={{ flex: 1, padding: '7px 10px', borderRadius: '7px', border: '1.5px solid #d1fae5', fontSize: '0.78rem', outline: 'none', background: '#f0fdf4', height: '34px', boxSizing: 'border-box' as const }}
+                                                        />
+                                                        <button onClick={handleBulkCheckIn} disabled={isBusy}
+                                                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', width: '128px', borderRadius: '7px', border: 'none', background: isBusy ? '#94a3b8' : '#059669', color: '#fff', fontSize: '0.78rem', fontWeight: 700, cursor: isBusy ? 'not-allowed' : 'pointer', flexShrink: 0, height: '34px' }}>
+                                                            {bulkChecking ? <Loader2 size={12} className="animate-spin" /> : <LogIn size={12} />}
+                                                            Check In {selApproved.length}
+                                                        </button>
+                                                    </div>
+                                                )}
+
+                                                {/* Check-out row */}
+                                                {selInUse.length > 0 && (
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#7c3aed', flexShrink: 0, width: '64px' }}>Check Out</span>
+                                                        <input
+                                                            value={bulkCheckOutNote}
+                                                            onChange={e => setBulkCheckOutNote(e.target.value)}
+                                                            placeholder="Note (optional)..."
+                                                            style={{ flex: 1, padding: '7px 10px', borderRadius: '7px', border: '1.5px solid #e9d5ff', fontSize: '0.78rem', outline: 'none', background: '#faf5ff', height: '34px', boxSizing: 'border-box' as const }}
+                                                        />
+                                                        <button onClick={handleBulkCheckOut} disabled={isBusy}
+                                                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', width: '128px', borderRadius: '7px', border: 'none', background: isBusy ? '#94a3b8' : '#7c3aed', color: '#fff', fontSize: '0.78rem', fontWeight: 700, cursor: isBusy ? 'not-allowed' : 'pointer', flexShrink: 0, height: '34px' }}>
+                                                            {bulkChecking ? <Loader2 size={12} className="animate-spin" /> : <LogOut size={12} />}
+                                                            Check Out {selInUse.length}
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })()}
+                                    <BookingListView
+                                        bookings={displayBookings}
+                                        selectedId={activePanel?.type === 'view_booking' ? activePanel.targetId ?? null : null}
+                                        onSelect={handleViewBooking}
+                                        selectable={bookingSubTab === 'managed'}
+                                        selectedIds={bulkSelectedIds}
+                                        onToggleSelect={toggleBulkSelect}
+                                        onQuickApprove={bookingSubTab === 'managed' ? handleQuickApprove : undefined}
+                                        onQuickReject={bookingSubTab === 'managed' ? handleQuickReject : undefined}
+                                        onLoadDetail={bookingService.getById}
+                                    />
+                                </>
                             ) : isLogTab ? (
                                 <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
                                     {displayLogs.length === 0 ? (
@@ -673,12 +898,9 @@ const ResourceBooking: React.FC = () => {
                     {/* Right: Detail / Form Panel */}
                     {activePanel && (
                         <div style={{
-                            flex: 6, transition: 'flex 0.35s cubic-bezier(0.4,0,0.2,1)',
-                            overflow: 'hidden', display: 'flex', flexDirection: 'column',
-                            background: '#fff', borderRadius: '16px',
-                            border: '1px solid #e2e8f0', padding: '1.5rem',
-                            alignSelf: ['resource_type_form', 'view_booking'].includes(activePanel.type) ? 'flex-start' : 'stretch',
-                            boxShadow: '0 4px 20px rgba(0,0,0,0.07)'
+                            flex: 5, transition: 'flex 0.35s cubic-bezier(0.4,0,0.2,1)',
+                            overflow: 'auto', display: 'flex', flexDirection: 'column',
+                            background: '#fff', padding: '1.5rem',
                         }}>
                             {activePanel.type === 'create_resource' && (
                                 <CreateResourceForm onClose={handleClosePanel} onSaved={handlePanelSaved} onTitleChange={handleTitleChange} />
@@ -694,7 +916,8 @@ const ResourceBooking: React.FC = () => {
                             {activePanel.type === 'create_booking' && (
                                 <BookingResourceForm
                                     onClose={handleClosePanel} onSaved={handlePanelSaved}
-                                    onTitleChange={handleTitleChange} preSelectedResource={activePanel.preSelectedResource}
+                                    onTitleChange={handleTitleChange}
+                                    cartItems={bookingCart} onCartChange={setBookingCart}
                                 />
                             )}
                             {activePanel.type === 'view_booking' && activePanel.targetId && (
@@ -787,6 +1010,107 @@ const ResourceBooking: React.FC = () => {
                 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
                 .animate-spin { animation: spin 1s linear infinite; }
             `}</style>
+
+            {/* Bulk Approve Confirmation Modal */}
+            {showBulkModal && (
+                <div style={{
+                    position: 'fixed', inset: 0, zIndex: 1000,
+                    background: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(4px)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px'
+                }} onClick={e => { if (e.target === e.currentTarget) { setShowBulkModal(false); } }}>
+                    <div style={{
+                        background: '#fff', borderRadius: '16px',
+                        boxShadow: '0 24px 48px rgba(0,0,0,0.18)',
+                        width: '100%', maxWidth: '440px', overflow: 'hidden'
+                    }}>
+                        {/* Modal Header */}
+                        <div style={{ padding: '20px 24px 0', borderBottom: '1px solid #e2e8f0', paddingBottom: '16px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#059669' }}>
+                                    <CheckCircle2 size={18} />
+                                </div>
+                                <div>
+                                    <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: '#0f172a' }}>
+                                        Bulk Approve Bookings
+                                    </h3>
+                                    <p style={{ margin: 0, fontSize: '0.78rem', color: '#64748b' }}>
+                                        Approving {bulkSelectedIds.length} selected booking{bulkSelectedIds.length !== 1 ? 's' : ''}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Modal Body */}
+                        <div style={{ padding: '20px 24px' }}>
+                            {/* Summary chips */}
+                            <div style={{ marginBottom: '16px', display: 'flex', flexWrap: 'wrap' as const, gap: '6px' }}>
+                                {bulkSelectedIds.slice(0, 5).map(id => {
+                                    const booking = managedBookings.find(b => b.id === id);
+                                    return (
+                                        <span key={id} style={{
+                                            fontSize: '0.72rem', fontWeight: 600,
+                                            background: '#f0fdf4', color: '#065f46',
+                                            border: '1px solid #bbf7d0',
+                                            padding: '3px 10px', borderRadius: '20px',
+                                            maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const
+                                        }}>{booking?.title || id.slice(0, 8) + '…'}</span>
+                                    );
+                                })}
+                                {bulkSelectedIds.length > 5 && (
+                                    <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#64748b', padding: '3px 10px' }}>
+                                        +{bulkSelectedIds.length - 5} more
+                                    </span>
+                                )}
+                            </div>
+
+                            {/* Note */}
+                            <label style={{ fontSize: '0.72rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase' as const, letterSpacing: '0.6px', display: 'block', marginBottom: '6px' }}>
+                                Approval Note (optional)
+                            </label>
+                            <textarea
+                                style={{
+                                    width: '100%', padding: '10px 14px', borderRadius: '10px',
+                                    border: '1.5px solid #e2e8f0', fontSize: '0.85rem',
+                                    fontFamily: 'inherit', outline: 'none',
+                                    minHeight: '80px', resize: 'vertical' as const,
+                                    background: '#f8fafc', boxSizing: 'border-box' as const
+                                }}
+                                value={bulkApproveNote}
+                                onChange={e => setBulkApproveNote(e.target.value)}
+                                placeholder="Optional note to include with all approvals..."
+                                onFocus={e => { e.currentTarget.style.borderColor = '#059669'; }}
+                                onBlur={e => { e.currentTarget.style.borderColor = '#e2e8f0'; }}
+                            />
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div style={{ padding: '0 24px 20px', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                            <button
+                                onClick={() => { setShowBulkModal(false); setBulkApproveNote(''); }}
+                                style={{ padding: '8px 20px', borderRadius: '10px', border: '1px solid #e2e8f0', background: '#fff', color: '#475569', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 700 }}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleBulkApprove}
+                                disabled={bulkApproving}
+                                style={{
+                                    padding: '8px 24px', borderRadius: '10px', border: 'none',
+                                    background: bulkApproving ? '#94a3b8' : '#059669',
+                                    color: '#fff', cursor: bulkApproving ? 'not-allowed' : 'pointer',
+                                    fontSize: '0.82rem', fontWeight: 700,
+                                    display: 'flex', alignItems: 'center', gap: '6px'
+                                }}
+                            >
+                                {bulkApproving
+                                    ? <><Loader2 size={14} className="animate-spin" /> Approving…</>
+                                    : <><CheckCircle2 size={14} /> Confirm Approve All</>
+                                }
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </MainLayout>
     );
 };

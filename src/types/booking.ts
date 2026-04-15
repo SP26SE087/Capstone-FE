@@ -40,38 +40,46 @@ export interface Resource {
   managerEmail?: string;
 }
 
+export interface BasicResourceResponse {
+  id: string;
+  name: string;
+  resourceTypeId?: string;
+  resourceTypeName?: string;
+  status?: number;
+  location?: string | null;
+  modelSeries?: string;
+  isAvailable?: boolean;
+  isDamaged?: boolean;
+  isInUse?: boolean;
+}
+
 export interface Booking {
   id: string;
   bookingId?: string;
   resourceId?: string;
   resourceName?: string;
   resourceIds?: string[];
-  userId: string;
-  userName: string;
+  quantity?: number;
+  userId?: string;
+  userName?: string;
   userFullName?: string;
   userEmail?: string;
   title: string;
-  purpose: string;
+  purpose?: string;
   startTime: string;
   endTime: string;
   status: BookingStatus;
-  rejectReason?: string;
-  cancelReason?: string;
-  note?: string;
+  rejectReason?: string | null;
+  cancelReason?: string | null;
+  note?: string | null;
+  adjustReason?: string | null;
+  approvedBy?: string | null;
+  approvedByName?: string | null;
+  approvedAt?: string | null;
   createdAt: string;
-  resource?: {
-    id: string;
-    name?: string;
-    resourceTypeId?: string;
-    resourceTypeName?: string;
-    status?: number;
-    location?: string | null;
-    modelSeries?: string;
-    isAvailable?: boolean;
-    isDamaged?: boolean;
-    isInUse?: boolean;
-  };
-  resources?: { id: string; name: string; type: ResourceType }[];
+  updatedAt?: string;
+  isUrgent?: boolean;
+  resources?: BasicResourceResponse[];
 }
 
 export enum BookingStatus {
@@ -83,12 +91,35 @@ export enum BookingStatus {
   InUse = 6
 }
 
-export interface CreateBookingRequest {
+export interface CreateBookingItem {
   resourceIds: string[];
+}
+
+export interface CreateBookingRequest {
+  items: CreateBookingItem[];
   title: string;
   purpose: string;
   startTime: string;
   endTime: string;
+  isUrgent?: boolean;
+}
+
+export interface ApproveBookingRequest {
+  bookingId?: string;
+  note?: string | null;
+  newResourceIds?: string[] | null;
+  adjustReason?: string | null;
+}
+
+export interface BulkApproveItem extends ApproveBookingRequest {
+  bookingId: string;
+}
+
+export interface BulkApproveResult {
+  bookingId: string;
+  success: boolean;
+  errorMessage: string | null;
+  status: number | null;
 }
 
 export interface UpdateBookingRequest {

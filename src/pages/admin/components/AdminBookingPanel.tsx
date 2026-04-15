@@ -26,7 +26,7 @@ const AdminBookingPanel: React.FC<AdminBookingPanelProps> = ({
   const handleApprove = async () => {
     setLocalLoading(true);
     try {
-      await bookingService.approve(booking.id, actionNote);
+      await bookingService.approve(booking.id, { note: actionNote || null });
       onSaved(true, 'Booking request approved successfully.');
     } catch (error) {
       console.error(error);
