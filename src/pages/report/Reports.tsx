@@ -19,7 +19,8 @@ import {
     X,
     Edit3,
     ChevronRight,
-    Zap
+    Zap,
+    RotateCcw
 } from 'lucide-react';
 import reportService, { Report } from '@/services/reportService';
 import { projectService, userService } from '@/services';
@@ -50,6 +51,7 @@ const Reports: React.FC = () => {
     // Semantic Search State
     const [semanticResults, setSemanticResults] = useState<Report[] | null>(null);
     const [isSemanticLoading, setIsSemanticLoading] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
 
     // Multi-tab State
     interface ReportTab {
@@ -141,6 +143,15 @@ const Reports: React.FC = () => {
             setReports([]);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleRefresh = async () => {
+        setRefreshing(true);
+        try {
+            await fetchReports();
+        } finally {
+            setRefreshing(false);
         }
     };
 
@@ -295,6 +306,14 @@ const Reports: React.FC = () => {
                             Intelligent repository for team progress and research summaries.
                         </p>
                     </div>
+                    <button
+                        onClick={handleRefresh}
+                        disabled={refreshing}
+                        style={{ padding: '6px 12px', border: '1px solid #e2e8f0', background: 'white', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
+                    >
+                        <RotateCcw size={13} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
+                        Refresh
+                    </button>
                 </div>
 
                 {/* Search Toolbar */}

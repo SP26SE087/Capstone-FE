@@ -28,7 +28,8 @@ import {
     Trash2,
     X,
     Wrench,
-    Activity
+    Activity,
+    RotateCcw
 } from 'lucide-react';
 
 import ResourceListView from './components/ResourceListView';
@@ -105,6 +106,7 @@ const ResourceBooking: React.FC = () => {
     const [equipmentLogs, setEquipmentLogs] = useState<EquipmentLog[]>([]);
     const [resourceTypes, setResourceTypes] = useState<ResourceTypeItem[]>([]);
     const [loading, setLoading] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [filterStatus, setFilterStatus] = useState('');
     const [filterType, setFilterType] = useState('');
@@ -186,6 +188,15 @@ const ResourceBooking: React.FC = () => {
     }, [activeTab]);
 
     useEffect(() => { fetchData(); }, [fetchData]);
+
+    const handleRefresh = async () => {
+        setRefreshing(true);
+        try {
+            await fetchData();
+        } finally {
+            setRefreshing(false);
+        }
+    };
 
     const showToast = (msg: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => addToast(msg, type);
 
@@ -667,6 +678,14 @@ const ResourceBooking: React.FC = () => {
                             />
                         </div>
                     )}
+                    <button
+                        onClick={handleRefresh}
+                        disabled={refreshing}
+                        style={{ padding: '6px 12px', border: '1px solid #e2e8f0', background: 'white', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', flexShrink: 0 }}
+                    >
+                        <RotateCcw size={13} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
+                        Refresh
+                    </button>
                     </div>
                 </div>
                 {/* ── Breadcrumb when panel open ── */}

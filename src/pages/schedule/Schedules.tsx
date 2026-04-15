@@ -24,6 +24,7 @@ import {
     Sparkles,
     Zap,
     X,
+    RotateCcw,
 } from 'lucide-react';
 import meetingService from '@/services/meetingService';
 import { MeetingResponse, MeetingStatus } from '@/types/meeting';
@@ -64,6 +65,7 @@ const Schedules: React.FC = () => {
     // Semantic search
     const [semanticResults, setSemanticResults] = useState<MeetingResponse[] | null>(null);
     const [isSemanticLoading, setIsSemanticLoading] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
 
     // Panel system
     const [activePanel, setActivePanel] = useState<ScheduleTab | null>(null);
@@ -163,6 +165,15 @@ const Schedules: React.FC = () => {
             setMeetings([]);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleRefresh = async () => {
+        setRefreshing(true);
+        try {
+            await fetchMeetings();
+        } finally {
+            setRefreshing(false);
         }
     };
 
@@ -302,6 +313,14 @@ const Schedules: React.FC = () => {
                             Manage meetings, video calls, and team schedules with Google Meet integration.
                         </p>
                     </div>
+                    <button
+                        onClick={handleRefresh}
+                        disabled={refreshing}
+                        style={{ padding: '6px 12px', border: '1px solid #e2e8f0', background: 'white', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
+                    >
+                        <RotateCcw size={13} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
+                        Refresh
+                    </button>
                 </div>
 
 

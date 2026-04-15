@@ -60,7 +60,7 @@ export const router = createBrowserRouter([
     },
     {
         path: '/papers',
-        element: <AuthGuard><RoleGuard allowedRoles={[3, 4]}><PaperSubmissions /></RoleGuard></AuthGuard>,
+        element: <AuthGuard><RoleGuard allowedRoles={[2, 3, 4]}><PaperSubmissions /></RoleGuard></AuthGuard>,
     },
     {
         path: '/paper-review',

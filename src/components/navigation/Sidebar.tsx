@@ -27,7 +27,7 @@ const Sidebar: React.FC = () => {
         { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/dashboard' },
         { icon: <Briefcase size={20} />, label: 'My Projects', path: '/projects' },
         { icon: <CheckSquare size={20} />, label: 'Tasks', path: '/tasks' },
-        ...(!isLabDirector ? [{ icon: <FileText size={20} />, label: 'Paper Submission', path: '/papers' }] : []),
+        { icon: <FileText size={20} />, label: 'Paper Submission', path: '/papers' },
         { icon: <Users size={20} />, label: 'Members', path: '/members' },
         { icon: <BarChart2 size={20} />, label: 'Reports', path: '/reports' },
         { icon: <Box size={20} />, label: 'Booking Resource', path: '/bookings' },

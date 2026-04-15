@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
     Search, Plus, X, LayoutGrid, User, Calendar, Loader2,
-    Target, Filter, ChevronDown, Check, Clock
+    Target, Filter, ChevronDown, Check, Clock, RotateCcw
 } from 'lucide-react';
 import { Project, Task, TaskStatus, Milestone, MilestoneStatus } from '@/types';
 import ActivityTimeline from './ActivityTimeline';
@@ -61,6 +61,8 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
 }) => {
     const [personalTasks, setPersonalTasks] = useState<Task[]>([]);
     const [loadingTasks, setLoadingTasks] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
+    const [panelRefreshKey, setPanelRefreshKey] = useState(0);
     const isSpecialRole = currentMember?.projectRole === 1 || currentMember?.projectRole === 4;
     const [viewContext, setViewContext] = useState<'personal' | 'all'>(isSpecialRole ? 'all' : 'personal');
     const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -172,6 +174,19 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
         setSelectedTaskId(tId);
     };
 
+    const handleRefresh = async () => {
+        setRefreshing(true);
+        try {
+            if (viewContext === 'personal') {
+                await fetchPersonalTasks();
+            }
+            await refreshTasks();
+            setPanelRefreshKey(k => k + 1);
+        } finally {
+            setRefreshing(false);
+        }
+    };
+
     const labelStyle = {
         fontSize: '0.75rem',
         fontWeight: 500,
@@ -241,6 +256,14 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
             </div>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                 {viewToggle}
+                <button
+                    onClick={handleRefresh}
+                    disabled={refreshing}
+                    style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white', cursor: refreshing ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px', color: '#64748b', opacity: refreshing ? 0.7 : 1, fontSize: '0.78rem', fontWeight: 600 }}
+                >
+                    <RotateCcw size={13} className={refreshing ? 'animate-spin' : ''} />
+                    Refresh
+                </button>
                 {viewMode === 'list' && canManageTasks && !isArchived && (
                     <button onClick={handleAddNewClick} style={{ padding: '8px 12px', borderRadius: '8px', background: 'var(--primary-color)', border: 'none', color: 'white', fontWeight: 700, fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
                         <Plus size={16} /> New Task
@@ -943,11 +966,13 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                             canManageTasks={canManageTasks}
                             isArchived={isArchived}
                             isSpecialRole={isSpecialRole}
+                            isLabDirector={currentMember?.projectRole === 1}
                             formatProjectDate={formatProjectDate}
                             showToast={showToast}
                             refreshTasks={refreshTasks}
                             onPersonalRefresh={fetchPersonalTasks}
                             viewContext={viewContext}
+                            panelRefreshKey={panelRefreshKey}
                         />
                     )}
                 </div>

@@ -25,7 +25,7 @@ import {
     Plus, Search, ExternalLink, X, Loader2, Trash2,
     Send, Edit2, Link as LinkIcon, FileText, CheckCircle2, XCircle,
     Clock, Filter, Target, Briefcase, BookOpen, FileCheck, RefreshCw, Gavel, Upload,
-    Sparkles, Zap
+    Sparkles, Zap, RotateCcw, Camera, Globe
 } from 'lucide-react';
 
 const STATUS_COLOR: Record<SubmissionStatus, string> = {
@@ -36,6 +36,9 @@ const STATUS_COLOR: Record<SubmissionStatus, string> = {
     [SubmissionStatus.Revision]: '#f97316',
     [SubmissionStatus.Decision]: '#8b5cf6',
     [SubmissionStatus.Rejected]: '#ef4444',
+    [SubmissionStatus.Accepted]: '#10b981',
+    [SubmissionStatus.CameraReady]: '#6366f1',
+    [SubmissionStatus.Published]: '#0ea5e9',
 };
 
 const STATUS_BG: Record<SubmissionStatus, string> = {
@@ -46,6 +49,9 @@ const STATUS_BG: Record<SubmissionStatus, string> = {
     [SubmissionStatus.Revision]: '#fff7ed',
     [SubmissionStatus.Decision]: '#f5f3ff',
     [SubmissionStatus.Rejected]: '#fef2f2',
+    [SubmissionStatus.Accepted]: '#ecfdf5',
+    [SubmissionStatus.CameraReady]: '#eef2ff',
+    [SubmissionStatus.Published]: '#f0f9ff',
 };
 
 const isPdfFile = (file: File | null): boolean => {
@@ -126,6 +132,7 @@ const PaperSubmissions: React.FC = () => {
     // Semantic search
     const [semanticResults, setSemanticResults] = useState<PaperSubmissionResponse[] | null>(null);
     const [isSemanticLoading, setIsSemanticLoading] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
 
     const [projects, setProjects] = useState<any[]>([]);
     const [projectMembers, setProjectMembers] = useState<any[]>([]);
@@ -276,6 +283,15 @@ const PaperSubmissions: React.FC = () => {
             setPapers([]);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleRefreshPapers = async () => {
+        setRefreshing(true);
+        try {
+            await loadPapers(pageIndex);
+        } finally {
+            setRefreshing(false);
         }
     };
 
@@ -676,6 +692,94 @@ const PaperSubmissions: React.FC = () => {
                 } finally {
                     setActionLoading(null);
                 }
+            },
+        });
+    };
+
+    const handleAcceptDecision = () => {
+        if (!selectedPaper) return;
+        openConfirm({
+            title: 'Accept Paper',
+            message: 'This will move the paper to Accepted status.',
+            confirmText: 'Accept',
+            variant: 'success',
+            onConfirm: async () => {
+                closeConfirm();
+                setActionLoading(selectedPaper.paperSubmissionId);
+                try {
+                    const updated = await paperSubmissionService.changeStatus(selectedPaper.paperSubmissionId, SubmissionStatus.Accepted);
+                    setPapers(prev => prev.map(p => p.paperSubmissionId === updated.paperSubmissionId ? updated : p));
+                    setSelectedPaper(updated);
+                    showToast('Paper accepted!', 'success');
+                } catch (err: any) {
+                    showToast(err.response?.data?.message || 'Failed to accept paper.', 'error');
+                } finally { setActionLoading(null); }
+            },
+        });
+    };
+
+    const handleRejectDecision = () => {
+        if (!selectedPaper) return;
+        openConfirm({
+            title: 'Reject Paper',
+            message: 'Are you sure you want to reject this paper?',
+            confirmText: 'Reject',
+            variant: 'danger',
+            onConfirm: async () => {
+                closeConfirm();
+                setActionLoading(selectedPaper.paperSubmissionId);
+                try {
+                    const updated = await paperSubmissionService.changeStatus(selectedPaper.paperSubmissionId, SubmissionStatus.Rejected);
+                    setPapers(prev => prev.map(p => p.paperSubmissionId === updated.paperSubmissionId ? updated : p));
+                    setSelectedPaper(updated);
+                    showToast('Paper rejected.', 'error');
+                } catch (err: any) {
+                    showToast(err.response?.data?.message || 'Failed to reject paper.', 'error');
+                } finally { setActionLoading(null); }
+            },
+        });
+    };
+
+    const handleMarkCameraReady = () => {
+        if (!selectedPaper) return;
+        openConfirm({
+            title: 'Mark as Camera Ready',
+            message: 'This will move the paper to Camera Ready status.',
+            confirmText: 'Camera Ready',
+            variant: 'success',
+            onConfirm: async () => {
+                closeConfirm();
+                setActionLoading(selectedPaper.paperSubmissionId);
+                try {
+                    const updated = await paperSubmissionService.changeStatus(selectedPaper.paperSubmissionId, SubmissionStatus.CameraReady);
+                    setPapers(prev => prev.map(p => p.paperSubmissionId === updated.paperSubmissionId ? updated : p));
+                    setSelectedPaper(updated);
+                    showToast('Marked as Camera Ready.', 'success');
+                } catch (err: any) {
+                    showToast(err.response?.data?.message || 'Failed.', 'error');
+                } finally { setActionLoading(null); }
+            },
+        });
+    };
+
+    const handlePublish = () => {
+        if (!selectedPaper) return;
+        openConfirm({
+            title: 'Mark as Published',
+            message: 'This will mark the paper as Published. This is a terminal state and cannot be undone.',
+            confirmText: 'Publish',
+            variant: 'success',
+            onConfirm: async () => {
+                closeConfirm();
+                setActionLoading(selectedPaper.paperSubmissionId);
+                try {
+                    const updated = await paperSubmissionService.changeStatus(selectedPaper.paperSubmissionId, SubmissionStatus.Published);
+                    setPapers(prev => prev.map(p => p.paperSubmissionId === updated.paperSubmissionId ? updated : p));
+                    setSelectedPaper(updated);
+                    showToast('Paper published!', 'success');
+                } catch (err: any) {
+                    showToast(err.response?.data?.message || 'Failed to publish paper.', 'error');
+                } finally { setActionLoading(null); }
             },
         });
     };
@@ -1162,7 +1266,15 @@ const PaperSubmissions: React.FC = () => {
                             ))}
                         </div>
                     </div>
-                    <div style={{ marginLeft: '1rem', paddingBottom: '2px' }}>
+                    <div style={{ marginLeft: '1rem', paddingBottom: '2px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <button
+                            onClick={handleRefreshPapers}
+                            disabled={refreshing}
+                            style={{ padding: '6px 12px', border: '1px solid #e2e8f0', background: 'white', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', height: '42px' }}
+                        >
+                            <RotateCcw size={13} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
+                            Refresh
+                        </button>
                         <button
                             onClick={openCreate}
                             className="btn btn-primary"
@@ -1361,7 +1473,7 @@ const PaperSubmissions: React.FC = () => {
                                         projectMembers={projectMembers}
                                         membersLoading={membersLoading}
                                         formErrors={formErrors}
-                                        hidePaperUrl={![SubmissionStatus.Approved, SubmissionStatus.Submitted, SubmissionStatus.Revision, SubmissionStatus.Decision].includes(selectedPaper.status)}
+                                        hidePaperUrl={![SubmissionStatus.Approved, SubmissionStatus.Submitted, SubmissionStatus.Revision, SubmissionStatus.Decision, SubmissionStatus.Accepted, SubmissionStatus.CameraReady, SubmissionStatus.Published].includes(selectedPaper.status)}
                                     />
 
                                     {/* External Authors — edit mode local staging */}
@@ -1506,7 +1618,7 @@ const PaperSubmissions: React.FC = () => {
                                     )}
 
                                     {/* Paper URL */}
-                                    {selectedPaper.paperUrl && [SubmissionStatus.Approved, SubmissionStatus.Submitted, SubmissionStatus.Revision, SubmissionStatus.Decision].includes(selectedPaper.status) && (
+                                    {selectedPaper.paperUrl && [SubmissionStatus.Approved, SubmissionStatus.Submitted, SubmissionStatus.Revision, SubmissionStatus.Decision, SubmissionStatus.Accepted, SubmissionStatus.CameraReady, SubmissionStatus.Published].includes(selectedPaper.status) && (
                                         <div>
                                             <div style={{ fontSize: '0.62rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' as const, letterSpacing: '0.6px', marginBottom: '6px' }}>Paper URL</div>
                                             <a href={selectedPaper.paperUrl} target="_blank" rel="noreferrer"
@@ -1600,6 +1712,10 @@ const PaperSubmissions: React.FC = () => {
                                     {/* Actions */}
                                     {(() => {
                                         const canEdit = selectedPaper.editable;
+                                        const projectRole = currentUserMembership?.projectRole ?? currentUserMembership?.role ?? currentUserMembership?.projectRoleId;
+                                        const projectRoleName = (currentUserMembership?.roleName ?? currentUserMembership?.projectRoleName ?? '').toLowerCase();
+                                        const isProjectLeader = projectRole === ProjectRoleEnum.Leader || projectRoleName.includes('leader');
+                                        const canRevertToDraft = isDirector || isProjectLeader;
                                         return (
                                     <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '14px', display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '4px' }}>
 
@@ -1698,18 +1814,53 @@ const PaperSubmissions: React.FC = () => {
                                             </div>
                                         )}
 
-                                        {/* Decision: final status */}
-                                        {selectedPaper.status === SubmissionStatus.Decision && (
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', borderRadius: '9px', background: STATUS_BG[SubmissionStatus.Decision], border: `1px solid ${STATUS_COLOR[SubmissionStatus.Decision]}33` }}>
-                                                <span style={{ flex: 1, fontSize: '0.82rem', fontWeight: 600, color: STATUS_COLOR[SubmissionStatus.Decision] }}>Decision recorded.</span>
+                                        {/* Decision → Accept / Reject */}
+                                        {selectedPaper.status === SubmissionStatus.Decision && canEdit && (
+                                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' as const }}>
+                                                <button onClick={handleAcceptDecision} disabled={!!actionLoading}
+                                                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: 'none', background: '#10b981', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem', boxShadow: '0 2px 8px rgba(16,185,129,0.25)' }}>
+                                                    {actionLoading ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} Accept
+                                                </button>
+                                                <button onClick={handleRejectDecision} disabled={!!actionLoading}
+                                                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: '1px solid #fecaca', background: '#fee2e2', color: '#dc2626', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>
+                                                    {actionLoading ? <Loader2 size={14} className="animate-spin" /> : <XCircle size={14} />} Reject
+                                                </button>
                                             </div>
                                         )}
 
-                                        {/* Rejected → Revert to Draft */}
+                                        {/* Accepted → Camera Ready */}
+                                        {selectedPaper.status === SubmissionStatus.Accepted && canEdit && (
+                                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' as const }}>
+                                                <button onClick={handleMarkCameraReady} disabled={!!actionLoading}
+                                                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: 'none', background: '#6366f1', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem', boxShadow: '0 2px 8px rgba(99,102,241,0.25)' }}>
+                                                    {actionLoading ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />} Mark Camera Ready
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        {/* Camera Ready → Published */}
+                                        {selectedPaper.status === SubmissionStatus.CameraReady && canEdit && (
+                                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' as const }}>
+                                                <button onClick={handlePublish} disabled={!!actionLoading}
+                                                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: 'none', background: '#0ea5e9', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem', boxShadow: '0 2px 8px rgba(14,165,233,0.25)' }}>
+                                                    {actionLoading ? <Loader2 size={14} className="animate-spin" /> : <Globe size={14} />} Mark as Published
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        {/* Published: terminal */}
+                                        {selectedPaper.status === SubmissionStatus.Published && (
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', borderRadius: '9px', background: '#f0f9ff', border: '1px solid #bae6fd' }}>
+                                                <Globe size={13} style={{ color: '#0ea5e9', flexShrink: 0 }} />
+                                                <span style={{ flex: 1, fontSize: '0.82rem', fontWeight: 600, color: '#0369a1' }}>Published — no further actions available.</span>
+                                            </div>
+                                        )}
+
+                                        {/* Rejected → Revert to Draft (Leader / LabDirector only) */}
                                         {selectedPaper.status === SubmissionStatus.Rejected && (
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', borderRadius: '9px', background: '#fef2f2', border: '1px solid #fecaca' }}>
                                                 <span style={{ flex: 1, fontSize: '0.82rem', fontWeight: 600, color: '#dc2626' }}>Paper rejected.</span>
-                                                {canEdit && (
+                                                {canRevertToDraft && (
                                                 <button onClick={handleRevertToDraft} disabled={!!actionLoading}
                                                     style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: 'none', background: '#3b82f6', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem', boxShadow: '0 2px 8px rgba(59,130,246,0.25)' }}>
                                                     {actionLoading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />} Revert to Draft

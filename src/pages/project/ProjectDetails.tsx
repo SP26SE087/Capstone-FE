@@ -797,6 +797,7 @@ const ProjectDetails: React.FC = () => {
                                 isArchived={isArchived}
                                 onMemberAdded={refetchMembers}
                                 onMemberUpdated={() => { refetchMembers(); showToast('Team updated.'); }}
+                                onMembersRefresh={refetchMembers}
                             />
                         )}
 

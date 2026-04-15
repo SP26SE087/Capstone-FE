@@ -19,7 +19,8 @@ import {
     AlertTriangle,
     CheckCircle2,
     FileText,
-    Users
+    Users,
+    RotateCcw
 } from 'lucide-react';
 import seminarService from '@/services/seminarService';
 import { SeminarMeetingResponse } from '@/types/seminar';
@@ -58,6 +59,7 @@ const Seminars: React.FC = () => {
     const { addToast } = useToastStore();
     const [viewMode, setViewMode] = useState<'list' | 'timetable'>('list');
     const [filterSeason, setFilterSeason] = useState<string>('');
+    const [refreshing, setRefreshing] = useState(false);
 
     // Panel system
     const [activePanel, setActivePanel] = useState<SeminarTab | null>(null);
@@ -197,6 +199,15 @@ const Seminars: React.FC = () => {
         }
     };
 
+    const handleRefresh = async () => {
+        setRefreshing(true);
+        try {
+            await fetchSeminars();
+        } finally {
+            setRefreshing(false);
+        }
+    };
+
     const showToast = (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => {
         addToast(message, type);
     };
@@ -321,6 +332,14 @@ const Seminars: React.FC = () => {
                             Manage recurring seminars, session schedules, and presenter rotations.
                         </p>
                     </div>
+                    <button
+                        onClick={handleRefresh}
+                        disabled={refreshing}
+                        style={{ padding: '6px 12px', border: '1px solid #e2e8f0', background: 'white', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
+                    >
+                        <RotateCcw size={13} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
+                        Refresh
+                    </button>
                 </div>
 
 

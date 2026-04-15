@@ -2,7 +2,7 @@ import React from 'react';
 import {
     Plus, Search, Calendar, Target, Edit3, X,
     Clock, Activity, CheckCircle2, User, Users, Info,
-    Save, Trash2, ChevronRight, ChevronDown, CheckCircle, Timer, AlertTriangle
+    Save, Trash2, ChevronRight, ChevronDown, CheckCircle, Timer, AlertTriangle, RotateCcw
 } from 'lucide-react';
 import { Milestone, MilestoneStatus, Task } from '@/types';
 import MilestoneItem from '@/components/milestone/MilestoneItem';
@@ -102,6 +102,7 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
     const pStartFormatted = projectStartDate ? projectStartDate.split('T')[0] : today;
     const pEndFormatted = projectEndDate ? projectEndDate.split('T')[0] : '';
     const [formTab, setFormTab] = React.useState<FormTab>('view');
+    const [refreshingMilestones, setRefreshingMilestones] = React.useState(false);
     const [draftTasks, setDraftTasks] = React.useState<TaskDraft[]>([]);
     const [confirmState, setConfirmState] = React.useState<{
         isOpen: boolean;
@@ -880,6 +881,19 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                             <option value={MilestoneStatus.InProgress}>In Progress</option>
                             <option value={MilestoneStatus.Completed}>Done</option>
                         </select>
+                        <button
+                            onClick={async () => {
+                                if (!refreshMilestones) return;
+                                setRefreshingMilestones(true);
+                                try { await refreshMilestones(); } finally { setRefreshingMilestones(false); }
+                            }}
+                            disabled={refreshingMilestones}
+                            title="Refresh milestones"
+                            style={{ padding: '0.5rem 0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white', cursor: refreshingMilestones ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px', color: '#64748b', opacity: refreshingMilestones ? 0.6 : 1, flexShrink: 0, fontSize: '0.78rem', fontWeight: 600 }}
+                        >
+                            <RotateCcw size={13} className={refreshingMilestones ? 'animate-spin' : ''} />
+                            Refresh
+                        </button>
                     </div>
                     <div ref={milestoneContainerRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem' }} className="custom-scrollbar">
                         {[...filteredMilestones].sort((a, b) => {

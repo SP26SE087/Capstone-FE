@@ -6,7 +6,8 @@ import {
     Mail,
     Users,
     Loader2,
-    X
+    X,
+    RotateCcw
 } from 'lucide-react';
 
 import { useAuth } from '@/hooks/useAuth';
@@ -40,6 +41,20 @@ const Members: React.FC = () => {
                          Number(user.role) === SystemRoleEnum.LabDirector;
     
     const { addToast } = useToastStore();
+    const [refreshing, setRefreshing] = useState(false);
+
+    const handleRefresh = async () => {
+        setRefreshing(true);
+        try {
+            const data = await userService.getAll();
+            setMembers(data);
+            setError(null);
+        } catch (err) {
+            console.error('Failed to fetch members:', err);
+        } finally {
+            setRefreshing(false);
+        }
+    };
 
     const fetchMembers = async () => {
         try {
@@ -164,6 +179,15 @@ const Members: React.FC = () => {
                             />
                         </div>
                     </div>
+
+                    <button
+                        onClick={handleRefresh}
+                        disabled={refreshing}
+                        style={{ padding: '6px 12px', border: '1px solid #e2e8f0', background: 'white', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', flexShrink: 0 }}
+                    >
+                        <RotateCcw size={13} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
+                        Refresh
+                    </button>
 
                     {isLabDirector && (
                         <div style={{ flexShrink: 0 }}>

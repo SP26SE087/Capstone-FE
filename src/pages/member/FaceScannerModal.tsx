@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Modal from '@/components/common/Modal';
 import { Camera, ShieldCheck, Play, Square } from 'lucide-react';
 import { faceService } from '@/services/faceService';
+import { userService } from '@/services/userService';
 import { useToastStore } from '@/store/slices/toastSlice';
 
 interface FaceScannerModalProps {
@@ -63,11 +64,26 @@ const FaceScannerModal: React.FC<FaceScannerModalProps> = ({ isOpen, onClose, in
             await faceService.stopAddUser();
             setIsScanning(false);
             setStatus(null);
-            addToast('Biometric registration process stopped.', 'success');
+
+            // Activate the user account — admin pressed "Stop & Save" intentionally
+            try {
+                const userData = await userService.getByStudentId(initialStudentId);
+                const userId = userData?.userId || userData?.id;
+                if (userId) {
+                    await userService.updateUser(userId, { isActive: true });
+                    addToast('Biometric registered. Account activated successfully.', 'success');
+                } else {
+                    addToast('Biometric saved. Could not activate account: user not found.', 'error');
+                }
+            } catch (updateErr) {
+                console.error('Failed to activate user account:', updateErr);
+                addToast('Biometric saved but failed to activate account.', 'error');
+            }
         } catch (err) {
             console.error('Stop scan failed:', err);
             setIsScanning(false);
             setStatus(null);
+            addToast((err as any).message || 'Failed to stop biometric registration.', 'error');
         }
     };
 

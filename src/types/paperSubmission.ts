@@ -8,6 +8,9 @@ export enum SubmissionStatus {
     Revision = 5,
     Decision = 6,
     Rejected = 7,
+    Accepted = 8,
+    CameraReady = 9,
+    Published = 10,
 }
 
 export const SubmissionStatusLabel: Record<SubmissionStatus, string> = {
@@ -18,6 +21,9 @@ export const SubmissionStatusLabel: Record<SubmissionStatus, string> = {
     [SubmissionStatus.Revision]: 'Revision Required',
     [SubmissionStatus.Decision]: 'Decision',
     [SubmissionStatus.Rejected]: 'Rejected',
+    [SubmissionStatus.Accepted]: 'Accepted',
+    [SubmissionStatus.CameraReady]: 'Camera Ready',
+    [SubmissionStatus.Published]: 'Published',
 };
 
 export enum PaperRoleEnum {
@@ -56,6 +62,12 @@ export interface ExternalUserResponse {
     createdAt: string;
 }
 
+export interface PaperAssignee {
+    userId: string;
+    email: string;
+    fullName: string;
+}
+
 export interface PaperSubmissionResponse {
     paperSubmissionId: string;
     projectId?: string | null;
@@ -78,6 +90,7 @@ export interface PaperSubmissionResponse {
     editable: boolean;
     members: PaperMemberResponse[];
     externalUsers?: ExternalUserResponse[] | null;
+    assignees?: PaperAssignee[] | null;
 }
 
 // ---- Request DTOs ----

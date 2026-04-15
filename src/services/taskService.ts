@@ -392,10 +392,11 @@ export const taskService = {
         }
     },
 
-    updateStatus: async (taskId: string, status: number): Promise<any> => {
+    updateStatus: async (taskId: string, status: number, reason?: string): Promise<any> => {
         try {
-            // Updated to use the new format: PATCH /api/projects/tasks/${taskId}/status
-            const response = await api.patch(`/api/projects/tasks/${taskId}/status`, { newStatus: status });
+            const body: { newStatus: number; reason?: string } = { newStatus: status };
+            if (reason !== undefined && reason !== '') body.reason = reason;
+            const response = await api.patch(`/api/projects/tasks/${taskId}/status`, body);
             return response.data;
         } catch (error) {
             console.error(`Error updating status for task ${taskId}:`, error);

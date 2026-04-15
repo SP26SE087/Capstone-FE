@@ -33,8 +33,9 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({ taskId, onClose, onTa
     const [error, setError] = useState<string | null>(null);
     const [isSubmitConfirmOpen, setIsSubmitConfirmOpen] = useState(false);
     const [isStartConfirmOpen, setIsStartConfirmOpen] = useState(false);
-    const [isAdjustConfirmOpen, setIsAdjustConfirmOpen] = useState(false);
-    const [isApproveConfirmOpen, setIsApproveConfirmOpen] = useState(false);
+    const [reasonModal, setReasonModal] = useState<{ mode: 'approve' | 'reject' } | null>(null);
+    const [reasonText, setReasonText] = useState('');
+    const [reasonError, setReasonError] = useState('');
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -117,7 +118,7 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({ taskId, onClose, onTa
         }
     };
 
-    const handleStatusAction = async (newStatus: TaskStatus) => {
+    const handleStatusAction = async (newStatus: TaskStatus, reason?: string) => {
         if (newStatus === TaskStatus.Submitted) {
             if (pendingFiles.length > 0) { setError('Upload pending files first before submitting.'); return; }
             if (serverEvidences.length === 0) { setError('Upload at least 1 evidence before submitting.'); return; }
@@ -125,7 +126,7 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({ taskId, onClose, onTa
         setSubmitting(true);
         setError(null);
         try {
-            await taskService.updateStatus(taskId, newStatus);
+            await taskService.updateStatus(taskId, newStatus, reason);
             await load();
             onTaskUpdated();
         } catch (err: any) {
@@ -133,6 +134,27 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({ taskId, onClose, onTa
         } finally {
             setSubmitting(false);
         }
+    };
+
+    const openReasonModal = (mode: 'approve' | 'reject') => {
+        setReasonText('');
+        setReasonError('');
+        setReasonModal({ mode });
+    };
+
+    const handleReasonSubmit = async () => {
+        if (!reasonModal) return;
+        if (reasonModal.mode === 'reject' && !reasonText.trim()) {
+            setReasonError('Reason is required when requesting adjustment.');
+            return;
+        }
+        if (reasonText.length > 2000) {
+            setReasonError('Reason must not exceed 2000 characters.');
+            return;
+        }
+        const newStatus = reasonModal.mode === 'approve' ? TaskStatus.Completed : TaskStatus.Adjusting;
+        setReasonModal(null);
+        await handleStatusAction(newStatus, reasonText.trim() || undefined);
     };
 
     const canUpload = task && task.status !== TaskStatus.Completed;
@@ -344,11 +366,11 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({ taskId, onClose, onTa
 
                                 {task.status === TaskStatus.Submitted && (
                                     <div style={{ display: 'flex', gap: '8px' }}>
-                                        <button onClick={() => setIsAdjustConfirmOpen(true)} disabled={submitting}
+                                        <button onClick={() => openReasonModal('reject')} disabled={submitting}
                                             style={{ flex: 1, padding: '0.75rem', background: '#fff1f2', color: '#e11d48', border: '1.5px solid #fecdd3', borderRadius: '12px', fontWeight: 800, fontSize: '0.72rem', cursor: submitting ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
                                             <RotateCw size={13} /> REQUEST ADJUST
                                         </button>
-                                        <button onClick={() => setIsApproveConfirmOpen(true)} disabled={submitting}
+                                        <button onClick={() => openReasonModal('approve')} disabled={submitting}
                                             style={{ flex: 1, padding: '0.75rem', background: '#f0fdf4', color: '#16a34a', border: '1.5px solid #bbf7d0', borderRadius: '12px', fontWeight: 800, fontSize: '0.72rem', cursor: submitting ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
                                             <CheckCircle2 size={13} /> APPROVE TASK
                                         </button>
@@ -379,26 +401,54 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({ taskId, onClose, onTa
                 cancelText="Cancel"
                 variant="info"
             />
-            <ConfirmModal
-                isOpen={isAdjustConfirmOpen}
-                onClose={() => setIsAdjustConfirmOpen(false)}
-                onConfirm={async () => { setIsAdjustConfirmOpen(false); await handleStatusAction(TaskStatus.Adjusting); }}
-                title="Request Adjustment"
-                message="Send this task back for adjustment? The assignee will need to revise and resubmit."
-                confirmText="Request Adjust"
-                cancelText="Cancel"
-                variant="danger"
-            />
-            <ConfirmModal
-                isOpen={isApproveConfirmOpen}
-                onClose={() => setIsApproveConfirmOpen(false)}
-                onConfirm={async () => { setIsApproveConfirmOpen(false); await handleStatusAction(TaskStatus.Completed); }}
-                title="Approve Task"
-                message="Mark this task as Completed? This action confirms the work is done and accepted."
-                confirmText="Approve"
-                cancelText="Cancel"
-                variant="success"
-            />
+            {/* Reason Modal for Approve / Request Adjust */}
+            {reasonModal && (
+                <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ position: 'absolute', inset: 0, background: 'rgba(15,23,42,0.45)' }} onClick={() => setReasonModal(null)} />
+                    <div style={{ position: 'relative', background: 'white', borderRadius: '16px', boxShadow: '0 20px 60px rgba(0,0,0,0.18)', padding: '2rem', width: '100%', maxWidth: '440px', display: 'flex', flexDirection: 'column', gap: '1.25rem', margin: '1rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            {reasonModal.mode === 'reject'
+                                ? <RotateCw size={20} color="#e11d48" />
+                                : <CheckCircle2 size={20} color="#16a34a" />}
+                            <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: '#1e293b' }}>
+                                {reasonModal.mode === 'reject' ? 'Request Adjustment' : 'Approve Task'}
+                            </h3>
+                        </div>
+                        <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b', lineHeight: 1.6 }}>
+                            {reasonModal.mode === 'reject'
+                                ? 'Send this task back for adjustment. The assignee will need to revise and resubmit.'
+                                : 'Mark this task as Completed. This confirms the work is done and accepted.'}
+                        </p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            <label style={{ fontSize: '0.72rem', fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                Reason{reasonModal.mode === 'reject' ? <span style={{ color: '#e11d48' }}> *</span> : <span style={{ color: '#94a3b8', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}> (optional)</span>}
+                            </label>
+                            <textarea
+                                rows={4}
+                                maxLength={2000}
+                                placeholder={reasonModal.mode === 'reject' ? 'Describe what needs to be adjusted...' : 'Leave a note for the assignee (optional)...'}
+                                value={reasonText}
+                                onChange={e => { setReasonText(e.target.value); if (reasonError) setReasonError(''); }}
+                                style={{ resize: 'vertical', padding: '0.75rem', borderRadius: '10px', border: `1.5px solid ${reasonError ? '#fca5a5' : '#e2e8f0'}`, fontSize: '0.85rem', color: '#1e293b', outline: 'none', fontFamily: 'inherit', lineHeight: 1.6, background: reasonError ? '#fff5f5' : '#f8fafc' }}
+                            />
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                {reasonError
+                                    ? <span style={{ fontSize: '0.72rem', color: '#e11d48', fontWeight: 600 }}>{reasonError}</span>
+                                    : <span />}
+                                <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>{reasonText.length}/2000</span>
+                            </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                            <button onClick={() => setReasonModal(null)} style={{ flex: 1, padding: '0.75rem', borderRadius: '12px', fontWeight: 600, fontSize: '0.82rem', border: '1px solid #e2e8f0', background: 'white', color: '#374151', cursor: 'pointer' }}>
+                                Cancel
+                            </button>
+                            <button onClick={handleReasonSubmit} style={{ flex: 1, padding: '0.75rem', borderRadius: '12px', fontWeight: 700, fontSize: '0.82rem', border: 'none', background: reasonModal.mode === 'reject' ? '#e11d48' : '#16a34a', color: 'white', cursor: 'pointer' }}>
+                                {reasonModal.mode === 'reject' ? 'Request Adjust' : 'Approve'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

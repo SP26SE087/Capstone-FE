@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
     Activity, Clock, Calendar, User, Users,
-    Play, Send, AlertTriangle,
+    Play, Send, AlertTriangle, RotateCcw,
     Layout, CheckCircle2, Target, ChevronRight, ChevronDown, Loader2
 } from 'lucide-react';
 import { Project, Milestone, Task, TaskStatus, MilestoneStatus, ProjectRoleEnum } from '@/types';
@@ -55,6 +55,7 @@ const DetailsHome: React.FC<DetailsHomeProps> = ({
     const dropdownRef = useRef<HTMLDivElement>(null);
     const [submitting, setSubmitting] = useState<string | null>(null);
     const [expandedTasks, setExpandedTasks] = useState<string[]>([]);
+    const [refreshing, setRefreshing] = useState(false);
 
     // API Stats State
     const [overviewStats, setOverviewStats] = useState<any>(null);
@@ -230,6 +231,18 @@ const DetailsHome: React.FC<DetailsHomeProps> = ({
     }, [uniqueMilestones, selectedMilestoneId]);
 
     // Handlers
+    const handleRefresh = async () => {
+        setRefreshing(true);
+        try {
+            await Promise.all([
+                fetchDashboardStats(),
+                viewMode === 'my-work' ? fetchMyTasks() : Promise.resolve(),
+            ]);
+        } finally {
+            setRefreshing(false);
+        }
+    };
+
     const handleUpdateTaskStatus = async (taskId: string, newStatus: TaskStatus) => {
         // Ownership check
         const targetTask = tasks.find(t => (t as any).id === taskId || t.taskId === taskId);
@@ -363,6 +376,8 @@ const DetailsHome: React.FC<DetailsHomeProps> = ({
                         </button>
                     </div>
 
+                    {/* Right side: milestone dropdown + refresh */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     {/* PREMIUM CUSTOM MILESTONE DROPDOWN */}
                     <div ref={dropdownRef} style={{ position: 'relative' }}>
                         <button
@@ -423,6 +438,16 @@ const DetailsHome: React.FC<DetailsHomeProps> = ({
                                 })}
                             </div>
                         )}
+                    </div>
+                    {/* Refresh */}
+                    <button
+                        onClick={handleRefresh}
+                        disabled={refreshing}
+                        style={{ padding: '7px 12px', borderRadius: '12px', border: '1px solid #e2e8f0', background: 'white', cursor: refreshing ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px', color: '#64748b', opacity: refreshing ? 0.6 : 1, fontSize: '0.8rem', fontWeight: 600 }}
+                    >
+                        <RotateCcw size={13} className={refreshing ? 'animate-spin' : ''} />
+                        Refresh
+                    </button>
                     </div>
                 </div>
 

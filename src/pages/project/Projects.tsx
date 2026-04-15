@@ -20,7 +20,8 @@ import {
     Check,
     AlertTriangle,
     Clock,
-    FlaskConical
+    FlaskConical,
+    RotateCcw
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import ResearchFieldManager from '@/features/projects/components/ResearchFieldManager';
@@ -54,6 +55,7 @@ const Projects: React.FC = () => {
     const { addToast } = useToastStore();
     const [projects, setProjects] = useState<Project[]>([]);
     const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState<ProjectStatus | 'All'>('All');
 
@@ -114,6 +116,18 @@ const Projects: React.FC = () => {
             console.error('Failed to fetch projects:', error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleRefresh = async () => {
+        setRefreshing(true);
+        try {
+            const data = await projectService.getAll();
+            setProjects(data || []);
+        } catch (error) {
+            console.error('Failed to refresh projects:', error);
+        } finally {
+            setRefreshing(false);
         }
     };
 
@@ -186,7 +200,7 @@ const Projects: React.FC = () => {
         <MainLayout role={user.role} userName={user.name}>
             <div className="page-container">
                 {/* Header */}
-                <div className="page-header" style={{ marginBottom: '2rem' }}>
+                <div className="page-header" style={{ marginBottom: '1.25rem' }}>
                     <div>
                         <h1>My Projects</h1>
                         <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>Management hub for your research initiatives and active workflows.</p>
@@ -220,55 +234,56 @@ const Projects: React.FC = () => {
                     )}
                 </div>
 
-                {/* Focus Toolbar */}
-                <div style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '0.75rem',
-                    marginBottom: '2rem',
-                    background: 'var(--surface-color)',
-                    padding: '1rem',
-                    borderRadius: '16px',
-                    border: '1px solid var(--border-color)',
-                    boxShadow: 'var(--shadow-sm)'
-                }}>
-                    {/* Row 1: Search */}
-                    <div style={{ position: 'relative' }}>
-                        <Search size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                {/* Toolbar: Search + Status chips + Refresh */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
+                    {/* Search */}
+                    <div style={{ position: 'relative', flex: '1 1 200px', minWidth: '160px' }}>
+                        <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
                         <input
                             type="text"
-                            placeholder="Quick find project..."
+                            placeholder="Search projects..."
                             className="form-input"
-                            style={{
-                                paddingLeft: '44px',
-                                height: '44px',
-                                border: 'none',
-                                background: 'var(--surface-hover)',
-                                borderRadius: '10px',
-                                fontSize: '0.95rem',
-                                width: '100%'
-                            }}
+                            style={{ paddingLeft: '36px', height: '36px', borderRadius: '10px', fontSize: '0.85rem', width: '100%' }}
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
                     </div>
 
-                    {/* Row 2: Status chips */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.6px', flexShrink: 0 }}>Status:</span>
-                        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                            {(['All', ProjectStatus.Active, ProjectStatus.Inactive, ProjectStatus.Completed, ProjectStatus.Archived] as const).map(status => (
-                                <button
-                                    key={status}
-                                    onClick={() => setStatusFilter(status as any)}
-                                    className={`filter-chip ${statusFilter === status ? 'active' : ''}`}
-                                    style={{ height: '32px', padding: '0 0.9rem', borderRadius: '8px', fontSize: '0.78rem' }}
-                                >
-                                    {status === 'All' ? 'All' : getProjectStatusStyle(status as ProjectStatus).label}
-                                </button>
-                            ))}
-                        </div>
+                    {/* Divider */}
+                    <div style={{ width: '1px', height: '22px', background: 'var(--border-color)', flexShrink: 0 }} />
+
+                    {/* Status chips */}
+                    <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                        {(['All', ProjectStatus.Active, ProjectStatus.Inactive, ProjectStatus.Completed, ProjectStatus.Archived] as const).map(status => (
+                            <button
+                                key={status}
+                                onClick={() => setStatusFilter(status as any)}
+                                className={`filter-chip ${statusFilter === status ? 'active' : ''}`}
+                                style={{ height: '30px', padding: '0 0.75rem', borderRadius: '8px', fontSize: '0.75rem' }}
+                            >
+                                {status === 'All' ? 'All' : getProjectStatusStyle(status as ProjectStatus).label}
+                            </button>
+                        ))}
                     </div>
+
+                    {/* Divider */}
+                    <div style={{ width: '1px', height: '22px', background: 'var(--border-color)', flexShrink: 0 }} />
+
+                    {/* Refresh */}
+                    <button
+                        onClick={handleRefresh}
+                        disabled={refreshing}
+                        style={{
+                            height: '36px', padding: '0 12px', borderRadius: '10px', border: '1px solid var(--border-color)',
+                            background: 'white', cursor: refreshing ? 'not-allowed' : 'pointer',
+                            display: 'flex', alignItems: 'center', gap: '6px',
+                            color: 'var(--text-secondary)', opacity: refreshing ? 0.6 : 1, flexShrink: 0, transition: 'all 0.15s',
+                            fontSize: '0.8rem', fontWeight: 600,
+                        }}
+                    >
+                        <RotateCcw size={14} className={refreshing ? 'animate-spin' : ''} />
+                        Refresh
+                    </button>
                 </div>
 
                 {/* Project Grid + Create Project Panel */}

@@ -25,6 +25,9 @@ const STATUS_COLOR: Record<SubmissionStatus, string> = {
     [SubmissionStatus.Revision]: '#f97316',
     [SubmissionStatus.Decision]: '#8b5cf6',
     [SubmissionStatus.Rejected]: '#ef4444',
+    [SubmissionStatus.Accepted]: '#10b981',
+    [SubmissionStatus.CameraReady]: '#6366f1',
+    [SubmissionStatus.Published]: '#0ea5e9',
 };
 
 const STATUS_BG: Record<SubmissionStatus, string> = {
@@ -35,6 +38,9 @@ const STATUS_BG: Record<SubmissionStatus, string> = {
     [SubmissionStatus.Revision]: '#fff7ed',
     [SubmissionStatus.Decision]: '#f5f3ff',
     [SubmissionStatus.Rejected]: '#fef2f2',
+    [SubmissionStatus.Accepted]: '#ecfdf5',
+    [SubmissionStatus.CameraReady]: '#eef2ff',
+    [SubmissionStatus.Published]: '#f0f9ff',
 };
 
 const STATUS_ICON: Record<SubmissionStatus, React.ReactNode> = {
@@ -45,6 +51,9 @@ const STATUS_ICON: Record<SubmissionStatus, React.ReactNode> = {
     [SubmissionStatus.Revision]: <Repeat size={14} />,
     [SubmissionStatus.Decision]: <Gavel size={14} />,
     [SubmissionStatus.Rejected]: <XCircle size={14} />,
+    [SubmissionStatus.Accepted]: <CheckCircle2 size={14} />,
+    [SubmissionStatus.CameraReady]: <FileText size={14} />,
+    [SubmissionStatus.Published]: <Send size={14} />,
 };
 
 const STATUS_LABEL: Record<SubmissionStatus, string> = {
@@ -55,6 +64,9 @@ const STATUS_LABEL: Record<SubmissionStatus, string> = {
     [SubmissionStatus.Revision]: 'Revision',
     [SubmissionStatus.Decision]: 'Decision',
     [SubmissionStatus.Rejected]: 'Rejected',
+    [SubmissionStatus.Accepted]: 'Accepted',
+    [SubmissionStatus.CameraReady]: 'Camera Ready',
+    [SubmissionStatus.Published]: 'Published',
 };
 
 const getStatusConfig = (status: SubmissionStatus) => ({

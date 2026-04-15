@@ -62,11 +62,13 @@ export interface TaskDetailPanelProps {
     canManageTasks: boolean;
     isArchived: boolean;
     isSpecialRole: boolean;
+    isLabDirector: boolean;
     formatProjectDate: (date: string | Date | undefined, fallback?: string) => string;
     showToast: (message: string, type: 'success' | 'error' | 'info' | 'warning') => void;
     refreshTasks: () => void;
     onPersonalRefresh: () => void;
     viewContext: 'personal' | 'all';
+    panelRefreshKey?: number;
 }
 
 const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
@@ -75,12 +77,14 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
     projectMembers,
     milestones,
     isSpecialRole,
+    isLabDirector,
     isArchived,
     formatProjectDate,
     showToast,
     refreshTasks,
     onPersonalRefresh,
     viewContext,
+    panelRefreshKey,
 }) => {
     // ── Task detail loading ──
     const [selectedTaskDetail, setSelectedTaskDetail] = useState<Task | null>(null);
@@ -110,8 +114,9 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
     // ── Actions / modals ──
     const [submittingId, setSubmittingId] = useState<string | null>(null);
     const [pendingSubmitTaskId, setPendingSubmitTaskId] = useState<string | null>(null);
-    const [pendingApproveTaskId, setPendingApproveTaskId] = useState<string | null>(null);
-    const [pendingAdjustTaskId, setPendingAdjustTaskId] = useState<string | null>(null);
+    const [reasonModal, setReasonModal] = useState<{ mode: 'approve' | 'reject'; taskId: string } | null>(null);
+    const [reasonText, setReasonText] = useState('');
+    const [reasonError, setReasonError] = useState('');
     const [pendingDelete, setPendingDelete] = useState<{ taskId: string; evidenceId: number } | null>(null);
     const [errorMessages, setErrorMessages] = useState<{ [taskId: string]: string | null }>({});
     const [successMessages, setSuccessMessages] = useState<{ [taskId: string]: string | null }>({});
@@ -158,6 +163,12 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
     }, []);
 
     useEffect(() => { void loadSelectedTaskDetail(selectedTaskId || ''); }, [selectedTaskId, loadSelectedTaskDetail]);
+
+    // ── Reload panel when parent triggers a refresh ──
+    useEffect(() => {
+        if (!panelRefreshKey || !selectedTaskId) return;
+        void loadSelectedTaskDetail(selectedTaskId);
+    }, [panelRefreshKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // ── Load evidences ──
     const fetchEvidences = useCallback(async (taskId: string) => {
@@ -384,10 +395,10 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
         }
     };
 
-    const handleApproveTask = async (taskId: string) => {
+    const handleApproveTask = async (taskId: string, reason?: string) => {
         setSubmittingId(taskId);
         try {
-            await taskService.updateStatus(taskId, TaskStatus.Completed);
+            await taskService.updateStatus(taskId, TaskStatus.Completed, reason);
             await refreshSelectedTaskViews(taskId);
         } catch (error: any) {
             showToast(error.message || 'Failed to approve task.', 'error');
@@ -396,16 +407,38 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
         }
     };
 
-    const handleRequestAdjusting = async (taskId: string) => {
+    const handleRequestAdjusting = async (taskId: string, reason?: string) => {
         setSubmittingId(taskId);
         try {
-            await taskService.updateStatus(taskId, TaskStatus.Adjusting);
+            await taskService.updateStatus(taskId, TaskStatus.Adjusting, reason);
             await refreshSelectedTaskViews(taskId);
         } catch (error: any) {
             showToast(error.message || 'Failed to request adjusting.', 'error');
         } finally {
             setSubmittingId(null);
         }
+    };
+
+    const openReasonModal = (mode: 'approve' | 'reject', taskId: string) => {
+        setReasonText('');
+        setReasonError('');
+        setReasonModal({ mode, taskId });
+    };
+
+    const handleReasonSubmit = async () => {
+        if (!reasonModal) return;
+        if (reasonModal.mode === 'reject' && !reasonText.trim()) {
+            setReasonError('Reason is required when requesting adjustment.');
+            return;
+        }
+        if (reasonText.length > 2000) {
+            setReasonError('Reason must not exceed 2000 characters.');
+            return;
+        }
+        const { mode, taskId } = reasonModal;
+        setReasonModal(null);
+        if (mode === 'approve') await handleApproveTask(taskId, reasonText.trim() || undefined);
+        else await handleRequestAdjusting(taskId, reasonText.trim() || undefined);
     };
 
     const handleStartTask = async (taskId: string) => {
@@ -915,6 +948,17 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
                     </div>
                 )}
 
+                {!isEditMode && (activeTask as any).reason && (
+                    <div style={{ background: activeTask.status === TaskStatus.Adjusting ? '#fff1f2' : '#f0fdf4', border: `1px solid ${activeTask.status === TaskStatus.Adjusting ? '#fecdd3' : '#bbf7d0'}`, borderRadius: '12px', padding: '0.875rem 1rem', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <label style={{ ...labelStyle, color: activeTask.status === TaskStatus.Adjusting ? '#e11d48' : '#16a34a', marginBottom: '2px' }}>
+                            {activeTask.status === TaskStatus.Adjusting ? 'Rejection Reason' : 'Approval Note'}
+                        </label>
+                        <div style={{ fontSize: '0.82rem', color: activeTask.status === TaskStatus.Adjusting ? '#9f1239' : '#14532d', lineHeight: 1.6 }}>
+                            {(activeTask as any).reason}
+                        </div>
+                    </div>
+                )}
+
                 {!isEditMode && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                         {/* Evidence Section */}
@@ -1014,19 +1058,29 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
                         {/* Approve / Adjust */}
                         {isSpecialRole && !(activeTask as any).isAssignee && activeTask.status === TaskStatus.Submitted && (
                             <div style={{ display: 'flex', gap: '10px', width: '100%', marginBottom: '1rem' }}>
-                                <button onClick={() => setPendingAdjustTaskId(taskId)} disabled={submittingId !== null}
+                                <button onClick={() => openReasonModal('reject', taskId)} disabled={submittingId !== null}
                                     style={{ flex: 1, padding: '0.85rem', background: '#fff1f2', color: '#e11d48', border: '1.5px solid #fecdd3', borderRadius: '12px', fontWeight: 800, fontSize: '0.75rem', cursor: submittingId !== null ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s', opacity: submittingId !== null ? 0.6 : 1 }}
                                     onMouseOver={e => { if (!submittingId) e.currentTarget.style.background = '#ffe4e6'; }}
                                     onMouseOut={e => { e.currentTarget.style.background = '#fff1f2'; }}>
                                     {submittingId === taskId ? <Loader2 size={14} className="animate-spin" /> : <RotateCw size={14} />} REQUEST ADJUST
                                 </button>
-                                <button onClick={() => setPendingApproveTaskId(taskId)} disabled={submittingId !== null}
+                                <button onClick={() => openReasonModal('approve', taskId)} disabled={submittingId !== null}
                                     style={{ flex: 1, padding: '0.85rem', background: '#f0fdf4', color: '#16a34a', border: '1.5px solid #bbf7d0', borderRadius: '12px', fontWeight: 800, fontSize: '0.75rem', cursor: submittingId !== null ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s', opacity: submittingId !== null ? 0.6 : 1 }}
                                     onMouseOver={e => { if (!submittingId) e.currentTarget.style.background = '#dcfce7'; }}
                                     onMouseOut={e => { e.currentTarget.style.background = '#f0fdf4'; }}>
                                     {submittingId === taskId ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} APPROVE TASK
                                 </button>
                             </div>
+                        )}
+
+                        {/* Lab Director can reject a Completed task */}
+                        {isLabDirector && activeTask.status === TaskStatus.Completed && (
+                            <button onClick={() => openReasonModal('reject', taskId)} disabled={submittingId !== null}
+                                style={{ width: '100%', padding: '0.85rem', background: '#fff1f2', color: '#e11d48', border: '1.5px solid #fecdd3', borderRadius: '12px', fontWeight: 800, fontSize: '0.75rem', cursor: submittingId !== null ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s', opacity: submittingId !== null ? 0.6 : 1 }}
+                                onMouseOver={e => { if (!submittingId) e.currentTarget.style.background = '#ffe4e6'; }}
+                                onMouseOut={e => { e.currentTarget.style.background = '#fff1f2'; }}>
+                                {submittingId === taskId ? <Loader2 size={14} className="animate-spin" /> : <RotateCw size={14} />} REOPEN FOR ADJUSTMENT
+                            </button>
                         )}
 
                         {/* Observer notice */}
@@ -1137,14 +1191,54 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
                 onConfirm={async () => { const id = pendingSubmitTaskId; setPendingSubmitTaskId(null); if (id) await handleSubmitForReview(id); }}
                 title="Confirm Submit" message="Submit this task for review? Make sure your evidence is correct and complete."
                 confirmText="Submit" cancelText="Cancel" variant="info" />
-            <ConfirmModal isOpen={!!pendingApproveTaskId} onClose={() => setPendingApproveTaskId(null)}
-                onConfirm={async () => { const id = pendingApproveTaskId; setPendingApproveTaskId(null); if (id) await handleApproveTask(id); }}
-                title="Approve Task" message="Are you sure you want to mark this task as completed? This action cannot be undone."
-                confirmText="Approve" cancelText="Cancel" variant="success" />
-            <ConfirmModal isOpen={!!pendingAdjustTaskId} onClose={() => setPendingAdjustTaskId(null)}
-                onConfirm={async () => { const id = pendingAdjustTaskId; setPendingAdjustTaskId(null); if (id) await handleRequestAdjusting(id); }}
-                title="Request Adjustment" message="Send this task back to the assignee for adjustments? They will need to re-submit once revised."
-                confirmText="Request Adjust" cancelText="Cancel" variant="danger" />
+            {/* Reason Modal for Approve / Request Adjust */}
+            {reasonModal && (
+                <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ position: 'absolute', inset: 0, background: 'rgba(15,23,42,0.45)' }} onClick={() => setReasonModal(null)} />
+                    <div style={{ position: 'relative', background: 'white', borderRadius: '16px', boxShadow: '0 20px 60px rgba(0,0,0,0.18)', padding: '2rem', width: '100%', maxWidth: '440px', display: 'flex', flexDirection: 'column', gap: '1.25rem', margin: '1rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            {reasonModal.mode === 'reject'
+                                ? <RotateCw size={20} color="#e11d48" />
+                                : <CheckCircle2 size={20} color="#16a34a" />}
+                            <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: '#1e293b' }}>
+                                {reasonModal.mode === 'reject' ? 'Request Adjustment' : 'Approve Task'}
+                            </h3>
+                        </div>
+                        <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b', lineHeight: 1.6 }}>
+                            {reasonModal.mode === 'reject'
+                                ? 'Send this task back for adjustment. The assignee will need to revise and resubmit.'
+                                : 'Mark this task as Completed. This confirms the work is done and accepted.'}
+                        </p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            <label style={{ fontSize: '0.72rem', fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                Reason{reasonModal.mode === 'reject' ? <span style={{ color: '#e11d48' }}> *</span> : <span style={{ color: '#94a3b8', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}> (optional)</span>}
+                            </label>
+                            <textarea
+                                rows={4}
+                                maxLength={2000}
+                                placeholder={reasonModal.mode === 'reject' ? 'Describe what needs to be adjusted...' : 'Leave a note for the assignee (optional)...'}
+                                value={reasonText}
+                                onChange={e => { setReasonText(e.target.value); if (reasonError) setReasonError(''); }}
+                                style={{ resize: 'vertical', padding: '0.75rem', borderRadius: '10px', border: `1.5px solid ${reasonError ? '#fca5a5' : '#e2e8f0'}`, fontSize: '0.85rem', color: '#1e293b', outline: 'none', fontFamily: 'inherit', lineHeight: 1.6, background: reasonError ? '#fff5f5' : '#f8fafc' }}
+                            />
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                {reasonError
+                                    ? <span style={{ fontSize: '0.72rem', color: '#e11d48', fontWeight: 600 }}>{reasonError}</span>
+                                    : <span />}
+                                <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>{reasonText.length}/2000</span>
+                            </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                            <button onClick={() => setReasonModal(null)} style={{ flex: 1, padding: '0.75rem', borderRadius: '12px', fontWeight: 600, fontSize: '0.82rem', border: '1px solid #e2e8f0', background: 'white', color: '#374151', cursor: 'pointer' }}>
+                                Cancel
+                            </button>
+                            <button onClick={handleReasonSubmit} style={{ flex: 1, padding: '0.75rem', borderRadius: '12px', fontWeight: 700, fontSize: '0.82rem', border: 'none', background: reasonModal.mode === 'reject' ? '#e11d48' : '#16a34a', color: 'white', cursor: 'pointer' }}>
+                                {reasonModal.mode === 'reject' ? 'Request Adjust' : 'Approve'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Delete Evidence Confirm */}
             {pendingDelete && (
