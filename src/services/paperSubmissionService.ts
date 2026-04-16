@@ -27,6 +27,7 @@ function buildFormData(data: CreatePaperRequest | UpdatePaperRequest, extra?: Re
     }
     if (data.documents) fd.append('Documents', data.documents);
     if (extra) Object.entries(extra).forEach(([k, v]) => v && fd.append(k, v));
+    (data.additionalAssigneeEmails ?? []).forEach(email => fd.append('AdditionalAssigneeEmails', email));
     (data.members ?? []).forEach((m, i) => {
         fd.append(`Members[${i}][membershipId]`, m.membershipId);
         fd.append(`Members[${i}][role]`, String(m.role));
@@ -111,8 +112,8 @@ export const paperSubmissionService = {
     },
 
     /** Director review: InternalReview → Approved or Rejected (LabDirector only) */
-    directorReview: async (id: string, isApproved: boolean): Promise<PaperSubmissionResponse> => {
-        return paperSubmissionService.changeStatus(id, isApproved ? SubmissionStatus.Approved : SubmissionStatus.Rejected);
+    directorReview: async (id: string, isApproved: boolean, reason?: string): Promise<PaperSubmissionResponse> => {
+        return paperSubmissionService.changeStatus(id, isApproved ? SubmissionStatus.Approved : SubmissionStatus.Rejected, reason);
     },
 
     /** Mark as Revision Required: Approved → Revision (LabDirector or Leader) */
@@ -126,8 +127,8 @@ export const paperSubmissionService = {
     },
 
     /** Manually change status */
-    changeStatus: async (id: string, newStatus: SubmissionStatus): Promise<PaperSubmissionResponse> => {
-        const response = await api.patch(`${BASE}/${id}/status`, { newStatus });
+    changeStatus: async (id: string, newStatus: SubmissionStatus, reason?: string): Promise<PaperSubmissionResponse> => {
+        const response = await api.patch(`${BASE}/${id}/status`, { newStatus, ...(reason !== undefined ? { reason } : {}) });
         return response.data.data || response.data;
     },
 

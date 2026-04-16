@@ -254,7 +254,7 @@ const Projects: React.FC = () => {
 
                     {/* Status chips */}
                     <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                        {(['All', ProjectStatus.Active, ProjectStatus.Inactive, ProjectStatus.Completed, ProjectStatus.Archived] as const).map(status => (
+                        {(['All', ProjectStatus.Active, ProjectStatus.Inactive, ProjectStatus.Completed, ProjectStatus.Cancelled, ProjectStatus.Archived] as const).map(status => (
                             <button
                                 key={status}
                                 onClick={() => setStatusFilter(status as any)}

@@ -24,7 +24,6 @@ const AdminResourcePanel: React.FC<AdminResourcePanelProps> = ({
     type: 1,
     location: '',
     totalQuantity: 1,
-    managedBy: user?.userId || '',
     modelSeriesList: ['DEFAULT-001']
   });
 
@@ -41,7 +40,6 @@ const AdminResourcePanel: React.FC<AdminResourcePanelProps> = ({
     e.preventDefault();
     setLoading(true);
     try {
-      const managerId = formData.managedBy || user?.userId || '';
       const requestData = {
         name: formData.name || '',
         description: formData.description || '',
@@ -57,7 +55,7 @@ const AdminResourcePanel: React.FC<AdminResourcePanelProps> = ({
       } else {
         await resourceService.create({
           ...requestData,
-          managedBy: managerId
+          managedByEmail: user?.email || ''
         });
         onSaved(true, 'Resource registered successfully.');
       }

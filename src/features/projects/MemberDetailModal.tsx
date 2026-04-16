@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import AppSelect from '@/components/common/AppSelect';
 import Modal from '@/components/common/Modal';
 import { membershipService, projectService, userService } from '@/services';
-import { Mail, Trash2, Loader2, Check, User, Calendar, ShieldCheck, Settings, Info } from 'lucide-react';
+import { Mail, Trash2, Loader2, Check, User, Calendar, ShieldCheck, Settings, Info, ClipboardList } from 'lucide-react';
 import { ProjectRoleEnum } from '@/types/project';
 
 interface MemberDetailModalProps {
@@ -43,6 +43,7 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
     const [systemDetails, setSystemDetails] = useState<any>(null);
     const [projectDetails, setProjectDetails] = useState<any>(null);
     const [loadingDetails, setLoadingDetails] = useState(false);
+    const [avatarError, setAvatarError] = useState(false);
 
     useEffect(() => {
         if (isOpen && member) {
@@ -125,6 +126,18 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
 
     if (!member) return null;
 
+    const avatarUrl = !avatarError && (projectDetails?.avatarUrl || member.avatarUrl || systemDetails?.avatarUrl);
+
+    const taskStatusColors: Record<string, { bg: string; color: string }> = {
+        'Completed':   { bg: '#ecfdf5', color: '#10b981' },
+        'InProgress':  { bg: '#eff6ff', color: '#3b82f6' },
+        'In Progress': { bg: '#eff6ff', color: '#3b82f6' },
+        'ToDo':        { bg: '#f8fafc', color: '#64748b' },
+        'To Do':       { bg: '#f8fafc', color: '#64748b' },
+        'Overdue':     { bg: '#fef2f2', color: '#ef4444' },
+        'Cancelled':   { bg: '#fef2f2', color: '#dc2626' },
+    };
+
     const isSelf = member.userId === currentUser.userId;
     const isTargetLabDirector = 
         Number(member.projectRole) === ProjectRoleEnum.LabDirector || 
@@ -176,18 +189,34 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
                     border: '1px solid #e2e8f0',
                     textAlign: 'center'
                 }}>
-                    <div style={{ 
-                        width: '120px', height: '120px', borderRadius: '50%', 
-                        background: 'var(--primary-color)', color: 'white',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: '3rem', fontWeight: 800,
-                        boxShadow: '0 10px 25px rgba(99, 102, 241, 0.25)',
-                        marginBottom: '1.5rem',
-                        border: '4px solid white',
-                        flexShrink: 0
-                    }}>
-                        {(member.fullName || member.userName || 'U')[0]}
-                    </div>
+                    {avatarUrl ? (
+                        <img
+                            src={avatarUrl}
+                            alt={member.fullName || member.userName}
+                            onError={() => setAvatarError(true)}
+                            style={{
+                                width: '120px', height: '120px', borderRadius: '50%',
+                                objectFit: 'cover',
+                                boxShadow: '0 10px 25px rgba(99, 102, 241, 0.25)',
+                                marginBottom: '1.5rem',
+                                border: '4px solid white',
+                                flexShrink: 0
+                            }}
+                        />
+                    ) : (
+                        <div style={{
+                            width: '120px', height: '120px', borderRadius: '50%',
+                            background: 'var(--primary-color)', color: 'white',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: '3rem', fontWeight: 800,
+                            boxShadow: '0 10px 25px rgba(99, 102, 241, 0.25)',
+                            marginBottom: '1.5rem',
+                            border: '4px solid white',
+                            flexShrink: 0
+                        }}>
+                            {(member.fullName || member.userName || 'U')[0]}
+                        </div>
+                    )}
                     
                     <h2 style={{ margin: '0 0 0.5rem 0', fontSize: '1.4rem', fontWeight: 700, color: '#1e293b', lineHeight: 1.2 }}>
                         {member.fullName || member.userName}
@@ -256,6 +285,49 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
                                 {loadingDetails ? <Loader2 size={18} className="animate-spin" /> : (ProjectRoleMap[Number(member.projectRole)] || ProjectRoleMap[Number(projectDetails?.projectRole)] || 'N/A')}
                             </div>
                         </div>
+                    </div>
+
+                    {/* Task Overview */}
+                    <div>
+                        <h4 style={{ margin: '0 0 1.25rem 0', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1rem', color: '#1e293b' }}>
+                            <ClipboardList size={20} style={{ color: 'var(--primary-color)' }} />
+                            Task Overview
+                        </h4>
+                        {loadingDetails ? (
+                            <div style={{ display: 'flex', justifyContent: 'center', padding: '1.5rem' }}>
+                                <Loader2 size={20} className="animate-spin" style={{ color: 'var(--primary-color)' }} />
+                            </div>
+                        ) : (
+                            <div style={{ padding: '1.25rem', background: 'white', border: '1.5px solid #f1f5f9', borderRadius: '14px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Total Assigned</span>
+                                    <span style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--primary-color)' }}>
+                                        {projectDetails?.totalAssignedTasks ?? 0}
+                                    </span>
+                                </div>
+                                {projectDetails?.taskCountsByStatus?.length > 0 && (
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', paddingTop: '8px', borderTop: '1px solid #f1f5f9' }}>
+                                        {projectDetails.taskCountsByStatus.map((ts: { status: string; count: number }) => {
+                                            const style = taskStatusColors[ts.status] || { bg: '#f1f5f9', color: '#64748b' };
+                                            return (
+                                                <span key={ts.status} style={{
+                                                    display: 'inline-flex', alignItems: 'center', gap: '5px',
+                                                    padding: '3px 10px', borderRadius: '20px',
+                                                    background: style.bg, color: style.color,
+                                                    fontSize: '0.75rem', fontWeight: 700
+                                                }}>
+                                                    <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: style.color, flexShrink: 0 }} />
+                                                    {ts.status}: {ts.count}
+                                                </span>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                                {(!projectDetails?.taskCountsByStatus || projectDetails.taskCountsByStatus.length === 0) && (
+                                    <p style={{ margin: 0, fontSize: '0.8rem', color: '#94a3b8', fontStyle: 'italic' }}>No tasks assigned</p>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     {/* Management Operations */}

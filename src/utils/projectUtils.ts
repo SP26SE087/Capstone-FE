@@ -35,6 +35,12 @@ export const getProjectStatusStyle = (status: ProjectStatus): StatusStyle => {
                 color: '#3b82f6', // Darker Blue
                 label: 'Completed'
             };
+        case ProjectStatus.Cancelled:
+            return {
+                bg: '#fef2f2', // Light Red
+                color: '#dc2626', // Red
+                label: 'Cancelled'
+            };
         default:
             return {
                 bg: '#f1f5f9',

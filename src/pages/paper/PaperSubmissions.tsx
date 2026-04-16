@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import AppSelect from '@/components/common/AppSelect';
 import MainLayout from '@/layout/MainLayout';
 import { useAuth } from '@/hooks/useAuth';
@@ -6,6 +6,7 @@ import { paperSubmissionService } from '@/services/paperSubmissionService';
 import { projectService } from '@/services/projectService';
 import { ProjectRoleEnum } from '@/types/project';
 import { membershipService } from '@/services/membershipService';
+import { userService } from '@/services/userService';
 import {
     SubmissionStatus,
     SubmissionStatusLabel,
@@ -25,7 +26,7 @@ import {
     Plus, Search, ExternalLink, X, Loader2, Trash2,
     Send, Edit2, Link as LinkIcon, FileText, CheckCircle2, XCircle,
     Clock, Filter, Target, Briefcase, BookOpen, FileCheck, RefreshCw, Gavel, Upload,
-    Sparkles, Zap, RotateCcw, Camera, Globe
+    Sparkles, Zap, RotateCcw, Camera, Globe, ChevronDown, Eye
 } from 'lucide-react';
 
 const STATUS_COLOR: Record<SubmissionStatus, string> = {
@@ -115,7 +116,7 @@ const hasExternalAuthorValidationErrors = (errors: ExternalAuthorValidationError
 
 const PaperSubmissions: React.FC = () => {
     const { user } = useAuth();
-    const isDirector = user?.role === 'LabDirector' || user?.role === 'Lab Director';
+    const isDirector = user?.role === 'LabDirector' || user?.role === 'Lab Director' || Number(user?.role) === 2;
 
     const { addToast } = useToastStore();
     const showToast = (message: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => addToast(message, type);
@@ -151,6 +152,13 @@ const PaperSubmissions: React.FC = () => {
     const [addDeadline, setAddDeadline] = useState('');
     const [addMembers, setAddMembers] = useState<PaperMemberRequest[]>([]);
     const [addExternalUsers, setAddExternalUsers] = useState<ExternalUserCreateDto[]>([]);
+    const [addAssigneeIds, setAddAssigneeIds] = useState<string[]>([]);
+    const [editAssigneeIds, setEditAssigneeIds] = useState<string[]>([]);
+    const [assigneesModalOpen, setAssigneesModalOpen] = useState(false);
+    const [viewAssigneesModalOpen, setViewAssigneesModalOpen] = useState(false);
+    const [viewAssigneesSaving, setViewAssigneesSaving] = useState(false);
+    const [authorsModalOpen, setAuthorsModalOpen] = useState(false);
+    const [authorDetail, setAuthorDetail] = useState<{ type: 'member' | 'external'; data: any } | null>(null);
     const [addDocument, setAddDocument] = useState<File | null>(null);
     const [addLoading, setAddLoading] = useState(false);
 
@@ -192,6 +200,11 @@ const PaperSubmissions: React.FC = () => {
     const [submitNewUrl, setSubmitNewUrl] = useState('');
     const [submitUrlLoading, setSubmitUrlLoading] = useState(false);
 
+    // Reject reason modal
+    const [reasonModalOpen, setReasonModalOpen] = useState(false);
+    const [reasonInput, setReasonInput] = useState('');
+    const [pendingRejectAction, setPendingRejectAction] = useState<((reason: string) => Promise<void>) | null>(null);
+
     // Confirm modal
     const [confirmModal, setConfirmModal] = useState<{
         isOpen: boolean;
@@ -206,6 +219,20 @@ const PaperSubmissions: React.FC = () => {
         setConfirmModal({ isOpen: true, ...opts });
     };
     const closeConfirm = () => setConfirmModal(prev => ({ ...prev, isOpen: false }));
+
+    /** Always include Lab Director(s) and Leader(s) from projectMembers in assignee emails */
+    const getDefaultAssigneeEmails = (members: any[]): string[] => {
+        return members
+            .filter(m => m.projectRole === ProjectRoleEnum.LabDirector || m.projectRole === ProjectRoleEnum.Leader)
+            .map(m => m.email)
+            .filter((e): e is string => !!e);
+    };
+
+    const mergeWithDefaults = (selectedEmails: string[], members: any[]): string[] => {
+        const defaults = getDefaultAssigneeEmails(members);
+        return Array.from(new Set([...defaults, ...selectedEmails]));
+    };
+
     const [showPdfViewer, setShowPdfViewer] = useState(false);
     const [viewerUrl, setViewerUrl] = useState<string | null>(null);
     const [viewerKind, setViewerKind] = useState<'pdf' | 'office' | 'link'>('pdf');
@@ -320,7 +347,7 @@ const PaperSubmissions: React.FC = () => {
     };
 
     const handleProjectChange = async (projectId: string, isEdit = false, updateMembers = true) => {
-        if (projectId) {
+        if (projectId && !isDirector) {
             const me = await projectService.getCurrentMember(projectId);
             const role = me?.projectRole ?? me?.role ?? me?.projectRoleId;
             const roleName: string = (me?.roleName ?? me?.projectRoleName ?? '').toLowerCase();
@@ -334,7 +361,7 @@ const PaperSubmissions: React.FC = () => {
             setEditData((prev: any) => ({ ...prev, projectId, members: updateMembers ? [] : prev.members }));
         } else {
             setAddProjectId(projectId);
-            if (updateMembers) setAddMembers([]);
+            if (updateMembers) { setAddMembers([]); setAddAssigneeIds([]); }
         }
         if (projectId) {
             setMembersLoading(true);
@@ -381,6 +408,14 @@ const PaperSubmissions: React.FC = () => {
             showToast('Please correct external author information before creating paper.', 'error');
             return;
         }
+        if (addMembers.length === 0 && addExternalUsers.length === 0) {
+            showToast('Please add at least one author before creating paper.', 'error');
+            return;
+        }
+        if (!addDocument) {
+            showToast('Please upload a document before creating paper.', 'error');
+            return;
+        }
         if (isPdfFile(addDocument)) {
             showToast('PDF upload is currently disabled.', 'error');
             return;
@@ -401,12 +436,19 @@ const PaperSubmissions: React.FC = () => {
                 document: addDocument,
                 members: addMembers.map(m => ({ membershipId: m.membershipId, role: Number(m.role) })),
                 externalUsers: addExternalUsers,
+                additionalAssigneeEmails: mergeWithDefaults(
+                    addAssigneeIds.map(uid => {
+                        const m = projectMembers.find((x: any) => (x.userId || x.memberId || x.id) === uid);
+                        return m?.email ?? null;
+                    }).filter((e): e is string => !!e),
+                    projectMembers
+                ),
                 createdByUserId: myMembershipId
             };
             const newPaper = await paperSubmissionService.create(payload);
             await loadPapers(1);
             showToast(`Paper "${newPaper.title}" created successfully!`, 'success');
-            setAddTitle(''); setAddAbstract(''); setAddConference(''); setAddPaperUrl(''); setAddProjectId(''); setAddDeadline(''); setAddMembers([]); setAddDocument(null);
+            setAddTitle(''); setAddAbstract(''); setAddConference(''); setAddPaperUrl(''); setAddProjectId(''); setAddDeadline(''); setAddMembers([]); setAddExternalUsers([]); setAddAssigneeIds([]); setAddDocument(null);
             setActivePanel(null);
         } catch (err: any) {
             showToast(err.response?.data?.message || 'Failed to create paper.', 'error');
@@ -437,7 +479,16 @@ const PaperSubmissions: React.FC = () => {
                 submissionDeadline: editData.submissionDeadline ? new Date(editData.submissionDeadline).toISOString() : null,
                 document: editDocument,
                 members: editData.members?.map((m: any) => ({ membershipId: m.membershipId, role: Number(m.role) })) || [],
-                lastUpdatedByUserId: myMembershipId
+                lastUpdatedByUserId: myMembershipId,
+                additionalAssigneeEmails: mergeWithDefaults(
+                    editAssigneeIds.map(uid => {
+                        const inAssignees = (selectedPaper.assignees ?? []).find(a => a.userId === uid);
+                        if (inAssignees?.email) return inAssignees.email;
+                        const inMembers = projectMembers.find((m: any) => (m.userId || m.memberId || m.id) === uid);
+                        return inMembers?.email || null;
+                    }).filter(Boolean) as string[],
+                    projectMembers
+                ),
             };
             const paperId = selectedPaper.paperSubmissionId;
             let updated = await paperSubmissionService.update(paperId, payload);
@@ -538,21 +589,38 @@ const PaperSubmissions: React.FC = () => {
 
     const handleDirectorReview = (approve: boolean) => {
         if (!selectedPaper) return;
+        if (!approve) {
+            const paperId = selectedPaper.paperSubmissionId;
+            setPendingRejectAction(() => async (reason: string) => {
+                setActionLoading(paperId);
+                try {
+                    const updated = await paperSubmissionService.directorReview(paperId, false, reason);
+                    setPapers(prev => prev.map(p => p.paperSubmissionId === updated.paperSubmissionId ? updated : p));
+                    setSelectedPaper(updated);
+                    showToast('Paper rejected.', 'error');
+                } catch (err: any) {
+                    showToast(err.response?.data?.message || 'Action failed.', 'error');
+                } finally {
+                    setActionLoading(null);
+                }
+            });
+            setReasonInput('');
+            setReasonModalOpen(true);
+            return;
+        }
         openConfirm({
-            title: approve ? 'Approve Paper' : 'Reject Paper',
-            message: approve
-                ? 'Are you sure you want to approve this paper? It will move to Approved status.'
-                : 'Are you sure you want to reject this paper? The author will need to revise it.',
-            confirmText: approve ? 'Approve' : 'Reject',
-            variant: approve ? 'success' : 'danger',
+            title: 'Approve Paper',
+            message: 'Are you sure you want to approve this paper? It will move to Approved status.',
+            confirmText: 'Approve',
+            variant: 'success',
             onConfirm: async () => {
                 closeConfirm();
                 setActionLoading(selectedPaper.paperSubmissionId);
                 try {
-                    const updated = await paperSubmissionService.directorReview(selectedPaper.paperSubmissionId, approve);
+                    const updated = await paperSubmissionService.directorReview(selectedPaper.paperSubmissionId, true);
                     setPapers(prev => prev.map(p => p.paperSubmissionId === updated.paperSubmissionId ? updated : p));
                     setSelectedPaper(updated);
-                    showToast(approve ? 'Paper approved!' : 'Paper rejected.', approve ? 'success' : 'error');
+                    showToast('Paper approved!', 'success');
                 } catch (err: any) {
                     showToast(err.response?.data?.message || 'Action failed.', 'error');
                 } finally {
@@ -650,26 +718,22 @@ const PaperSubmissions: React.FC = () => {
 
     const handleRejectRevision = () => {
         if (!selectedPaper) return;
-        openConfirm({
-            title: 'Reject Paper',
-            message: 'Are you sure you want to reject this paper?',
-            confirmText: 'Reject',
-            variant: 'danger',
-            onConfirm: async () => {
-                closeConfirm();
-                setActionLoading(selectedPaper.paperSubmissionId);
-                try {
-                    const updated = await paperSubmissionService.changeStatus(selectedPaper.paperSubmissionId, SubmissionStatus.Rejected);
-                    setPapers(prev => prev.map(p => p.paperSubmissionId === updated.paperSubmissionId ? updated : p));
-                    setSelectedPaper(updated);
-                    showToast('Paper rejected.', 'error');
-                } catch (err: any) {
-                    showToast(err.response?.data?.message || 'Failed to reject paper.', 'error');
-                } finally {
-                    setActionLoading(null);
-                }
-            },
+        const paperId = selectedPaper.paperSubmissionId;
+        setPendingRejectAction(() => async (reason: string) => {
+            setActionLoading(paperId);
+            try {
+                const updated = await paperSubmissionService.changeStatus(paperId, SubmissionStatus.Rejected, reason);
+                setPapers(prev => prev.map(p => p.paperSubmissionId === updated.paperSubmissionId ? updated : p));
+                setSelectedPaper(updated);
+                showToast('Paper rejected.', 'error');
+            } catch (err: any) {
+                showToast(err.response?.data?.message || 'Failed to reject paper.', 'error');
+            } finally {
+                setActionLoading(null);
+            }
         });
+        setReasonInput('');
+        setReasonModalOpen(true);
     };
 
     const handleRevertToDraft = () => {
@@ -720,24 +784,20 @@ const PaperSubmissions: React.FC = () => {
 
     const handleRejectDecision = () => {
         if (!selectedPaper) return;
-        openConfirm({
-            title: 'Reject Paper',
-            message: 'Are you sure you want to reject this paper?',
-            confirmText: 'Reject',
-            variant: 'danger',
-            onConfirm: async () => {
-                closeConfirm();
-                setActionLoading(selectedPaper.paperSubmissionId);
-                try {
-                    const updated = await paperSubmissionService.changeStatus(selectedPaper.paperSubmissionId, SubmissionStatus.Rejected);
-                    setPapers(prev => prev.map(p => p.paperSubmissionId === updated.paperSubmissionId ? updated : p));
-                    setSelectedPaper(updated);
-                    showToast('Paper rejected.', 'error');
-                } catch (err: any) {
-                    showToast(err.response?.data?.message || 'Failed to reject paper.', 'error');
-                } finally { setActionLoading(null); }
-            },
+        const paperId = selectedPaper.paperSubmissionId;
+        setPendingRejectAction(() => async (reason: string) => {
+            setActionLoading(paperId);
+            try {
+                const updated = await paperSubmissionService.changeStatus(paperId, SubmissionStatus.Rejected, reason);
+                setPapers(prev => prev.map(p => p.paperSubmissionId === updated.paperSubmissionId ? updated : p));
+                setSelectedPaper(updated);
+                showToast('Paper rejected.', 'error');
+            } catch (err: any) {
+                showToast(err.response?.data?.message || 'Failed to reject paper.', 'error');
+            } finally { setActionLoading(null); }
         });
+        setReasonInput('');
+        setReasonModalOpen(true);
     };
 
     const handleMarkCameraReady = () => {
@@ -784,6 +844,43 @@ const PaperSubmissions: React.FC = () => {
         });
     };
 
+    const handleViewAssigneesSave = async (newAdditionalIds: string[]) => {
+        if (!selectedPaper) return;
+        setViewAssigneesSaving(true);
+        try {
+            const myMembershipId = currentUserMembership?.membershipId || currentUserMembership?.memberId || currentUserMembership?.id || null;
+            const payload: UpdatePaperRequest = {
+                projectId: selectedPaper.projectId || null,
+                title: selectedPaper.title,
+                abstract: selectedPaper.abstract || '',
+                conferenceName: selectedPaper.conferenceName || '',
+                paperUrl: selectedPaper.paperUrl || '',
+                submissionDeadline: selectedPaper.submissionDeadline ? new Date(selectedPaper.submissionDeadline).toISOString() : null,
+                document: null,
+                members: (selectedPaper.members ?? []).map(m => ({ membershipId: m.membershipId, role: Number(m.role) })),
+                lastUpdatedByUserId: myMembershipId,
+                additionalAssigneeEmails: mergeWithDefaults(
+                    newAdditionalIds.map(uid => {
+                        const inAssignees = (selectedPaper.assignees ?? []).find(a => a.userId === uid);
+                        if (inAssignees?.email) return inAssignees.email;
+                        const inMembers = projectMembers.find((m: any) => (m.userId || m.memberId || m.id) === uid);
+                        return inMembers?.email || null;
+                    }).filter(Boolean) as string[],
+                    projectMembers
+                ),
+            };
+            const updated = await paperSubmissionService.update(selectedPaper.paperSubmissionId, payload);
+            setPapers(prev => prev.map(p => p.paperSubmissionId === updated.paperSubmissionId ? updated : p));
+            setSelectedPaper(updated);
+            setViewAssigneesModalOpen(false);
+            showToast('Assignees updated.', 'success');
+        } catch (err: any) {
+            showToast(err.response?.data?.message || 'Failed to update assignees.', 'error');
+        } finally {
+            setViewAssigneesSaving(false);
+        }
+    };
+
     const openView = (paper: PaperSubmissionResponse) => {
         setSelectedPaper(paper);
         setActivePanel('view');
@@ -811,6 +908,7 @@ const PaperSubmissions: React.FC = () => {
         setEditEuEditingKey(null);
         setEditEuShowAdd(false);
         setEditEuDraft(blankExternalForm);
+        setEditAssigneeIds((paper.assignees ?? []).map(a => a.userId));
         if (paper.projectId) handleProjectChange(paper.projectId, true, false);
         setActivePanel('edit');
     };
@@ -818,7 +916,7 @@ const PaperSubmissions: React.FC = () => {
     const openCreate = () => {
         setSelectedPaper(null);
         setAddTitle(''); setAddAbstract(''); setAddConference(''); setAddPaperUrl('');
-        setAddProjectId(''); setAddDeadline(''); setAddMembers([]); setAddExternalUsers([]); setAddDocument(null); setFormErrors({});
+        setAddProjectId(''); setAddDeadline(''); setAddMembers([]); setAddExternalUsers([]); setAddAssigneeIds([]); setAddDocument(null); setFormErrors({});
         setActivePanel('create');
     };
 
@@ -972,6 +1070,61 @@ const PaperSubmissions: React.FC = () => {
                     confirmText={confirmModal.confirmText}
                     variant={confirmModal.variant}
                 />
+
+                {/* Reject Reason Modal */}
+                {reasonModalOpen && (
+                    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
+                        onClick={() => setReasonModalOpen(false)}>
+                        <div style={{ background: '#fff', borderRadius: '16px', padding: '28px', width: '100%', maxWidth: '480px', boxShadow: '0 20px 60px rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column', gap: '18px' }}
+                            onClick={e => e.stopPropagation()}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <XCircle size={18} style={{ color: '#ef4444' }} />
+                                    </div>
+                                    <div>
+                                        <div style={{ fontWeight: 700, fontSize: '1rem', color: '#1e293b' }}>Reject Paper</div>
+                                        <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Provide a reason for rejection</div>
+                                    </div>
+                                </div>
+                                <button onClick={() => setReasonModalOpen(false)}
+                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: '4px' }}>
+                                    <X size={18} />
+                                </button>
+                            </div>
+                            <div>
+                                <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#64748b', marginBottom: '6px', display: 'block' }}>
+                                    Reason <span style={{ color: '#ef4444' }}>*</span>
+                                </label>
+                                <textarea
+                                    style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1.5px solid #e2e8f0', fontSize: '0.875rem', color: '#1e293b', resize: 'vertical', minHeight: '100px', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                                    placeholder="Explain why this paper is being rejected..."
+                                    value={reasonInput}
+                                    onChange={e => setReasonInput(e.target.value)}
+                                    autoFocus
+                                />
+                            </div>
+                            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                                <button onClick={() => setReasonModalOpen(false)}
+                                    style={{ padding: '9px 20px', borderRadius: '10px', border: '1.5px solid #e2e8f0', background: '#f8fafc', color: '#475569', fontWeight: 600, fontSize: '0.875rem', cursor: 'pointer' }}>
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={async () => {
+                                        if (!reasonInput.trim()) { showToast('Please provide a reason for rejection.', 'warning'); return; }
+                                        setReasonModalOpen(false);
+                                        if (pendingRejectAction) await pendingRejectAction(reasonInput.trim());
+                                        setPendingRejectAction(null);
+                                        setReasonInput('');
+                                    }}
+                                    disabled={!reasonInput.trim()}
+                                    style={{ padding: '9px 20px', borderRadius: '10px', border: 'none', background: '#ef4444', color: '#fff', fontWeight: 600, fontSize: '0.875rem', cursor: reasonInput.trim() ? 'pointer' : 'not-allowed', opacity: reasonInput.trim() ? 1 : 0.6 }}>
+                                    Confirm Rejection
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Submit to Conference URL Modal */}
                 {showSubmitUrlModal && selectedPaper && (
@@ -1296,7 +1449,10 @@ const PaperSubmissions: React.FC = () => {
                     {!isReadingMode && (<div style={{
                         flex: isSplit ? (isTriple ? 2 : 3) : 10, minWidth: 0,
                         display: 'flex', flexDirection: 'column',
-                        transition: 'all 0.4s cubic-bezier(0.4,0,0.2,1)', overflow: 'hidden'
+                        transition: 'all 0.4s cubic-bezier(0.4,0,0.2,1)',
+                        maxHeight: 'calc(100vh - 250px)',
+                        minHeight: 0,
+                        overflow: 'hidden'
                     }}>
                         {loading ? (
                             <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
@@ -1309,7 +1465,7 @@ const PaperSubmissions: React.FC = () => {
                                 <p style={{ fontSize: '0.85rem' }}>Create your first paper submission to get started.</p>
                             </div>
                         ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            <div className="paper-list-scroll custom-scrollbar" style={{ display: 'flex', flexDirection: 'column', gap: '10px', overflowY: 'auto', minHeight: 0 }}>
                                 {filtered.map(paper => {
                                     const color = STATUS_COLOR[paper.status];
                                     const bg = STATUS_BG[paper.status];
@@ -1318,6 +1474,7 @@ const PaperSubmissions: React.FC = () => {
                                         <div
                                             key={paper.paperSubmissionId}
                                             onClick={() => openView(paper)}
+                                            className="paper-list-item"
                                             style={{
                                                 background: isActive ? '#f8fafc' : '#fff',
                                                 border: isActive ? `1.5px solid var(--accent-color)` : '1px solid #e2e8f0',
@@ -1325,8 +1482,6 @@ const PaperSubmissions: React.FC = () => {
                                                 cursor: 'pointer', transition: 'all 0.2s',
                                                 borderLeft: `4px solid ${isActive ? 'var(--accent-color)' : color}`,
                                             }}
-                                            onMouseEnter={e => { if (!isActive) e.currentTarget.style.borderColor = '#cbd5e1'; }}
-                                            onMouseLeave={e => { if (!isActive) e.currentTarget.style.borderColor = '#e2e8f0'; }}
                                         >
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
                                                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -1386,7 +1541,7 @@ const PaperSubmissions: React.FC = () => {
                                         background: activePanel === 'create' ? 'var(--accent-color)' : 'var(--primary-color)',
                                         color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center'
                                     }}>
-                                        {activePanel === 'create' ? <Plus size={16} /> : <BookOpen size={16} />}
+                                        {activePanel === 'create' ? <Plus size={16} /> : <FileText size={16} />}
                                     </div>
                                     <div>
                                         <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: '#1e293b' }}>
@@ -1437,14 +1592,43 @@ const PaperSubmissions: React.FC = () => {
                                         projectMembers={projectMembers}
                                         membersLoading={membersLoading}
                                         formErrors={formErrors}
+                                        externalUsers={addExternalUsers}
+                                        onOpenAuthorsModal={() => setAuthorsModalOpen(true)}
+                                        onAuthorClick={(info) => setAuthorDetail(info)}
                                         hidePaperUrl
                                     />
 
-                                    {/* External Authors — tách riêng, không nằm trong form */}
-                                    <CreateExternalAuthors
-                                        externalUsers={addExternalUsers}
-                                        onChange={setAddExternalUsers}
-                                    />
+                                    {/* Additional Assignees */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                            <div>
+                                                <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' as const, letterSpacing: '0.6px' }}>Additional Assignees</span>
+                                                <span style={{ marginLeft: '6px', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 600 }}>— Leader &amp; Director auto-assigned</span>
+                                            </div>
+                                            <button type="button"
+                                                onClick={() => addProjectId && setAssigneesModalOpen(true)}
+                                                disabled={!addProjectId}
+                                                style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', borderRadius: '7px', border: '1px solid #e2e8f0', background: !addProjectId ? '#f8fafc' : '#f8fafc', color: !addProjectId ? '#cbd5e1' : '#475569', cursor: !addProjectId ? 'not-allowed' : 'pointer', fontSize: '0.72rem', fontWeight: 700 }}>
+                                                <Plus size={11} /> Add / Edit Assignees
+                                            </button>
+                                        </div>
+                                        {addAssigneeIds.length > 0 ? (
+                                            <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: '5px' }}>
+                                                {addAssigneeIds.map(uid => {
+                                                    const m = projectMembers.find((x: any) => (x.userId || x.memberId || x.id) === uid);
+                                                    return (
+                                                        <span key={uid} style={{ background: '#f0fdf4', padding: '3px 10px', borderRadius: '20px', border: '1px solid #bbf7d0', fontSize: '0.76rem', fontWeight: 600, color: '#15803d', cursor: 'pointer' }}
+                                                            onClick={() => setAssigneesModalOpen(true)}
+                                                        >
+                                                            {m?.fullName || m?.email || uid}
+                                                        </span>
+                                                    );
+                                                })}
+                                            </div>
+                                        ) : (
+                                            <p style={{ fontSize: '0.78rem', color: '#94a3b8', margin: 0 }}>{!addProjectId ? 'Select a project first.' : 'No assignees added yet.'}</p>
+                                        )}
+                                    </div>
 
                                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '8px', borderTop: '1px solid #f1f5f9' }}>
                                         <button onClick={closePanel} style={{ padding: '8px 18px', borderRadius: '10px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 700 }}>Cancel</button>
@@ -1473,96 +1657,41 @@ const PaperSubmissions: React.FC = () => {
                                         projectMembers={projectMembers}
                                         membersLoading={membersLoading}
                                         formErrors={formErrors}
+                                        externalUsers={editExternalUsers}
+                                        onOpenAuthorsModal={() => setAuthorsModalOpen(true)}
+                                        onAuthorClick={(info) => setAuthorDetail(info)}
                                         hidePaperUrl={![SubmissionStatus.Approved, SubmissionStatus.Submitted, SubmissionStatus.Revision, SubmissionStatus.Decision, SubmissionStatus.Accepted, SubmissionStatus.CameraReady, SubmissionStatus.Published].includes(selectedPaper.status)}
                                     />
 
-                                    {/* External Authors — edit mode local staging */}
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                    {/* Additional Assignees — edit */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                            <label style={fieldLabelStyle}>External Authors</label>
-                                            {!editEuShowAdd && editEuEditingKey === null && (
-                                                <button type="button" onClick={() => { setEditEuShowAdd(true); setEditEuDraftErrors(externalAuthorValidationDefaults); setEditEuDraft(blankExternalForm); }}
-                                                    style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', borderRadius: '7px', border: '1px solid #e2e8f0', background: '#f8fafc', color: '#475569', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700 }}>
-                                                    <Plus size={11} /> Add
-                                                </button>
-                                            )}
+                                            <div>
+                                                <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' as const, letterSpacing: '0.6px' }}>Additional Assignees</span>
+                                                <span style={{ marginLeft: '6px', fontSize: '0.65rem', color: '#94a3b8', fontWeight: 600 }}>— Leader &amp; Director auto-assigned</span>
+                                            </div>
+                                            <button type="button"
+                                                onClick={() => editData.projectId && setAssigneesModalOpen(true)}
+                                                disabled={!editData.projectId}
+                                                style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', borderRadius: '7px', border: '1px solid #e2e8f0', background: '#f8fafc', color: !editData.projectId ? '#cbd5e1' : '#475569', cursor: !editData.projectId ? 'not-allowed' : 'pointer', fontSize: '0.72rem', fontWeight: 700 }}>
+                                                <Plus size={11} /> Add / Edit Assignees
+                                            </button>
                                         </div>
-                                        {editExternalUsers.length > 0 && (
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                                {editExternalUsers.map((eu, idx) => {
-                                                    const key = eu.externalUserId || eu._key || String(idx);
+                                        {editAssigneeIds.length > 0 ? (
+                                            <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: '5px' }}>
+                                                {editAssigneeIds.map(uid => {
+                                                    const m = projectMembers.find((x: any) => (x.userId || x.memberId || x.id) === uid);
                                                     return (
-                                                        <div key={key}>
-                                                            {editEuEditingKey === key ? (
-                                                                <div style={{ padding: '10px', background: '#f0fdf4', borderRadius: '10px', border: '1px solid #bbf7d0', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
-                                                                        <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem' }} placeholder="Full name *" value={editEuEditForm.fullName} onChange={e => setEditEuEditForm(f => ({ ...f, fullName: e.target.value }))} />
-                                                                        <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem' }} placeholder="Email *" value={editEuEditForm.email} onChange={e => setEditEuEditForm(f => ({ ...f, email: e.target.value }))} />
-                                                                        <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: `1px solid ${editEuEditErrors.phoneNumber ? '#ef4444' : '#e2e8f0'}`, fontSize: '0.8rem' }} placeholder="Phone number" value={editEuEditForm.phoneNumber} onChange={e => { const v = e.target.value; setEditEuEditForm(f => ({ ...f, phoneNumber: v })); setEditEuEditErrors(prev => ({ ...prev, phoneNumber: validateExternalAuthorField('phoneNumber', v.trim()) })); }} />
-                                                                        <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: `1px solid ${editEuEditErrors.studentId ? '#ef4444' : '#e2e8f0'}`, fontSize: '0.8rem' }} placeholder="Student ID" value={editEuEditForm.studentId} onChange={e => { const v = e.target.value; setEditEuEditForm(f => ({ ...f, studentId: v })); setEditEuEditErrors(prev => ({ ...prev, studentId: validateExternalAuthorField('studentId', v.trim()) })); }} />
-                                                                        <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: `1px solid ${editEuEditErrors.orcid ? '#ef4444' : '#e2e8f0'}`, fontSize: '0.8rem' }} placeholder="ORCID" value={editEuEditForm.orcid} onChange={e => { const v = e.target.value; setEditEuEditForm(f => ({ ...f, orcid: v })); setEditEuEditErrors(prev => ({ ...prev, orcid: validateExternalAuthorField('orcid', v.trim()) })); }} />
-                                                                        <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: `1px solid ${editEuEditErrors.googleScholarUrl ? '#ef4444' : '#e2e8f0'}`, fontSize: '0.8rem' }} placeholder="Google Scholar URL" value={editEuEditForm.googleScholarUrl} onChange={e => { const v = e.target.value; setEditEuEditForm(f => ({ ...f, googleScholarUrl: v })); setEditEuEditErrors(prev => ({ ...prev, googleScholarUrl: validateExternalAuthorField('googleScholarUrl', v.trim()) })); }} />
-                                                                        <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: `1px solid ${editEuEditErrors.githubUrl ? '#ef4444' : '#e2e8f0'}`, fontSize: '0.8rem', gridColumn: '1 / -1' }} placeholder="GitHub URL" value={editEuEditForm.githubUrl} onChange={e => { const v = e.target.value; setEditEuEditForm(f => ({ ...f, githubUrl: v })); setEditEuEditErrors(prev => ({ ...prev, githubUrl: validateExternalAuthorField('githubUrl', v.trim()) })); }} />
-                                                                    </div>
-                                                                    {hasExternalAuthorValidationErrors(editEuEditErrors) && (
-                                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                                                                            {editEuEditErrors.studentId && <span style={{ color: '#ef4444', fontSize: '0.72rem' }}>{editEuEditErrors.studentId}</span>}
-                                                                            {editEuEditErrors.phoneNumber && <span style={{ color: '#ef4444', fontSize: '0.72rem' }}>{editEuEditErrors.phoneNumber}</span>}
-                                                                            {editEuEditErrors.orcid && <span style={{ color: '#ef4444', fontSize: '0.72rem' }}>{editEuEditErrors.orcid}</span>}
-                                                                            {editEuEditErrors.googleScholarUrl && <span style={{ color: '#ef4444', fontSize: '0.72rem' }}>{editEuEditErrors.googleScholarUrl}</span>}
-                                                                            {editEuEditErrors.githubUrl && <span style={{ color: '#ef4444', fontSize: '0.72rem' }}>{editEuEditErrors.githubUrl}</span>}
-                                                                        </div>
-                                                                    )}
-                                                                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
-                                                                        <button type="button" onClick={() => { setEditEuEditingKey(null); setEditEuEditErrors(externalAuthorValidationDefaults); }} style={{ padding: '5px 12px', borderRadius: '6px', border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', color: '#64748b', fontSize: '0.75rem', fontWeight: 700 }}>Cancel</button>
-                                                                        <button type="button" disabled={!editEuEditForm.fullName.trim() || !editEuEditForm.email.trim() || hasExternalAuthorValidationErrors(editEuEditErrors)} onClick={() => { setEditExternalUsers(prev => prev.map((x, i) => (eu.externalUserId ? x.externalUserId === eu.externalUserId : i === idx) ? { ...x, ...editEuEditForm } : x)); setEditEuEditingKey(null); setEditEuEditErrors(externalAuthorValidationDefaults); }} style={{ padding: '5px 12px', borderRadius: '6px', border: 'none', background: '#16a34a', color: '#fff', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}>Save</button>
-                                                                    </div>
-                                                                </div>
-                                                            ) : (
-                                                                <div style={{ padding: '8px 10px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                                        <div style={{ flex: 1, minWidth: 0 }}>
-                                                                            <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1e293b' }}>{eu.fullName || '—'}</div>
-                                                                            {eu.email && <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '2px' }}>✉ {eu.email}</div>}
-                                                                        </div>
-                                                                        <button type="button" onClick={() => { setEditEuEditingKey(key); setEditEuEditForm({ fullName: eu.fullName ?? '', email: eu.email ?? '', phoneNumber: eu.phoneNumber ?? '', studentId: eu.studentId ?? '', orcid: eu.orcid ?? '', googleScholarUrl: eu.googleScholarUrl ?? '', githubUrl: eu.githubUrl ?? '' }); setEditEuEditErrors(externalAuthorValidationDefaults); setEditEuShowAdd(false); }} style={{ padding: '3px 7px', borderRadius: '5px', border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', color: '#64748b', flexShrink: 0 }}><Edit2 size={11} /></button>
-                                                                        <button type="button" onClick={() => { if (eu.externalUserId) setEditDeletedExternalUserIds(prev => [...prev, eu.externalUserId]); setEditExternalUsers(prev => prev.filter((_, i) => i !== idx)); }} style={{ padding: '3px 7px', borderRadius: '5px', border: '1px solid #fecaca', background: '#fef2f2', cursor: 'pointer', color: '#ef4444', flexShrink: 0 }}><Trash2 size={11} /></button>
-                                                                    </div>
-                                                                </div>
-                                                            )}
-                                                        </div>
+                                                        <span key={uid} style={{ background: '#f0fdf4', padding: '3px 10px', borderRadius: '20px', border: '1px solid #bbf7d0', fontSize: '0.76rem', fontWeight: 600, color: '#15803d', cursor: 'pointer' }}
+                                                            onClick={() => setAssigneesModalOpen(true)}
+                                                        >
+                                                            {m?.fullName || m?.email || uid}
+                                                        </span>
                                                     );
                                                 })}
                                             </div>
-                                        )}
-                                        {editExternalUsers.length === 0 && !editEuShowAdd && (
-                                            <p style={{ fontSize: '0.78rem', color: '#94a3b8', margin: 0, fontStyle: 'italic' }}>No external authors added.</p>
-                                        )}
-                                        {editEuShowAdd && (
-                                            <div style={{ padding: '10px', background: '#eff6ff', borderRadius: '10px', border: '1px solid #bfdbfe', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
-                                                    <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem' }} placeholder="Full name *" value={editEuDraft.fullName} onChange={e => setEditEuDraft(f => ({ ...f, fullName: e.target.value }))} />
-                                                    <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem' }} placeholder="Email *" value={editEuDraft.email} onChange={e => setEditEuDraft(f => ({ ...f, email: e.target.value }))} />
-                                                    <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: `1px solid ${editEuDraftErrors.phoneNumber ? '#ef4444' : '#e2e8f0'}`, fontSize: '0.8rem' }} placeholder="Phone number" value={editEuDraft.phoneNumber} onChange={e => { const v = e.target.value; setEditEuDraft(f => ({ ...f, phoneNumber: v })); setEditEuDraftErrors(prev => ({ ...prev, phoneNumber: validateExternalAuthorField('phoneNumber', v.trim()) })); }} />
-                                                    <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: `1px solid ${editEuDraftErrors.studentId ? '#ef4444' : '#e2e8f0'}`, fontSize: '0.8rem' }} placeholder="Student ID" value={editEuDraft.studentId} onChange={e => { const v = e.target.value; setEditEuDraft(f => ({ ...f, studentId: v })); setEditEuDraftErrors(prev => ({ ...prev, studentId: validateExternalAuthorField('studentId', v.trim()) })); }} />
-                                                    <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: `1px solid ${editEuDraftErrors.orcid ? '#ef4444' : '#e2e8f0'}`, fontSize: '0.8rem' }} placeholder="ORCID" value={editEuDraft.orcid} onChange={e => { const v = e.target.value; setEditEuDraft(f => ({ ...f, orcid: v })); setEditEuDraftErrors(prev => ({ ...prev, orcid: validateExternalAuthorField('orcid', v.trim()) })); }} />
-                                                    <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: `1px solid ${editEuDraftErrors.googleScholarUrl ? '#ef4444' : '#e2e8f0'}`, fontSize: '0.8rem' }} placeholder="Google Scholar URL" value={editEuDraft.googleScholarUrl} onChange={e => { const v = e.target.value; setEditEuDraft(f => ({ ...f, googleScholarUrl: v })); setEditEuDraftErrors(prev => ({ ...prev, googleScholarUrl: validateExternalAuthorField('googleScholarUrl', v.trim()) })); }} />
-                                                    <input className="form-input" style={{ padding: '5px 8px', borderRadius: '6px', border: `1px solid ${editEuDraftErrors.githubUrl ? '#ef4444' : '#e2e8f0'}`, fontSize: '0.8rem', gridColumn: '1 / -1' }} placeholder="GitHub URL" value={editEuDraft.githubUrl} onChange={e => { const v = e.target.value; setEditEuDraft(f => ({ ...f, githubUrl: v })); setEditEuDraftErrors(prev => ({ ...prev, githubUrl: validateExternalAuthorField('githubUrl', v.trim()) })); }} />
-                                                </div>
-                                                {hasExternalAuthorValidationErrors(editEuDraftErrors) && (
-                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                                                        {editEuDraftErrors.studentId && <span style={{ color: '#ef4444', fontSize: '0.72rem' }}>{editEuDraftErrors.studentId}</span>}
-                                                        {editEuDraftErrors.phoneNumber && <span style={{ color: '#ef4444', fontSize: '0.72rem' }}>{editEuDraftErrors.phoneNumber}</span>}
-                                                        {editEuDraftErrors.orcid && <span style={{ color: '#ef4444', fontSize: '0.72rem' }}>{editEuDraftErrors.orcid}</span>}
-                                                        {editEuDraftErrors.googleScholarUrl && <span style={{ color: '#ef4444', fontSize: '0.72rem' }}>{editEuDraftErrors.googleScholarUrl}</span>}
-                                                        {editEuDraftErrors.githubUrl && <span style={{ color: '#ef4444', fontSize: '0.72rem' }}>{editEuDraftErrors.githubUrl}</span>}
-                                                    </div>
-                                                )}
-                                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
-                                                    <button type="button" onClick={() => { setEditEuShowAdd(false); setEditEuDraft(blankExternalForm); setEditEuDraftErrors(externalAuthorValidationDefaults); }} style={{ padding: '5px 12px', borderRadius: '6px', border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', color: '#64748b', fontSize: '0.75rem', fontWeight: 700 }}>Cancel</button>
-                                                    <button type="button" disabled={!editEuDraft.fullName.trim() || !editEuDraft.email.trim() || hasExternalAuthorValidationErrors(editEuDraftErrors)} onClick={() => { const errs = validateExternalAuthorProfileFields(editEuDraft); setEditEuDraftErrors(errs); if (hasExternalAuthorValidationErrors(errs)) return; setEditExternalUsers(prev => [...prev, { ...editEuDraft, _key: Date.now().toString() }]); setEditEuDraft(blankExternalForm); setEditEuDraftErrors(externalAuthorValidationDefaults); setEditEuShowAdd(false); }} style={{ padding: '5px 12px', borderRadius: '6px', border: 'none', background: 'var(--accent-color)', color: '#fff', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700 }}>Add Author</button>
-                                                </div>
-                                            </div>
+                                        ) : (
+                                            <p style={{ fontSize: '0.78rem', color: '#94a3b8', margin: 0 }}>No assignees added yet.</p>
                                         )}
                                     </div>
 
@@ -1620,7 +1749,7 @@ const PaperSubmissions: React.FC = () => {
                                     {/* Paper URL */}
                                     {selectedPaper.paperUrl && [SubmissionStatus.Approved, SubmissionStatus.Submitted, SubmissionStatus.Revision, SubmissionStatus.Decision, SubmissionStatus.Accepted, SubmissionStatus.CameraReady, SubmissionStatus.Published].includes(selectedPaper.status) && (
                                         <div>
-                                            <div style={{ fontSize: '0.62rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' as const, letterSpacing: '0.6px', marginBottom: '6px' }}>Paper URL</div>
+                                            <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' as const, letterSpacing: '0.6px', marginBottom: '6px' }}>Paper URL</div>
                                             <a href={selectedPaper.paperUrl} target="_blank" rel="noreferrer"
                                                 style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '9px 14px', borderRadius: '9px', border: '1px solid #e2e8f0', background: '#f8fafc', color: 'var(--accent-color)', textDecoration: 'none', fontSize: '0.82rem', fontWeight: 600, transition: 'all 0.2s', maxWidth: '100%' }}
                                                 onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent-color)'}
@@ -1636,7 +1765,7 @@ const PaperSubmissions: React.FC = () => {
                                     {/* Document */}
                                     {selectedPaper.document && (
                                         <div>
-                                            <div style={{ fontSize: '0.62rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' as const, letterSpacing: '0.6px', marginBottom: '6px' }}>Document</div>
+                                            <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' as const, letterSpacing: '0.6px', marginBottom: '6px' }}>Document</div>
                                             <button
                                                 onClick={() => openPdfViewer(selectedPaper.document!)}
                                                 style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '9px 14px', borderRadius: '9px', border: '1px solid #dbeafe', background: '#eff6ff', color: '#2563eb', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600 }}
@@ -1648,66 +1777,104 @@ const PaperSubmissions: React.FC = () => {
 
                                     {/* Abstract */}
                                     <div>
-                                        <div style={{ fontSize: '0.62rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' as const, letterSpacing: '0.6px', marginBottom: '6px' }}>Abstract</div>
+                                        <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' as const, letterSpacing: '0.6px', marginBottom: '6px' }}>Abstract</div>
                                         <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '12px 14px', border: '1px solid #e2e8f0', fontSize: '0.85rem', color: '#334155', lineHeight: '1.7', whiteSpace: 'pre-wrap' }}>
                                             {selectedPaper.abstract || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>No abstract provided.</span>}
                                         </div>
                                     </div>
 
-                                    {/* Members */}
-                                    {selectedPaper.members && selectedPaper.members.length > 0 && (
-                                        <div>
-                                            <div style={{ fontSize: '0.62rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' as const, letterSpacing: '0.6px', marginBottom: '6px' }}>Authors</div>
-                                            <div style={{ display: 'flex', flexDirection: 'column' as const, gap: '4px' }}>
-                                                {selectedPaper.members.map((m, i) => {
+                                    {/* Authors (members + externals as chips) */}
+                                    <div>
+                                        <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' as const, letterSpacing: '0.6px', marginBottom: '6px' }}>Authors</div>
+                                        {((selectedPaper.members?.length ?? 0) > 0 || (selectedPaper.externalUsers?.length ?? 0) > 0) ? (
+                                            <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: '6px' }}>
+                                                {(selectedPaper.members ?? []).map((m, i) => {
                                                     const pm = projectMembers.find((p: any) => (p.membershipId || p.memberId) === m.membershipId);
                                                     const name = getAuthorDisplayName(m);
-                                                    const isExpanded = expandedAuthorId === m.membershipId;
                                                     return (
-                                                        <div key={i}
-                                                            onClick={() => setExpandedAuthorId(isExpanded ? null : m.membershipId)}
-                                                            style={{ padding: '8px 10px', borderRadius: '8px', background: '#f1f5f9', border: '1px solid #e2e8f0', cursor: 'pointer', transition: 'background 0.15s' }}
+                                                        <span key={i}
+                                                            onClick={() => setAuthorDetail({ type: 'member', data: pm || { fullName: name, membershipId: m.membershipId } })}
+                                                            title={pm?.email || ''}
+                                                            style={{ background: '#eff6ff', padding: '4px 12px', borderRadius: '20px', border: '1px solid #bfdbfe', fontSize: '0.78rem', fontWeight: 600, color: '#1d4ed8', cursor: 'pointer' }}
                                                         >
-                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                                <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1e293b', flex: 1 }}>{name}</span>
-                                                                <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>{isExpanded ? '▲' : '▼'}</span>
-                                                            </div>
-                                                            {isExpanded && (
-                                                                <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: '8px', marginTop: '6px', paddingTop: '6px', borderTop: '1px solid #e2e8f0' }}>
-                                                                    {(pm?.email) && <span style={{ fontSize: '0.72rem', color: '#64748b' }}>✉ {pm.email}</span>}
-                                                                    {(pm?.phoneNumber) && <span style={{ fontSize: '0.72rem', color: '#64748b' }}>☎ {pm.phoneNumber}</span>}
-                                                                    {(pm?.roleName || pm?.projectRoleName) && <span style={{ fontSize: '0.72rem', color: '#64748b', background: '#e0f2fe', padding: '1px 7px', borderRadius: '10px' }}>{pm.roleName || pm.projectRoleName}</span>}
-                                                                    {!pm?.email && !pm?.phoneNumber && <span style={{ fontSize: '0.72rem', color: '#94a3b8', fontStyle: 'italic' }}>No additional info.</span>}
-                                                                </div>
-                                                            )}
-                                                        </div>
+                                                            {name}
+                                                        </span>
                                                     );
                                                 })}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* External Authors */}
-                                    <div>
-                                        <div style={{ fontSize: '0.62rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' as const, letterSpacing: '0.6px', marginBottom: '6px' }}>External Authors</div>
-                                        {(selectedPaper.externalUsers ?? []).length > 0 ? (
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                                {(selectedPaper.externalUsers ?? []).map(eu => (
-                                                    <div key={eu.externalUserId}
-                                                        onClick={() => setViewingExternalUser(eu)}
-                                                        style={{ padding: '8px 10px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                        <div style={{ flex: 1, minWidth: 0 }}>
-                                                            <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1e293b' }}>{eu.fullName || '—'}</div>
-                                                            {eu.email && <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '2px' }}>✉ {eu.email}</div>}
-                                                        </div>
-                                                        <ExternalLink size={12} style={{ color: '#94a3b8', flexShrink: 0 }} />
-                                                    </div>
+                                                {(selectedPaper.externalUsers ?? []).map((eu, i) => (
+                                                    <span key={'ext-' + i}
+                                                        onClick={() => setAuthorDetail({ type: 'external', data: eu })}
+                                                        title={eu.email || ''}
+                                                        style={{ background: '#fffbeb', padding: '4px 12px', borderRadius: '20px', border: '1px solid #fde68a', fontSize: '0.78rem', fontWeight: 600, color: '#92400e', cursor: 'pointer' }}
+                                                    >
+                                                        {eu.fullName}<span style={{ fontSize: '0.65rem', fontWeight: 400, marginLeft: '3px' }}>(ext.)</span>
+                                                    </span>
                                                 ))}
                                             </div>
                                         ) : (
-                                            <p style={{ fontSize: '0.78rem', color: '#94a3b8', margin: 0, fontStyle: 'italic' }}>No external authors.</p>
+                                            <p style={{ fontSize: '0.78rem', color: '#94a3b8', margin: 0, fontStyle: 'italic' }}>No authors.</p>
                                         )}
                                     </div>
+
+                                    {/* Assignees */}
+                                    {(() => {
+                                        const assignees = selectedPaper.assignees ?? [];
+                                        const meIsAssignee = assignees.some(a => a.userId === user?.userId);
+                                        // Determine locked members: project leaders + lab directors (auto-assigned by backend)
+                                        const lockedUserIds = projectMembers
+                                            .filter((m: any) => {
+                                                const pr = m.projectRole ?? m.role ?? m.projectRoleId;
+                                                const rn = (m.roleName ?? m.projectRoleName ?? '').toLowerCase();
+                                                return pr === ProjectRoleEnum.Leader || rn.includes('leader') || rn.includes('director');
+                                            })
+                                            .map((m: any) => m.userId || m.memberId || m.id)
+                                            .filter(Boolean);
+                                        // Self is also locked (can't remove yourself)
+                                        if (user?.userId && !lockedUserIds.includes(user.userId)) lockedUserIds.push(user.userId);
+                                        // Initial additional ids = current assignees minus locked ones
+                                        const initialAdditionalIds = assignees.map(a => a.userId).filter(uid => !lockedUserIds.includes(uid));
+                                        return (
+                                            <div>
+                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                                                    <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' as const, letterSpacing: '0.6px' }}>Assignees</div>
+                                                    {selectedPaper.projectId && (meIsAssignee || isDirector || selectedPaper.editable) && (
+                                                        <button type="button"
+                                                            onClick={() => setViewAssigneesModalOpen(true)}
+                                                            style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', borderRadius: '7px', border: '1px solid #e2e8f0', background: '#f8fafc', color: '#475569', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700 }}>
+                                                            <Edit2 size={11} /> Edit Assignees
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                {assignees.length > 0 ? (
+                                                    <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: '6px' }}>
+                                                        {assignees.map(a => (
+                                                            <span key={a.userId}
+                                                                title={a.email || ''}
+                                                                style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: a.userId === user?.userId ? '#eff6ff' : '#f1f5f9', padding: '4px 12px', borderRadius: '20px', border: `1px solid ${a.userId === user?.userId ? '#bfdbfe' : '#e2e8f0'}`, fontSize: '0.78rem', fontWeight: 600, color: a.userId === user?.userId ? '#1d4ed8' : '#475569' }}
+                                                            >
+                                                                {a.fullName || a.email}
+                                                                {a.userId === user?.userId && <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#3b82f6', background: '#dbeafe', padding: '1px 6px', borderRadius: '10px' }}>You</span>}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <p style={{ fontSize: '0.78rem', color: '#94a3b8', margin: 0 }}>No assignees.</p>
+                                                )}
+                                                {/* View assignees modal */}
+                                                {viewAssigneesModalOpen && (
+                                                    <AssigneesModal
+                                                        projectMembers={projectMembers}
+                                                        membersLoading={membersLoading}
+                                                        initialIds={initialAdditionalIds}
+                                                        lockedIds={lockedUserIds}
+                                                        saving={viewAssigneesSaving}
+                                                        onSave={handleViewAssigneesSave}
+                                                        onClose={() => !viewAssigneesSaving && setViewAssigneesModalOpen(false)}
+                                                    />
+                                                )}
+                                            </div>
+                                        );
+                                    })()}
 
                                     {/* Actions */}
                                     {(() => {
@@ -1715,9 +1882,12 @@ const PaperSubmissions: React.FC = () => {
                                         const projectRole = currentUserMembership?.projectRole ?? currentUserMembership?.role ?? currentUserMembership?.projectRoleId;
                                         const projectRoleName = (currentUserMembership?.roleName ?? currentUserMembership?.projectRoleName ?? '').toLowerCase();
                                         const isProjectLeader = projectRole === ProjectRoleEnum.Leader || projectRoleName.includes('leader');
+                                        const isAssignee = (selectedPaper.assignees ?? []).some(a => a.userId === user?.userId);
+                                        // Rejected → Draft: Leader and LabDirector only (assignee/editable NOT allowed per spec)
                                         const canRevertToDraft = isDirector || isProjectLeader;
                                         return (
                                     <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '14px', display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '4px' }}>
+
 
                                         {/* Draft: Edit + Submit for Internal Review + Delete */}
                                         {selectedPaper.status === SubmissionStatus.Draft && canEdit && (
@@ -1726,10 +1896,13 @@ const PaperSubmissions: React.FC = () => {
                                                     style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: '1px solid #e2e8f0', background: '#fff', color: '#475569', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>
                                                     <Edit2 size={14} /> Edit
                                                 </button>
+                                                {/* Submit for Internal Review: Leader only (not LabDirector, not Assignee) */}
+                                                {!isDirector && (
                                                 <button onClick={handleSubmitForReview} disabled={submitReviewLoading}
                                                     style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: '1px solid #bfdbfe', background: '#eff6ff', color: '#3b82f6', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>
                                                     {submitReviewLoading ? <><Loader2 size={14} className="animate-spin" /> Submitting...</> : <><Send size={14} /> Submit for Internal Review</>}
                                                 </button>
+                                                )}
                                                 {deleteConfirmId === selectedPaper.paperSubmissionId ? (
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', borderRadius: '9px', background: '#fef2f2', border: '1px solid #fecaca', width: '100%' }}>
                                                         <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 600, color: '#dc2626' }}>Delete this paper?</span>
@@ -1773,7 +1946,7 @@ const PaperSubmissions: React.FC = () => {
                                         )}
 
                                         {/* Approved → Submit to Conference */}
-                                        {selectedPaper.status === SubmissionStatus.Approved && canEdit && (
+                                        {selectedPaper.status === SubmissionStatus.Approved && (canEdit || isAssignee || isDirector) && (
                                             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' as const }}>
                                                 <button onClick={handleSubmitToConference} disabled={!!actionLoading}
                                                     style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: 'none', background: '#3b82f6', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem', boxShadow: '0 2px 8px rgba(59,130,246,0.25)' }}>
@@ -1783,7 +1956,7 @@ const PaperSubmissions: React.FC = () => {
                                         )}
 
                                         {/* Submitted → Record Decision / Mark Revision */}
-                                        {selectedPaper.status === SubmissionStatus.Submitted && canEdit && (
+                                        {selectedPaper.status === SubmissionStatus.Submitted && (canEdit || isAssignee || isDirector) && (
                                             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' as const }}>
                                                 <button onClick={handleVenueDecision} disabled={!!actionLoading}
                                                     style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: 'none', background: '#8b5cf6', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem', boxShadow: '0 2px 8px rgba(139,92,246,0.25)' }}>
@@ -1797,7 +1970,7 @@ const PaperSubmissions: React.FC = () => {
                                         )}
 
                                         {/* Revision: Edit + Record Decision + Reject */}
-                                        {selectedPaper.status === SubmissionStatus.Revision && canEdit && (
+                                        {selectedPaper.status === SubmissionStatus.Revision && (canEdit || isAssignee || isDirector) && (
                                             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' as const }}>
                                                 <button onClick={() => openEdit(selectedPaper)}
                                                     style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: '1px solid #e2e8f0', background: '#fff', color: '#475569', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>
@@ -1815,7 +1988,7 @@ const PaperSubmissions: React.FC = () => {
                                         )}
 
                                         {/* Decision → Accept / Reject */}
-                                        {selectedPaper.status === SubmissionStatus.Decision && canEdit && (
+                                        {selectedPaper.status === SubmissionStatus.Decision && (canEdit || isAssignee || isDirector) && (
                                             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' as const }}>
                                                 <button onClick={handleAcceptDecision} disabled={!!actionLoading}
                                                     style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: 'none', background: '#10b981', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem', boxShadow: '0 2px 8px rgba(16,185,129,0.25)' }}>
@@ -1829,7 +2002,7 @@ const PaperSubmissions: React.FC = () => {
                                         )}
 
                                         {/* Accepted → Camera Ready */}
-                                        {selectedPaper.status === SubmissionStatus.Accepted && canEdit && (
+                                        {selectedPaper.status === SubmissionStatus.Accepted && (canEdit || isAssignee || isDirector) && (
                                             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' as const }}>
                                                 <button onClick={handleMarkCameraReady} disabled={!!actionLoading}
                                                     style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: 'none', background: '#6366f1', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem', boxShadow: '0 2px 8px rgba(99,102,241,0.25)' }}>
@@ -1839,7 +2012,7 @@ const PaperSubmissions: React.FC = () => {
                                         )}
 
                                         {/* Camera Ready → Published */}
-                                        {selectedPaper.status === SubmissionStatus.CameraReady && canEdit && (
+                                        {selectedPaper.status === SubmissionStatus.CameraReady && (canEdit || isAssignee || isDirector) && (
                                             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' as const }}>
                                                 <button onClick={handlePublish} disabled={!!actionLoading}
                                                     style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: 'none', background: '#0ea5e9', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem', boxShadow: '0 2px 8px rgba(14,165,233,0.25)' }}>
@@ -1948,7 +2121,57 @@ const PaperSubmissions: React.FC = () => {
                     </div>
                 )}
             </div>
-            <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}.animate-spin{animation:spin 1s linear infinite}`}</style>
+            <style>{`
+                @keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
+                .animate-spin { animation: spin 1s linear infinite }
+
+                .paper-list-scroll {
+                    flex: 1;
+                    max-height: 100%;
+                    padding-right: 4px;
+                }
+
+                .paper-list-item:hover {
+                    border-color: #cbd5e1 !important;
+                }
+            `}</style>
+
+            {/* ── Authors Modal ── */}
+            {authorsModalOpen && (
+                <AuthorsModal
+                    projectMembers={projectMembers}
+                    membersLoading={membersLoading}
+                    initialMemberIds={(activePanel === 'edit' ? editData.members : addMembers).map((m: PaperMemberRequest) => m.membershipId)}
+                    initialExternals={activePanel === 'edit' ? editExternalUsers : addExternalUsers}
+                    onSave={(memberIds, externals) => {
+                        const requests: PaperMemberRequest[] = memberIds.map(mid => ({ membershipId: mid, role: PaperRoleEnum.CoAuthor }));
+                        if (activePanel === 'edit') {
+                            setEditData((p: any) => ({ ...p, members: requests }));
+                            setEditExternalUsers(externals);
+                        } else {
+                            setAddMembers(requests);
+                            setAddExternalUsers(externals);
+                        }
+                    }}
+                    onClose={() => setAuthorsModalOpen(false)}
+                />
+            )}
+            {assigneesModalOpen && (
+                <AssigneesModal
+                    projectMembers={projectMembers}
+                    membersLoading={membersLoading}
+                    initialIds={activePanel === 'edit' ? editAssigneeIds : addAssigneeIds}
+                    onSave={(ids) => {
+                        if (activePanel === 'edit') setEditAssigneeIds(ids);
+                        else setAddAssigneeIds(ids);
+                        setAssigneesModalOpen(false);
+                    }}
+                    onClose={() => setAssigneesModalOpen(false)}
+                />
+            )}
+            {authorDetail && (
+                <AuthorDetailModal author={authorDetail} onClose={() => setAuthorDetail(null)} />
+            )}
         </MainLayout>
     );
 };
@@ -1969,32 +2192,43 @@ interface PaperFormFieldsProps {
     formErrors: Record<string, string>;
     extraField?: React.ReactNode;
     hidePaperUrl?: boolean;
+    externalUsers?: ExternalUserCreateDto[];
+    onOpenAuthorsModal?: () => void;
+    onAuthorClick?: (info: { type: 'member' | 'external'; data: any }) => void;
 }
 
 const PaperFormFields: React.FC<PaperFormFieldsProps> = ({
     data, onChange, onProjectChange, onMembersChange, onDocumentChange,
-    projects, projectMembers, membersLoading, formErrors, extraField, hidePaperUrl
+    projects, projectMembers, membersLoading, formErrors, extraField, hidePaperUrl,
+    externalUsers, onOpenAuthorsModal, onAuthorClick,
 }) => (
     <>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
             <label style={fieldLabelStyle}>Title <span style={{ color: '#ef4444' }}>*</span></label>
             <input className="form-input" style={{ ...fieldInputStyle, borderColor: formErrors.title ? '#ef4444' : '#e2e8f0' }}
-                value={data.title} onChange={e => onChange('title', e.target.value)} placeholder="Paper title..." />
+                value={data.title} onChange={e => onChange('title', e.target.value)} placeholder="Paper title..." required />
             {formErrors.title && <span style={{ color: '#ef4444', fontSize: '0.72rem' }}>{formErrors.title}</span>}
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <label style={fieldLabelStyle}>Conference / Journal <span style={{ color: '#ef4444' }}>*</span></label>
                 <input className="form-input" style={{ ...fieldInputStyle, borderColor: formErrors.conferenceName ? '#ef4444' : '#e2e8f0' }}
-                    value={data.conferenceName} onChange={e => onChange('conferenceName', e.target.value)} placeholder="e.g. IEEE ICSE 2026..." />
+                    value={data.conferenceName} onChange={e => onChange('conferenceName', e.target.value)} placeholder="e.g. IEEE ICSE 2026..." required />
                 {formErrors.conferenceName && <span style={{ color: '#ef4444', fontSize: '0.72rem' }}>{formErrors.conferenceName}</span>}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <label style={fieldLabelStyle}>Project</label>
-                <select className="form-input" style={fieldInputStyle} value={data.projectId} onChange={e => onProjectChange(e.target.value)}>
-                    <option value="">{projects.length > 0 ? 'Select project...' : 'No projects'}</option>
-                    {projects.map((p: any) => <option key={p.projectId || p.id} value={p.projectId || p.id}>{p.projectName || p.name || p.title}</option>)}
-                </select>
+                <AppSelect
+                    value={data.projectId}
+                    onChange={pid => onProjectChange(pid)}
+                    options={[
+                        { value: '', label: projects.length > 0 ? 'Select project...' : 'No projects' },
+                        ...projects.map((p: any) => ({ value: p.projectId || p.id, label: p.projectName || p.name || p.title }))
+                    ]}
+                    placeholder="Select project..."
+                    isClearable={!!data.projectId}
+                    size="md"
+                />
             </div>
         </div>
         {!hidePaperUrl && (
@@ -2006,7 +2240,7 @@ const PaperFormFields: React.FC<PaperFormFieldsProps> = ({
             </div>
         )}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <label style={fieldLabelStyle}>Document <span style={{ color: '#94a3b8', fontWeight: 500, textTransform: 'none' }}>(DOC, DOCX, TXT, PPT, PPTX)</span></label>
+            <label style={fieldLabelStyle}>Document <span style={{ color: '#ef4444' }}>*</span> <span style={{ color: '#94a3b8', fontWeight: 500, textTransform: 'none' }}>(DOC, DOCX, TXT, PPT, PPTX)</span></label>
             <label style={{
                 display: 'flex', alignItems: 'center', gap: '10px',
                 padding: '9px 12px', borderRadius: '9px', border: '1.5px dashed #cbd5e1',
@@ -2052,39 +2286,42 @@ const PaperFormFields: React.FC<PaperFormFieldsProps> = ({
             {formErrors.abstract && <span style={{ color: '#ef4444', fontSize: '0.72rem' }}>{formErrors.abstract}</span>}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <label style={fieldLabelStyle}>Authors / Members</label>
-            {!data.projectId
-                ? <p style={{ fontSize: '0.82rem', color: '#94a3b8', margin: 0 }}>Select a project first to add authors.</p>
-                : membersLoading
-                    ? <div style={{ fontSize: '0.82rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '6px' }}><Loader2 size={14} className="animate-spin" /> Loading members...</div>
-                    : (
-                        <div style={{ border: '1.5px solid #e2e8f0', borderRadius: '9px', padding: '10px', background: '#f8fafc' }}>
-                            <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: '6px', marginBottom: '8px' }}>
-                                {data.members.map((m, idx) => {
-                                    const pm = projectMembers.find((p: any) => (p.membershipId || p.memberId) === m.membershipId);
-                                    return (
-                                        <span key={idx} style={{ background: '#fff', padding: '4px 10px', borderRadius: '20px', border: '1px solid #e2e8f0', fontSize: '0.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                            {pm?.fullName || 'Member'}
-                                            <button type="button" onClick={() => onMembersChange(data.members.filter((_, i) => i !== idx))} style={{ color: '#ef4444', border: 'none', background: 'none', cursor: 'pointer', padding: 0, lineHeight: 1 }}><X size={12} /></button>
-                                        </span>
-                                    );
-                                })}
-                            </div>
-                            <select className="form-input" style={{ ...fieldInputStyle, background: '#fff' }} onChange={e => {
-                                const mid = e.target.value;
-                                if (!mid || data.members.some(am => am.membershipId === mid)) return;
-                                onMembersChange([...data.members, { membershipId: mid, role: PaperRoleEnum.CoAuthor }]);
-                                e.target.value = '';
-                            }}>
-                                <option value="">+ Add author...</option>
-                                {projectMembers
-                                    .map((pm: any) => ({ ...pm, _mid: pm.membershipId || pm.memberId }))
-                                    .filter((pm: any) => pm._mid && !data.members.some(am => am.membershipId === pm._mid))
-                                    .map((pm: any) => <option key={pm._mid} value={pm._mid}>{pm.fullName}</option>)}
-                            </select>
-                        </div>
-                    )
-            }
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <label style={fieldLabelStyle}>Authors <span style={{ color: '#ef4444' }}>*</span></label>
+                {onOpenAuthorsModal && (
+                    <button type="button" onClick={onOpenAuthorsModal}
+                        style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', borderRadius: '7px', border: '1px solid #e2e8f0', background: '#f8fafc', color: '#475569', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700 }}>
+                        <Plus size={11} /> Add / Edit Authors
+                    </button>
+                )}
+            </div>
+            {(data.members.length > 0 || (externalUsers ?? []).length > 0) ? (
+                <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: '5px' }}>
+                    {data.members.map((m, idx) => {
+                        const pm = projectMembers.find((p: any) => (p.membershipId || p.memberId) === m.membershipId);
+                        return (
+                            <span key={idx}
+                                onClick={() => onAuthorClick && onAuthorClick({ type: 'member', data: pm || { fullName: 'Member', membershipId: m.membershipId } })}
+                                style={{ background: '#eff6ff', padding: '3px 10px', borderRadius: '20px', border: '1px solid #bfdbfe', fontSize: '0.76rem', fontWeight: 600, color: '#1d4ed8', cursor: onAuthorClick ? 'pointer' : 'default', transition: 'opacity 0.12s' }}
+                                title={pm?.email || ''}
+                            >
+                                {pm?.fullName || 'Member'}
+                            </span>
+                        );
+                    })}
+                    {(externalUsers ?? []).map((eu, idx) => (
+                        <span key={'ext-' + idx}
+                            onClick={() => onAuthorClick && onAuthorClick({ type: 'external', data: eu })}
+                            style={{ background: '#fffbeb', padding: '3px 10px', borderRadius: '20px', border: '1px solid #fde68a', fontSize: '0.76rem', fontWeight: 600, color: '#92400e', cursor: onAuthorClick ? 'pointer' : 'default' }}
+                            title={eu.email || ''}
+                        >
+                            {eu.fullName}<span style={{ fontSize: '0.65rem', fontWeight: 400, marginLeft: '3px' }}>(ext.)</span>
+                        </span>
+                    ))}
+                </div>
+            ) : (
+                <p style={{ fontSize: '0.78rem', color: '#94a3b8', margin: 0 }}>No authors added yet. Click "Add / Edit Authors" to select.</p>
+            )}
         </div>
     </>
 );
@@ -2226,6 +2463,479 @@ const CreateExternalAuthors: React.FC<CreateExternalAuthorsProps> = ({ externalU
             {externalUsers.length === 0 && !showForm && (
                 <p style={{ fontSize: '0.78rem', color: '#94a3b8', margin: 0, fontStyle: 'italic' }}>No external authors added.</p>
             )}
+        </div>
+    );
+};
+
+// ─── AssigneesModal ───────────────────────────────────────────────────────────
+interface AssigneesModalProps {
+    projectMembers: any[];
+    membersLoading: boolean;
+    initialIds: string[];
+    /** User IDs that are always checked and cannot be toggled (leaders, directors, self) */
+    lockedIds?: string[];
+    onSave: (ids: string[]) => void;
+    onClose: () => void;
+    saving?: boolean;
+}
+const AssigneesModal: React.FC<AssigneesModalProps> = ({ projectMembers, membersLoading, initialIds, lockedIds = [], onSave, onClose, saving }) => {
+    const [localIds, setLocalIds] = useState<string[]>(initialIds);
+    const toggle = (uid: string) => {
+        if (lockedIds.includes(uid)) return;
+        setLocalIds(prev => prev.includes(uid) ? prev.filter(id => id !== uid) : [...prev, uid]);
+    };
+    return (
+        <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: '14px', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', width: '420px', maxWidth: '96vw', maxHeight: '82vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                {/* Header */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid #f1f5f9', flexShrink: 0 }}>
+                    <div>
+                        <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#1e293b' }}>Additional Assignees</div>
+                        <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '2px' }}>Leader &amp; Director are auto-assigned and cannot be removed</div>
+                    </div>
+                    <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#94a3b8', padding: '4px' }}><X size={16} /></button>
+                </div>
+                {/* List */}
+                <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }} className="custom-scrollbar">
+                    {membersLoading ? (
+                        <div style={{ padding: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', color: '#94a3b8', fontSize: '0.85rem' }}>
+                            <Loader2 size={15} className="animate-spin" /> Loading members...
+                        </div>
+                    ) : projectMembers.length === 0 ? (
+                        <div style={{ padding: '24px', textAlign: 'center' as const, color: '#94a3b8', fontSize: '0.85rem' }}>No members in this project</div>
+                    ) : projectMembers.map((m: any) => {
+                        const uid: string = m.userId || m.memberId || m.id || '';
+                        if (!uid) return null;
+                        const isLocked = lockedIds.includes(uid);
+                        const checked = isLocked || localIds.includes(uid);
+                        const name = m.fullName || m.userName || m.email || uid;
+                        const role = m.roleName || m.projectRoleName || '';
+                        return (
+                            <div key={uid} onClick={() => toggle(uid)}
+                                style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 18px', cursor: isLocked ? 'default' : 'pointer', background: checked ? (isLocked ? '#f8fafc' : '#f0fdf4') : '#fff', borderBottom: '1px solid #f8fafc', transition: 'background 0.12s', opacity: isLocked ? 0.7 : 1 }}
+                                onMouseEnter={e => { if (!checked && !isLocked) e.currentTarget.style.background = '#f8fafc'; }}
+                                onMouseLeave={e => { e.currentTarget.style.background = checked ? (isLocked ? '#f8fafc' : '#f0fdf4') : '#fff'; }}
+                            >
+                                <div style={{ width: '34px', height: '34px', borderRadius: '50%', background: checked ? (isLocked ? '#94a3b8' : '#22c55e') : '#e2e8f0', color: checked ? '#fff' : '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 800, flexShrink: 0 }}>
+                                    {name[0]?.toUpperCase()}
+                                </div>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontSize: '0.85rem', fontWeight: checked ? 700 : 500, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{name}</div>
+                                    {m.email && <div style={{ fontSize: '0.72rem', color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{m.email}</div>}
+                                </div>
+                                {role && <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '2px 8px', borderRadius: '10px', flexShrink: 0, border: '1px solid #e2e8f0' }}>{role}</span>}
+                                {isLocked
+                                    ? <span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#94a3b8', background: '#f1f5f9', padding: '1px 6px', borderRadius: '10px', border: '1px solid #e2e8f0', flexShrink: 0 }}>locked</span>
+                                    : checked && <CheckCircle2 size={15} style={{ color: '#22c55e', flexShrink: 0 }} />}
+                            </div>
+                        );
+                    })}
+                </div>
+                {/* Footer */}
+                <div style={{ padding: '12px 18px', borderTop: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+                    <span style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: 600 }}>{localIds.length + lockedIds.filter(id => projectMembers.some((m: any) => (m.userId || m.memberId || m.id) === id)).length} selected</span>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                        <button onClick={onClose} disabled={saving} style={{ padding: '7px 16px', borderRadius: '9px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 700 }}>Cancel</button>
+                        <button onClick={() => { onSave(localIds); }} disabled={saving} style={{ padding: '7px 16px', borderRadius: '9px', border: 'none', background: '#22c55e', color: '#fff', cursor: saving ? 'not-allowed' : 'pointer', fontSize: '0.82rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            {saving && <Loader2 size={13} className="animate-spin" />} Save
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// ─── AuthorDetailModal ───────────────────────────────────────────────────────
+const AuthorDetailModal: React.FC<{ author: { type: 'member' | 'external'; data: any }; onClose: () => void }> = ({ author, onClose }) => {
+    const d = author.data ?? {};
+    const isMember = author.type === 'member';
+    const [profile, setProfile] = useState<any>(null);
+    const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        const userId = d.userId;
+        if (!isMember || !userId) return;
+        setLoading(true);
+        userService.getById(userId)
+            .then(data => setProfile(data))
+            .catch(() => { /* silent */ })
+            .finally(() => setLoading(false));
+    }, [d.userId, isMember]);
+
+    const merged = isMember ? { ...d, ...(profile ?? {}) } : d;
+    const initial = (merged.fullName || '?')[0].toUpperCase();
+
+    const rows: { label: string; value?: string; isLink?: boolean }[] = [
+        { label: 'Email', value: merged.email },
+        { label: 'Role', value: isMember ? (merged.roleName || merged.projectRoleName) : undefined },
+        { label: 'Phone', value: merged.phoneNumber },
+        { label: 'Student ID', value: merged.studentId },
+        { label: 'ORCID', value: merged.orcid, isLink: true },
+        { label: 'Google Scholar', value: merged.googleScholarUrl, isLink: true },
+        { label: 'GitHub', value: merged.githubUrl, isLink: true },
+    ].filter((r): r is { label: string; value: string; isLink?: boolean } => !!r.value);
+
+    return (
+        <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 9100, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: '14px', boxShadow: '0 20px 60px rgba(0,0,0,0.18)', padding: '24px 28px', minWidth: '300px', maxWidth: '420px', width: '100%', position: 'relative' }}>
+                <button onClick={onClose} style={{ position: 'absolute', top: '12px', right: '12px', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: '2px', lineHeight: 1 }}>
+                    <X size={16} />
+                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: (rows.length > 0 || loading) ? '16px' : 0 }}>
+                    <div style={{ width: '46px', height: '46px', borderRadius: '50%', background: isMember ? '#eff6ff' : '#fffbeb', border: `2px solid ${isMember ? '#93c5fd' : '#fde68a'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.15rem', fontWeight: 700, color: isMember ? '#1d4ed8' : '#92400e', flexShrink: 0 }}>
+                        {initial}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: '0.98rem', color: '#1e293b', marginBottom: '4px' }}>{merged.fullName || '—'}</div>
+                        <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '2px 8px', borderRadius: '12px', background: isMember ? '#eff6ff' : '#fffbeb', color: isMember ? '#1d4ed8' : '#92400e' }}>
+                            {isMember ? 'Project Member' : 'External Author'}
+                        </span>
+                    </div>
+                </div>
+                {loading ? (
+                    <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '14px', display: 'flex', alignItems: 'center', gap: '6px', color: '#94a3b8', fontSize: '0.8rem' }}>
+                        <Loader2 size={13} className="animate-spin" /> Loading profile...
+                    </div>
+                ) : rows.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid #f1f5f9', paddingTop: '14px' }}>
+                        {rows.map(r => (
+                            <div key={r.label} style={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: '6px', fontSize: '0.8rem', alignItems: 'start' }}>
+                                <span style={{ color: '#94a3b8', fontWeight: 600 }}>{r.label}</span>
+                                <span style={{ color: '#1e293b', wordBreak: 'break-all' as const }}>
+                                    {r.isLink
+                                        ? <a href={r.value} target="_blank" rel="noopener noreferrer" style={{ color: '#3b82f6', textDecoration: 'none' }}>{r.value}</a>
+                                        : r.value}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+// ─── AuthorsModal ─────────────────────────────────────────────────────────────
+const blankAuthorDraft = { fullName: '', email: '', phoneNumber: '', studentId: '', orcid: '', googleScholarUrl: '', githubUrl: '' };
+
+interface AuthorsModalProps {
+    projectMembers: any[];
+    membersLoading: boolean;
+    initialMemberIds: string[];
+    initialExternals: any[];
+    onSave: (memberIds: string[], externals: any[]) => void;
+    onClose: () => void;
+}
+
+type RightMode = 'add' | 'edit-external' | 'view-member';
+
+const AuthorsModal: React.FC<AuthorsModalProps> = ({ projectMembers, membersLoading, initialMemberIds, initialExternals, onSave, onClose }) => {
+    const [localMemberIds, setLocalMemberIds] = React.useState<string[]>(initialMemberIds);
+    const [localExternals, setLocalExternals] = React.useState<any[]>(initialExternals);
+    const [draft, setDraft] = React.useState(blankAuthorDraft);
+    const [draftErrors, setDraftErrors] = React.useState<ExternalAuthorValidationErrors>(externalAuthorValidationDefaults);
+    const [rightMode, setRightMode] = React.useState<RightMode>('add');
+    const [editingExtIdx, setEditingExtIdx] = React.useState<number | null>(null);
+    const [viewingMember, setViewingMember] = React.useState<any | null>(null);
+    const [memberProfile, setMemberProfile] = React.useState<any | null>(null);
+    const [memberProfileLoading, setMemberProfileLoading] = React.useState(false);
+
+    const hasDraftErrors = hasExternalAuthorValidationErrors(validateExternalAuthorProfileFields(draft));
+
+    const clearRight = () => {
+        setRightMode('add');
+        setEditingExtIdx(null);
+        setViewingMember(null);
+        setMemberProfile(null);
+        setDraft(blankAuthorDraft);
+        setDraftErrors(externalAuthorValidationDefaults);
+    };
+
+    const loadExtToEdit = (eu: any, idx: number) => {
+        setRightMode('edit-external');
+        setEditingExtIdx(idx);
+        setDraft({
+            fullName: eu.fullName || '', email: eu.email || '',
+            phoneNumber: eu.phoneNumber || '', studentId: eu.studentId || '',
+            orcid: eu.orcid || '', googleScholarUrl: eu.googleScholarUrl || '', githubUrl: eu.githubUrl || '',
+        });
+        setDraftErrors(externalAuthorValidationDefaults);
+    };
+
+    const loadMemberView = (m: any) => {
+        setRightMode('view-member');
+        setViewingMember(m);
+        setMemberProfile(null);
+        const userId = m.userId;
+        if (userId) {
+            setMemberProfileLoading(true);
+            userService.getById(userId)
+                .then(data => setMemberProfile(data))
+                .catch(() => {})
+                .finally(() => setMemberProfileLoading(false));
+        }
+    };
+
+    const addExternal = () => {
+        const errs = validateExternalAuthorProfileFields(draft);
+        setDraftErrors(errs);
+        if (hasExternalAuthorValidationErrors(errs)) return;
+        setLocalExternals(prev => [...prev, {
+            fullName: draft.fullName.trim(), email: draft.email.trim() || null,
+            phoneNumber: draft.phoneNumber.trim() || null, studentId: draft.studentId.trim() || null,
+            orcid: draft.orcid.trim() || null, googleScholarUrl: draft.googleScholarUrl.trim() || null,
+            githubUrl: draft.githubUrl.trim() || null, isActive: true, _key: Date.now().toString(),
+        }]);
+        clearRight();
+    };
+
+    const saveEditExternal = () => {
+        const errs = validateExternalAuthorProfileFields(draft);
+        setDraftErrors(errs);
+        if (hasExternalAuthorValidationErrors(errs)) return;
+        setLocalExternals(prev => prev.map((eu, i) => i !== editingExtIdx ? eu : {
+            ...eu,
+            fullName: draft.fullName.trim(), email: draft.email.trim() || null,
+            phoneNumber: draft.phoneNumber.trim() || null, studentId: draft.studentId.trim() || null,
+            orcid: draft.orcid.trim() || null, googleScholarUrl: draft.googleScholarUrl.trim() || null,
+            githubUrl: draft.githubUrl.trim() || null,
+        }));
+        clearRight();
+    };
+
+    const smallInput: React.CSSProperties = { width: '100%', padding: '6px 9px', borderRadius: '8px', border: '1.5px solid #e2e8f0', fontSize: '0.78rem', fontFamily: 'inherit', outline: 'none', background: '#fff', boxSizing: 'border-box' };
+
+    const rightTitle = rightMode === 'edit-external' ? 'Edit External Author' : rightMode === 'view-member' ? 'Member Detail' : 'Add External Author';
+
+    const mergedMemberInfo = rightMode === 'view-member' ? { ...(viewingMember ?? {}), ...(memberProfile ?? {}) } : null;
+
+    return (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
+            <div style={{ width: '720px', maxWidth: '96vw', height: '82vh', maxHeight: '82vh', background: '#fff', borderRadius: '14px', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
+                {/* Header */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid #f1f5f9' }}>
+                    <h3 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 800, color: '#1e293b' }}>Authors</h3>
+                    <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex', padding: '4px' }}><X size={16} /></button>
+                </div>
+
+                {/* Body */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', flex: 1, overflow: 'hidden', minHeight: 0 }}>
+
+                    {/* Left — select list */}
+                    <div style={{ display: 'flex', flexDirection: 'column', borderRight: '1px solid #f1f5f9', minHeight: 0 }}>
+                        <div style={{ padding: '8px 14px 5px', fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' as const, letterSpacing: '0.6px', flexShrink: 0 }}>
+                            Project Members
+                        </div>
+                        <div style={{ flex: 1, overflowY: 'auto' as const, minHeight: 0 }} className="custom-scrollbar">
+                            {membersLoading ? (
+                                <div style={{ padding: '18px', textAlign: 'center' as const, color: '#94a3b8', fontSize: '0.78rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                                    <Loader2 size={13} className="animate-spin" /> Loading...
+                                </div>
+                            ) : projectMembers.length === 0 ? (
+                                <div style={{ padding: '18px', textAlign: 'center' as const, color: '#94a3b8', fontSize: '0.78rem' }}>No project members</div>
+                            ) : projectMembers.map((m: any) => {
+                                const mid = m.membershipId || m.memberId || m.id || '';
+                                if (!mid) return null;
+                                const checked = localMemberIds.includes(mid);
+                                const name = m.fullName || m.userName || m.email || mid;
+                                const role = m.roleName || m.projectRoleName || '';
+                                const isViewing = rightMode === 'view-member' && viewingMember && (viewingMember.membershipId || viewingMember.memberId) === mid;
+                                return (
+                                    <div key={mid}
+                                        onClick={() => setLocalMemberIds(prev => checked ? prev.filter(id => id !== mid) : [...prev, mid])}
+                                        style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 14px', cursor: 'pointer', background: isViewing ? '#f0f9ff' : checked ? '#eff6ff' : '#fff', borderBottom: '1px solid #f8fafc', transition: 'background 0.1s' }}
+                                        onMouseEnter={e => { if (!checked && !isViewing) e.currentTarget.style.background = '#f8fafc'; }}
+                                        onMouseLeave={e => { e.currentTarget.style.background = isViewing ? '#f0f9ff' : checked ? '#eff6ff' : '#fff'; }}
+                                    >
+                                        <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: checked ? '#3b82f6' : '#e2e8f0', color: checked ? '#fff' : '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.66rem', fontWeight: 800, flexShrink: 0 }}>
+                                            {name[0]?.toUpperCase()}
+                                        </div>
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <div style={{ fontSize: '0.78rem', fontWeight: checked ? 700 : 500, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{name}</div>
+                                            {role && <div style={{ fontSize: '0.64rem', color: '#94a3b8' }}>{role}</div>}
+                                        </div>
+                                        {checked && <CheckCircle2 size={13} style={{ color: '#3b82f6', flexShrink: 0 }} />}
+                                        <button type="button"
+                                            onClick={e => { e.stopPropagation(); loadMemberView(m); }}
+                                            title="View details"
+                                            style={{ border: 'none', background: isViewing ? '#e0f2fe' : 'none', borderRadius: '6px', cursor: 'pointer', padding: '3px 5px', color: isViewing ? '#0284c7' : '#94a3b8', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                                            <Eye size={12} />
+                                        </button>
+                                    </div>
+                                );
+                            })}
+
+                            {/* Staged externals */}
+                            {localExternals.length > 0 && (
+                                <>
+                                    <div style={{ padding: '6px 14px 3px', fontSize: '0.63rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' as const, letterSpacing: '0.6px', borderTop: '1px solid #f1f5f9', marginTop: '2px' }}>
+                                        External Authors
+                                    </div>
+                                    {localExternals.map((eu: any, idx: number) => {
+                                        const isEditingThis = rightMode === 'edit-external' && editingExtIdx === idx;
+                                        return (
+                                            <div key={eu.externalUserId || eu._key || String(idx)}
+                                                style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 14px', background: isEditingThis ? '#fef9c3' : '#fffbeb', borderBottom: '1px solid #fef3c7' }}>
+                                                <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: isEditingThis ? '#eab308' : '#f59e0b', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.66rem', fontWeight: 800, flexShrink: 0 }}>
+                                                    {(eu.fullName || '?')[0]?.toUpperCase()}
+                                                </div>
+                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                    <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{eu.fullName}</div>
+                                                    <div style={{ fontSize: '0.64rem', color: '#92400e' }}>{eu.email || 'External'}</div>
+                                                </div>
+                                                <button type="button"
+                                                    onClick={() => loadExtToEdit(eu, idx)}
+                                                    title="Edit"
+                                                    style={{ border: 'none', background: isEditingThis ? '#fde047' : 'none', borderRadius: '6px', cursor: 'pointer', padding: '3px 5px', color: isEditingThis ? '#854d0e' : '#94a3b8', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                                                    <Eye size={12} />
+                                                </button>
+                                                <button type="button"
+                                                    onClick={() => { setLocalExternals(prev => prev.filter((_, i) => i !== idx)); if (isEditingThis) clearRight(); }}
+                                                    style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#94a3b8', padding: '2px', display: 'flex', flexShrink: 0 }}>
+                                                    <X size={11} />
+                                                </button>
+                                            </div>
+                                        );
+                                    })}
+                                </>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Right column */}
+                    <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                        {/* Right header */}
+                        <div style={{ padding: '8px 14px 5px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+                            <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' as const, letterSpacing: '0.6px' }}>{rightTitle}</span>
+                            <div style={{ display: 'flex', gap: '4px' }}>
+                                {rightMode === 'add' && (
+                                    <button type="button" onClick={() => setDraft(blankAuthorDraft)} title="Clear form"
+                                        style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#94a3b8', padding: '3px 6px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '3px', fontSize: '0.68rem', fontWeight: 600 }}>
+                                        <RefreshCw size={11} /> Refresh
+                                    </button>
+                                )}
+                                {(rightMode === 'edit-external' || rightMode === 'view-member') && (
+                                    <button type="button" onClick={clearRight} title="Go back to add mode"
+                                        style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#94a3b8', padding: '3px 6px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '3px', fontSize: '0.68rem', fontWeight: 600 }}>
+                                        <X size={11} /> Clear
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Right content */}
+                        <div style={{ flex: 1, overflowY: 'auto' as const, padding: '6px 14px 12px', display: 'flex', flexDirection: 'column', gap: '6px', minHeight: 0 }} className="custom-scrollbar">
+
+                            {/* View member mode */}
+                            {rightMode === 'view-member' && (
+                                <>
+                                    {memberProfileLoading ? (
+                                        <div style={{ padding: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', color: '#94a3b8', fontSize: '0.8rem' }}>
+                                            <Loader2 size={13} className="animate-spin" /> Loading profile...
+                                        </div>
+                                    ) : (() => {
+                                        const info = mergedMemberInfo!;
+                                        const rows = [
+                                            { label: 'Email', value: info.email },
+                                            { label: 'Phone', value: info.phoneNumber },
+                                            { label: 'Student ID', value: info.studentId },
+                                            { label: 'Role', value: info.roleName || info.projectRoleName },
+                                            { label: 'ORCID', value: info.orcid, isLink: true },
+                                            { label: 'Google Scholar', value: info.googleScholarUrl, isLink: true },
+                                            { label: 'GitHub', value: info.githubUrl, isLink: true },
+                                        ].filter(r => !!r.value);
+                                        return (
+                                            <>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+                                                    <div style={{ width: '38px', height: '38px', borderRadius: '50%', background: '#eff6ff', border: '2px solid #93c5fd', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem', fontWeight: 700, color: '#1d4ed8', flexShrink: 0 }}>
+                                                        {(info.fullName || '?')[0].toUpperCase()}
+                                                    </div>
+                                                    <div>
+                                                        <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#1e293b' }}>{info.fullName}</div>
+                                                        <span style={{ fontSize: '0.66rem', fontWeight: 700, padding: '1px 7px', borderRadius: '10px', background: '#eff6ff', color: '#1d4ed8' }}>Project Member</span>
+                                                    </div>
+                                                </div>
+                                                {rows.length === 0 ? (
+                                                    <p style={{ fontSize: '0.78rem', color: '#94a3b8', fontStyle: 'italic', margin: 0 }}>No additional info available.</p>
+                                                ) : rows.map(r => (
+                                                    <div key={r.label} style={{ display: 'grid', gridTemplateColumns: '100px 1fr', gap: '4px', fontSize: '0.78rem', alignItems: 'start' }}>
+                                                        <span style={{ color: '#94a3b8', fontWeight: 600 }}>{r.label}</span>
+                                                        <span style={{ color: '#1e293b', wordBreak: 'break-all' as const }}>
+                                                            {r.isLink
+                                                                ? <a href={r.value} target="_blank" rel="noopener noreferrer" style={{ color: '#3b82f6', textDecoration: 'none' }}>{r.value}</a>
+                                                                : r.value}
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </>
+                                        );
+                                    })()}
+                                </>
+                            )}
+
+                            {/* Add / Edit external author form */}
+                            {(rightMode === 'add' || rightMode === 'edit-external') && (
+                                <>
+                                    <input className="form-input" style={smallInput} placeholder="Full name *" value={draft.fullName} onChange={e => setDraft(d => ({ ...d, fullName: e.target.value }))} />
+                                    <input className="form-input" style={smallInput} placeholder="Email *" value={draft.email} onChange={e => setDraft(d => ({ ...d, email: e.target.value }))} />
+                                    <input className="form-input" style={{ ...smallInput, borderColor: draftErrors.phoneNumber ? '#ef4444' : '#e2e8f0' }} placeholder="Phone number" value={draft.phoneNumber}
+                                        onChange={e => { const v = e.target.value; setDraft(d => ({ ...d, phoneNumber: v })); setDraftErrors(p => ({ ...p, phoneNumber: validateExternalAuthorField('phoneNumber', v.trim()) })); }} />
+                                    <input className="form-input" style={{ ...smallInput, borderColor: draftErrors.studentId ? '#ef4444' : '#e2e8f0' }} placeholder="Student ID" value={draft.studentId}
+                                        onChange={e => { const v = e.target.value; setDraft(d => ({ ...d, studentId: v })); setDraftErrors(p => ({ ...p, studentId: validateExternalAuthorField('studentId', v.trim()) })); }} />
+                                    <input className="form-input" style={{ ...smallInput, borderColor: draftErrors.orcid ? '#ef4444' : '#e2e8f0' }} placeholder="ORCID" value={draft.orcid}
+                                        onChange={e => { const v = e.target.value; setDraft(d => ({ ...d, orcid: v })); setDraftErrors(p => ({ ...p, orcid: validateExternalAuthorField('orcid', v.trim()) })); }} />
+                                    <input className="form-input" style={{ ...smallInput, borderColor: draftErrors.googleScholarUrl ? '#ef4444' : '#e2e8f0' }} placeholder="Google Scholar URL" value={draft.googleScholarUrl}
+                                        onChange={e => { const v = e.target.value; setDraft(d => ({ ...d, googleScholarUrl: v })); setDraftErrors(p => ({ ...p, googleScholarUrl: validateExternalAuthorField('googleScholarUrl', v.trim()) })); }} />
+                                    <input className="form-input" style={{ ...smallInput, borderColor: draftErrors.githubUrl ? '#ef4444' : '#e2e8f0' }} placeholder="GitHub URL" value={draft.githubUrl}
+                                        onChange={e => { const v = e.target.value; setDraft(d => ({ ...d, githubUrl: v })); setDraftErrors(p => ({ ...p, githubUrl: validateExternalAuthorField('githubUrl', v.trim()) })); }} />
+                                    {(draftErrors.phoneNumber || draftErrors.studentId || draftErrors.orcid || draftErrors.googleScholarUrl || draftErrors.githubUrl) && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                            {draftErrors.studentId && <span style={{ color: '#ef4444', fontSize: '0.66rem' }}>{draftErrors.studentId}</span>}
+                                            {draftErrors.phoneNumber && <span style={{ color: '#ef4444', fontSize: '0.66rem' }}>{draftErrors.phoneNumber}</span>}
+                                            {draftErrors.orcid && <span style={{ color: '#ef4444', fontSize: '0.66rem' }}>{draftErrors.orcid}</span>}
+                                            {draftErrors.googleScholarUrl && <span style={{ color: '#ef4444', fontSize: '0.66rem' }}>{draftErrors.googleScholarUrl}</span>}
+                                            {draftErrors.githubUrl && <span style={{ color: '#ef4444', fontSize: '0.66rem' }}>{draftErrors.githubUrl}</span>}
+                                        </div>
+                                    )}
+                                    {rightMode === 'add' ? (
+                                        <button type="button" onClick={addExternal}
+                                            disabled={!draft.fullName.trim() || !draft.email.trim() || hasDraftErrors}
+                                            style={{ padding: '6px 12px', borderRadius: '7px', border: 'none', background: 'var(--accent-color)', color: '#fff', cursor: 'pointer', fontSize: '0.76rem', fontWeight: 700, opacity: (!draft.fullName.trim() || !draft.email.trim() || hasDraftErrors) ? 0.45 : 1, alignSelf: 'flex-start' }}>
+                                            ＋ Add to list
+                                        </button>
+                                    ) : (
+                                        <div style={{ display: 'flex', gap: '6px' }}>
+                                            <button type="button" onClick={saveEditExternal}
+                                                disabled={!draft.fullName.trim() || !draft.email.trim() || hasDraftErrors}
+                                                style={{ padding: '6px 12px', borderRadius: '7px', border: 'none', background: 'var(--accent-color)', color: '#fff', cursor: 'pointer', fontSize: '0.76rem', fontWeight: 700, opacity: (!draft.fullName.trim() || !draft.email.trim() || hasDraftErrors) ? 0.45 : 1 }}>
+                                                Save Changes
+                                            </button>
+                                            <button type="button" onClick={clearRight}
+                                                style={{ padding: '6px 12px', borderRadius: '7px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', cursor: 'pointer', fontSize: '0.76rem', fontWeight: 700 }}>
+                                                Cancel
+                                            </button>
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Footer */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderTop: '1px solid #f1f5f9', background: '#fafafa' }}>
+                    <span style={{ fontSize: '0.73rem', color: '#64748b', fontWeight: 600 }}>
+                        {localMemberIds.length + localExternals.length} author{(localMemberIds.length + localExternals.length) !== 1 ? 's' : ''} selected
+                    </span>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                        <button type="button" onClick={onClose} style={{ padding: '6px 16px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700 }}>Cancel</button>
+                        <button type="button" onClick={() => { onSave(localMemberIds, localExternals); onClose(); }} className="btn btn-primary" style={{ padding: '6px 16px', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 700 }}>Save</button>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 };

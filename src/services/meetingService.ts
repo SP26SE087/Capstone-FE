@@ -76,7 +76,7 @@ const meetingService = {
     searchMeetings: async (params: { query: string; topK?: number; projectId?: string }): Promise<MeetingResponse[]> => {
         try {
             const response = await api.post('/api/Meetings/search', params);
-            return response.data?.data ?? response.data ?? [];
+            return Array.isArray(response.data) ? response.data : [];
         } catch (error) {
             console.error('Error searching meetings:', error);
             throw error;

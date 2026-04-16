@@ -900,7 +900,8 @@ const ProjectDetails: React.FC = () => {
                                     [ProjectStatus.Inactive]:  { color: '#64748b', bg: '#f1f5f9', label: 'Inactive' },
                                     [ProjectStatus.Active]:    { color: '#10b981', bg: '#ecfdf5', label: 'Active' },
                                     [ProjectStatus.Completed]: { color: '#3b82f6', bg: '#eff6ff', label: 'Completed' },
-                                    [ProjectStatus.Archived]:  { color: '#ef4444', bg: '#fef2f2', label: 'Archived' },
+                                    [ProjectStatus.Archived]:  { color: '#6b7280', bg: '#f3f4f6', label: 'Archived' },
+                                    [ProjectStatus.Cancelled]: { color: '#dc2626', bg: '#fef2f2', label: 'Cancelled' },
                                 };
                                 const from = statusColors[project?.status ?? 0] ?? { color: '#64748b', bg: '#f1f5f9', label: 'Unknown' };
                                 const to   = statusColors[pendingStatus ?? 0]    ?? { color: '#64748b', bg: '#f1f5f9', label: 'Unknown' };

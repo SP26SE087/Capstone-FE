@@ -667,6 +667,7 @@ const Seminars: React.FC = () => {
                                     ?? (storeShowPanel && storeSource === 'seminar' ? (storeMeetingName ?? undefined) : undefined)
                                 }
                                 onProcessingChange={setIsTranscriptionProcessing}
+                                hideTasks
                             />
                         </div>
                     )}

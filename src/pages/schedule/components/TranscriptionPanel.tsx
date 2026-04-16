@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import ReactDOM from 'react-dom';
 import { useTranscriptionStore } from '@/store/slices/transcriptionStore';
 import { validateTextField } from '@/utils/validation';
 import {
@@ -15,7 +16,7 @@ import { userService } from '@/services';
 import { membershipService } from '@/services/membershipService';
 import { useToastStore } from '@/store/slices/toastSlice';
 import {
-    Mic, FileAudio, Loader2, ChevronDown, ChevronUp,
+    Mic, FileAudio, Loader2, ChevronDown, ChevronUp, ChevronLeft, ChevronRight,
     Sparkles, ClipboardList, Plus, Save, X, Check,
     User, FileText, Video, Target, RefreshCw, FileSearch, AlertTriangle, Edit3
 } from 'lucide-react';
@@ -27,6 +28,8 @@ interface TranscriptionPanelProps {
     meetingId?: string;
     meetingName?: string;
     onProcessingChange?: (processing: boolean) => void;
+    /** When true, hides the Suggest Tasks controls and Tasks tab (e.g. for seminars) */
+    hideTasks?: boolean;
 }
 
 const sectionStyle: React.CSSProperties = {
@@ -50,6 +53,17 @@ const inputStyle: React.CSSProperties = {
     boxSizing: 'border-box' as const
 };
 
+const selectStyle: React.CSSProperties = {
+    ...inputStyle,
+    padding: '5px 28px 5px 8px',
+    height: '32px',
+    appearance: 'none' as any,
+    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: 'right 8px center',
+    cursor: 'pointer',
+};
+
 const LANGUAGES = [
     { value: 'vi', label: 'Tiếng Việt' },
     { value: 'en', label: 'English' },
@@ -62,11 +76,14 @@ interface SuggestedTask extends TaskSuggestion {
     _saved: boolean;
 }
 
-const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetingId, meetingName, onProcessingChange }) => {
+const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetingId, meetingName, onProcessingChange, hideTasks = false }) => {
     const { addToast } = useToastStore();
     const { user: authUser } = useAuth();
     const authRole = String(authUser.role ?? '');
     const isLabDirector = Number(authRole) === SystemRoleEnum.LabDirector || authRole === 'LabDirector' || authRole === 'Lab Director';
+
+    // Left panel collapse
+    const [leftPanelOpen, setLeftPanelOpen] = useState(true);
 
     // Meeting transcriptions
     const [meetingTranscriptions, setMeetingTranscriptions] = useState<TranscriptionMeetingListItemResponse[]>([]);
@@ -125,12 +142,45 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
         return (s.transcription && (meetingId ?? null) === s.meetingId) ? s.activeTab : 'transcript';
     });
     const [showConfirmClose, setShowConfirmClose] = useState(false);
+    const [showTranscriptPopover, setShowTranscriptPopover] = useState(false);
+    const [popoverRect, setPopoverRect] = useState<{ top: number; bottom: number; right: number } | null>(null);
+    const transcriptWrapperRef = useRef<HTMLDivElement>(null);
+    const popoverPortalRef = useRef<HTMLDivElement>(null);
 
     // Edit summary — only the user who created the transcription can edit summary
     const [editingSummary, setEditingSummary] = useState(false);
     const [editSummaryText, setEditSummaryText] = useState('');
     const [savingSummary, setSavingSummary] = useState(false);
     const canEditSummary = !!transcription && (isLabDirector || (!!authUser.email && transcription.createdByEmail === authUser.email));
+
+    // Close transcript popover on outside click (wrapper + portal both checked)
+    useEffect(() => {
+        if (!showTranscriptPopover) return;
+        const handleOutside = (e: MouseEvent) => {
+            const inWrapper = transcriptWrapperRef.current?.contains(e.target as Node);
+            const inPortal = popoverPortalRef.current?.contains(e.target as Node);
+            if (!inWrapper && !inPortal) setShowTranscriptPopover(false);
+        };
+        document.addEventListener('mousedown', handleOutside);
+        return () => document.removeEventListener('mousedown', handleOutside);
+    }, [showTranscriptPopover]);
+
+    // Keep popover anchored on scroll/resize
+    useEffect(() => {
+        if (!showTranscriptPopover) return;
+        const update = () => {
+            if (transcriptWrapperRef.current) {
+                const r = transcriptWrapperRef.current.getBoundingClientRect();
+                setPopoverRect({ top: r.top, bottom: r.bottom, right: r.right });
+            }
+        };
+        window.addEventListener('scroll', update, true);
+        window.addEventListener('resize', update);
+        return () => {
+            window.removeEventListener('scroll', update, true);
+            window.removeEventListener('resize', update);
+        };
+    }, [showTranscriptPopover]);
 
     // Sync state changes to the global store so they survive route navigation
     // Use getState() instead of subscribing to avoid re-render loops
@@ -158,8 +208,6 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
 
         const handleBeforeUnload = (e: BeforeUnloadEvent) => {
             e.preventDefault();
-            e.returnValue = 'A process is currently running. Leaving now might lose information. Are you sure?';
-            return e.returnValue;
         };
 
         window.addEventListener('beforeunload', handleBeforeUnload);
@@ -494,12 +542,15 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
 
             {/* ════════ LEFT: AI Notes Controls ════════ */}
             <div style={{
-                flex: '0 0 25%', maxWidth: '25%',
+                flex: leftPanelOpen ? '0 0 280px' : '0 0 52px',
+                width: leftPanelOpen ? '280px' : '52px',
+                minWidth: leftPanelOpen ? '280px' : '52px',
                 display: 'flex', flexDirection: 'column',
                 background: '#fff', borderRadius: '16px',
                 border: '1.5px solid #e0e7ff', padding: '12px',
                 boxShadow: '0 4px 20px rgba(99,102,241,0.08)',
-                overflow: 'hidden'
+                overflow: 'hidden',
+                transition: 'flex 0.25s ease, width 0.25s ease, min-width 0.25s ease'
             }}>
                 {/* Header */}
                 <div style={{
@@ -515,9 +566,9 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                         }}>
                             <Mic size={13} />
                         </div>
-                        <div>
+                        <div style={{ minWidth: 0 }}>
                             <h3 style={{ margin: 0, fontSize: '0.82rem', fontWeight: 800, color: '#1e293b' }}>AI Notes</h3>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '3px', marginTop: '2px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '3px', marginTop: '2px', flexWrap: 'wrap' }}>
                                 {(['Upload', 'Transcript', 'Summary', 'Tasks'] as const).map((step, i) => {
                                     const reached = i === 0 ? true : i === 1 ? hasTranscript : i === 2 ? hasSummary : suggestedTasks.length > 0;
                                     const active = i === 0 ? !hasTranscript : i === 1 ? hasTranscript && !hasSummary : i === 2 ? hasSummary && suggestedTasks.length === 0 : suggestedTasks.length > 0;
@@ -536,54 +587,93 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                             </div>
                         </div>
                     </div>
-                    <button
-                        onClick={handleClose}
-                        title="Close"
-                        style={{
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            width: '28px', height: '28px', borderRadius: '6px',
-                            border: '1px solid #e2e8f0', background: '#fff',
-                            color: '#94a3b8', cursor: 'pointer', flexShrink: 0,
-                            transition: 'all 0.2s'
-                        }}
-                        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#f1f5f9'; (e.currentTarget as HTMLButtonElement).style.color = '#475569'; }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = '#fff'; (e.currentTarget as HTMLButtonElement).style.color = '#94a3b8'; }}
-                    >
-                        <X size={13} />
-                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
+                        <button
+                            onClick={() => setLeftPanelOpen(o => !o)}
+                            title={leftPanelOpen ? 'Collapse panel' : 'Expand panel'}
+                            style={{
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                width: '28px', height: '28px', borderRadius: '6px',
+                                border: '1px solid #e2e8f0', background: '#fff',
+                                color: '#94a3b8', cursor: 'pointer',
+                                transition: 'all 0.2s'
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.color = '#475569'; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = '#94a3b8'; }}
+                        >
+                            {leftPanelOpen ? <ChevronLeft size={13} /> : <ChevronRight size={13} />}
+                        </button>
+                        <button
+                            onClick={handleClose}
+                            title="Close"
+                            style={{
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                width: '28px', height: '28px', borderRadius: '6px',
+                                border: '1px solid #e2e8f0', background: '#fff',
+                                color: '#94a3b8', cursor: 'pointer',
+                                transition: 'all 0.2s'
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.color = '#475569'; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = '#94a3b8'; }}
+                        >
+                            <X size={13} />
+                        </button>
+                    </div>
                 </div>
 
-                {/* Scrollable controls */}
-                <div style={{ flex: 1, overflowY: 'auto', paddingRight: '2px' }} className="custom-scrollbar">
-
-                    {/* Load meeting transcriptions */}
-                    {meetingId && (
-                        <div style={sectionStyle}>
-                            <div style={labelStyle}><FileSearch size={12} /> Meeting Transcriptions</div>
-                            <button
-                                onClick={() => handleLoadMeetingTranscriptions(false)}
-                                disabled={loadingMeeting}
-                                style={{
-                                    width: '100%', padding: '8px', borderRadius: '10px', border: 'none',
-                                    background: loadingMeeting ? '#e2e8f0' : 'linear-gradient(135deg,#8b5cf6,#6366f1)',
-                                    color: loadingMeeting ? '#94a3b8' : '#fff',
-                                    cursor: loadingMeeting ? 'not-allowed' : 'pointer',
-                                    fontWeight: 700, fontSize: '0.78rem',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
-                                    boxShadow: loadingMeeting ? 'none' : '0 4px 12px rgba(99,102,241,0.25)'
-                                }}
-                            >
-                                {loadingMeeting
-                                    ? <><Loader2 size={13} className="animate-spin" /> Loading...</>
-                                    : <><RefreshCw size={13} /> Load Transcriptions</>
+                {/* Transcript list button — below header */}
+                {leftPanelOpen && meetingId && (
+                    <div ref={transcriptWrapperRef} style={{ marginBottom: '10px' }}>
+                        <button
+                            onClick={() => {
+                                if (transcriptWrapperRef.current) {
+                                    const r = transcriptWrapperRef.current.getBoundingClientRect();
+                                    setPopoverRect({ top: r.top, bottom: r.bottom, right: r.right });
                                 }
-                            </button>
-                        </div>
-                    )}
+                                setShowTranscriptPopover(v => !v);
+                            }}
+                            title="Meeting Transcriptions"
+                            style={{
+                                position: 'relative',
+                                display: 'flex', alignItems: 'center',
+                                gap: '5px',
+                                padding: '0 12px',
+                                height: '30px', borderRadius: '8px',
+                                width: '100%',
+                                border: `1px solid ${showTranscriptPopover ? '#6366f1' : '#e2e8f0'}`,
+                                background: showTranscriptPopover ? '#ede9fe' : '#f8fafc',
+                                color: showTranscriptPopover ? '#6366f1' : '#64748b',
+                                cursor: 'pointer', transition: 'all 0.2s',
+                                fontSize: '0.72rem', fontWeight: 700, whiteSpace: 'nowrap'
+                            }}
+                            onMouseEnter={e => { if (!showTranscriptPopover) { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.color = '#475569'; } }}
+                            onMouseLeave={e => { if (!showTranscriptPopover) { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.color = '#64748b'; } }}
+                        >
+                            <FileSearch size={13} />
+                            Transcript List
+                            {meetingTranscriptions.length > 0 && (
+                                <span style={{
+                                    marginLeft: 'auto',
+                                    minWidth: '18px', height: '18px', borderRadius: '9px',
+                                    background: '#6366f1', color: '#fff',
+                                    fontSize: '0.58rem', fontWeight: 800,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    padding: '0 4px'
+                                }}>
+                                    {meetingTranscriptions.length > 9 ? '9+' : meetingTranscriptions.length}
+                                </span>
+                            )}
+                        </button>
+                    </div>
+                )}
+
+                {/* Scrollable controls */}
+                {leftPanelOpen && <div style={{ flex: 1, overflowY: 'auto', paddingRight: '2px' }} className="custom-scrollbar">
+
 
                     {/* Upload section */}
-                    <div style={sectionStyle}>
-                        <div style={labelStyle}><FileAudio size={12} /> Audio File</div>
+                    <div style={{ ...sectionStyle, borderLeft: '3px solid #6366f1' }}>
+                        <div style={{ ...labelStyle, color: '#6366f1' }}><FileAudio size={12} /> Audio File</div>
                         <div
                             onClick={() => fileRef.current?.click()}
                             style={{
@@ -615,19 +705,19 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                         </div>
 
                         {/* Model + Language */}
-                        <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
-                            <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '8px' }}>
+                            <div>
                                 <label style={{ ...labelStyle, fontSize: '0.6rem', marginBottom: '3px' }}>Model</label>
-                                <select value={selectedModel} onChange={e => setSelectedModel(e.target.value)} style={{ ...inputStyle, height: '32px', fontSize: '0.76rem' }}>
+                                <select value={selectedModel} onChange={e => setSelectedModel(e.target.value)} style={{ ...selectStyle, fontSize: '0.76rem' }}>
                                     {models.length === 0
                                         ? <option value="">Default</option>
                                         : models.map(m => <option key={m.id || ''} value={m.id || ''}>{m.name || m.id}</option>)
                                     }
                                 </select>
                             </div>
-                            <div style={{ flex: '0 0 90px' }}>
+                            <div>
                                 <label style={{ ...labelStyle, fontSize: '0.6rem', marginBottom: '3px' }}>Language</label>
-                                <select value={language} onChange={e => setLanguage(e.target.value)} style={{ ...inputStyle, height: '32px', fontSize: '0.76rem' }}>
+                                <select value={language} onChange={e => setLanguage(e.target.value)} style={{ ...selectStyle, fontSize: '0.76rem' }}>
                                     {LANGUAGES.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
                                 </select>
                             </div>
@@ -680,20 +770,20 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
 
                     {/* Summarize controls */}
                     {hasTranscript && (
-                        <div style={sectionStyle}>
-                            <div style={labelStyle}><Sparkles size={12} /> {hasSummary ? 'Re-generate Summary' : 'Summary'}</div>
+                        <div style={{ ...sectionStyle, borderLeft: '3px solid #10b981' }}>
+                            <div style={{ ...labelStyle, color: '#10b981' }}><Sparkles size={12} /> Generate Summary</div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '8px' }}>
                                 <div style={{ display: 'flex', gap: '6px' }}>
                                     <div style={{ flex: 1 }}>
                                         <label style={{ ...labelStyle, fontSize: '0.6rem', marginBottom: '3px' }}>Language</label>
-                                        <select value={summaryLanguage} onChange={e => setSummaryLanguage(e.target.value)} style={{ ...inputStyle, height: '32px', fontSize: '0.76rem' }}>
+                                        <select value={summaryLanguage} onChange={e => setSummaryLanguage(e.target.value)} style={{ ...selectStyle, fontSize: '0.76rem' }}>
                                             <option value="vi">Tiếng Việt</option>
                                             <option value="en">English</option>
                                         </select>
                                     </div>
                                     <div style={{ flex: 1 }}>
                                         <label style={{ ...labelStyle, fontSize: '0.6rem', marginBottom: '3px' }}>Length</label>
-                                        <select value={summaryLength} onChange={e => setSummaryLength(e.target.value)} style={{ ...inputStyle, height: '32px', fontSize: '0.76rem' }}>
+                                        <select value={summaryLength} onChange={e => setSummaryLength(e.target.value)} style={{ ...selectStyle, fontSize: '0.76rem' }}>
                                             <option value="short">Short</option>
                                             <option value="medium">Medium</option>
                                             <option value="long">Long</option>
@@ -702,7 +792,7 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                                 </div>
                                 <div>
                                     <label style={{ ...labelStyle, fontSize: '0.6rem', marginBottom: '3px' }}>Format</label>
-                                    <select value={summaryStyle} onChange={e => setSummaryStyle(e.target.value)} style={{ ...inputStyle, height: '32px', fontSize: '0.76rem' }}>
+                                    <select value={summaryStyle} onChange={e => setSummaryStyle(e.target.value)} style={{ ...selectStyle, fontSize: '0.76rem' }}>
                                         <option value="paragraph">Paragraph</option>
                                         <option value="bullet_points">Bullet Points</option>
                                         <option value="key_points">Key Points</option>
@@ -736,25 +826,23 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                             >
                                 {summarizing
                                     ? <><Loader2 size={13} className="animate-spin" /> Generating...</>
-                                    : hasSummary
-                                        ? <><RefreshCw size={13} /> Re-generate Summary</>
-                                        : <><Sparkles size={13} /> Generate Summary</>
+                                    : <><Sparkles size={13} /> Generate Summary</>
                                 }
                             </button>
                         </div>
                     )}
 
                     {/* Suggest Tasks controls */}
-                    {(hasTranscript || hasSummary) && (
-                        <div style={sectionStyle}>
-                            <div style={labelStyle}><ClipboardList size={12} /> Suggest Tasks</div>
+                    {!hideTasks && (hasTranscript || hasSummary) && (
+                        <div style={{ ...sectionStyle, borderLeft: '3px solid #f59e0b' }}>
+                            <div style={{ ...labelStyle, color: '#b45309' }}><ClipboardList size={12} /> Suggest Tasks</div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '8px' }}>
                                 <div>
                                     <label style={{ ...labelStyle, fontSize: '0.6rem', marginBottom: '3px' }}>Project *</label>
                                     <select
                                         value={selectedProjectId}
                                         onChange={e => { setSelectedProjectId(e.target.value); setSelectedMilestoneId(''); setSuggestedTasks([]); }}
-                                        style={{ ...inputStyle, height: '32px', fontSize: '0.76rem' }}
+                                        style={{ ...selectStyle, fontSize: '0.76rem' }}
                                     >
                                         <option value="">Select project...</option>
                                         {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -766,7 +854,7 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                                         value={selectedMilestoneId}
                                         onChange={e => setSelectedMilestoneId(e.target.value)}
                                         disabled={!selectedProjectId || milestones.length === 0}
-                                        style={{ ...inputStyle, height: '32px', fontSize: '0.76rem', background: !selectedProjectId ? '#f8fafc' : '#fff' }}
+                                        style={{ ...selectStyle, fontSize: '0.76rem', background: !selectedProjectId ? '#f8fafc' : '#fff' }}
                                     >
                                         <option value="">No milestone</option>
                                         {milestones.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
@@ -795,7 +883,7 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                             </button>
                         </div>
                     )}
-                </div>
+                </div>}
             </div>
 
             {/* ════════ CENTER: Tabs Content ════════ */}
@@ -829,7 +917,7 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                     }}>
                         <Sparkles size={13} /> Summary
                     </div>
-                    <div onClick={() => setActiveTab('tasks')} style={{
+                    {!hideTasks && <div onClick={() => setActiveTab('tasks')} style={{
                         flex: 1, textAlign: 'center', padding: '10px 12px', cursor: 'pointer',
                         borderBottom: activeTab === 'tasks' ? '2.5px solid #f59e0b' : '2.5px solid transparent',
                         fontWeight: activeTab === 'tasks' ? 700 : 600,
@@ -842,7 +930,7 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                             fontSize: '0.65rem', background: '#fef3c7', color: '#b45309',
                             padding: '1px 6px', borderRadius: '10px', fontWeight: 700
                         }}>{suggestedTasks.length}</span>}
-                    </div>
+                    </div>}
                 </div>
 
                 <div style={{ flex: 1, overflowY: 'auto', padding: '14px' }} className="custom-scrollbar">
@@ -1111,7 +1199,7 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
                                                             <div>
                                                                 <label style={{ ...labelStyle, fontSize: '0.62rem', marginBottom: '3px' }}>Priority</label>
-                                                                <select value={task.priority ?? 2} onChange={e => updateTaskField(idx, 'priority', parseInt(e.target.value))} style={{ ...inputStyle, height: '32px' }}>
+                                                                <select value={task.priority ?? 2} onChange={e => updateTaskField(idx, 'priority', parseInt(e.target.value))} style={{ ...selectStyle }}>
                                                                     <option value={1}>Low</option>
                                                                     <option value={2}>Normal</option>
                                                                     <option value={3}>High</option>
@@ -1125,7 +1213,7 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                                                                 <select
                                                                     value={task._assigneeId || task.assigneeId || ''}
                                                                     onChange={e => { updateTaskField(idx, '_assigneeId', e.target.value); updateTaskField(idx, 'assigneeId', e.target.value); }}
-                                                                    style={{ ...inputStyle, height: '32px' }}
+                                                                    style={{ ...selectStyle }}
                                                                 >
                                                                     <option value="">Unassigned</option>
                                                                     {projectMembers.map(u => (
@@ -1135,11 +1223,11 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                                                             </div>
                                                             <div>
                                                                 <label style={{ ...labelStyle, fontSize: '0.62rem', marginBottom: '3px' }}>Start Date</label>
-                                                                <input type="date" value={task.startDate ? task.startDate.split('T')[0] : ''} onChange={e => updateTaskField(idx, 'startDate', e.target.value)} style={{ ...inputStyle, height: '32px' }} />
+                                                                <input type="date" value={task.startDate ? task.startDate.split('T')[0] : ''} onChange={e => updateTaskField(idx, 'startDate', e.target.value)} style={{ ...selectStyle }} />
                                                             </div>
                                                             <div>
                                                                 <label style={{ ...labelStyle, fontSize: '0.62rem', marginBottom: '3px' }}>Due Date</label>
-                                                                <input type="date" value={task.dueDate ? task.dueDate.split('T')[0] : ''} onChange={e => updateTaskField(idx, 'dueDate', e.target.value)} style={{ ...inputStyle, height: '32px' }} />
+                                                                <input type="date" value={task.dueDate ? task.dueDate.split('T')[0] : ''} onChange={e => updateTaskField(idx, 'dueDate', e.target.value)} style={{ ...selectStyle }} />
                                                             </div>
                                                         </div>
                                                         <button
@@ -1176,82 +1264,6 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                     )}
                 </div>
             </div>
-
-            {/* ════════ RIGHT: Meeting Transcriptions List ════════ */}
-            {meetingId && meetingTranscriptions.length > 0 && (
-                <div style={{
-                    flex: '0 0 20%', maxWidth: '20%',
-                    display: 'flex', flexDirection: 'column',
-                    background: '#fff', borderRadius: '16px',
-                    border: '1px solid var(--border-color)', padding: '12px',
-                    overflow: 'hidden'
-                }}>
-                    <div style={{ ...labelStyle, color: '#6366f1', justifyContent: 'space-between', marginBottom: '8px' }}>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                            <FileSearch size={11} /> Transcriptions ({meetingTranscriptions.length})
-                        </span>
-                        <button
-                            onClick={() => handleLoadMeetingTranscriptions(false)}
-                            disabled={loadingMeeting}
-                            style={{ background: 'none', border: 'none', cursor: loadingMeeting ? 'not-allowed' : 'pointer', color: '#6366f1', padding: '2px', display: 'flex', alignItems: 'center' }}
-                            title="Refresh"
-                        >
-                            <RefreshCw size={11} className={loadingMeeting ? 'animate-spin' : ''} />
-                        </button>
-                    </div>
-                    
-                    <div style={{ flex: 1, overflowY: 'auto', paddingRight: '2px', display: 'flex', flexDirection: 'column', gap: '5px' }} className="custom-scrollbar">
-                        {loadingMeeting && !meetingTranscriptions.length ? (
-                            <div style={{ textAlign: 'center', padding: '1.5rem 0', color: '#6366f1' }}>
-                                <Loader2 size={20} className="animate-spin" style={{ margin: '0 auto 8px' }} />
-                                <p style={{ fontSize: '0.72rem', fontWeight: 600, margin: 0 }}>Loading...</p>
-                            </div>
-                        ) : meetingTranscriptions.length === 0 ? (
-                            <div style={{ textAlign: 'center', padding: '2rem 0', color: '#94a3b8', fontSize: '0.8rem' }}>
-                                No transcriptions found.
-                            </div>
-                        ) : meetingTranscriptions.map(t => {
-                            const isSelected = transcription?.id === t.id;
-                            const isFailed = t.status === 'Failed';
-                            return (
-                                <div
-                                    key={t.id}
-                                    onClick={() => handleSelectTranscription(t)}
-                                    style={{
-                                        padding: '8px 10px', borderRadius: '8px',
-                                        border: isSelected ? '1.5px solid #6366f1' : '1px solid #e2e8f0',
-                                        background: isSelected ? '#ede9fe' : isFailed ? '#fef2f2' : '#fff',
-                                        cursor: 'pointer', transition: 'all 0.2s'
-                                    }}
-                                >
-                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '3px' }}>
-                                        <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>
-                                            {t.fileName || 'Untitled'}
-                                        </span>
-                                        <span style={{
-                                            fontSize: '0.56rem', padding: '1px 6px', borderRadius: '20px', fontWeight: 700, flexShrink: 0, marginLeft: '4px',
-                                            background: t.status === 'Completed' ? '#dcfce7' : isFailed ? '#fee2e2' : '#fef9c3',
-                                            color: t.status === 'Completed' ? '#16a34a' : isFailed ? '#dc2626' : '#b45309'
-                                        }}>
-                                            {t.status}
-                                        </span>
-                                    </div>
-                                    <div style={{ fontSize: '0.62rem', color: '#94a3b8', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                                        {t.language && <span>{t.language.toUpperCase()}</span>}
-                                        <span>{new Date(t.createdAt).toLocaleString()}</span>
-                                    </div>
-                                    {isFailed && (
-                                        <div style={{ marginTop: '4px', fontSize: '0.65rem', color: '#dc2626', display: 'flex', alignItems: 'flex-start', gap: '3px' }}>
-                                            <AlertTriangle size={10} style={{ flexShrink: 0, marginTop: '2px' }} />
-                                            <span style={{ lineHeight: '1.4' }}>Click to view error details</span>
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-            )}
 
             {/* Custom Confirmation Modal */}
             {showConfirmClose && (
@@ -1309,6 +1321,126 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* ════════ Meeting Transcriptions Portal Popover ════════ */}
+            {showTranscriptPopover && popoverRect && ReactDOM.createPortal(
+                <div
+                    ref={popoverPortalRef}
+                    style={{
+                        position: 'fixed',
+                        top: popoverRect.top,
+                        left: popoverRect.right + 8,
+                        width: '300px',
+                        background: '#fff',
+                        borderRadius: '14px',
+                        border: '1.5px solid #e0e7ff',
+                        boxShadow: '0 12px 40px rgba(99,102,241,0.14)',
+                        zIndex: 9998,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        overflow: 'hidden',
+                        animation: 'tp-slideUp 0.2s ease-out'
+                    }}
+                >
+                    {/* Header */}
+                    <div style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        padding: '10px 12px', borderBottom: '1px solid #f1f5f9', flexShrink: 0
+                    }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', fontWeight: 800, color: '#6366f1' }}>
+                            <FileSearch size={13} /> Transcriptions
+                            {meetingTranscriptions.length > 0 && (
+                                <span style={{ fontSize: '0.65rem', background: '#ede9fe', color: '#6366f1', padding: '1px 7px', borderRadius: '10px', fontWeight: 700 }}>
+                                    {meetingTranscriptions.length}
+                                </span>
+                            )}
+                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                            <button
+                                onClick={() => handleLoadMeetingTranscriptions(false)}
+                                disabled={loadingMeeting}
+                                title="Refresh"
+                                style={{
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    width: '24px', height: '24px', borderRadius: '6px',
+                                    border: '1px solid #e2e8f0', background: '#fff',
+                                    color: '#6366f1', cursor: loadingMeeting ? 'not-allowed' : 'pointer'
+                                }}
+                            >
+                                <RefreshCw size={11} className={loadingMeeting ? 'animate-spin' : ''} />
+                            </button>
+                            <button
+                                onClick={() => setShowTranscriptPopover(false)}
+                                style={{
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    width: '24px', height: '24px', borderRadius: '6px',
+                                    border: '1px solid #e2e8f0', background: '#fff',
+                                    color: '#94a3b8', cursor: 'pointer'
+                                }}
+                            >
+                                <X size={11} />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* List — max ~5 items then scroll */}
+                    <div style={{ maxHeight: '290px', overflowY: 'auto', padding: '8px', display: 'flex', flexDirection: 'column', gap: '5px' }} className="custom-scrollbar">
+                        {loadingMeeting ? (
+                            <div style={{ textAlign: 'center', padding: '24px 0', color: '#6366f1' }}>
+                                <Loader2 size={20} className="animate-spin" style={{ margin: '0 auto 8px' }} />
+                                <p style={{ fontSize: '0.72rem', fontWeight: 600, margin: 0 }}>Loading...</p>
+                            </div>
+                        ) : meetingTranscriptions.length === 0 ? (
+                            <div style={{ textAlign: 'center', padding: '24px 0', color: '#94a3b8' }}>
+                                <FileSearch size={28} style={{ opacity: 0.2, margin: '0 auto 8px' }} />
+                                <p style={{ fontSize: '0.78rem', margin: 0 }}>No transcriptions found.</p>
+                                <p style={{ fontSize: '0.7rem', color: '#cbd5e1', marginTop: '4px' }}>Click refresh to load</p>
+                            </div>
+                        ) : meetingTranscriptions.map(t => {
+                            const isSelected = transcription?.id === t.id;
+                            const isFailed = t.status === 'Failed';
+                            return (
+                                <div
+                                    key={t.id}
+                                    onClick={() => { handleSelectTranscription(t); setShowTranscriptPopover(false); }}
+                                    style={{
+                                        padding: '9px 11px', borderRadius: '9px',
+                                        border: isSelected ? '1.5px solid #6366f1' : '1px solid #e2e8f0',
+                                        background: isSelected ? '#ede9fe' : isFailed ? '#fef2f2' : '#fff',
+                                        cursor: 'pointer', transition: 'all 0.15s'
+                                    }}
+                                    onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = '#f8fafc'; }}
+                                    onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = isFailed ? '#fef2f2' : '#fff'; }}
+                                >
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '3px' }}>
+                                        <span style={{ fontSize: '0.76rem', fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>
+                                            {t.fileName || 'Untitled'}
+                                        </span>
+                                        <span style={{
+                                            fontSize: '0.56rem', padding: '1px 6px', borderRadius: '20px', fontWeight: 700, flexShrink: 0, marginLeft: '6px',
+                                            background: t.status === 'Completed' ? '#dcfce7' : isFailed ? '#fee2e2' : '#fef9c3',
+                                            color: t.status === 'Completed' ? '#16a34a' : isFailed ? '#dc2626' : '#b45309'
+                                        }}>
+                                            {t.status}
+                                        </span>
+                                    </div>
+                                    <div style={{ fontSize: '0.62rem', color: '#94a3b8', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                                        {t.language && <span>{t.language.toUpperCase()}</span>}
+                                        <span>{new Date(t.createdAt).toLocaleString()}</span>
+                                    </div>
+                                    {isFailed && (
+                                        <div style={{ marginTop: '4px', fontSize: '0.65rem', color: '#dc2626', display: 'flex', alignItems: 'flex-start', gap: '3px' }}>
+                                            <AlertTriangle size={10} style={{ flexShrink: 0, marginTop: '2px' }} />
+                                            <span style={{ lineHeight: '1.4' }}>Click to view error details</span>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>,
+                document.body
             )}
 
             <style>{`

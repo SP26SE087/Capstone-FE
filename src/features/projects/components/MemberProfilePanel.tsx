@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import AppSelect from '@/components/common/AppSelect';
+import Modal from '@/components/common/Modal';
 import {
     X, Mail, Calendar, ShieldCheck, Settings,
-    Loader2, Check, Trash2, User, Crown, Shield, Users, AlertTriangle,
+    Loader2, Check, Trash2, User, Crown, Shield, Users, AlertTriangle, ExternalLink, Phone, ClipboardList,
 } from 'lucide-react';
 import { membershipService, projectService, userService } from '@/services';
 import { ProjectRoleEnum, MemberStatus } from '@/types/project';
@@ -75,6 +76,8 @@ const MemberProfilePanel: React.FC<MemberProfilePanelProps> = ({
     const [statusError, setStatusError] = useState<string | null>(null);
     const [removeError, setRemoveError] = useState<string | null>(null);
     const [selectedStatus, setSelectedStatus] = useState<number>(member?.status ?? 1);
+    const [avatarError, setAvatarError] = useState(false);
+    const [showProfileModal, setShowProfileModal] = useState(false);
 
     useEffect(() => {
         if (!member) return;
@@ -85,6 +88,8 @@ const MemberProfilePanel: React.FC<MemberProfilePanelProps> = ({
         setRemoveError(null);
         setSelectedRoleId(member.projectRoleId || member.roleId || '');
         setSelectedStatus(member?.status ?? 1);
+        setAvatarError(false);
+        setShowProfileModal(false);
         fetchRoles();
         fetchMemberDetails();
     }, [member?.id, member?.memberId]);
@@ -111,12 +116,12 @@ const MemberProfilePanel: React.FC<MemberProfilePanelProps> = ({
         try {
             const userId = member.userId;
             const memberId = member.id || member.memberId;
-            const [userData, memberData] = await Promise.all([
+            const [userResult, memberResult] = await Promise.allSettled([
                 userService.getById(userId),
                 membershipService.getMemberById(memberId),
             ]);
-            setSystemDetails(userData);
-            setProjectDetails(memberData);
+            if (userResult.status === 'fulfilled') setSystemDetails(userResult.value);
+            if (memberResult.status === 'fulfilled') setProjectDetails(memberResult.value);
         } catch (err) {
             console.error('Failed to fetch member details:', err);
         } finally {
@@ -269,12 +274,12 @@ const MemberProfilePanel: React.FC<MemberProfilePanelProps> = ({
     return (
         <div
             style={{
-                width: '360px',
+                width: '310px',
                 flexShrink: 0,
                 background: 'white',
-                borderRadius: '16px',
+                borderRadius: '12px',
                 border: '1.5px solid #e2e8f0',
-                boxShadow: '0 8px 24px rgba(0,0,0,0.07)',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.07)',
                 display: 'flex',
                 flexDirection: 'column',
                 overflow: 'hidden',
@@ -286,35 +291,37 @@ const MemberProfilePanel: React.FC<MemberProfilePanelProps> = ({
         >
             {/* Header */}
             <div style={{
-                padding: '1rem 1.25rem',
+                padding: '0.6rem 1rem',
                 borderBottom: '1px solid #f1f5f9',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 background: '#fafbfc',
             }}>
-                <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 700, color: '#1e293b' }}>
+                <h4 style={{ margin: 0, fontSize: '0.72rem', fontWeight: 700, color: '#1e293b' }}>
                     Member Profile
                 </h4>
-                <button
-                    onClick={onClose}
-                    style={{
-                        background: 'none', border: 'none', cursor: 'pointer',
-                        color: '#94a3b8', padding: '4px', borderRadius: '6px',
-                        display: 'flex', alignItems: 'center',
-                        transition: 'all 0.15s',
-                    }}
-                    onMouseOver={e => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.color = '#475569'; }}
-                    onMouseOut={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = '#94a3b8'; }}
-                >
-                    <X size={16} />
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <button
+                        onClick={onClose}
+                        style={{
+                            background: 'none', border: 'none', cursor: 'pointer',
+                            color: '#94a3b8', padding: '4px', borderRadius: '6px',
+                            display: 'flex', alignItems: 'center',
+                            transition: 'all 0.15s',
+                        }}
+                        onMouseOver={e => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.color = '#475569'; }}
+                        onMouseOut={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = '#94a3b8'; }}
+                    >
+                        <X size={16} />
+                    </button>
+                </div>
             </div>
 
             <div style={{ overflowY: 'auto', flex: 1 }} className="custom-scrollbar">
                 {/* Avatar + identity */}
                 <div style={{
-                    padding: '1.5rem 1.25rem 1rem',
+                    padding: '1rem 1rem 0.75rem',
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
@@ -323,20 +330,30 @@ const MemberProfilePanel: React.FC<MemberProfilePanelProps> = ({
                     borderBottom: '1px solid #f1f5f9',
                 }}>
                     <div style={{
-                        width: '72px', height: '72px', borderRadius: '50%',
+                        width: '52px', height: '52px', borderRadius: '50%',
                         background: 'var(--primary-color)', color: 'white',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: '1.75rem', fontWeight: 800,
-                        boxShadow: '0 6px 18px rgba(99,102,241,0.22)',
-                        border: '3px solid white',
-                        marginBottom: '0.75rem',
+                        fontSize: '1.25rem', fontWeight: 800,
+                        boxShadow: '0 4px 12px rgba(99,102,241,0.2)',
+                        border: '2px solid white',
+                        marginBottom: '0.5rem',
                         flexShrink: 0,
+                        overflow: 'hidden',
                     }}>
-                        {(member.fullName || member.userName || 'U')[0].toUpperCase()}
+                        {!avatarError && (projectDetails?.avatarUrl || member.avatarUrl) ? (
+                            <img
+                                src={projectDetails?.avatarUrl || member.avatarUrl}
+                                alt=""
+                                onError={() => setAvatarError(true)}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            />
+                        ) : (
+                            (member.fullName || member.userName || 'U')[0].toUpperCase()
+                        )}
                     </div>
 
                     <h3 style={{
-                        margin: '0 0 0.35rem', fontSize: '1rem', fontWeight: 700, color: '#1e293b',
+                        margin: '0 0 0.25rem', fontSize: '0.78rem', fontWeight: 700, color: '#1e293b',
                         lineHeight: 1.3,
                     }}>
                         {member.fullName || member.userName}
@@ -345,11 +362,11 @@ const MemberProfilePanel: React.FC<MemberProfilePanelProps> = ({
                     {/* Project role badge */}
                     {roleMeta && (
                         <div style={{
-                            display: 'inline-flex', alignItems: 'center', gap: '5px',
-                            padding: '3px 10px',
+                            display: 'inline-flex', alignItems: 'center', gap: '4px',
+                            padding: '2px 8px',
                             background: roleMeta.bg, color: roleMeta.color,
-                            borderRadius: '20px', fontSize: '0.7rem', fontWeight: 700,
-                            marginBottom: '0.5rem',
+                            borderRadius: '20px', fontSize: '0.58rem', fontWeight: 700,
+                            marginBottom: '0.35rem',
                         }}>
                             {roleMeta.icon} {roleMeta.label}
                         </div>
@@ -365,9 +382,9 @@ const MemberProfilePanel: React.FC<MemberProfilePanelProps> = ({
                         const b = badgeMap[selectedStatus] ?? { label: 'Unknown', bg: '#f1f5f9', color: '#64748b' };
                         return (
                             <div style={{
-                                display: 'inline-flex', alignItems: 'center', gap: '5px',
-                                padding: '2px 8px', background: b.bg, color: b.color,
-                                borderRadius: '20px', fontSize: '0.65rem', fontWeight: 700,
+                                display: 'inline-flex', alignItems: 'center', gap: '4px',
+                                padding: '2px 7px', background: b.bg, color: b.color,
+                                borderRadius: '20px', fontSize: '0.6rem', fontWeight: 700,
                                 textTransform: 'uppercase', letterSpacing: '0.04em',
                             }}>
                                 <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'currentColor' }} />
@@ -378,21 +395,21 @@ const MemberProfilePanel: React.FC<MemberProfilePanelProps> = ({
 
                     {isSelf && (
                         <div style={{
-                            marginTop: '0.75rem',
-                            padding: '6px 12px',
+                            marginTop: '0.5rem',
+                            padding: '4px 10px',
                             background: '#eff6ff',
                             borderRadius: '8px',
                             border: '1px solid #dbeafe',
-                            display: 'flex', alignItems: 'center', gap: '6px',
-                            color: '#1e40af', fontSize: '0.75rem', fontWeight: 600,
+                            display: 'flex', alignItems: 'center', gap: '5px',
+                            color: '#1e40af', fontSize: '0.68rem', fontWeight: 600,
                         }}>
-                            <User size={13} /> Your Profile
+                            <User size={11} /> Your Profile
                         </div>
                     )}
                 </div>
 
                 {/* Info rows */}
-                <div style={{ padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0' }}>
+                <div style={{ padding: '0.6rem 1rem', display: 'flex', flexDirection: 'column', gap: '0' }}>
                     <InfoRow
                         icon={<Mail size={14} />}
                         label="Email"
@@ -416,7 +433,25 @@ const MemberProfilePanel: React.FC<MemberProfilePanelProps> = ({
                     />
                 </div>
 
-                {/* Admin controls — role change + remove (canEdit) */}
+                {/* View Tasks button */}
+                <div style={{ padding: '0 1rem 0.75rem' }}>
+                    <button
+                        onClick={() => setShowProfileModal(true)}
+                        style={{
+                            width: '100%', padding: '8px',
+                            background: '#f0f4ff', color: 'var(--primary-color)',
+                            border: '1px solid #c7d7fd',
+                            borderRadius: '8px',
+                            fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                            transition: 'all 0.15s',
+                        }}
+                        onMouseOver={e => { e.currentTarget.style.background = '#e0eaff'; }}
+                        onMouseOut={e => { e.currentTarget.style.background = '#f0f4ff'; }}
+                    >
+                        <ClipboardList size={14} /> View Task Summary
+                    </button>
+                </div>
                 {canEdit && (
                     <>
                         <div style={{ height: '1px', background: '#f1f5f9', margin: '0 1.25rem' }} />
@@ -600,6 +635,101 @@ const MemberProfilePanel: React.FC<MemberProfilePanelProps> = ({
                 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
             `}</style>
 
+            {/* Full profile modal */}
+            <Modal isOpen={showProfileModal} onClose={() => setShowProfileModal(false)} title="Task Summary" maxWidth="380px">
+                {(() => {
+                    const detail = projectDetails;
+                    const avatarUrl = !avatarError && (detail?.avatarUrl || member.avatarUrl);
+                    const taskColorMap: Record<string, { bg: string; color: string }> = {
+                        'Completed':   { bg: '#ecfdf5', color: '#10b981' },
+                        'InProgress':  { bg: '#eff6ff', color: '#3b82f6' },
+                        'In Progress': { bg: '#eff6ff', color: '#3b82f6' },
+                        'ToDo':        { bg: '#f8fafc', color: '#64748b' },
+                        'To Do':       { bg: '#f8fafc', color: '#64748b' },
+                        'Overdue':     { bg: '#fef2f2', color: '#ef4444' },
+                        'Cancelled':   { bg: '#fef2f2', color: '#dc2626' },
+                    };
+                    const statusBadge: Record<number, { label: string; bg: string; color: string }> = {
+                        1: { label: 'Active',   bg: '#ecfdf5', color: '#10b981' },
+                        2: { label: 'Inactive', bg: '#fffbeb', color: '#f59e0b' },
+                        3: { label: 'Banned',   bg: '#fef2f2', color: '#ef4444' },
+                    };
+                    const sb = statusBadge[detail?.status ?? member.status] ?? { label: 'Unknown', bg: '#f1f5f9', color: '#64748b' };
+                    return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                            {/* Top: avatar + name */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                                <div style={{
+                                    width: '52px', height: '52px', borderRadius: '50%',
+                                    background: 'var(--primary-color)', color: 'white',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    fontSize: '1.25rem', fontWeight: 800,
+                                    border: '2px solid #e2e8f0', flexShrink: 0,
+                                    overflow: 'hidden',
+                                }}>
+                                    {avatarUrl ? (
+                                        <img src={avatarUrl} alt="" onError={() => setAvatarError(true)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                    ) : (
+                                        (detail?.fullName || member.fullName || member.userName || 'U')[0].toUpperCase()
+                                    )}
+                                </div>
+                                <div>
+                                    <h3 style={{ margin: '0 0 0.25rem', fontSize: '0.9rem', fontWeight: 700, color: '#1e293b' }}>
+                                        {detail?.fullName || member.fullName || member.userName}
+                                    </h3>
+                                    <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                                        {roleMeta && (
+                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '2px 8px', background: roleMeta.bg, color: roleMeta.color, borderRadius: '20px', fontSize: '0.65rem', fontWeight: 700 }}>
+                                                {roleMeta.icon} {roleMeta.label}
+                                            </span>
+                                        )}
+                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '2px 8px', background: sb.bg, color: sb.color, borderRadius: '20px', fontSize: '0.65rem', fontWeight: 700 }}>
+                                            <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'currentColor' }} />
+                                            {sb.label}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Task overview */}
+                            {loadingDetails ? (
+                                <div style={{ display: 'flex', justifyContent: 'center', padding: '0.75rem' }}>
+                                    <Loader2 size={18} className="animate-spin" style={{ color: '#94a3b8' }} />
+                                </div>
+                            ) : (
+                                <div style={{ background: '#f8fafc', borderRadius: '8px', padding: '0.75rem', border: '1px solid #f1f5f9' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: detail?.taskCountsByStatus?.length ? '0.5rem' : 0 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                            <ClipboardList size={13} style={{ color: '#64748b' }} />
+                                            <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Tasks</span>
+                                        </div>
+                                        <span style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--primary-color)', lineHeight: 1 }}>
+                                            {detail?.totalAssignedTasks ?? 0}
+                                            <span style={{ fontSize: '0.63rem', fontWeight: 600, color: '#94a3b8', marginLeft: '3px' }}>assigned</span>
+                                        </span>
+                                    </div>
+                                    {detail?.taskCountsByStatus?.length > 0 ? (
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', paddingTop: '0.5rem', borderTop: '1px solid #e2e8f0' }}>
+                                            {detail.taskCountsByStatus.map((ts: { status: string; count: number }) => {
+                                                const s = taskColorMap[ts.status] || { bg: '#f1f5f9', color: '#64748b' };
+                                                return (
+                                                    <span key={ts.status} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '2px 8px', borderRadius: '20px', background: s.bg, color: s.color, fontSize: '0.67rem', fontWeight: 700 }}>
+                                                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'currentColor', flexShrink: 0 }} />
+                                                        {ts.status}: {ts.count}
+                                                    </span>
+                                                );
+                                            })}
+                                        </div>
+                                    ) : (
+                                        <p style={{ margin: 0, fontSize: '0.72rem', color: '#94a3b8', fontStyle: 'italic' }}>No tasks assigned</p>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    );
+                })()}
+            </Modal>
+
             {/* Status change confirm modal */}
             {pendingStatus !== null && (() => {
                 const name = member.fullName || member.userName || 'this member';
@@ -681,16 +811,16 @@ interface InfoRowProps {
 const InfoRow: React.FC<InfoRowProps> = ({ icon, label, value, valueColor, last }) => (
     <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '9px 0',
+        padding: '7px 0',
         borderBottom: last ? 'none' : '1px solid #f8fafc',
-        gap: '12px',
+        gap: '10px',
     }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '7px', color: '#94a3b8', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#94a3b8', flexShrink: 0 }}>
             {icon}
-            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#94a3b8' }}>{label}</span>
+            <span style={{ fontSize: '0.68rem', fontWeight: 600, color: '#94a3b8' }}>{label}</span>
         </div>
         <span style={{
-            fontSize: '0.82rem', fontWeight: 600,
+            fontSize: '0.72rem', fontWeight: 600,
             color: valueColor || '#334155',
             textAlign: 'right', wordBreak: 'break-word',
             display: 'flex', alignItems: 'center',

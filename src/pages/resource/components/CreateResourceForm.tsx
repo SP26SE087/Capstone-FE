@@ -80,7 +80,7 @@ const CreateResourceForm: React.FC<CreateResourceFormProps> = ({
     const [resourceTypes, setResourceTypes] = useState<ResourceTypeItem[]>([]);
     const [loadingTypes, setLoadingTypes] = useState(false);
     const [location, setLocation] = useState('');
-    const [managedBy, setManagedBy] = useState(user?.userId || '');
+    const [managedBy, setManagedBy] = useState(user?.email || '');
     const [selectedManagerName, setSelectedManagerName] = useState(user ? user.name : '');
     const [searchTerm, setSearchTerm] = useState('');
     const [showUserList, setShowUserList] = useState(false);
@@ -205,7 +205,7 @@ const CreateResourceForm: React.FC<CreateResourceFormProps> = ({
                 description: description.trim() || undefined,
                 resourceTypeId,
                 location: location.trim() || undefined,
-                managedBy,
+                managedByEmail: managedBy,
                 modelSeriesList: serialNumbers
             };
 
@@ -365,7 +365,7 @@ const CreateResourceForm: React.FC<CreateResourceFormProps> = ({
                                                         <div
                                                             key={dId}
                                                             onClick={() => {
-                                                                setManagedBy(dId);
+                                                                setManagedBy(dir.email || '');
                                                                 setSelectedManagerName(dName);
                                                                 setSearchTerm('');
                                                                 setShowUserList(false);
@@ -374,13 +374,13 @@ const CreateResourceForm: React.FC<CreateResourceFormProps> = ({
                                                                 padding: '10px 14px',
                                                                 cursor: 'pointer',
                                                                 borderBottom: '1px solid var(--border-light)',
-                                                                background: managedBy === dId ? 'var(--accent-bg)' : 'transparent',
+                                                                background: managedBy === dir.email ? 'var(--accent-bg)' : 'transparent',
                                                                 display: 'flex',
                                                                 alignItems: 'center',
                                                                 gap: '10px'
                                                             }}
                                                             onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-hover)'}
-                                                            onMouseLeave={e => e.currentTarget.style.background = managedBy === dId ? 'var(--accent-bg)' : 'transparent'}
+                                                            onMouseLeave={e => e.currentTarget.style.background = managedBy === dir.email ? 'var(--accent-bg)' : 'transparent'}
                                                         >
                                                             <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#64748b', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.65rem', fontWeight: 700 }}>
                                                                 {dName.charAt(0)}

@@ -74,6 +74,7 @@ export interface UpdateMeetingRequest {
     startTime: string | null;
     endTime: string | null;
     attendeeEmails: string[] | null;
+    status?: MeetingStatus;
 }
 
 export interface UpdateMeetingDetailsRequest {

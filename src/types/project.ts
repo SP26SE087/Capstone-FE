@@ -43,7 +43,8 @@ export enum ProjectStatus {
     Active = 1,
     Inactive = 2,
     Archived = 3,
-    Completed = 4
+    Completed = 4,
+    Cancelled = 5
 }
 
 export enum MemberStatus {

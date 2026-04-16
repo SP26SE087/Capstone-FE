@@ -298,7 +298,7 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
                         <Presentation size={16} />
                     </div>
                     <div style={{ minWidth: 0 }}>
-                        <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
                             {meeting.title || 'Seminar Details'}
                         </h3>
                         <span style={{

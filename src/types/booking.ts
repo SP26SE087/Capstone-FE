@@ -135,7 +135,7 @@ export interface CreateResourceRequest {
   description?: string;
   resourceTypeId: string;
   location?: string;
-  managedBy: string;
+  managedByEmail: string;
   modelSeriesList: string[];
 }
 

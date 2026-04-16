@@ -88,6 +88,7 @@ export interface PaperSubmissionResponse {
     lastUpdatedByFullName?: string | null;
     lastUpdatedByEmail?: string | null;
     editable: boolean;
+    reason?: string | null;
     members: PaperMemberResponse[];
     externalUsers?: ExternalUserResponse[] | null;
     assignees?: PaperAssignee[] | null;
@@ -134,6 +135,7 @@ export interface CreatePaperRequest {
     documents?: string;
     conferenceName: string;
     createdByUserId?: string | null;
+    additionalAssigneeEmails?: string[];
     members: PaperMemberRequest[];
     externalUsers?: ExternalUserCreateDto[];
 }
@@ -149,6 +151,7 @@ export interface UpdatePaperRequest {
     conferenceName: string;
     lastUpdatedByUserId?: string | null;
     members: PaperMemberRequest[];
+    additionalAssigneeEmails?: string[];
 }
 
 export interface SemanticSearchRequest {

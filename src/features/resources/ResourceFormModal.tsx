@@ -9,7 +9,7 @@ import { validateTextField } from '@/utils/validation';
 interface ResourceFormModalProps {
   resource?: Resource;
   onClose: () => void;
-  onSubmit: (resourceData: Partial<Resource> & { managedBy: string }) => void;
+  onSubmit: (resourceData: Partial<Resource> & { managedByEmail: string }) => void;
 }
 
 const ResourceFormModal: React.FC<ResourceFormModalProps> = ({ resource, onClose, onSubmit }) => {
@@ -31,10 +31,10 @@ const ResourceFormModal: React.FC<ResourceFormModalProps> = ({ resource, onClose
 
   // Sync managedBy with currentUser once available
   useEffect(() => {
-    if (currentUser?.userId && (managedBy === "" || !managedBy)) {
-      setManagedBy(currentUser.userId);
+    if (currentUser?.email && (managedBy === "" || !managedBy)) {
+      setManagedBy(currentUser.email);
     }
-  }, [currentUser.userId]);
+  }, [currentUser?.email]);
 
   useEffect(() => {
     const fetchDirectors = async () => {
@@ -68,7 +68,7 @@ const ResourceFormModal: React.FC<ResourceFormModalProps> = ({ resource, onClose
     setFieldErrors({});
     
     // Đảm bảo managedBy không bị trống trước khi gửi
-    const finalManagedBy = managedBy || currentUser.userId;
+    const finalManagedBy = managedBy || currentUser.email || '';
     
     if (!finalManagedBy) {
         alert("Please select a manager (Managed By) for this resource.");
@@ -84,7 +84,7 @@ const ResourceFormModal: React.FC<ResourceFormModalProps> = ({ resource, onClose
       totalQuantity,
       damagedQuantity,
       availableQuantity: totalQuantity - damagedQuantity,
-      managedBy: finalManagedBy
+      managedByEmail: finalManagedBy
     });
   };
 
@@ -182,9 +182,9 @@ const ResourceFormModal: React.FC<ResourceFormModalProps> = ({ resource, onClose
                         isDisabled={loadingUsers}
                         isLoading={loadingUsers}
                         options={[
-                            ...(currentUser.userId ? [{ value: currentUser.userId, label: `Me (${currentUser.name})` }] : []),
+                            ...(currentUser.email ? [{ value: currentUser.email, label: `Me (${currentUser.name})` }] : []),
                             ...directors.filter(d => d.id !== currentUser.userId).map(dir => ({
-                                value: dir.id,
+                                value: dir.email || dir.id,
                                 label: dir.fullName || dir.name,
                             })),
                         ]}

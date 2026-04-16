@@ -54,7 +54,13 @@ export const setupInterceptors = (axiosInstance: any) => {
 
     // Response interceptor to handle token refresh
     axiosInstance.interceptors.response.use(
-        (response: any) => response,
+        (response: any) => {
+            // Unwrap API envelope: { success, message, messageCode, data }
+            if (response.data && typeof response.data === 'object' && 'success' in response.data && 'data' in response.data) {
+                response.data = response.data.data;
+            }
+            return response;
+        },
         async (error: any) => {
             const originalRequest = error.config;
 

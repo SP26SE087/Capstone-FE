@@ -51,6 +51,8 @@ const DetailsSettings: React.FC<DetailsSettingsProps> = ({
 
     const now = new Date();
     const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const originalStartDate = project?.startDate ? new Date(project.startDate).toISOString().split('T')[0] : '';
+    const originalEndDate = project?.endDate ? new Date(project.endDate).toISOString().split('T')[0] : '';
 
     // Date validation: End date cannot be before start date
     const isDateInvalid = React.useMemo(() => {
@@ -58,17 +60,19 @@ const DetailsSettings: React.FC<DetailsSettingsProps> = ({
         return formData.startDate > formData.endDate;
     }, [formData.startDate, formData.endDate]);
 
-    // Start date cannot be in the past
+    // Start date cannot be in the past (only if user changed it)
     const isStartDateInPast = React.useMemo(() => {
         if (!formData.startDate) return false;
+        if (formData.startDate === originalStartDate) return false;
         return formData.startDate < todayStr;
-    }, [formData.startDate]);
+    }, [formData.startDate, originalStartDate]);
 
-    // End date cannot be in the past
+    // End date cannot be in the past (only if user changed it)
     const isEndDateInPast = React.useMemo(() => {
         if (!formData.endDate) return false;
+        if (formData.endDate === originalEndDate) return false;
         return formData.endDate < todayStr;
-    }, [formData.endDate]);
+    }, [formData.endDate, originalEndDate]);
 
     // End date cannot be before the latest milestone due date
     const isEndDateBeforeMilestone = React.useMemo(() => {
@@ -82,20 +86,28 @@ const DetailsSettings: React.FC<DetailsSettingsProps> = ({
         return formData.startDate > earliestMilestoneStartDate.split('T')[0];
     }, [formData.startDate, earliestMilestoneStartDate]);
 
-    // Can only edit when project is Inactive (or Admin)
+    // Can edit when project is Inactive or Active (or Admin)
     const isInactive = project?.status === ProjectStatus.Inactive;
-    const canEdit = !permissionReadOnly && !isArchived && (isAdmin || isInactive);
+    const isActive = project?.status === ProjectStatus.Active;
+    const isEditableStatus = isInactive || isActive;
+    const canEdit = !permissionReadOnly && !isArchived && (isAdmin || isEditableStatus);
 
     // End date required before changing status
     const hasNoEndDate = !formData.endDate;
 
-    // Valid status transitions: Inactive→Active, Active→Completed, Completed→Archived
+    // Valid status transitions (per spec):
+    //   Inactive  → Active, Cancelled
+    //   Active    → Completed, Cancelled
+    //   Completed → Archived
+    //   Cancelled → Archived
+    //   Archived  → (none)
     const getAllowedStatuses = (current: number): number[] => {
-        if (isAdmin) return [ProjectStatus.Inactive, ProjectStatus.Active, ProjectStatus.Completed, ProjectStatus.Archived];
+        if (isAdmin) return [ProjectStatus.Inactive, ProjectStatus.Active, ProjectStatus.Completed, ProjectStatus.Archived, ProjectStatus.Cancelled];
         switch (current) {
-            case ProjectStatus.Inactive:  return [ProjectStatus.Inactive, ProjectStatus.Active];
-            case ProjectStatus.Active:    return [ProjectStatus.Active, ProjectStatus.Completed];
+            case ProjectStatus.Inactive:  return [ProjectStatus.Inactive, ProjectStatus.Active, ProjectStatus.Cancelled];
+            case ProjectStatus.Active:    return [ProjectStatus.Active, ProjectStatus.Completed, ProjectStatus.Cancelled];
             case ProjectStatus.Completed: return [ProjectStatus.Completed, ProjectStatus.Archived];
+            case ProjectStatus.Cancelled: return [ProjectStatus.Cancelled, ProjectStatus.Archived];
             case ProjectStatus.Archived:  return [ProjectStatus.Archived];
             default: return [current];
         }
@@ -104,11 +116,12 @@ const DetailsSettings: React.FC<DetailsSettingsProps> = ({
 
     const getStatusStyle = (status: number) => {
         switch (status) {
-            case ProjectStatus.Active: return { color: '#10b981', label: 'Active', bg: '#ecfdf5' };
-            case ProjectStatus.Inactive: return { color: '#64748b', label: 'Inactive', bg: '#f1f5f9' };
-            case ProjectStatus.Completed: return { color: '#3b82f6', label: 'Completed', bg: '#eff6ff' };
-            case ProjectStatus.Archived: return { color: '#ef4444', label: 'Archived', bg: '#fef2f2' };
-            default: return { color: '#64748b', label: 'Unknown', bg: '#f1f5f9' };
+            case ProjectStatus.Active:    return { color: '#10b981', label: 'Active',     bg: '#ecfdf5' };
+            case ProjectStatus.Inactive:  return { color: '#64748b', label: 'Inactive',   bg: '#f1f5f9' };
+            case ProjectStatus.Completed: return { color: '#3b82f6', label: 'Completed',  bg: '#eff6ff' };
+            case ProjectStatus.Archived:  return { color: '#6b7280', label: 'Archived',   bg: '#f3f4f6' };
+            case ProjectStatus.Cancelled: return { color: '#dc2626', label: 'Cancelled',  bg: '#fef2f2' };
+            default:                      return { color: '#64748b', label: 'Unknown',    bg: '#f1f5f9' };
         }
     };
 
@@ -138,10 +151,10 @@ const DetailsSettings: React.FC<DetailsSettingsProps> = ({
                     )}
                 </div>
             )}
-            {!permissionReadOnly && !isArchived && !isInactive && !isAdmin && (
+            {!permissionReadOnly && !isArchived && !isEditableStatus && !isAdmin && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '0.65rem 1rem', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '10px', fontSize: '0.8rem', color: '#92400e' }}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                    Settings can only be edited while the project is <strong style={{ marginLeft: '4px' }}>Inactive</strong>.
+                    Settings can only be edited while the project is <strong style={{ marginLeft: '4px' }}>Inactive</strong> or <strong style={{ marginLeft: '4px' }}>Active</strong>.
                 </div>
             )}
             <div className="card" style={{ padding: '2rem' }}>
@@ -155,17 +168,22 @@ const DetailsSettings: React.FC<DetailsSettingsProps> = ({
                                 </label>
                                 {isEditing && <span style={{ fontSize: '0.65rem', color: projectNameValue.length >= 200 ? '#dc2626' : 'var(--text-muted)' }}>{projectNameValue.length}/200</span>}
                             </div>
-                            <input
-                                className="form-input"
-                                style={{ fontSize: '1.5rem', fontWeight: 800, padding: isEditing ? '4px 8px' : '0 0 4px 0', border: isEditing ? `1px solid ${isProjectNameInvalid ? '#dc2626' : 'var(--border-color)'}` : 'none', background: isEditing ? 'white' : 'transparent', width: '100%', borderRadius: isEditing ? 'var(--radius-sm)' : 0, outline: 'none' }}
-                                type="text"
-                                name="projectName"
-                                value={projectNameValue}
-                                onChange={handleInputChange}
-                                disabled={isReadOnly}
-                                placeholder="Workspace Name"
-                                maxLength={200}
-                            />
+                            {isEditing ? (
+                                <input
+                                    className="form-input"
+                                    style={{ fontSize: '1.5rem', fontWeight: 800, padding: '4px 8px', border: `1px solid ${isProjectNameInvalid ? '#dc2626' : 'var(--border-color)'}`, background: 'white', width: '100%', borderRadius: 'var(--radius-sm)', outline: 'none' }}
+                                    type="text"
+                                    name="projectName"
+                                    value={projectNameValue}
+                                    onChange={handleInputChange}
+                                    placeholder="Workspace Name"
+                                    maxLength={200}
+                                />
+                            ) : (
+                                <div style={{ fontSize: '1.5rem', fontWeight: 800, padding: '0 0 4px 0', wordBreak: 'break-word', whiteSpace: 'normal', lineHeight: 1.3 }}>
+                                    {projectNameValue || <span style={{ color: 'var(--text-muted)' }}>Workspace Name</span>}
+                                </div>
+                            )}
                             {isProjectNameInvalid && (
                                 <p style={{ fontSize: '0.75rem', fontWeight: 600, color: '#dc2626', marginTop: '6px' }}>
                                     Project name is required.
@@ -244,49 +262,65 @@ const DetailsSettings: React.FC<DetailsSettingsProps> = ({
                             <h4 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 750, textTransform: 'uppercase', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <Briefcase size={14} /> Research Fields
                             </h4>
-                            <div style={{ position: 'relative' }}>
-                                <Search size={14} style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                                <input
-                                    type="text"
-                                    placeholder="Filter..."
-                                    className="form-input"
-                                    style={{ padding: '4px 30px 4px 10px', height: '28px', fontSize: '0.75rem', width: '120px' }}
-                                    value={fieldSearchTerm}
-                                    onChange={(e) => setFieldSearchTerm(e.target.value)}
-                                    disabled={isReadOnly}
-                                />
+                            {isEditing && (
+                                <div style={{ position: 'relative' }}>
+                                    <Search size={14} style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                                    <input
+                                        type="text"
+                                        placeholder="Filter..."
+                                        className="form-input"
+                                        style={{ padding: '4px 30px 4px 10px', height: '28px', fontSize: '0.75rem', width: '120px' }}
+                                        value={fieldSearchTerm}
+                                        onChange={(e) => setFieldSearchTerm(e.target.value)}
+                                    />
+                                </div>
+                            )}
+                        </div>
+                        {isEditing ? (
+                            <div style={{
+                                display: 'flex',
+                                flexWrap: 'wrap',
+                                gap: '6px',
+                                maxHeight: '120px',
+                                overflowY: 'auto',
+                                padding: '8px',
+                                background: 'var(--background-light)',
+                                borderRadius: 'var(--radius-sm)',
+                                border: '1px solid var(--border-color)'
+                            }} className="custom-scrollbar">
+                                {availableFields
+                                    .filter(f => f.name.toLowerCase().includes(fieldSearchTerm.toLowerCase()))
+                                    .map((field) => (
+                                        <button
+                                            key={field.researchFieldId}
+                                            type="button"
+                                            onClick={() => toggleField(field.researchFieldId)}
+                                            className={`filter-chip ${selectedFieldIds.includes(field.researchFieldId) ? 'active' : ''}`}
+                                            style={{ padding: '4px 10px', fontSize: '0.75rem', cursor: 'pointer' }}
+                                        >
+                                            {field.name}
+                                        </button>
+                                    ))}
                             </div>
-                        </div>
-                        <div style={{
-                            display: 'flex',
-                            flexWrap: 'wrap',
-                            gap: '6px',
-                            maxHeight: '120px',
-                            overflowY: 'auto',
-                            padding: '8px',
-                            background: 'var(--background-light)',
-                            borderRadius: 'var(--radius-sm)',
-                            border: '1px solid var(--border-color)'
-                        }} className="custom-scrollbar">
-                            {availableFields
-                                .filter(f => f.name.toLowerCase().includes(fieldSearchTerm.toLowerCase()))
-                                .map((field) => (
-                                    <button
-                                        key={field.researchFieldId}
-                                        type="button"
-                                        onClick={() => !isReadOnly && toggleField(field.researchFieldId)}
-                                        className={`filter-chip ${selectedFieldIds.includes(field.researchFieldId) ? 'active' : ''}`}
-                                        style={{
-                                            padding: '4px 10px',
-                                            fontSize: '0.75rem',
-                                            cursor: isReadOnly ? 'default' : 'pointer',
-                                        }}
-                                        disabled={isReadOnly}
-                                    >
-                                        {field.name}
-                                    </button>
-                                ))}
-                        </div>
+                        ) : (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                                {selectedFieldIds.length === 0 ? (
+                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>No fields selected</span>
+                                ) : (
+                                    availableFields
+                                        .filter(f => selectedFieldIds.includes(f.researchFieldId))
+                                        .map((field) => (
+                                            <span
+                                                key={field.researchFieldId}
+                                                className="filter-chip active"
+                                                style={{ padding: '4px 10px', fontSize: '0.75rem', cursor: 'default' }}
+                                            >
+                                                {field.name}
+                                            </span>
+                                        ))
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -303,7 +337,7 @@ const DetailsSettings: React.FC<DetailsSettingsProps> = ({
                                         style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '0 10px', height: '36px', borderRadius: '8px', background: '#f1f5f9', border: '1px solid #e2e8f0', cursor: 'not-allowed' }}
                                     >
                                         <Lock size={13} style={{ color: '#94a3b8' }} />
-                                        <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#94a3b8' }}>{['Inactive','Active','Completed','Archived'][formData.status - 1] ?? 'Unknown'}</span>
+                                        <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#94a3b8' }}>{getStatusStyle(formData.status).label}</span>
                                     </div>
                                 ) : (
                                     <div style={{ position: 'relative' }}>
@@ -330,6 +364,7 @@ const DetailsSettings: React.FC<DetailsSettingsProps> = ({
                                             {allowedStatuses.includes(ProjectStatus.Inactive) && <option value={ProjectStatus.Inactive}>Inactive</option>}
                                             {allowedStatuses.includes(ProjectStatus.Active) && <option value={ProjectStatus.Active}>Active</option>}
                                             {allowedStatuses.includes(ProjectStatus.Completed) && <option value={ProjectStatus.Completed}>Completed</option>}
+                                            {allowedStatuses.includes(ProjectStatus.Cancelled) && <option value={ProjectStatus.Cancelled}>Cancelled</option>}
                                             {allowedStatuses.includes(ProjectStatus.Archived) && <option value={ProjectStatus.Archived}>Archived</option>}
                                         </select>
                                         <ChevronDown size={14} style={{ position: 'absolute', right: '0', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-muted)' }} />
@@ -370,7 +405,7 @@ const DetailsSettings: React.FC<DetailsSettingsProps> = ({
                                 Save Changes
                             </button>
                         )}
-                        {canDeleteProject && (isAdmin || isInactive) && !isArchived && (
+                        {canDeleteProject && (isAdmin || isInactive || isActive) && !isArchived && (
                             <button
                                 onClick={() => setIsDeleteConfirmOpen(true)}
                                 className="btn"

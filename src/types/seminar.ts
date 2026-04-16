@@ -100,7 +100,7 @@ export interface SeminarSwapRequestResponse {
     requestedByUserId: string;
     targetUserId: string;
     reason: string | null;
-    status: SeminarSwapRequestStatus;
+    status: string | null;
     requestedAt: string;
     respondedAt: string | null;
     decidedAt: string | null;

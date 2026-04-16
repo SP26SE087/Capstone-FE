@@ -21,6 +21,33 @@ interface DetailsMembersProps {
     onMembersRefresh?: () => Promise<void>;
 }
 
+const statusColors: Record<number, { bg: string; color: string; label: string }> = {
+    1: { bg: '#ecfdf5', color: '#10b981', label: 'Active' },
+    2: { bg: '#fffbeb', color: '#f59e0b', label: 'Inactive' },
+    3: { bg: '#fef2f2', color: '#ef4444', label: 'Banned' },
+};
+
+const MemberAvatar: React.FC<{ member: any; size?: number; active?: boolean }> = ({ member, size = 40, active = false }) => {
+    const [err, setErr] = React.useState(false);
+    const url = !err && member.avatarUrl;
+    const initials = (member.fullName || member.userName || 'U')[0].toUpperCase();
+    return (
+        <div style={{
+            width: size, height: size, borderRadius: '50%', flexShrink: 0, overflow: 'hidden',
+            background: active ? 'var(--primary-color)' : '#e2e8f0',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: active ? 'white' : '#64748b', fontWeight: 700, fontSize: size * 0.4,
+            border: active ? '2px solid var(--primary-color)' : '2px solid transparent',
+            transition: 'all 0.2s',
+        }}>
+            {url
+                ? <img src={url} alt="" onError={() => setErr(true)} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : initials
+            }
+        </div>
+    );
+};
+
 const DetailsMembers: React.FC<DetailsMembersProps> = ({
     filteredMembers,
     memberSearchQuery,
@@ -206,67 +233,56 @@ const DetailsMembers: React.FC<DetailsMembersProps> = ({
                 )}
             </div>
 
-            {/* Main content: member grid + side panel */}
+            {/* Main content: member list + side panel */}
             <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
-                {/* Member grid */}
-                <div style={{
-                    flex: 1,
-                    display: 'grid',
-                    gridTemplateColumns: isPanelOpen
-                        ? 'repeat(auto-fill, minmax(200px, 1fr))'
-                        : 'repeat(auto-fill, minmax(280px, 1fr))',
-                    gap: '1.25rem',
-                    alignContent: 'start',
-                }}>
+                {/* Member list */}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '60vh', overflowY: 'auto' }} className="custom-scrollbar">
                     {filteredMembers.length > 0
                         ? filteredMembers.map((member, index) => {
                             const mid = member.id || member.memberId;
                             const isActive = selectedMember && (selectedMember.id === mid || selectedMember.memberId === mid);
+                            const st = statusColors[member.status as number] ?? { bg: '#f1f5f9', color: '#64748b', label: 'Unknown' };
                             return (
                                 <div
                                     key={mid || index}
-                                    className="card member-card"
                                     onClick={() => openProfile(member)}
                                     style={{
                                         display: 'flex',
                                         alignItems: 'center',
                                         gap: '12px',
-                                        padding: '1rem 1.25rem',
+                                        padding: '0.65rem 1rem',
                                         cursor: 'pointer',
-                                        transition: 'all 0.2s',
-                                        border: `1.5px solid ${isActive ? 'var(--primary-color)' : 'transparent'}`,
-                                        background: isActive ? 'rgba(99,102,241,0.03)' : undefined,
+                                        borderRadius: '10px',
+                                        border: `1.5px solid ${isActive ? 'var(--primary-color)' : '#e2e8f0'}`,
+                                        background: isActive ? 'rgba(99,102,241,0.04)' : 'white',
+                                        transition: 'all 0.15s',
                                     }}
+                                    onMouseOver={e => { if (!isActive) e.currentTarget.style.background = '#f8fafc'; }}
+                                    onMouseOut={e => { if (!isActive) e.currentTarget.style.background = 'white'; }}
                                 >
-                                    <div style={{
-                                        width: '42px', height: '42px', borderRadius: '50%',
-                                        background: isActive ? 'var(--primary-color)' : '#f1f5f9',
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        color: isActive ? 'white' : '#64748b',
-                                        fontWeight: 700, fontSize: '1rem', flexShrink: 0,
-                                        transition: 'all 0.2s',
-                                    }}>
-                                        {isPanelOpen
-                                            ? (member.fullName || member.userName || 'U')[0].toUpperCase()
-                                            : <User size={22} />
-                                        }
-                                    </div>
+                                    <MemberAvatar member={member} size={38} active={!!isActive} />
                                     <div style={{ flex: 1, minWidth: 0 }}>
-                                        <h4 style={{
-                                            margin: 0, fontSize: '0.92rem', fontWeight: 700, color: '#1e293b',
-                                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                                        }}>
+                                        <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                             {member.fullName || member.userName || 'Research Member'}
-                                        </h4>
-                                        <p style={{ margin: 0, fontSize: '0.78rem', color: '#64748b', fontWeight: 600 }}>
+                                        </div>
+                                        <div style={{ fontSize: '0.74rem', color: '#64748b', fontWeight: 500 }}>
                                             {member.projectRoleName || member.roleName || 'Member'}
-                                        </p>
+                                        </div>
                                     </div>
+                                    <span style={{
+                                        display: 'inline-flex', alignItems: 'center', gap: '4px',
+                                        padding: '2px 8px', borderRadius: '20px',
+                                        background: st.bg, color: st.color,
+                                        fontSize: '0.65rem', fontWeight: 700, flexShrink: 0,
+                                    }}>
+                                        <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'currentColor' }} />
+                                        {st.label}
+                                    </span>
                                 </div>
                             );
                         })
                         : (
-                            <div className="card" style={{ gridColumn: '1/-1', textAlign: 'center', padding: '3rem' }}>
+                            <div className="card" style={{ textAlign: 'center', padding: '3rem' }}>
                                 <p style={{ color: 'var(--text-secondary)' }}>
                                     No research members match your current search.
                                 </p>

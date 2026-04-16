@@ -23,6 +23,8 @@ interface AttendeeSelectorProps {
     projectsMap: Record<string, string>;
     /** Emails to hide from the picker entirely — e.g. already-selected presenters or the meeting creator */
     excludeEmails?: string[];
+    /** When true, the selected-chips block at the top is not rendered */
+    hideSelected?: boolean;
 }
 
 type TabMode = 'users' | 'project' | 'manual';
@@ -31,7 +33,8 @@ const AttendeeSelector: React.FC<AttendeeSelectorProps> = ({
     selectedAttendees,
     onChange,
     projectsMap,
-    excludeEmails = []
+    excludeEmails = [],
+    hideSelected = false
 }) => {
     const [activeMode, setActiveMode] = useState<TabMode>('users');
 
@@ -166,7 +169,7 @@ const AttendeeSelector: React.FC<AttendeeSelectorProps> = ({
             padding: '14px',
         }}>
             {/* Selected Attendees Chips */}
-            {selectedAttendees.length > 0 && (
+            {!hideSelected && selectedAttendees.length > 0 && (
                 <div style={{
                     display: 'flex',
                     flexWrap: 'wrap',

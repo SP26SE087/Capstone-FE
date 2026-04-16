@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import ReactDOM from 'react-dom';
 import { CreateRecurringSeminarRequest, DateOfWeek } from '@/types/seminar';
 import { PresenterInfo } from '@/types/meeting';
 import seminarService from '@/services/seminarService';
@@ -20,11 +21,7 @@ import {
     Repeat,
     Search,
     Check,
-    AlertCircle,
-    ChevronDown,
-    ChevronUp,
-    Briefcase,
-    Mail
+    AlertCircle
 } from 'lucide-react';
 import AttendeeSelector, { SelectedAttendee } from '@/components/common/AttendeeSelector';
 import { validateTextField } from '@/utils/validation';
@@ -114,9 +111,9 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
     const [presenterProjectLoading, setPresenterProjectLoading] = useState(false);
     const [presenterManualInputs, setPresenterManualInputs] = useState<string[]>(['']);
 
-    // Collapse state for participant sub-panels (default closed)
-    const [presenterOpen, setPresenterOpen] = useState(false);
-    const [attendeeOpen, setAttendeeOpen] = useState(false);
+    // Modal state for participant pickers
+    const [showPresenterModal, setShowPresenterModal] = useState(false);
+    const [showAttendeeModal, setShowAttendeeModal] = useState(false);
 
     // Load project members when presenter project changes
     useEffect(() => {
@@ -247,7 +244,8 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
                 additionalAttendeeEmails: selectedAttendees.length > 0
                     ? selectedAttendees.map(a => a.email)
                     : null,
-                location: location.trim() || null
+                location: location.trim() || null,
+                weeklyTopics: null
             };
             await seminarService.createRecurringSeminar(req);
             // Show success toast, clear form, lock button
@@ -267,8 +265,8 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
             setPresenterProjectId('');
             setPresenterProjectMembers([]);
             setPresenterManualInputs(['']);
-            setPresenterOpen(false);
-            setAttendeeOpen(false);
+            setShowPresenterModal(false);
+            setShowAttendeeModal(false);
             onSaved(false);
         } catch (err: any) {
             console.error('Create recurring seminar failed:', err);
@@ -280,6 +278,7 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
     };
 
     return (
+        <>
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', paddingBottom: '12px', borderBottom: '1px solid var(--border-light)' }}>
@@ -443,367 +442,79 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
                     </div>
                 </div>
 
-                {/* Participants — Presenters + Attendees (mutually exclusive) */}
+                {/* Participants — Presenters + Attendees */}
                 <div style={sectionStyle}>
-                    {/* Section Header */}
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
                         <div style={labelStyle}><Users size={12} /> Participants</div>
                         <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-muted)' }}>
                             {presenters.length + selectedAttendees.length} assigned
                         </span>
                     </div>
-
-                    {/* Role rule banner */}
-                    <div style={{
-                        display: 'flex', alignItems: 'flex-start', gap: '8px',
-                        padding: '8px 12px', borderRadius: '8px', marginBottom: '16px',
-                        background: '#f0fdf4', border: '1px solid #bbf7d0',
-                        fontSize: '0.72rem', fontWeight: 600, color: '#065f46', lineHeight: 1.5
-                    }}>
-                        <span>Each person can only hold <strong>one role</strong>: either a <strong>Presenter</strong> or an <strong>Attendee</strong>. Selecting someone in one role automatically hides them in the other.</span>
+                    <div style={{ fontSize: '0.7rem', fontWeight: 600, color: '#065f46', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '7px 10px', marginBottom: '14px' }}>
+                        Each person can only hold <strong>one role</strong>: either a <strong>Presenter</strong> or an <strong>Attendee</strong>.
                     </div>
 
-                    {/* ── Presenters ── */}
-                    <div style={{
-                        borderRadius: '10px', border: '1.5px solid #c7d2fe',
-                        background: '#fafafe', padding: '14px', marginBottom: '12px'
-                    }}>
-                        {/* Collapsible header */}
-                        <button
-                            onClick={() => setPresenterOpen(o => !o)}
-                            style={{
-                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                                width: '100%', background: 'none', border: 'none', cursor: 'pointer',
-                                padding: 0, marginBottom: presenterOpen ? '10px' : 0
-                            }}
-                        >
+                    {/* ── Presenters row ── */}
+                    <div style={{ marginBottom: '10px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <div style={{
-                                    width: '22px', height: '22px', borderRadius: '6px',
-                                    background: 'linear-gradient(135deg, #6366f1, #818cf8)',
-                                    color: '#fff', display: 'flex', alignItems: 'center',
-                                    justifyContent: 'center'
-                                }}>
-                                    <Presentation size={12} />
+                                <div style={{ width: '20px', height: '20px', borderRadius: '5px', background: 'linear-gradient(135deg,#6366f1,#818cf8)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <Presentation size={11} />
                                 </div>
-                                <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#4338ca', textTransform: 'uppercase' as const, letterSpacing: '0.6px' }}>
-                                    Presenters
-                                </span>
+                                <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#4338ca', textTransform: 'uppercase' as const, letterSpacing: '0.5px' }}>Presenters</span>
                                 {presenters.length > 0 && (
-                                    <span style={{
-                                        fontSize: '0.65rem', fontWeight: 700,
-                                        color: presenters.length >= numberOfWeeks ? '#ef4444' : '#6366f1',
-                                        background: presenters.length >= numberOfWeeks ? '#fee2e2' : '#ede9fe',
-                                        padding: '2px 8px', borderRadius: '10px'
-                                    }}>
-                                        {presenters.length} / {numberOfWeeks} max
+                                    <span style={{ fontSize: '0.62rem', fontWeight: 700, color: presenters.length >= numberOfWeeks ? '#ef4444' : '#6366f1', background: presenters.length >= numberOfWeeks ? '#fee2e2' : '#ede9fe', padding: '1px 7px', borderRadius: '10px' }}>
+                                        {presenters.length}/{numberOfWeeks}
                                     </span>
                                 )}
                             </div>
-                            {presenterOpen
-                                ? <ChevronUp size={14} color="#6366f1" />
-                                : <ChevronDown size={14} color="#6366f1" />
-                            }
-                        </button>
-
-                        {presenterOpen && (<>
-
-                            {/* Presenter limit error */}
-                            {presenterError && (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#ef4444', fontSize: '0.72rem', fontWeight: 600, marginBottom: '8px', padding: '6px 10px', background: '#fee2e2', borderRadius: '7px', border: '1px solid #fecaca' }}>
-                                    <AlertCircle size={12} /> {presenterError}
-                                </div>
-                            )}
-
-                            {/* Selected presenter chips */}
-                            {presenters.length > 0 && (
-                                <div style={{
-                                    display: 'flex', flexDirection: 'column', gap: '6px',
-                                    marginBottom: '10px'
-                                }}>
-                                    {presenters.map((p, idx) => (
-                                        <div key={idx} style={{
-                                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                                            padding: '8px 10px', borderRadius: '8px',
-                                            background: '#fff', border: '1px solid #c7d2fe'
-                                        }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
-                                                <div style={{
-                                                    width: '28px', height: '28px', borderRadius: '50%',
-                                                    background: 'linear-gradient(135deg, #6366f1, #818cf8)',
-                                                    color: '#fff', display: 'flex', alignItems: 'center',
-                                                    justifyContent: 'center', fontSize: '0.65rem', fontWeight: 700,
-                                                    flexShrink: 0
-                                                }}>
-                                                    {(p.name || p.email || 'P')[0].toUpperCase()}
-                                                </div>
-                                                <div style={{ flex: 1, minWidth: 0 }}>
-                                                    <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                        {p.name || p.email}
-                                                    </div>
-                                                    {p.name && <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{p.email}</div>}
-                                                </div>
-                                                <input
-                                                    style={{
-                                                        ...inputStyle,
-                                                        width: '130px', flexShrink: 0,
-                                                        padding: '5px 9px', fontSize: '0.75rem',
-                                                        border: '1px solid #e0e7ff'
-                                                    }}
-                                                    placeholder="Topic (optional)"
-                                                    value={p.topic || ''}
-                                                    onChange={e => updatePresenterTopic(p.email!, e.target.value)}
-                                                    onClick={e => e.stopPropagation()}
-                                                />
-                                            </div>
-                                            <button
-                                                onClick={() => removePresenter(p.email!)}
-                                                style={{
-                                                    background: 'none', border: 'none', cursor: 'pointer',
-                                                    color: '#ef4444', padding: '4px', marginLeft: '6px', flexShrink: 0
-                                                }}
-                                            >
-                                                <X size={13} />
-                                            </button>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-
-                            {/* Presenter picker — tabbed (mirrors AttendeeSelector) */}
-                            <div style={{
-                                background: '#fff', borderRadius: '10px',
-                                border: '1px solid #e0e7ff', padding: '12px'
-                            }}>
-                                {/* Tabs */}
-                                <div style={{ display: 'flex', gap: '6px', marginBottom: '10px' }}>
-                                    {(['users', 'project', 'manual'] as const).map(tab => {
-                                        const labels = { users: 'From Users', project: 'From Project', manual: 'Manual' };
-                                        const icons = { users: <Users size={13} />, project: <Briefcase size={13} />, manual: <Mail size={13} /> };
-                                        const active = presenterTab === tab;
-                                        return (
-                                            <button key={tab} onClick={() => setPresenterTab(tab)} style={{
-                                                padding: '6px 11px', borderRadius: '7px', cursor: 'pointer',
-                                                fontSize: '0.72rem', fontWeight: 700,
-                                                display: 'flex', alignItems: 'center', gap: '5px',
-                                                border: active ? '1.5px solid #6366f1' : '1px solid #e0e7ff',
-                                                background: active ? '#ede9fe' : '#fff',
-                                                color: active ? '#4338ca' : 'var(--text-secondary)',
-                                                transition: 'all 0.15s'
-                                            }}>
-                                                {icons[tab]} {labels[tab]}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-
-                                {/* Exclusion hint */}
-                                {selectedAttendees.length > 0 && (
-                                    <div style={{
-                                        display: 'flex', alignItems: 'center', gap: '6px',
-                                        padding: '5px 9px', borderRadius: '7px', marginBottom: '8px',
-                                        background: '#fffbeb', border: '1px solid #fde68a',
-                                        fontSize: '0.68rem', fontWeight: 600, color: '#92400e'
-                                    }}>
-                                        <span>⚠</span>
-                                        {selectedAttendees.length} {selectedAttendees.length === 1 ? 'person is' : 'people are'} hidden — already an attendee
-                                    </div>
-                                )}
-
-                                {/* Tab: From Users */}
-                                {presenterTab === 'users' && (
-                                    <div>
-                                        <div style={{ position: 'relative', marginBottom: '6px' }}>
-                                            <Search size={13} style={{ position: 'absolute', left: '9px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
-                                            <input
-                                                style={{ width: '100%', padding: '7px 9px 7px 28px', borderRadius: '7px', border: '1.5px solid #e0e7ff', fontSize: '0.8rem', fontFamily: 'inherit', outline: 'none' }}
-                                                placeholder="Search by name or email…"
-                                                value={presenterSearch}
-                                                onChange={e => setPresenterSearch(e.target.value)}
-                                                onFocus={e => { e.currentTarget.style.borderColor = '#6366f1'; }}
-                                                onBlur={e => { e.currentTarget.style.borderColor = '#e0e7ff'; }}
-                                            />
-                                        </div>
-                                        <div style={{ maxHeight: '180px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '3px' }} className="custom-scrollbar">
-                                            {usersLoading ? (
-                                                <div style={{ textAlign: 'center', padding: '1rem' }}><Loader2 size={18} className="animate-spin" style={{ color: '#6366f1' }} /></div>
-                                            ) : filteredPresenterUsers.length === 0 ? (
-                                                <div style={{ textAlign: 'center', padding: '0.75rem', color: 'var(--text-muted)', fontSize: '0.75rem' }}>No users found</div>
-                                            ) : filteredPresenterUsers.map(u => {
-                                                const email = u.email || ''; const name = u.fullName || '';
-                                                const selected = isPresenterSelected(email);
-                                                const atLimit = !selected && presenters.length >= numberOfWeeks;
-                                                return (
-                                                    <div key={u.userId || email} onClick={() => !atLimit && togglePresenter(email, name)}
-                                                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 9px', borderRadius: '7px', cursor: atLimit ? 'not-allowed' : 'pointer', opacity: atLimit ? 0.45 : 1, background: selected ? '#ede9fe' : '#fff', border: selected ? '1px solid #c7d2fe' : '1px solid transparent', transition: 'all 0.12s' }}
-                                                        onMouseEnter={e => { if (!selected && !atLimit) e.currentTarget.style.background = '#f5f3ff'; }}
-                                                        onMouseLeave={e => { if (!selected && !atLimit) e.currentTarget.style.background = '#fff'; }}
-                                                    >
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                            <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: selected ? '#6366f1' : 'var(--primary-color)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700 }}>
-                                                                {name[0]?.toUpperCase() || '?'}
-                                                            </div>
-                                                            <div>
-                                                                <div style={{ fontSize: '0.77rem', fontWeight: 700, color: 'var(--text-primary)' }}>{name}</div>
-                                                                <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{email}</div>
-                                                            </div>
-                                                        </div>
-                                                        {selected ? <Check size={14} color="#6366f1" /> : <Plus size={13} color="var(--text-muted)" style={{ opacity: 0.4 }} />}
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Tab: From Project */}
-                                {presenterTab === 'project' && (
-                                    <div>
-                                        <select
-                                            style={{ width: '100%', padding: '7px 10px', borderRadius: '7px', border: '1.5px solid #e0e7ff', fontSize: '0.8rem', fontFamily: 'inherit', outline: 'none', marginBottom: '6px' }}
-                                            value={presenterProjectId}
-                                            onChange={e => setPresenterProjectId(e.target.value)}
-                                        >
-                                            <option value="">Choose a project…</option>
-                                            {Object.entries(projectsMap).map(([id, name]) => (
-                                                <option key={id} value={id}>{name}</option>
-                                            ))}
-                                        </select>
-                                        <div style={{ maxHeight: '180px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '3px' }} className="custom-scrollbar">
-                                            {presenterProjectLoading ? (
-                                                <div style={{ textAlign: 'center', padding: '1rem' }}><Loader2 size={18} className="animate-spin" style={{ color: '#6366f1' }} /></div>
-                                            ) : !presenterProjectId ? (
-                                                <div style={{ textAlign: 'center', padding: '0.75rem', color: 'var(--text-muted)', fontSize: '0.75rem' }}>Select a project above</div>
-                                            ) : presenterProjectMembers.length === 0 ? (
-                                                <div style={{ textAlign: 'center', padding: '0.75rem', color: 'var(--text-muted)', fontSize: '0.75rem' }}>No members in this project</div>
-                                            ) : presenterProjectMembers
-                                                .filter(m => !selectedAttendees.some(a => a.email.toLowerCase() === (m.email || m.userEmail || '').toLowerCase()))
-                                                .map(m => {
-                                                    const email = m.email || m.userEmail || ''; const name = m.fullName || m.userName || ''; const role = m.projectRoleName || '';
-                                                    const selected = isPresenterSelected(email);
-                                                    const atLimit = !selected && presenters.length >= numberOfWeeks;
-                                                    return (
-                                                        <div key={m.memberId || m.userId || email} onClick={() => email && !atLimit && togglePresenter(email, name)}
-                                                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 9px', borderRadius: '7px', cursor: (email && !atLimit) ? 'pointer' : 'not-allowed', opacity: (email && !atLimit) ? 1 : 0.45, background: selected ? '#ede9fe' : '#fff', border: selected ? '1px solid #c7d2fe' : '1px solid transparent', transition: 'all 0.12s' }}
-                                                            onMouseEnter={e => { if (!selected && email && !atLimit) e.currentTarget.style.background = '#f5f3ff'; }}
-                                                            onMouseLeave={e => { if (!selected && email && !atLimit) e.currentTarget.style.background = '#fff'; }}
-                                                        >
-                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                                <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: selected ? '#6366f1' : 'var(--primary-color)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700 }}>
-                                                                    {name[0]?.toUpperCase() || '?'}
-                                                                </div>
-                                                                <div>
-                                                                    <div style={{ fontSize: '0.77rem', fontWeight: 700, color: 'var(--text-primary)' }}>{name || 'Unknown'}</div>
-                                                                    <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{email || 'No email'}{role ? ` · ${role}` : ''}</div>
-                                                                </div>
-                                                            </div>
-                                                            {selected ? <Check size={14} color="#6366f1" /> : <Plus size={13} color="var(--text-muted)" style={{ opacity: 0.4 }} />}
-                                                        </div>
-                                                    );
-                                                })}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Tab: Manual */}
-                                {presenterTab === 'manual' && (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                        {presenterManualInputs.map((val, idx) => (
-                                            <div key={idx} style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                                                <input
-                                                    style={{ flex: 1, padding: '7px 10px', borderRadius: '7px', border: '1.5px solid #e0e7ff', fontSize: '0.8rem', fontFamily: 'inherit', outline: 'none', opacity: presenters.length >= numberOfWeeks ? 0.5 : 1 }}
-                                                    value={val}
-                                                    onChange={e => { if (presenters.length < numberOfWeeks) { const u = [...presenterManualInputs]; u[idx] = e.target.value; setPresenterManualInputs(u); } }}
-                                                    placeholder={presenters.length >= numberOfWeeks ? 'Limit reached' : 'Enter email address…'}
-                                                    readOnly={presenters.length >= numberOfWeeks}
-                                                    onFocus={e => { e.currentTarget.style.borderColor = '#6366f1'; }}
-                                                    onBlur={e => { e.currentTarget.style.borderColor = '#e0e7ff'; }}
-                                                    onKeyDown={e => {
-                                                        if (e.key !== 'Enter') return;
-                                                        const trimmed = val.trim();
-                                                        if (!trimmed || isPresenterSelected(trimmed) || selectedAttendees.some(a => a.email.toLowerCase() === trimmed.toLowerCase()) || presenters.length >= numberOfWeeks) return;
-                                                        togglePresenter(trimmed, trimmed);
-                                                        const u = [...presenterManualInputs]; u[idx] = ''; setPresenterManualInputs(u);
-                                                    }}
-                                                />
-                                                <button
-                                                    disabled={!val.trim() || presenters.length >= numberOfWeeks}
-                                                    onClick={() => {
-                                                        const trimmed = val.trim();
-                                                        if (!trimmed || isPresenterSelected(trimmed) || selectedAttendees.some(a => a.email.toLowerCase() === trimmed.toLowerCase()) || presenters.length >= numberOfWeeks) return;
-                                                        togglePresenter(trimmed, trimmed);
-                                                        const u = [...presenterManualInputs]; u[idx] = ''; setPresenterManualInputs(u);
-                                                    }}
-                                                    style={{ padding: '7px 11px', borderRadius: '7px', border: 'none', background: (val.trim() && presenters.length < numberOfWeeks) ? '#6366f1' : '#94a3b8', color: '#fff', cursor: (val.trim() && presenters.length < numberOfWeeks) ? 'pointer' : 'not-allowed', fontSize: '0.72rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '3px', flexShrink: 0 }}
-                                                >
-                                                    Add
-                                                </button>
-                                                {presenterManualInputs.length > 1 && (
-                                                    <button onClick={() => setPresenterManualInputs(presenterManualInputs.filter((_, i) => i !== idx))}
-                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: '4px', display: 'flex', flexShrink: 0 }}>
-                                                        <X size={13} />
-                                                    </button>
-                                                )}
-                                            </div>
-                                        ))}
-                                        <button onClick={() => setPresenterManualInputs([...presenterManualInputs, ''])}
-                                            style={{ alignSelf: 'flex-start', padding: '5px 10px', borderRadius: '7px', border: '1px dashed #c7d2fe', background: 'none', color: '#6366f1', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                            <Plus size={12} /> Add another
+                            <button onClick={() => setShowPresenterModal(true)} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', borderRadius: '7px', border: '1px solid #c7d2fe', background: '#ede9fe', color: '#4338ca', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 700 }}>
+                                <Plus size={11} /> Add/Edit
+                            </button>
+                        </div>
+                        {presenters.length > 0 && (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                                {presenters.map((p, idx) => (
+                                    <span key={idx} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '20px', background: '#ede9fe', border: '1px solid #c7d2fe', fontSize: '0.68rem', fontWeight: 600, color: '#4338ca' }}>
+                                        {p.name || p.email}
+                                        <button onClick={() => removePresenter(p.email!)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#a5b4fc', padding: 0, display: 'flex', lineHeight: 1 }}>
+                                            <X size={10} />
                                         </button>
-                                    </div>
-                                )}
+                                    </span>
+                                ))}
                             </div>
-                        </>)}
+                        )}
                     </div>
 
-                    {/* ── Attendees ── */}
-                    <div style={{
-                        borderRadius: '10px', border: '1.5px solid #bfdbfe',
-                        background: '#f8fbff', padding: '14px'
-                    }}>
-                        {/* Collapsible header */}
-                        <button
-                            onClick={() => setAttendeeOpen(o => !o)}
-                            style={{
-                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                                width: '100%', background: 'none', border: 'none', cursor: 'pointer',
-                                padding: 0, marginBottom: attendeeOpen ? '10px' : 0
-                            }}
-                        >
+                    {/* ── Attendees row ── */}
+                    <div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <div style={{
-                                    width: '22px', height: '22px', borderRadius: '6px',
-                                    background: 'linear-gradient(135deg, #3b82f6, #60a5fa)',
-                                    color: '#fff', display: 'flex', alignItems: 'center',
-                                    justifyContent: 'center'
-                                }}>
-                                    <Users size={12} />
+                                <div style={{ width: '20px', height: '20px', borderRadius: '5px', background: 'linear-gradient(135deg,#3b82f6,#60a5fa)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <Users size={11} />
                                 </div>
-                                <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#1d4ed8', textTransform: 'uppercase' as const, letterSpacing: '0.6px' }}>
-                                    Attendees
-                                </span>
+                                <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#1d4ed8', textTransform: 'uppercase' as const, letterSpacing: '0.5px' }}>Attendees</span>
                                 {selectedAttendees.length > 0 && (
-                                    <span style={{
-                                        fontSize: '0.65rem', fontWeight: 700, color: '#3b82f6',
-                                        background: '#eff6ff', padding: '2px 8px', borderRadius: '10px'
-                                    }}>
-                                        {selectedAttendees.length} selected
+                                    <span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#3b82f6', background: '#eff6ff', padding: '1px 7px', borderRadius: '10px' }}>
+                                        {selectedAttendees.length}
                                     </span>
                                 )}
                             </div>
-                            {attendeeOpen
-                                ? <ChevronUp size={14} color="#3b82f6" />
-                                : <ChevronDown size={14} color="#3b82f6" />
-                            }
-                        </button>
-
-                        {attendeeOpen && (
-                            <AttendeeSelector
-                                selectedAttendees={selectedAttendees}
-                                onChange={setSelectedAttendees}
-                                projectsMap={projectsMap}
-                                excludeEmails={presenters.map(p => p.email!).filter(Boolean)}
-                            />
+                            <button onClick={() => setShowAttendeeModal(true)} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', borderRadius: '7px', border: '1px solid #bfdbfe', background: '#eff6ff', color: '#1d4ed8', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 700 }}>
+                                <Plus size={11} /> Add/Edit
+                            </button>
+                        </div>
+                        {selectedAttendees.length > 0 && (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                                {selectedAttendees.map(a => (
+                                    <span key={a.email} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '20px', background: '#eff6ff', border: '1px solid #bfdbfe', fontSize: '0.68rem', fontWeight: 600, color: '#1d4ed8' }}>
+                                        {a.name || a.email}
+                                        <button onClick={() => setSelectedAttendees(prev => prev.filter(x => x.email !== a.email))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#93c5fd', padding: 0, display: 'flex', lineHeight: 1 }}>
+                                            <X size={10} />
+                                        </button>
+                                    </span>
+                                ))}
+                            </div>
                         )}
                     </div>
                 </div>
@@ -856,6 +567,252 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
                 </button>
             </div>
         </div>
+
+            {/* ── Presenter picker modal ── */}
+            {showPresenterModal && ReactDOM.createPortal(
+                <div
+                    onClick={() => setShowPresenterModal(false)}
+                    style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                >
+                    <div
+                        onClick={e => e.stopPropagation()}
+                        style={{ background: '#fff', borderRadius: '16px', padding: '20px', width: '420px', maxHeight: '70vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.25)' }}
+                    >
+                        {/* Header */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <div style={{ width: '26px', height: '26px', borderRadius: '8px', background: 'linear-gradient(135deg,#6366f1,#818cf8)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <Presentation size={14} />
+                                </div>
+                                <span style={{ fontWeight: 800, fontSize: '0.9rem', color: '#4338ca' }}>Add Presenters</span>
+                                {presenters.length > 0 && (
+                                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: presenters.length >= numberOfWeeks ? '#ef4444' : '#6366f1', background: presenters.length >= numberOfWeeks ? '#fee2e2' : '#ede9fe', padding: '2px 8px', borderRadius: '10px' }}>
+                                        {presenters.length}/{numberOfWeeks}
+                                    </span>
+                                )}
+                            </div>
+                            <button onClick={() => setShowPresenterModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '4px', display: 'flex' }}>
+                                <X size={16} />
+                            </button>
+                        </div>
+
+                        {/* Limit error */}
+                        {presenterError && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#ef4444', fontSize: '0.72rem', fontWeight: 600, marginBottom: '10px', padding: '6px 10px', background: '#fee2e2', borderRadius: '7px', border: '1px solid #fecaca' }}>
+                                <AlertCircle size={12} /> {presenterError}
+                            </div>
+                        )}
+
+                        {/* Tabs */}
+                        <div style={{ display: 'flex', gap: '6px', marginBottom: '10px' }}>
+                            {(['users', 'project', 'manual'] as const).map(tab => {
+                                const labels = { users: 'Users', project: 'Project', manual: 'Manual' };
+                                const active = presenterTab === tab;
+                                return (
+                                    <button key={tab} onClick={() => setPresenterTab(tab)} style={{ padding: '5px 12px', borderRadius: '7px', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700, border: active ? '1.5px solid #6366f1' : '1px solid #e0e7ff', background: active ? '#ede9fe' : '#fff', color: active ? '#4338ca' : 'var(--text-secondary)', transition: 'all 0.15s' }}>
+                                        {labels[tab]}
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        {/* Tab: Users */}
+                        {presenterTab === 'users' && (
+                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                                <div style={{ position: 'relative', marginBottom: '8px' }}>
+                                    <Search size={13} style={{ position: 'absolute', left: '9px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+                                    <input
+                                        style={{ width: '100%', padding: '7px 9px 7px 28px', borderRadius: '7px', border: '1.5px solid #e0e7ff', fontSize: '0.8rem', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                                        placeholder="Search by name or email…"
+                                        value={presenterSearch}
+                                        onChange={e => setPresenterSearch(e.target.value)}
+                                    />
+                                </div>
+                                <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '3px' }} className="custom-scrollbar">
+                                    {usersLoading ? (
+                                        <div style={{ textAlign: 'center', padding: '1rem' }}><Loader2 size={18} className="animate-spin" style={{ color: '#6366f1' }} /></div>
+                                    ) : filteredPresenterUsers.length === 0 ? (
+                                        <div style={{ textAlign: 'center', padding: '0.75rem', color: 'var(--text-muted)', fontSize: '0.75rem' }}>No users found</div>
+                                    ) : filteredPresenterUsers.map(u => {
+                                        const email = u.email || ''; const name = u.fullName || '';
+                                        const selected = isPresenterSelected(email);
+                                        const atLimit = !selected && presenters.length >= numberOfWeeks;
+                                        return (
+                                            <div key={u.userId || email} onClick={() => !atLimit && togglePresenter(email, name)}
+                                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 9px', borderRadius: '7px', cursor: atLimit ? 'not-allowed' : 'pointer', opacity: atLimit ? 0.45 : 1, background: selected ? '#ede9fe' : '#fff', border: selected ? '1px solid #c7d2fe' : '1px solid transparent', transition: 'all 0.12s' }}
+                                                onMouseEnter={e => { if (!selected && !atLimit) e.currentTarget.style.background = '#f5f3ff'; }}
+                                                onMouseLeave={e => { if (!selected && !atLimit) e.currentTarget.style.background = selected ? '#ede9fe' : '#fff'; }}
+                                            >
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: selected ? '#6366f1' : 'var(--primary-color)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.62rem', fontWeight: 700 }}>
+                                                        {name[0]?.toUpperCase() || '?'}
+                                                    </div>
+                                                    <div>
+                                                        <div style={{ fontSize: '0.77rem', fontWeight: 700, color: 'var(--text-primary)' }}>{name}</div>
+                                                        <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{email}</div>
+                                                    </div>
+                                                </div>
+                                                {selected ? <Check size={14} color="#6366f1" /> : <Plus size={13} color="var(--text-muted)" style={{ opacity: 0.4 }} />}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Tab: Project */}
+                        {presenterTab === 'project' && (
+                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                                <select
+                                    style={{ width: '100%', padding: '7px 10px', borderRadius: '7px', border: '1.5px solid #e0e7ff', fontSize: '0.8rem', fontFamily: 'inherit', outline: 'none', marginBottom: '8px' }}
+                                    value={presenterProjectId}
+                                    onChange={e => setPresenterProjectId(e.target.value)}
+                                >
+                                    <option value="">Choose a project…</option>
+                                    {Object.entries(projectsMap).map(([id, name]) => (
+                                        <option key={id} value={id}>{name}</option>
+                                    ))}
+                                </select>
+                                <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '3px' }} className="custom-scrollbar">
+                                    {presenterProjectLoading ? (
+                                        <div style={{ textAlign: 'center', padding: '1rem' }}><Loader2 size={18} className="animate-spin" style={{ color: '#6366f1' }} /></div>
+                                    ) : !presenterProjectId ? (
+                                        <div style={{ textAlign: 'center', padding: '0.75rem', color: 'var(--text-muted)', fontSize: '0.75rem' }}>Select a project above</div>
+                                    ) : presenterProjectMembers.length === 0 ? (
+                                        <div style={{ textAlign: 'center', padding: '0.75rem', color: 'var(--text-muted)', fontSize: '0.75rem' }}>No members in this project</div>
+                                    ) : presenterProjectMembers
+                                        .filter(m => !selectedAttendees.some(a => a.email.toLowerCase() === (m.email || m.userEmail || '').toLowerCase()))
+                                        .map(m => {
+                                            const email = m.email || m.userEmail || ''; const name = m.fullName || m.userName || ''; const role = m.projectRoleName || '';
+                                            const selected = isPresenterSelected(email);
+                                            const atLimit = !selected && presenters.length >= numberOfWeeks;
+                                            return (
+                                                <div key={m.memberId || m.userId || email} onClick={() => email && !atLimit && togglePresenter(email, name)}
+                                                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 9px', borderRadius: '7px', cursor: (email && !atLimit) ? 'pointer' : 'not-allowed', opacity: (email && !atLimit) ? 1 : 0.45, background: selected ? '#ede9fe' : '#fff', border: selected ? '1px solid #c7d2fe' : '1px solid transparent' }}
+                                                    onMouseEnter={e => { if (!selected && email && !atLimit) e.currentTarget.style.background = '#f5f3ff'; }}
+                                                    onMouseLeave={e => { if (!selected && email && !atLimit) e.currentTarget.style.background = selected ? '#ede9fe' : '#fff'; }}
+                                                >
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                        <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: selected ? '#6366f1' : 'var(--primary-color)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.62rem', fontWeight: 700 }}>
+                                                            {name[0]?.toUpperCase() || '?'}
+                                                        </div>
+                                                        <div>
+                                                            <div style={{ fontSize: '0.77rem', fontWeight: 700, color: 'var(--text-primary)' }}>{name || 'Unknown'}</div>
+                                                            <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{email || 'No email'}{role ? ` · ${role}` : ''}</div>
+                                                        </div>
+                                                    </div>
+                                                    {selected ? <Check size={14} color="#6366f1" /> : <Plus size={13} color="var(--text-muted)" style={{ opacity: 0.4 }} />}
+                                                </div>
+                                            );
+                                        })}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Tab: Manual */}
+                        {presenterTab === 'manual' && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', overflowY: 'auto' }} className="custom-scrollbar">
+                                {presenterManualInputs.map((val, idx) => (
+                                    <div key={idx} style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                        <input
+                                            style={{ flex: 1, padding: '7px 10px', borderRadius: '7px', border: '1.5px solid #e0e7ff', fontSize: '0.8rem', fontFamily: 'inherit', outline: 'none', opacity: presenters.length >= numberOfWeeks ? 0.5 : 1 }}
+                                            value={val}
+                                            onChange={e => { if (presenters.length < numberOfWeeks) { const u = [...presenterManualInputs]; u[idx] = e.target.value; setPresenterManualInputs(u); } }}
+                                            placeholder={presenters.length >= numberOfWeeks ? 'Limit reached' : 'Enter email address…'}
+                                            readOnly={presenters.length >= numberOfWeeks}
+                                            onKeyDown={e => {
+                                                if (e.key !== 'Enter') return;
+                                                const trimmed = val.trim();
+                                                if (!trimmed || isPresenterSelected(trimmed) || selectedAttendees.some(a => a.email.toLowerCase() === trimmed.toLowerCase()) || presenters.length >= numberOfWeeks) return;
+                                                togglePresenter(trimmed, trimmed);
+                                                const u = [...presenterManualInputs]; u[idx] = ''; setPresenterManualInputs(u);
+                                            }}
+                                        />
+                                        <button
+                                            disabled={!val.trim() || presenters.length >= numberOfWeeks}
+                                            onClick={() => {
+                                                const trimmed = val.trim();
+                                                if (!trimmed || isPresenterSelected(trimmed) || selectedAttendees.some(a => a.email.toLowerCase() === trimmed.toLowerCase()) || presenters.length >= numberOfWeeks) return;
+                                                togglePresenter(trimmed, trimmed);
+                                                const u = [...presenterManualInputs]; u[idx] = ''; setPresenterManualInputs(u);
+                                            }}
+                                            style={{ padding: '7px 11px', borderRadius: '7px', border: 'none', background: (val.trim() && presenters.length < numberOfWeeks) ? '#6366f1' : '#94a3b8', color: '#fff', cursor: (val.trim() && presenters.length < numberOfWeeks) ? 'pointer' : 'not-allowed', fontSize: '0.72rem', fontWeight: 700, flexShrink: 0 }}
+                                        >
+                                            Add
+                                        </button>
+                                        {presenterManualInputs.length > 1 && (
+                                            <button onClick={() => setPresenterManualInputs(presenterManualInputs.filter((_, i) => i !== idx))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: '4px', display: 'flex', flexShrink: 0 }}>
+                                                <X size={13} />
+                                            </button>
+                                        )}
+                                    </div>
+                                ))}
+                                <button onClick={() => setPresenterManualInputs([...presenterManualInputs, ''])} style={{ alignSelf: 'flex-start', padding: '5px 10px', borderRadius: '7px', border: '1px dashed #c7d2fe', background: 'none', color: '#6366f1', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <Plus size={12} /> Add another
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Done button */}
+                        <div style={{ paddingTop: '14px', borderTop: '1px solid var(--border-light)', marginTop: '12px', display: 'flex', justifyContent: 'flex-end' }}>
+                            <button onClick={() => setShowPresenterModal(false)} style={{ padding: '7px 20px', borderRadius: '8px', border: 'none', background: '#6366f1', color: '#fff', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 700 }}>
+                                Done
+                            </button>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
+
+            {/* ── Attendee picker modal ── */}
+            {showAttendeeModal && ReactDOM.createPortal(
+                <div
+                    onClick={() => setShowAttendeeModal(false)}
+                    style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                >
+                    <div
+                        onClick={e => e.stopPropagation()}
+                        style={{ background: '#fff', borderRadius: '16px', padding: '20px', width: '420px', maxHeight: '70vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.25)' }}
+                    >
+                        {/* Header */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <div style={{ width: '26px', height: '26px', borderRadius: '8px', background: 'linear-gradient(135deg,#3b82f6,#60a5fa)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <Users size={14} />
+                                </div>
+                                <span style={{ fontWeight: 800, fontSize: '0.9rem', color: '#1d4ed8' }}>Add Attendees</span>
+                                {selectedAttendees.length > 0 && (
+                                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#3b82f6', background: '#eff6ff', padding: '2px 8px', borderRadius: '10px' }}>
+                                        {selectedAttendees.length} selected
+                                    </span>
+                                )}
+                            </div>
+                            <button onClick={() => setShowAttendeeModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '4px', display: 'flex' }}>
+                                <X size={16} />
+                            </button>
+                        </div>
+
+                        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                            <AttendeeSelector
+                                selectedAttendees={selectedAttendees}
+                                onChange={setSelectedAttendees}
+                                projectsMap={projectsMap}
+                                excludeEmails={presenters.map(p => p.email!).filter(Boolean)}
+                                hideSelected
+                            />
+                        </div>
+
+                        {/* Done button */}
+                        <div style={{ paddingTop: '14px', borderTop: '1px solid var(--border-light)', marginTop: '12px', display: 'flex', justifyContent: 'flex-end' }}>
+                            <button onClick={() => setShowAttendeeModal(false)} style={{ padding: '7px 20px', borderRadius: '8px', border: 'none', background: '#3b82f6', color: '#fff', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 700 }}>
+                                Done
+                            </button>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
+        </>
     );
 };
 
