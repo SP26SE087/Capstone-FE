@@ -52,6 +52,7 @@ export interface MeetingResponse {
     googleMeetLink: string | null;
     projectId: string | null;
     createdBy: string;
+    createdByEmail: string | null;
     createdAt: string;
     status: MeetingStatus;
     attendees: AttendeeResponse[] | null;

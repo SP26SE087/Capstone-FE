@@ -30,7 +30,6 @@ import {
     Lock,
     X,
     Mic,
-    FileSearch,
     RefreshCw
 } from 'lucide-react';
 
@@ -126,8 +125,10 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [deleting, setDeleting] = useState(false);
+    const [cancelling, setCancelling] = useState(false);
     const [indexing, setIndexing] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(false);
+    const [confirmCancel, setConfirmCancel] = useState(false);
 
     // Form fields
     const [title, setTitle] = useState('');
@@ -303,6 +304,35 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
         }
     };
 
+    const handleCancel = () => {
+        if (!meetingId) return;
+        setConfirmCancel(true);
+    };
+
+    const handleConfirmCancel = async () => {
+        setConfirmCancel(false);
+        setCancelling(true);
+        try {
+            const req: UpdateMeetingRequest = {
+                title: title.trim(),
+                description: description.trim() || null,
+                startTime: startTime ? new Date(startTime).toISOString() : null,
+                endTime: startTime ? new Date(new Date(startTime).getTime() + durationMinutes * 60000).toISOString() : null,
+                attendeeEmails: selectedAttendees.length > 0 ? selectedAttendees.map(a => a.email) : null,
+                status: MeetingStatus.Cancelled
+            };
+            await meetingService.updateMeeting(meetingId!, req);
+            onSaved(false, 'Meeting cancelled successfully.');
+            loadMeeting(meetingId!);
+        } catch (err: any) {
+            console.error('Cancel failed:', err);
+            const msg = err?.response?.data?.message || err?.response?.data?.title || 'Failed to cancel meeting.';
+            alert(msg);
+        } finally {
+            setCancelling(false);
+        }
+    };
+
     if (loading) {
         return (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '300px' }}>
@@ -312,8 +342,22 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
     }
 
     const statusInfo = meeting ? getStatusInfo(meeting.status) : null;
-    const isOwner = meeting?.createdBy === user?.userId;
-    const canEdit = isCreating || isOwner;
+    const isOwner = meeting?.createdByEmail?.toLowerCase() === user?.email?.toLowerCase();
+    
+    // Business Rules
+    const canDelete = !isCreating && isOwner && meeting?.status === MeetingStatus.Scheduled;
+    const canCancel = !isCreating && isOwner && (meeting?.status === MeetingStatus.Scheduled || meeting?.status === MeetingStatus.InProgress);
+    
+    // Can edit: only before or on the meeting day
+    const canEdit = isCreating || (isOwner && (() => {
+        if (!meeting?.startTime) return false;
+        const meetingDate = new Date(meeting.startTime);
+        const today = new Date();
+        // Reset time to compare only dates
+        meetingDate.setHours(0, 0, 0, 0);
+        today.setHours(0, 0, 0, 0);
+        return meetingDate >= today;
+    })());
 
     return (
         <>
@@ -369,23 +413,50 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                             <Mic size={13} /> AI Notes
                         </button>
                     )}
-                    {!isCreating && meetingId && isOwner && (
+                    {!isCreating && meetingId && canCancel && (
+                        <button
+                            onClick={handleCancel}
+                            disabled={cancelling}
+                            title="Cancel this meeting"
+                            style={{
+                                background: '#fff7ed',
+                                border: '1px solid #fed7aa',
+                                color: '#ea580c',
+                                padding: '6px 12px',
+                                borderRadius: '8px',
+                                cursor: cancelling ? 'not-allowed' : 'pointer',
+                                fontSize: '0.75rem',
+                                fontWeight: 700,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                transition: 'all 0.2s',
+                                opacity: cancelling ? 0.6 : 1
+                            }}
+                        >
+                            {cancelling ? <Loader2 size={14} className="animate-spin" /> : <X size={14} />}
+                            Cancel Meeting
+                        </button>
+                    )}
+                    {!isCreating && meetingId && canDelete && (
                         <button
                             onClick={handleDelete}
                             disabled={deleting}
+                            title="Delete this meeting (only Scheduled meetings)"
                             style={{
                                 background: '#fef2f2',
                                 border: '1px solid #fecaca',
                                 color: '#ef4444',
                                 padding: '6px 12px',
                                 borderRadius: '8px',
-                                cursor: 'pointer',
+                                cursor: deleting ? 'not-allowed' : 'pointer',
                                 fontSize: '0.75rem',
                                 fontWeight: 700,
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '4px',
-                                transition: 'all 0.2s'
+                                transition: 'all 0.2s',
+                                opacity: deleting ? 0.6 : 1
                             }}
                         >
                             {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
@@ -973,14 +1044,27 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                 )}
             </div>
         </div>
+        
         <ConfirmModal
             isOpen={confirmDelete}
             onClose={() => setConfirmDelete(false)}
             onConfirm={handleConfirmDelete}
-            title="Delete Schedule"
-            message="Are you sure you want to delete this schedule? This action cannot be undone."
+            title="Delete Meeting"
+            message="Are you sure you want to delete this meeting? This action cannot be undone. Only Scheduled meetings can be deleted."
             confirmText="Delete"
+            cancelText="Cancel"
             variant="danger"
+        />
+
+        <ConfirmModal
+            isOpen={confirmCancel}
+            onClose={() => setConfirmCancel(false)}
+            onConfirm={handleConfirmCancel}
+            title="Cancel Meeting"
+            message="Are you sure you want to cancel this meeting? All attendees will be notified."
+            confirmText="Cancel Meeting"
+            cancelText="Keep Meeting"
+            variant="info"
         />
         </>
     );
