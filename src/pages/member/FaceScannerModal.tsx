@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Modal from '@/components/common/Modal';
 import { Camera, ShieldCheck, Play, Square } from 'lucide-react';
 import { faceService } from '@/services/faceService';
@@ -21,54 +21,39 @@ const FACE_VIDEO_FEED = import.meta.env.DEV
 const FaceScannerModal: React.FC<FaceScannerModalProps> = ({ isOpen, onClose, initialStudentId, userName }) => {
     const [isScanning, setIsScanning] = useState(false);
     const [status, setStatus] = useState<string | null>(null);
-    const [videoSrc, setVideoSrc] = useState(FACE_VIDEO_FEED);
+    const [videoSrc, setVideoSrc] = useState<string | undefined>(undefined);
     const { addToast } = useToastStore();
 
+    const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const scanStartTimeRef = useRef<number>(0);
+    const isAutoStoppingRef = useRef(false);
+
+    const stopPolling = useCallback(() => {
+        if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current);
+            pollIntervalRef.current = null;
+        }
+    }, []);
+
     useEffect(() => {
-        if (isOpen) {
+        if (!isOpen) {
+            stopPolling();
             setIsScanning(false);
             setStatus(null);
-            setVideoSrc(`${FACE_VIDEO_FEED}?t=${Date.now()}`);
+            setVideoSrc(undefined);
+            isAutoStoppingRef.current = false;
         }
-    }, [isOpen, initialStudentId]);
+    }, [isOpen, stopPolling]);
 
-    // Refresh MJPEG stream every 5 seconds (same as ui.html)
-    useEffect(() => {
-        if (!isOpen) return;
-        const interval = setInterval(() => {
-            setVideoSrc(`${FACE_VIDEO_FEED}?t=${Date.now()}`);
-        }, 5000);
-        return () => clearInterval(interval);
-    }, [isOpen]);
-
-    const handleStart = async () => {
-        const studentId = String(initialStudentId || '').trim();
-        if (!studentId) {
-            alert('Student ID is missing.');
-            return;
-        }
-        setIsScanning(true);
-        setStatus('Connecting to Biometric Engine...');
-        
-        try {
-            const data = await faceService.startAddUser(studentId);
-            setStatus(data.message || 'System Active. Scanning face...');
-        } catch (err) {
-            console.error('Start scan failed:', err);
-            setStatus('Connection failed. Is the Biometric BE running?');
-            setIsScanning(false);
-            addToast((err as any).message || 'Failed to start biometric registration.', 'error');
-        }
-    };
-
-    const handleStop = async () => {
+    const executeStop = useCallback(async () => {
+        stopPolling();
         setStatus('Saving data...');
         try {
             await faceService.stopAddUser();
             setIsScanning(false);
             setStatus(null);
+            setVideoSrc(undefined);
 
-            // Activate the user account — admin pressed "Stop & Save" intentionally
             try {
                 const userData = await userService.getByStudentId(initialStudentId);
                 const userId = userData?.userId || userData?.id;
@@ -88,6 +73,58 @@ const FaceScannerModal: React.FC<FaceScannerModalProps> = ({ isOpen, onClose, in
             setStatus(null);
             addToast((err as any).message || 'Failed to stop biometric registration.', 'error');
         }
+    }, [stopPolling, initialStudentId, addToast]);
+
+    const startPolling = useCallback((email: string, startTime: number) => {
+        pollIntervalRef.current = setInterval(async () => {
+            if (isAutoStoppingRef.current) return;
+            try {
+                const logs = await userService.getCheckingLogs(email);
+                const hasNewLog = logs.some((log: any) => {
+                    const t = new Date(log.checkingTime ?? log.createdAt ?? log.timestamp).getTime();
+                    return t > startTime;
+                });
+                if (hasNewLog) {
+                    isAutoStoppingRef.current = true;
+                    await executeStop();
+                }
+            } catch {
+                // silently ignore poll errors to avoid flooding toasts
+            }
+        }, 3000);
+    }, [executeStop]);
+
+    const handleStart = async () => {
+        const studentId = String(initialStudentId || '').trim();
+        if (!studentId) {
+            alert('Student ID is missing.');
+            return;
+        }
+        setIsScanning(true);
+        setStatus('Connecting to Biometric Engine...');
+        setVideoSrc(`${FACE_VIDEO_FEED}?t=${Date.now()}`);
+
+        try {
+            const [userData, startData] = await Promise.all([
+                userService.getByStudentId(studentId),
+                faceService.startAddUser(studentId),
+            ]);
+
+            setStatus(startData.message || 'Scanning... Hold still.');
+
+            const email = userData?.email;
+            if (email) {
+                scanStartTimeRef.current = Date.now();
+                isAutoStoppingRef.current = false;
+                startPolling(email, scanStartTimeRef.current);
+            }
+        } catch (err) {
+            console.error('Start scan failed:', err);
+            setStatus('Connection failed. Is the Biometric BE running?');
+            setIsScanning(false);
+            setVideoSrc(undefined);
+            addToast((err as any).message || 'Failed to start biometric registration.', 'error');
+        }
     };
 
     return (
@@ -100,8 +137,8 @@ const FaceScannerModal: React.FC<FaceScannerModalProps> = ({ isOpen, onClose, in
         >
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                 <div style={{ textAlign: 'center' }}>
-                    <div style={{ 
-                        width: '60px', height: '60px', borderRadius: '50%', 
+                    <div style={{
+                        width: '60px', height: '60px', borderRadius: '50%',
                         background: 'var(--accent-bg)', color: 'var(--accent-color)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         margin: '0 auto 1rem'
@@ -129,17 +166,19 @@ const FaceScannerModal: React.FC<FaceScannerModalProps> = ({ isOpen, onClose, in
                     position: 'relative',
                     overflow: 'hidden'
                 }}>
-                    <img
-                        src={videoSrc}
-                        alt="Camera Stream"
-                        style={{ 
-                            position: 'absolute', 
-                            width: '100%', 
-                            height: '100%', 
-                            objectFit: 'cover',
-                            zIndex: 0
-                        }} 
-                    />
+                    {videoSrc && (
+                        <img
+                            src={videoSrc}
+                            alt="Camera Stream"
+                            style={{
+                                position: 'absolute',
+                                width: '100%',
+                                height: '100%',
+                                objectFit: 'cover',
+                                zIndex: 0
+                            }}
+                        />
+                    )}
                     {isScanning ? (
                         <>
                             <div style={{
@@ -151,7 +190,7 @@ const FaceScannerModal: React.FC<FaceScannerModalProps> = ({ isOpen, onClose, in
                                 background: 'rgba(0, 0, 0, 0.3)',
                                 zIndex: 1
                             }} />
-                            <div className="animate-spin" style={{ 
+                            <div className="animate-spin" style={{
                                 width: '100px', height: '100px', borderRadius: '50%',
                                 border: '3px solid rgba(255, 255, 255, 0.1)',
                                 borderTopColor: 'var(--accent-color)',
@@ -173,41 +212,43 @@ const FaceScannerModal: React.FC<FaceScannerModalProps> = ({ isOpen, onClose, in
                             }} />
                         </>
                     ) : (
-                        <div style={{ 
-                            zIndex: 1, 
-                            display: 'flex', 
-                            flexDirection: 'column', 
-                            alignItems: 'center', 
-                            background: 'rgba(0,0,0,0.1)',
+                        <div style={{
+                            zIndex: 1,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            background: 'rgba(0,0,0,0.35)',
                             padding: '1rem',
                             borderRadius: 'var(--radius-md)'
                         }}>
                             <Camera size={24} style={{ color: 'white', opacity: 0.6, marginBottom: '0.5rem' }} />
-                            <p style={{ color: 'white', fontSize: '0.75rem', margin: 0, fontWeight: 500 }}>Camera active. Ready to register.</p>
+                            <p style={{ color: 'white', fontSize: '0.75rem', margin: 0, fontWeight: 500 }}>
+                                Press Start to begin registration.
+                            </p>
                         </div>
                     )}
                 </div>
 
                 <div style={{ display: 'flex', gap: '1rem' }}>
                     {!isScanning ? (
-                        <button 
-                            className="btn btn-primary" 
+                        <button
+                            className="btn btn-primary"
                             onClick={handleStart}
                             style={{ flex: 1, height: '48px', gap: '10px' }}
                         >
                             <Play size={18} /> Start Registration
                         </button>
                     ) : (
-                        <button 
-                            className="btn btn-danger" 
-                            onClick={handleStop}
+                        <button
+                            className="btn btn-danger"
+                            onClick={executeStop}
                             style={{ flex: 1, height: '48px', gap: '10px', background: '#ef4444', color: 'white', border: 'none' }}
                         >
                             <Square size={18} /> Stop & Save
                         </button>
                     )}
-                    <button 
-                        className="btn btn-secondary" 
+                    <button
+                        className="btn btn-secondary"
                         onClick={onClose}
                         disabled={isScanning}
                         style={{ padding: '0 25px' }}

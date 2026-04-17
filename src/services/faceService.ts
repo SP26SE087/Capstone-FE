@@ -20,10 +20,6 @@ export const faceService = {
         const response = await faceApi.post('/stop_add_user');
         return response.data;
     },
-    getLogs: async (): Promise<{ logs: string[] }> => {
-        const response = await faceApi.get('/get_logs');
-        return response.data;
-    },
     removeUser: async (userId: string) => {
         const response = await faceApi.post('/remove_user', { user_id: userId });
         return response.data;

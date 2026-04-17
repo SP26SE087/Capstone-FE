@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Camera, ShieldCheck, Trash2, Ban, RotateCcw } from 'lucide-react';
 import { faceService } from '@/services/faceService';
 import { useToastStore } from '@/store/slices/toastSlice';
+import ConfirmModal from '@/components/common/ConfirmModal';
 
 interface FaceRecognitionSectionProps {
     studentId: string;
@@ -11,20 +12,20 @@ interface FaceRecognitionSectionProps {
 
 const FaceRecognitionSection: React.FC<FaceRecognitionSectionProps> = ({ studentId, userName, onScanFace }) => {
     const { addToast } = useToastStore();
+    const [confirmRemove, setConfirmRemove] = useState(false);
 
     const handleAction = async (action: string) => {
         if (!studentId) {
             addToast('Student ID is missing.', 'error');
             return;
         }
-
+        if (action === 'Remove') {
+            setConfirmRemove(true);
+            return;
+        }
         try {
             let response;
             switch (action) {
-                case 'Remove':
-                    if (!window.confirm(`Are you sure you want to remove biometrics for ${userName}?`)) return;
-                    response = await faceService.removeUser(studentId);
-                    break;
                 case 'Ban':
                     response = await faceService.banUser(studentId);
                     break;
@@ -41,7 +42,19 @@ const FaceRecognitionSection: React.FC<FaceRecognitionSectionProps> = ({ student
         }
     };
 
+    const handleConfirmRemove = async () => {
+        setConfirmRemove(false);
+        try {
+            const response = await faceService.removeUser(studentId);
+            addToast(response?.message || 'Biometrics removed successfully.', 'success');
+        } catch (err) {
+            console.error('Remove failed:', err);
+            addToast('Failed to remove biometrics. Please check if the Biometric server is running.', 'error');
+        }
+    };
+
     return (
+        <>
         <div style={{
             marginTop: '0.75rem',
             padding: '0.75rem',
@@ -93,6 +106,17 @@ const FaceRecognitionSection: React.FC<FaceRecognitionSectionProps> = ({ student
                 </button>
             </div>
         </div>
+
+        <ConfirmModal
+            isOpen={confirmRemove}
+            onClose={() => setConfirmRemove(false)}
+            onConfirm={handleConfirmRemove}
+            title="Remove Biometrics"
+            message={<>Are you sure you want to remove biometrics for <strong>{userName}</strong>? This action cannot be undone.</>}
+            confirmText="Remove"
+            variant="danger"
+        />
+        </>
     );
 };
 

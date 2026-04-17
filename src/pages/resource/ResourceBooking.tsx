@@ -39,6 +39,7 @@ import BookingResourceForm from './components/BookingResourceForm';
 import BookingListView from './components/BookingListView';
 import BookingDetailPanel from './components/BookingDetailPanel';
 import ResourceTypePanel from './components/ResourceTypePanel';
+import ConfirmModal from '@/components/common/ConfirmModal';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type MainTab = 'resources' | 'bookings' | 'logs';
@@ -107,6 +108,7 @@ const ResourceBooking: React.FC = () => {
     const [resourceTypes, setResourceTypes] = useState<ResourceTypeItem[]>([]);
     const [loading, setLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
+    const [confirmDeleteRtId, setConfirmDeleteRtId] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [filterStatus, setFilterStatus] = useState('');
     const [filterType, setFilterType] = useState('');
@@ -227,8 +229,14 @@ const ResourceBooking: React.FC = () => {
     const handleEditResourceType = (rt: ResourceTypeItem) =>
         setActivePanel({ id: `edit-rt-${rt.id}`, type: 'resource_type_form', title: rt.name, editingResourceType: rt });
 
-    const handleDeleteResourceType = async (id: string) => {
-        if (!window.confirm('Delete this resource type?')) return;
+    const handleDeleteResourceType = (id: string) => {
+        setConfirmDeleteRtId(id);
+    };
+
+    const handleConfirmDeleteResourceType = async () => {
+        if (!confirmDeleteRtId) return;
+        const id = confirmDeleteRtId;
+        setConfirmDeleteRtId(null);
         try {
             await resourceTypeService.delete(id);
             showToast('Resource type deleted.', 'success');
@@ -1134,6 +1142,15 @@ const ResourceBooking: React.FC = () => {
                     </div>
                 </div>
             )}
+            <ConfirmModal
+                isOpen={confirmDeleteRtId !== null}
+                onClose={() => setConfirmDeleteRtId(null)}
+                onConfirm={handleConfirmDeleteResourceType}
+                title="Delete Resource Type"
+                message="Are you sure you want to delete this resource type? This action cannot be undone."
+                confirmText="Delete"
+                variant="danger"
+            />
         </MainLayout>
     );
 };

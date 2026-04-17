@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import ConfirmModal from '@/components/common/ConfirmModal';
 import {
     MeetingResponse,
     MeetingStatus,
@@ -126,6 +127,7 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
     const [saving, setSaving] = useState(false);
     const [deleting, setDeleting] = useState(false);
     const [indexing, setIndexing] = useState(false);
+    const [confirmDelete, setConfirmDelete] = useState(false);
 
     // Form fields
     const [title, setTitle] = useState('');
@@ -283,16 +285,19 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
         }
     };
 
-    const handleDelete = async () => {
+    const handleDelete = () => {
         if (!meetingId) return;
-        if (!confirm('Are you sure you want to delete this schedule?')) return;
+        setConfirmDelete(true);
+    };
+
+    const handleConfirmDelete = async () => {
+        setConfirmDelete(false);
         setDeleting(true);
         try {
-            await meetingService.deleteMeeting(meetingId);
+            await meetingService.deleteMeeting(meetingId!);
             onSaved(true, 'Schedule deleted successfully.');
         } catch (err) {
             console.error('Delete failed:', err);
-            alert((err as any).message || 'Failed to delete schedule.');
         } finally {
             setDeleting(false);
         }
@@ -311,6 +316,7 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
     const canEdit = isCreating || isOwner;
 
     return (
+        <>
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             {/* Panel Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '12px', borderBottom: '1px solid var(--border-light)' }}>
@@ -967,6 +973,16 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                 )}
             </div>
         </div>
+        <ConfirmModal
+            isOpen={confirmDelete}
+            onClose={() => setConfirmDelete(false)}
+            onConfirm={handleConfirmDelete}
+            title="Delete Schedule"
+            message="Are you sure you want to delete this schedule? This action cannot be undone."
+            confirmText="Delete"
+            variant="danger"
+        />
+        </>
     );
 };
 

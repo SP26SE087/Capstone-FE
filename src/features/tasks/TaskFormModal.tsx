@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import ConfirmModal from '@/components/common/ConfirmModal';
 import { X, Search, Users, Calendar, CheckSquare, AlignLeft, AlertTriangle, MapPin, AlertOctagon, Plus, Trash2, FileText, File, Eye, Clock } from 'lucide-react';
 import { Priority, TaskStatus, ProjectMember, Task, TaskEvidence, ProjectRoleEnum } from '@/types';
 import { validateSpecialChars } from '@/utils/validation';
@@ -227,6 +228,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
     const [evidenceViewerKind, setEvidenceViewerKind] = useState<'pdf' | 'office' | 'link'>('link');
     const [evidencePdfPage, setEvidencePdfPage] = useState(1);
     const [evidencePdfPages, setEvidencePdfPages] = useState(0);
+    const [confirmDeleteEvidenceId, setConfirmDeleteEvidenceId] = useState<number | null>(null);
 
     // Bulk creation states
     const [rows, setRows] = useState<TaskRow[]>([]);
@@ -394,16 +396,20 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
         setEvidencePdfPages(0);
     };
 
-    const handleDeleteEvidence = async (evidenceId: number) => {
+    const handleDeleteEvidence = (evidenceId: number) => {
         if (!task?.taskId) return;
-        if (window.confirm("Are you sure you want to remove this evidence?")) {
-            try {
-                await taskService.deleteEvidence(task.taskId, evidenceId);
-                setServerEvidences(prev => prev.filter(e => e.id !== evidenceId));
-            } catch (err) {
-                console.error("Failed to delete evidence:", err);
-                alert((err as any).message || "Failed to remove evidence.");
-            }
+        setConfirmDeleteEvidenceId(evidenceId);
+    };
+
+    const handleConfirmDeleteEvidence = async () => {
+        if (!task?.taskId || confirmDeleteEvidenceId === null) return;
+        const id = confirmDeleteEvidenceId;
+        setConfirmDeleteEvidenceId(null);
+        try {
+            await taskService.deleteEvidence(task.taskId, id);
+            setServerEvidences(prev => prev.filter(e => e.id !== id));
+        } catch (err) {
+            console.error("Failed to delete evidence:", err);
         }
     };
 
