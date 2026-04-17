@@ -97,6 +97,12 @@ export default defineConfig(function (_a) {
                     changeOrigin: true,
                     secure: false,
                 },
+                '/face': {
+                    target: env.VITE_FACE_SERVER_URL || 'http://localhost:5000',
+                    changeOrigin: true,
+                    secure: false,
+                    rewrite: function (path) { return path.replace(/^\/face/, ''); },
+                },
             },
         },
     };

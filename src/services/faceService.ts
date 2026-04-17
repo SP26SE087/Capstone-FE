@@ -1,10 +1,13 @@
 import axios from 'axios';
 
-const FACE_SERVER_URL = (import.meta.env.VITE_FACE_SERVER_URL as string || 'http://localhost:5000').replace(/\/$/, '');
+// In dev, requests go through Vite proxy at /face/* to avoid CORS.
+// In production, the face server must have CORS headers configured.
+const FACE_BASE = import.meta.env.DEV
+    ? '/face'
+    : (import.meta.env.VITE_FACE_SERVER_URL as string || 'http://localhost:5000').replace(/\/$/, '');
 
 const faceApi = axios.create({
-    baseURL: FACE_SERVER_URL,
-    headers: { 'Content-Type': 'application/json' },
+    baseURL: FACE_BASE,
     timeout: 30000,
 });
 
@@ -15,6 +18,10 @@ export const faceService = {
     },
     stopAddUser: async () => {
         const response = await faceApi.post('/stop_add_user');
+        return response.data;
+    },
+    getLogs: async (): Promise<{ logs: string[] }> => {
+        const response = await faceApi.get('/get_logs');
         return response.data;
     },
     removeUser: async (userId: string) => {

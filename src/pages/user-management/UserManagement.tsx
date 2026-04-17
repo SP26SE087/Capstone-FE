@@ -61,7 +61,7 @@ const UserManagement: React.FC = () => {
     const [fieldErrors, setFieldErrors] = useState({ studentId: '', orcid: '', googleScholarUrl: '', githubUrl: '' });
 
     const validate = {
-        studentId: (v: string) => v && !/^[A-Za-z]{2}\d{4}$/.test(v) ? 'Format: 2 letters + 4 digits (e.g. SE1234)' : '',
+        studentId: (v: string) => v && !/^[A-Za-z]{2}\d{6}$/.test(v) ? 'Format: 2 letters + 6 digits (e.g. SE123456)' : '',
         orcid: (v: string) => v && !/^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/.test(v) ? 'Format: xxxx-xxxx-xxxx-xxxx' : '',
         googleScholarUrl: (v: string) => v && !/^https?:\/\/(www\.)?scholar\.google\.[a-z.]+\//.test(v) ? 'Must be a valid Google Scholar URL' : '',
         githubUrl: (v: string) => v && !/^https?:\/\/(www\.)?github\.com\/[A-Za-z0-9_.-]+/.test(v) ? 'Must be a valid GitHub profile URL' : '',
@@ -617,7 +617,7 @@ const UserManagement: React.FC = () => {
                                                         setEditData({ ...editData, studentId: e.target.value });
                                                         setFieldError('studentId', validate.studentId(e.target.value));
                                                     }}
-                                                    placeholder="e.g. SE1234"
+                                                    placeholder="e.g. SE123456"
                                                     style={{ borderColor: fieldErrors.studentId ? '#ef4444' : undefined }}
                                                 />
                                                 {fieldErrors.studentId && <p style={{ margin: '4px 0 0', fontSize: '0.7rem', color: '#ef4444', fontWeight: 600 }}>{fieldErrors.studentId}</p>}
