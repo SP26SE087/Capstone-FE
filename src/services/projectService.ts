@@ -133,6 +133,18 @@ export const projectService = {
         }
     },
 
+    getPublic: async (): Promise<any[]> => {
+        try {
+            const response = await api.get('/api/projects/public');
+            const payload = response.data?.data ?? response.data ?? [];
+            const list = payload?.items ?? payload?.Items ?? payload?.value ?? payload;
+            return Array.isArray(list) ? list : [];
+        } catch (error) {
+            console.error('Error fetching public projects:', error);
+            return [];
+        }
+    },
+
     getByUserEmail: async (email: string): Promise<{
         projects: any[];
         totalProjects: number;

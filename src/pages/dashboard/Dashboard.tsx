@@ -79,15 +79,12 @@ function Dashboard() {
         { label: 'Available Resources', value: stats?.availableResourcesCount ?? 0, Icon: Layers, accent: 'var(--text-secondary)', bg: 'var(--border-light)' },
     ];
 
-    const isReviewer = Number(user.role) === 1 || Number(user.role) === 2 ||
-        user.role === 'Admin' || user.role === 'Lab Director' || user.role === 'LabDirector';
-
     const quickLinks = [
         { label: 'Schedule', Icon: Calendar, path: '/schedules', color: 'var(--info)' },
         { label: 'Seminars', Icon: Presentation, path: '/seminars', color: 'var(--accent-color)' },
         { label: 'Reports', Icon: ClipboardList, path: '/reports', color: 'var(--success)' },
         { label: 'Bookings', Icon: Layers, path: '/bookings', color: 'var(--warning)' },
-        { label: 'Papers', Icon: FileText, path: isReviewer ? '/paper-review' : '/papers', color: 'var(--danger)' },
+        { label: 'Papers', Icon: FileText, path: '/papers', color: 'var(--danger)' },
         { label: 'Projects', Icon: BookOpen, path: '/projects', color: 'var(--primary-color)' },
     ];
 

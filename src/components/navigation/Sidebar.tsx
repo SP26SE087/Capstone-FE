@@ -12,7 +12,7 @@ import {
     Box,
     UserCog,
     FileText,
-    FileSearch,
+    FolderKanban,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -26,6 +26,7 @@ const Sidebar: React.FC = () => {
     const workspaceItems = [
         { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/dashboard' },
         { icon: <Briefcase size={20} />, label: 'My Projects', path: '/projects' },
+        { icon: <FolderKanban size={20} />, label: "Lab's Projects", path: '/lab-projects' },
         { icon: <CheckSquare size={20} />, label: 'Tasks', path: '/tasks' },
         { icon: <FileText size={20} />, label: 'Paper Submission', path: '/papers' },
         { icon: <Users size={20} />, label: 'Members', path: '/members' },
@@ -39,11 +40,7 @@ const Sidebar: React.FC = () => {
         { icon: <UserCog size={20} />, label: 'User Management', path: '/user-management' },
     ];
 
-    const labDirectorItems = [
-        { icon: <FileSearch size={20} />, label: 'Paper Review', path: '/paper-review' },
-    ];
-
-    const mainItems = isLabDirector ? [...workspaceItems, ...labDirectorItems] : workspaceItems;
+    const mainItems = workspaceItems;
 
     return (
         <aside className="sidebar">

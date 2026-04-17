@@ -17,9 +17,9 @@ import Schedules from '@/pages/schedule/Schedules';
 import Seminars from '@/pages/seminar/Seminars';
 import UserManagement from '@/pages/user-management/UserManagement';
 import PaperSubmissions from '@/pages/paper/PaperSubmissions';
-import PaperReview from '@/pages/paper/PaperReview';
 import ProfilePage from '@/pages/profile/ProfilePage';
 import RoleGuard from '@/components/auth/RoleGuard';
+import LabProjects from '@/pages/project/LabProjects';
 
 export const router = createBrowserRouter([
     {
@@ -63,10 +63,6 @@ export const router = createBrowserRouter([
         element: <AuthGuard><RoleGuard allowedRoles={[2, 3, 4]}><PaperSubmissions /></RoleGuard></AuthGuard>,
     },
     {
-        path: '/paper-review',
-        element: <AuthGuard><RoleGuard allowedRoles={[2]}><PaperReview /></RoleGuard></AuthGuard>,
-    },
-    {
         path: '/reports',
         element: <AuthGuard><Reports /></AuthGuard>,
     },
@@ -101,6 +97,10 @@ export const router = createBrowserRouter([
     {
         path: '/profile',
         element: <AuthGuard><ProfilePage /></AuthGuard>,
+    },
+    {
+        path: '/lab-projects',
+        element: <AuthGuard><RoleGuard allowedRoles={[2, 3, 4]}><LabProjects /></RoleGuard></AuthGuard>,
     },
 
     {

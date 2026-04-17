@@ -288,120 +288,28 @@ const Projects: React.FC = () => {
 
                 {/* Project Grid + Create Project Panel */}
                 <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
-                    <div style={{ flex: showPanel ? 3 : 10, minWidth: 0, transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)' }}>
+                    <div style={{ flex: showPanel ? 3 : 10, minWidth: 0, transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)', maxHeight: 'calc(100vh - 200px)', overflowY: 'auto', paddingRight: '2px' }} className="custom-scrollbar">
                         {loading ? (
                             <div style={{ display: 'flex', justifyContent: 'center', padding: '5rem' }}>
                                 <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
                             </div>
                         ) : filteredProjects.length > 0 ? (
-                            showPanel ? (
-                                /* ── Compact list when panel is open ── */
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            (() => {
+                                const formatDate = (dateString?: string | null) => {
+                                    if (!dateString) return 'TBD';
+                                    const datePart = /^\d{4}-\d{2}-\d{2}/.exec(dateString)?.[0];
+                                    if (!datePart) return 'TBD';
+                                    const [y, m, d] = datePart.split('-').map(Number);
+                                    if (!y || !m || !d || y < 1970) return 'TBD';
+                                    return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`;
+                                };
+                                return (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                     {filteredProjects.map((project) => {
                                         const statusStyle = getProjectStatusStyle(project.status);
                                         const totalTasks = project.totalTasks || 0;
                                         const completedTasks = project.completedTasks || 0;
                                         const progress = project.progress !== undefined ? project.progress : (totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0);
-                                        const projectName = project.projectName || (project as any).name || 'Untitled Project';
-                                        const formatDate = (dateString?: string | null) => {
-                                            if (!dateString) return 'TBD';
-                                            // Extract date part only — avoids UTC→Vietnam timezone shift
-                                            const datePart = /^\d{4}-\d{2}-\d{2}/.exec(dateString)?.[0];
-                                            if (!datePart) return 'TBD';
-                                            const [y, m, d] = datePart.split('-').map(Number);
-                                            if (!y || !m || !d || y < 1970) return 'TBD';
-                                            return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`;
-                                        };
-
-                                        const deadlineState = getDeadlineState(project);
-
-                                        return (
-                                            <div
-                                                key={project.projectId}
-                                                className="card card-interactive"
-                                                onClick={() => navigate(`/projects/${project.projectId}`)}
-                                                style={{
-                                                    padding: '0.85rem 1rem',
-                                                    display: 'flex',
-                                                    flexDirection: 'column',
-                                                    gap: '0.5rem',
-                                                    border: deadlineState === 'overdue' ? '1.5px solid #fca5a5' : deadlineState === 'soon' ? '1.5px solid #fde68a' : '1px solid var(--border-color)',
-                                                    transition: 'all 0.2s',
-                                                    cursor: 'pointer',
-                                                    overflow: 'hidden',
-                                                }}
-                                            >
-                                                {/* Deadline banner */}
-                                                {deadlineState === 'overdue' && (
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', margin: '-0.85rem -1rem 0', padding: '5px 10px', background: '#fef2f2', borderBottom: '1px solid #fca5a5', fontSize: '0.72rem', fontWeight: 700, color: '#dc2626' }}>
-                                                        <AlertTriangle size={12} /> Overdue · {formatDate(project.endDate)}
-                                                    </div>
-                                                )}
-                                                {deadlineState === 'soon' && (
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', margin: '-0.85rem -1rem 0', padding: '5px 10px', background: '#fffbeb', borderBottom: '1px solid #fde68a', fontSize: '0.72rem', fontWeight: 700, color: '#d97706' }}>
-                                                        <Clock size={12} /> Due soon · {formatDate(project.endDate)}
-                                                    </div>
-                                                )}
-                                                {/* Row 1: name + badges */}
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
-                                                    <span title={projectName} style={{
-                                                        fontSize: '0.9rem', fontWeight: 700, flex: 1,
-                                                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
-                                                    }}>
-                                                        {projectName}
-                                                    </span>
-                                                    <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
-                                                        <span className="badge" style={{ background: statusStyle.bg, color: statusStyle.color, border: 'none', padding: '2px 7px', fontSize: '0.6rem', fontWeight: 700 }}>
-                                                            {statusStyle.label}
-                                                        </span>
-                                                        {project.roleName && (
-                                                            <span className="badge" style={{ background: 'var(--accent-bg)', color: 'var(--accent-color)', border: 'none', padding: '2px 7px', fontSize: '0.6rem', fontWeight: 700 }}>
-                                                                {project.roleName}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </div>
-
-                                                {/* Row 2: date + members */}
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                        <Calendar size={11} /> {formatDate(project.startDate)} – {formatDate(project.endDate)}
-                                                    </span>
-                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                        <Users size={11} /> {project.membersCount || 0}
-                                                    </span>
-                                                </div>
-
-                                                {/* Row 3: progress */}
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                    <div style={{ flex: 1, height: '4px', borderRadius: '2px', background: 'var(--border-light)', overflow: 'hidden' }}>
-                                                        <div style={{ width: `${progress}%`, height: '100%', borderRadius: '2px', background: 'var(--primary-color)' }} />
-                                                    </div>
-                                                    <span style={{ fontSize: '0.67rem', fontWeight: 800, color: 'var(--primary-color)', minWidth: '28px', textAlign: 'right' }}>{progress}%</span>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            ) : (
-                                /* ── Full list view when panel is closed ── */
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                                    {filteredProjects.map((project) => {
-                                        const statusStyle = getProjectStatusStyle(project.status);
-                                        const totalTasks = project.totalTasks || 0;
-                                        const completedTasks = project.completedTasks || 0;
-                                        const progress = project.progress !== undefined ? project.progress : (totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0);
-
-                                        const formatDate = (dateString?: string | null) => {
-                                            if (!dateString) return 'TBD';
-                                            // Extract date part only — avoids UTC→Vietnam timezone shift
-                                            const datePart = /^\d{4}-\d{2}-\d{2}/.exec(dateString)?.[0];
-                                            if (!datePart) return 'TBD';
-                                            const [y, m, d] = datePart.split('-').map(Number);
-                                            if (!y || !m || !d || y < 1970) return 'TBD';
-                                            return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`;
-                                        };
-
                                         const projectName = project.projectName || (project as any).name || 'Untitled Project';
                                         const projectDescription = project.projectDescription || (project as any).description;
                                         const creatorName = project.nameProjectCreator || project.NameProjectCreator || 'Lab Manager';
@@ -410,104 +318,102 @@ const Projects: React.FC = () => {
                                         return (
                                             <div
                                                 key={project.projectId}
-                                                className="card card-interactive"
                                                 onClick={() => navigate(`/projects/${project.projectId}`)}
                                                 style={{
-                                                    padding: '0',
+                                                    background: '#fff',
+                                                    border: '1px solid #e2e8f0',
+                                                    borderRadius: '14px',
+                                                    borderLeft: `4px solid ${deadlineState === 'overdue' ? '#ef4444' : deadlineState === 'soon' ? '#f59e0b' : statusStyle.color}`,
+                                                    padding: '14px 16px',
+                                                    cursor: 'pointer',
+                                                    transition: 'all 0.2s',
+                                                    overflow: 'hidden',
                                                     display: 'flex',
                                                     flexDirection: 'column',
-                                                    border: deadlineState === 'overdue' ? '1.5px solid #fca5a5' : deadlineState === 'soon' ? '1.5px solid #fde68a' : '1px solid var(--border-color)',
-                                                    transition: 'all 0.2s',
-                                                    cursor: 'pointer',
-                                                    overflow: 'hidden',
+                                                    gap: '10px',
                                                 }}
+                                                onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.08)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                                                onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'none'; }}
                                             >
-                                                {/* Deadline banner */}
-                                                {deadlineState === 'overdue' && (
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 14px', background: '#fef2f2', borderBottom: '1px solid #fca5a5', fontSize: '0.72rem', fontWeight: 700, color: '#dc2626' }}>
-                                                        <AlertTriangle size={12} /> Overdue · {formatDate(project.endDate)}
-                                                    </div>
-                                                )}
-                                                {deadlineState === 'soon' && (
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 14px', background: '#fffbeb', borderBottom: '1px solid #fde68a', fontSize: '0.72rem', fontWeight: 700, color: '#d97706' }}>
-                                                        <Clock size={12} /> Due soon · {formatDate(project.endDate)}
-                                                    </div>
-                                                )}
-                                                <div style={{ padding: '1rem 1.25rem', display: 'grid', gridTemplateColumns: '1fr 180px 160px 140px', gap: '1.25rem', alignItems: 'center' }}>
-                                                {/* Col 1: Name + description + meta */}
-                                                <div style={{ minWidth: 0 }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                                                        <div className="avatar avatar-sm avatar-accent" style={{ width: '30px', height: '30px', fontSize: '0.72rem', flexShrink: 0 }}>
-                                                            {projectName[0]}
-                                                        </div>
-                                                        <span title={projectName} style={{ fontSize: '0.95rem', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                {/* Row 1: title + badges */}
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
+                                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                                        <div style={{ fontSize: showPanel ? '0.88rem' : '0.95rem', fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                             {projectName}
-                                                        </span>
+                                                        </div>
+                                                        {!showPanel && (
+                                                            <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>
+                                                                {projectDescription || 'No description provided.'}
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                    <p style={{ margin: '0 0 6px 38px', fontSize: '0.78rem', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>
-                                                        {projectDescription || 'No description provided.'}
-                                                    </p>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: '38px' }}>
-                                                        {project.researchFields?.slice(0, 2).map((f, idx) => (
-                                                            <span key={f.researchFieldId || `rf-${idx}`} className="tag" style={{ margin: 0, fontSize: '0.62rem', padding: '1px 7px', borderRadius: '4px', fontWeight: 600 }}>{f.name}</span>
-                                                        ))}
-                                                        {project.researchFields && project.researchFields.length > 2 && (
-                                                            <span className="tag" style={{ margin: 0, fontSize: '0.62rem', padding: '1px 7px', background: 'var(--surface-hover)', borderRadius: '4px', fontWeight: 600 }}>
-                                                                +{project.researchFields.length - 2}
+                                                    <div style={{ display: 'flex', gap: '5px', flexShrink: 0, alignItems: 'center' }}>
+                                                        {deadlineState === 'overdue' && (
+                                                            <span style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '0.62rem', fontWeight: 700, color: '#dc2626', background: '#fef2f2', padding: '2px 7px', borderRadius: '5px' }}>
+                                                                <AlertTriangle size={10} /> Overdue
+                                                            </span>
+                                                        )}
+                                                        {deadlineState === 'soon' && (
+                                                            <span style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '0.62rem', fontWeight: 700, color: '#d97706', background: '#fffbeb', padding: '2px 7px', borderRadius: '5px' }}>
+                                                                <Clock size={10} /> Due soon
+                                                            </span>
+                                                        )}
+                                                        <span style={{ background: statusStyle.bg, color: statusStyle.color, padding: '3px 9px', borderRadius: '6px', fontSize: '0.65rem', fontWeight: 700 }}>
+                                                            {statusStyle.label}
+                                                        </span>
+                                                        {project.roleName && (
+                                                            <span style={{ background: 'var(--accent-bg)', color: 'var(--accent-color)', padding: '3px 9px', borderRadius: '6px', fontSize: '0.65rem', fontWeight: 700 }}>
+                                                                {project.roleName}
                                                             </span>
                                                         )}
                                                     </div>
                                                 </div>
 
-                                                {/* Col 2: Progress */}
-                                                <div>
-                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                                                        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                            <ClipboardList size={11} /> Progress
-                                                        </span>
-                                                        <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--primary-color)' }}>{progress}%</span>
+                                                {/* Row 2: research fields (full view only) */}
+                                                {!showPanel && project.researchFields && project.researchFields.length > 0 && (
+                                                    <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                                                        {project.researchFields.slice(0, 3).map((f, idx) => (
+                                                            <span key={f.researchFieldId || `rf-${idx}`} style={{ fontSize: '0.62rem', padding: '2px 8px', borderRadius: '4px', fontWeight: 600, background: '#f1f5f9', color: '#475569' }}>{f.name}</span>
+                                                        ))}
+                                                        {project.researchFields.length > 3 && (
+                                                            <span style={{ fontSize: '0.62rem', padding: '2px 8px', borderRadius: '4px', fontWeight: 600, background: '#f1f5f9', color: '#94a3b8' }}>+{project.researchFields.length - 3}</span>
+                                                        )}
                                                     </div>
-                                                    <div className="progress-bar-track" style={{ height: '5px', borderRadius: '3px', background: 'var(--border-light)', overflow: 'hidden' }}>
-                                                        <div className="progress-bar-fill" style={{ width: `${progress}%`, height: '100%', borderRadius: '3px' }} />
+                                                )}
+
+                                                {/* Row 3: progress bar */}
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <div style={{ flex: 1, height: '5px', borderRadius: '3px', background: '#f1f5f9', overflow: 'hidden' }}>
+                                                        <div style={{ width: `${progress}%`, height: '100%', borderRadius: '3px', background: progress === 100 ? '#22c55e' : 'var(--primary-color)', transition: 'width 0.3s' }} />
                                                     </div>
-                                                    <div style={{ marginTop: '6px', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-                                                        <Users size={11} /> {project.membersCount || 0} members
-                                                    </div>
+                                                    <span style={{ fontSize: '0.68rem', fontWeight: 800, color: progress === 100 ? '#16a34a' : 'var(--primary-color)', minWidth: '30px', textAlign: 'right' }}>{progress}%</span>
                                                 </div>
 
-                                                {/* Col 3: Timeline + creator */}
-                                                <div style={{ lineHeight: 1.4 }}>
-                                                    <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                        <Calendar size={11} /> Timeline
-                                                    </div>
-                                                    <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                                                        {formatDate(project.startDate)}
-                                                    </div>
-                                                    <div style={{ fontSize: '0.67rem', color: 'var(--text-muted)', margin: '2px 0 6px' }}>
-                                                        → {formatDate(project.endDate)}
-                                                    </div>
-                                                    <div style={{ fontSize: '0.63rem', color: 'var(--text-muted)', fontWeight: 600, marginTop: '5px' }}>
-                                                        by {creatorName}
-                                                    </div>
-                                                </div>
-
-                                                {/* Col 4: Status + role badges */}
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'flex-end' }}>
-                                                    <span className="badge" style={{ background: statusStyle.bg, color: statusStyle.color, border: 'none', padding: '3px 10px', fontSize: '0.65rem', fontWeight: 700 }}>
-                                                        {statusStyle.label}
+                                                {/* Row 4: meta info */}
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '14px', fontSize: '0.72rem', color: '#64748b', fontWeight: 600 }}>
+                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                        <Calendar size={11} /> {formatDate(project.startDate)} – {formatDate(project.endDate)}
                                                     </span>
-                                                    {project.roleName && (
-                                                        <span className="badge" style={{ background: 'var(--accent-bg)', color: 'var(--accent-color)', border: 'none', padding: '3px 10px', fontSize: '0.65rem', fontWeight: 700 }}>
-                                                            {project.roleName}
+                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                        <Users size={11} /> {project.membersCount || 0} members
+                                                    </span>
+                                                    {!showPanel && (
+                                                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                            <ClipboardList size={11} /> {completedTasks}/{totalTasks} tasks
+                                                        </span>
+                                                    )}
+                                                    {!showPanel && (
+                                                        <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '4px', color: '#94a3b8' }}>
+                                                            by {creatorName}
                                                         </span>
                                                     )}
                                                 </div>
-                                                </div>{/* end inner grid div */}
                                             </div>
                                         );
                                     })}
                                 </div>
-                            )
+                                );
+                            })()
                         ) : (
                             <div className="empty-state card" style={{ padding: '6rem 2rem', borderStyle: 'dashed' }}>
                                 <TrendingUp size={48} color="var(--text-muted)" style={{ marginBottom: '1rem' }} />

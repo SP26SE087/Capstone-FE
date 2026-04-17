@@ -1882,28 +1882,28 @@ const PaperSubmissions: React.FC = () => {
                                         const projectRole = currentUserMembership?.projectRole ?? currentUserMembership?.role ?? currentUserMembership?.projectRoleId;
                                         const projectRoleName = (currentUserMembership?.roleName ?? currentUserMembership?.projectRoleName ?? '').toLowerCase();
                                         const isProjectLeader = projectRole === ProjectRoleEnum.Leader || projectRoleName.includes('leader');
+                                        const isDirectorOfThisProject = isDirector && (projectRole === ProjectRoleEnum.LabDirector || projectRoleName.includes('labdirector') || projectRoleName.includes('lab director'));
                                         const isAssignee = (selectedPaper.assignees ?? []).some(a => a.userId === user?.userId);
                                         // Rejected → Draft: Leader and LabDirector only (assignee/editable NOT allowed per spec)
-                                        const canRevertToDraft = isDirector || isProjectLeader;
+                                        const canRevertToDraft = isDirectorOfThisProject || isProjectLeader;
                                         return (
                                     <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '14px', display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '4px' }}>
 
 
                                         {/* Draft: Edit + Submit for Internal Review + Delete */}
-                                        {selectedPaper.status === SubmissionStatus.Draft && canEdit && (
+                                        {selectedPaper.status === SubmissionStatus.Draft && (canEdit || isDirectorOfThisProject) && (
                                             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' as const }}>
+                                                {canEdit && (
                                                 <button onClick={() => openEdit(selectedPaper)}
                                                     style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: '1px solid #e2e8f0', background: '#fff', color: '#475569', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>
                                                     <Edit2 size={14} /> Edit
                                                 </button>
-                                                {/* Submit for Internal Review: Leader only (not LabDirector, not Assignee) */}
-                                                {!isDirector && (
+                                                )}
                                                 <button onClick={handleSubmitForReview} disabled={submitReviewLoading}
                                                     style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: '1px solid #bfdbfe', background: '#eff6ff', color: '#3b82f6', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>
                                                     {submitReviewLoading ? <><Loader2 size={14} className="animate-spin" /> Submitting...</> : <><Send size={14} /> Submit for Internal Review</>}
                                                 </button>
-                                                )}
-                                                {deleteConfirmId === selectedPaper.paperSubmissionId ? (
+                                                {canEdit && (deleteConfirmId === selectedPaper.paperSubmissionId ? (
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', borderRadius: '9px', background: '#fef2f2', border: '1px solid #fecaca', width: '100%' }}>
                                                         <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 600, color: '#dc2626' }}>Delete this paper?</span>
                                                         <button onClick={() => setDeleteConfirmId(null)} style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700 }}>Cancel</button>
@@ -1917,7 +1917,7 @@ const PaperSubmissions: React.FC = () => {
                                                         style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: '1px solid #fecaca', background: '#fef2f2', color: '#ef4444', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>
                                                         <Trash2 size={14} /> Delete
                                                     </button>
-                                                )}
+                                                ))}
                                             </div>
                                         )}
 
