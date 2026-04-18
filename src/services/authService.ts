@@ -135,6 +135,12 @@ export const authService = {
         }));
     },
 
+    patchStoredUser(patch: Partial<{ fullName: string; avatarUrl: string; phoneNumber: string }>): void {
+        const current = this.getAuthUser();
+        if (!current) return;
+        sessionStorage.setItem(AUTH_KEYS.USER, JSON.stringify({ ...current, ...patch }));
+    },
+
     clearAuthData(): void {
         sessionStorage.removeItem(AUTH_KEYS.TOKEN);
         sessionStorage.removeItem(AUTH_KEYS.REFRESH_TOKEN);

@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { userService } from '@/services/userService';
 import { formatProjectDate } from '@/utils/projectUtils';
-import { Mail, Loader2, X, Phone, BookOpen, GraduationCap, ClipboardList, Clock, CheckCircle, XCircle, ExternalLink, Trash2, Briefcase } from 'lucide-react';
+import { Mail, Loader2, X, Phone, BookOpen, GraduationCap, ClipboardList, Clock, CheckCircle, XCircle, ExternalLink, Trash2, Briefcase, Pencil, Save } from 'lucide-react';
 import ConfirmModal from '@/components/common/ConfirmModal';
 import { useToastStore } from '@/store/slices/toastSlice';
+import { SystemRoleEnum } from '@/types/enums';
+import { validateSpecialChars } from '@/utils/validation';
 
 interface UserDetailModalProps {
     onClose: () => void;
@@ -15,23 +17,53 @@ interface UserDetailModalProps {
     isCheckLogOpen: boolean;
     isLabDirector?: boolean;
     onDeleted?: () => void;
+    onUpdated?: () => void;
     onViewProjects?: (email: string, userName: string) => void;
     isProjectPanelOpen?: boolean;
 }
 
-const UserDetailModal: React.FC<UserDetailModalProps> = ({ onClose, userId, systemRoleMap, currentUserId, currentUserEmail, onCheckLog, isCheckLogOpen, isLabDirector, onDeleted, onViewProjects, isProjectPanelOpen }) => {
+const UserDetailModal: React.FC<UserDetailModalProps> = ({ onClose, userId, systemRoleMap, currentUserId, currentUserEmail, onCheckLog, isCheckLogOpen, isLabDirector, onDeleted, onUpdated, onViewProjects, isProjectPanelOpen }) => {
     const [userData, setUserData] = useState<any>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [deleting, setDeleting] = useState(false);
+    const [isEditing, setIsEditing] = useState(false);
+    const [editForm, setEditForm] = useState({ fullName: '', studentId: '', phoneNumber: '', orcid: '', googleScholarUrl: '', githubUrl: '' });
+    const [fieldErrors, setFieldErrors] = useState({ fullName: '', studentId: '', phoneNumber: '', orcid: '', googleScholarUrl: '', githubUrl: '' });
+    const [saving, setSaving] = useState(false);
+
+    const validate = {
+        fullName: (v: string) => validateSpecialChars(v) ? `Full name: ${validateSpecialChars(v)}` : '',
+        studentId: (v: string) => v && !/^[A-Za-z]{2}\d{6}$/.test(v) ? 'Format: 2 letters + 6 digits (e.g. SE123456)' : '',
+        phoneNumber: (v: string) => v && !/^(\+[1-9]\d{6,14}|0\d{9})$/.test(v) ? 'Invalid phone (e.g. 0912345678 or +84912345678)' : '',
+        orcid: (v: string) => v && !/^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/.test(v) ? 'Format: xxxx-xxxx-xxxx-xxxx' : '',
+        googleScholarUrl: (v: string) => v && !/^https?:\/\/(www\.)?scholar\.google\.[a-z.]+\//.test(v) ? 'Must be a valid Google Scholar URL' : '',
+        githubUrl: (v: string) => v && !/^https?:\/\/(www\.)?github\.com\/[A-Za-z0-9_.-]+/.test(v) ? 'Must be a valid GitHub profile URL' : '',
+    };
+
+    const setFieldError = (field: keyof typeof fieldErrors, v: string) =>
+        setFieldErrors(prev => ({ ...prev, [field]: v }));
     const { addToast } = useToastStore();
 
     useEffect(() => {
-        if (userId) { fetchUserDetails(); return; }
+        if (userId) { fetchUserDetails(); setIsEditing(false); return; }
         setUserData(null);
         setError(null);
     }, [userId]);
+
+    useEffect(() => {
+        if (userData) {
+            setEditForm({
+                fullName: userData.fullName || userData.userName || '',
+                studentId: String(userData.studentId ?? userData.StudentId ?? ''),
+                phoneNumber: userData.phoneNumber || userData.PhoneNumber || '',
+                orcid: userData.orcid || userData.Orcid || '',
+                googleScholarUrl: userData.googleScholarUrl || userData.GoogleScholarUrl || '',
+                githubUrl: userData.githubUrl || userData.GithubUrl || '',
+            });
+        }
+    }, [userData]);
 
     const fetchUserDetails = async () => {
         setLoading(true);
@@ -43,6 +75,40 @@ const UserDetailModal: React.FC<UserDetailModalProps> = ({ onClose, userId, syst
             setError('Could not load user details.');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleSaveProfile = async () => {
+        const uid = userData?.userId || userData?.id;
+        if (!uid) return;
+        const errors = {
+            fullName: validate.fullName(editForm.fullName.trim()),
+            studentId: validate.studentId(editForm.studentId.trim()),
+            phoneNumber: validate.phoneNumber(editForm.phoneNumber.trim()),
+            orcid: validate.orcid(editForm.orcid.trim()),
+            googleScholarUrl: validate.googleScholarUrl(editForm.googleScholarUrl.trim()),
+            githubUrl: validate.githubUrl(editForm.githubUrl.trim()),
+        };
+        setFieldErrors(errors);
+        if (Object.values(errors).some(Boolean)) return;
+        setSaving(true);
+        try {
+            await userService.updateUser(uid, {
+                fullName: editForm.fullName.trim() || undefined,
+                studentId: editForm.studentId.trim() || undefined,
+                phoneNumber: editForm.phoneNumber.trim() || undefined,
+                orcid: editForm.orcid.trim() || undefined,
+                googleScholarUrl: editForm.googleScholarUrl.trim() || undefined,
+                githubUrl: editForm.githubUrl.trim() || undefined,
+            });
+            addToast('Profile updated successfully.', 'success');
+            setIsEditing(false);
+            onUpdated?.();
+            await fetchUserDetails();
+        } catch (err: any) {
+            addToast(err?.response?.data?.message || err?.message || 'Failed to update profile.', 'error');
+        } finally {
+            setSaving(false);
         }
     };
 
@@ -86,6 +152,11 @@ const UserDetailModal: React.FC<UserDetailModalProps> = ({ onClose, userId, syst
     const myId = String(currentUserId || '').trim().toLowerCase();
     const myEmail = String(currentUserEmail || '').trim().toLowerCase();
     const isSelfProfile = (selectedId && myId && selectedId === myId) || (selectedEmail && myEmail && selectedEmail === myEmail);
+    const targetRole = userData?.role;
+    const isTargetPrivileged =
+        targetRole === SystemRoleEnum.Admin || targetRole === SystemRoleEnum.LabDirector ||
+        targetRole === 'Admin' || targetRole === 'LabDirector' || targetRole === 'Lab Director';
+    const canEditProfile = isLabDirector && !isSelfProfile && !isTargetPrivileged;
 
     return (
         <div style={{
@@ -184,27 +255,82 @@ const UserDetailModal: React.FC<UserDetailModalProps> = ({ onClose, userId, syst
             ) : userData ? (
                 <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', overflowY: 'auto' }} className="custom-scrollbar">
 
-                    {/* ── Contact section ── */}
-                    <Section label="Contact">
-                        <Field icon={<Mail size={12} />} label="Email" value={userData.email} />
-                        <Field icon={<Phone size={12} />} label="Phone" value={userData.phoneNumber || userData.PhoneNumber} />
-                    </Section>
+                    {isEditing ? (
+                        /* ── Edit Form ── */
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <Section label="Edit Profile">
+                                {([
+                                    { key: 'fullName', label: 'Full Name', placeholder: 'Full name' },
+                                    { key: 'studentId', label: 'Student ID', placeholder: 'e.g. SE123456' },
+                                    { key: 'phoneNumber', label: 'Phone', placeholder: 'e.g. 0912345678' },
+                                    { key: 'orcid', label: 'ORCID', placeholder: 'xxxx-xxxx-xxxx-xxxx' },
+                                    { key: 'googleScholarUrl', label: 'Scholar URL', placeholder: 'Google Scholar link' },
+                                    { key: 'githubUrl', label: 'GitHub URL', placeholder: 'GitHub profile link' },
+                                ] as const).map(({ key, label, placeholder }) => (
+                                    <div key={key} style={{ padding: '6px 10px', borderBottom: '1px solid var(--border-light)' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', minWidth: '70px', flexShrink: 0 }}>{label}</span>
+                                            <input
+                                                value={editForm[key]}
+                                                onChange={e => {
+                                                    const v = e.target.value;
+                                                    setEditForm(f => ({ ...f, [key]: v }));
+                                                    setFieldError(key, validate[key](v.trim()));
+                                                }}
+                                                placeholder={placeholder}
+                                                style={{ flex: 1, fontSize: '0.75rem', border: `1px solid ${fieldErrors[key] ? '#ef4444' : 'var(--border-color)'}`, borderRadius: '6px', padding: '4px 8px', background: 'var(--card-bg)', color: 'var(--text-primary)', outline: 'none' }}
+                                            />
+                                        </div>
+                                        {fieldErrors[key] && (
+                                            <p style={{ margin: '3px 0 0 78px', fontSize: '0.68rem', color: '#ef4444', fontWeight: 600 }}>{fieldErrors[key]}</p>
+                                        )}
+                                    </div>
+                                ))}
+                            </Section>
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                                <button
+                                    onClick={handleSaveProfile}
+                                    disabled={saving}
+                                    style={{ flex: 1, padding: '8px', borderRadius: '10px', border: 'none', cursor: saving ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '0.78rem', fontWeight: 700, background: 'var(--primary-color)', color: '#fff' }}
+                                >
+                                    {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                                    {saving ? 'Saving…' : 'Save'}
+                                </button>
+                                <button
+                                    onClick={() => { setIsEditing(false); setFieldErrors({ fullName: '', studentId: '', phoneNumber: '', orcid: '', googleScholarUrl: '', githubUrl: '' }); }}
+                                    disabled={saving}
+                                    style={{ flex: 1, padding: '8px', borderRadius: '10px', border: '1px solid var(--border-color)', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700, background: 'var(--surface-hover)', color: 'var(--text-primary)' }}
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    ) : (
+                        <>
+                        {/* ── Contact section ── */}
+                        <Section label="Contact">
+                            <Field icon={<Mail size={12} />} label="Email" value={userData.email} />
+                            <Field icon={<Phone size={12} />} label="Phone" value={userData.phoneNumber || userData.PhoneNumber} />
+                        </Section>
 
-                    {/* ── Academic section ── */}
-                    <Section label="Academic">
-                        <Field icon={<GraduationCap size={12} />} label="Student ID" value={studentId || null} />
-                        <Field icon={<BookOpen size={12} />} label="ORCID" value={userData.orcid || userData.Orcid} />
-                        <Field icon={<BookOpen size={12} />} label="Google Scholar" value={userData.googleScholarUrl || userData.GoogleScholarUrl} link />
-                        <Field icon={<BookOpen size={12} />} label="GitHub" value={userData.githubUrl || userData.GithubUrl} link />
-                    </Section>
+                        {/* ── Academic section ── */}
+                        <Section label="Academic">
+                            <Field icon={<GraduationCap size={12} />} label="Student ID" value={studentId || null} />
+                            <Field icon={<BookOpen size={12} />} label="ORCID" value={userData.orcid || userData.Orcid} />
+                            <Field icon={<BookOpen size={12} />} label="Google Scholar" value={userData.googleScholarUrl || userData.GoogleScholarUrl} link />
+                            <Field icon={<BookOpen size={12} />} label="GitHub" value={userData.githubUrl || userData.GithubUrl} link />
+                        </Section>
 
-                    {/* ── Dates section ── */}
-                    <Section label="Activity">
-                        <Field icon={<Clock size={12} />} label="Joined" value={formatProjectDate(userData.createdAt, '—')} />
-                        <Field icon={<Clock size={12} />} label="Updated" value={formatProjectDate(userData.updatedAt, '—')} />
-                    </Section>
+                        {/* ── Dates section ── */}
+                        <Section label="Activity">
+                            <Field icon={<Clock size={12} />} label="Joined" value={formatProjectDate(userData.createdAt, '—')} />
+                            <Field icon={<Clock size={12} />} label="Updated" value={formatProjectDate(userData.updatedAt, '—')} />
+                        </Section>
+                        </>
+                    )}
 
                     {/* ── Actions ── */}
+                    {!isEditing && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                         <button
                             onClick={() => onCheckLog(userData.email, studentId, name)}
@@ -237,9 +363,27 @@ const UserDetailModal: React.FC<UserDetailModalProps> = ({ onClose, userId, syst
                                 {isProjectPanelOpen ? 'Viewing Projects' : 'View Projects'}
                             </button>
                         )}
-                    </div>
 
-                    {isLabDirector && !isSelfProfile && (
+                        {canEditProfile && (
+                            <button
+                                onClick={() => setIsEditing(true)}
+                                style={{
+                                    width: '100%', padding: '8px', borderRadius: '10px', border: '1.5px solid #bfdbfe', cursor: 'pointer',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                                    fontSize: '0.78rem', fontWeight: 700,
+                                    background: '#eff6ff', color: '#2563eb', transition: 'all 0.2s'
+                                }}
+                                onMouseEnter={e => { e.currentTarget.style.background = '#dbeafe'; }}
+                                onMouseLeave={e => { e.currentTarget.style.background = '#eff6ff'; }}
+                            >
+                                <Pencil size={14} />
+                                Edit Profile
+                            </button>
+                        )}
+                    </div>
+                    )}
+
+                    {isLabDirector && !isSelfProfile && !isEditing && (
                         <button
                             onClick={() => setShowDeleteConfirm(true)}
                             disabled={deleting}

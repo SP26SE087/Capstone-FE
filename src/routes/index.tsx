@@ -1,6 +1,8 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import Dashboard from '@/pages/dashboard/Dashboard';
 import LoginPage from '@/pages/auth/LoginPage';
+import PrivacyPage from '@/pages/legal/PrivacyPage';
+import TermsPage from '@/pages/legal/TermsPage';
 import Projects from '@/pages/project/Projects';
 import Tasks from '@/pages/task/Tasks';
 import Members from '@/pages/member/Members';
@@ -29,6 +31,14 @@ export const router = createBrowserRouter([
     {
         path: '/login',
         element: <LoginPage />,
+    },
+    {
+        path: '/privacy',
+        element: <PrivacyPage />,
+    },
+    {
+        path: '/terms',
+        element: <TermsPage />,
     },
     {
         path: '/home',

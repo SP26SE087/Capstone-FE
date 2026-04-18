@@ -436,6 +436,7 @@ const Members: React.FC = () => {
                                 }}
                                 isProjectPanelOpen={isProjectPanelOpen}
                                 isLabDirector={isLabDirector}
+                                onUpdated={() => fetchMembers()}
                                 onDeleted={() => {
                                     addToast('User deleted successfully.', 'success');
                                     setSelectedUserId(null);

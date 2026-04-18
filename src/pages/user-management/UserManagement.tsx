@@ -5,10 +5,11 @@ import { useToastStore } from '@/store/slices/toastSlice';
 import MainLayout from '@/layout/MainLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { userService, AddUserRequest } from '@/services/userService';
+import FaceScannerModal from '@/pages/member/FaceScannerModal';
 import {
     Users, Shield, CheckCircle, XCircle, Eye, EyeOff,
     Search, Edit2, Power, UserPlus, Mail, Calendar,
-    Loader2, AlertTriangle, X
+    Loader2, AlertTriangle, X, Camera
 } from 'lucide-react';
 
 const getRoleBadgeConfig = (role: number | string) => {
@@ -45,6 +46,8 @@ const UserManagement: React.FC = () => {
     const [editingUserId, setEditingUserId] = useState<string | null>(null);
     const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
     const [detailsLoadingId, setDetailsLoadingId] = useState<string | null>(null);
+    const [faceScanData, setFaceScanData] = useState<{ studentId: string; userName: string } | null>(null);
+    const [scanLoadingId, setScanLoadingId] = useState<string | null>(null);
 
     const editingUserIdRef = useRef<string | null>(null);
 
@@ -197,6 +200,26 @@ const UserManagement: React.FC = () => {
             showToast('User updated successfully.');
         } catch (err) { showToast('Update failed.', 'error'); }
         finally { setActionLoadingId(null); }
+    };
+
+    const handleScanFace = async (m: any, e?: React.MouseEvent) => {
+        e?.stopPropagation();
+        const uid = m.userId || m.id;
+        const uidStr = String(uid);
+        setScanLoadingId(uidStr);
+        try {
+            const detail = await userService.getById(uidStr);
+            const studentId = detail?.studentId || detail?.StudentId || m.studentId || '';
+            if (!studentId) {
+                showToast('This user does not have a Student ID set.', 'error');
+                return;
+            }
+            setFaceScanData({ studentId, userName: m.fullName || m.email || 'User' });
+        } catch {
+            showToast('Failed to load user details.', 'error');
+        } finally {
+            setScanLoadingId(null);
+        }
     };
 
     const startEditing = async (m: any, e?: React.MouseEvent) => {
@@ -683,6 +706,26 @@ const UserManagement: React.FC = () => {
                                             >
                                                 <Edit2 size={15} /> Edit User
                                             </button>
+                                            {isAdmin && (
+                                                <button
+                                                    style={{
+                                                        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                                                        padding: '8px 16px', borderRadius: '10px', fontWeight: 700, fontSize: '0.875rem',
+                                                        cursor: scanLoadingId === uidStr ? 'not-allowed' : 'pointer',
+                                                        background: '#eff6ff', color: '#2563eb',
+                                                        border: '1.5px solid #bfdbfe',
+                                                        opacity: scanLoadingId === uidStr ? 0.7 : 1,
+                                                        transition: 'all 0.2s',
+                                                    }}
+                                                    disabled={scanLoadingId === uidStr}
+                                                    onClick={(e) => handleScanFace(m, e)}
+                                                    onMouseEnter={e => { e.currentTarget.style.background = '#dbeafe'; }}
+                                                    onMouseLeave={e => { e.currentTarget.style.background = '#eff6ff'; }}
+                                                >
+                                                    {scanLoadingId === uidStr ? <Loader2 size={15} className="spin" /> : <Camera size={15} />}
+                                                    Scan Face
+                                                </button>
+                                            )}
                                             <button
                                                 style={{
                                                     width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
@@ -706,6 +749,12 @@ const UserManagement: React.FC = () => {
                     })()}
                 </div>
             </div>
+            <FaceScannerModal
+                isOpen={Boolean(faceScanData)}
+                onClose={() => setFaceScanData(null)}
+                initialStudentId={faceScanData?.studentId ?? ''}
+                userName={faceScanData?.userName ?? ''}
+            />
             <style>{`
                 .filter-chip {
                     padding: 8px 16px; border: 1px solid var(--border-color); border-radius: 10px; background: white;

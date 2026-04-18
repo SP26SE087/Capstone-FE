@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate, Link } from 'react-router-dom';
 import { useGoogleLogin } from '@react-oauth/google';
 import { authService } from '@/services/authService';
 import { FlaskConical, AlertTriangle } from 'lucide-react';
@@ -220,9 +220,22 @@ const LoginPage: React.FC = () => {
                     paddingTop: '1.5rem',
                     borderTop: '1px solid rgba(148,163,184,0.1)',
                 }}>
-                    <p style={{ color: '#64748b', fontSize: '0.75rem', lineHeight: 1.5, margin: 0 }}>
+                    <p style={{ color: '#64748b', fontSize: '0.75rem', lineHeight: 1.5, margin: '0 0 10px' }}>
                         Internal access only. Unauthorized attempts will be logged and reported.
                     </p>
+                    <div style={{ display: 'flex', justifyContent: 'center', gap: '16px' }}>
+                        <Link to="/privacy" style={{ color: '#94a3b8', fontSize: '0.72rem', textDecoration: 'none' }}
+                            onMouseEnter={e => e.currentTarget.style.color = '#e8720c'}
+                            onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}>
+                            Privacy Policy
+                        </Link>
+                        <span style={{ color: '#334155', fontSize: '0.72rem' }}>·</span>
+                        <Link to="/terms" style={{ color: '#94a3b8', fontSize: '0.72rem', textDecoration: 'none' }}
+                            onMouseEnter={e => e.currentTarget.style.color = '#e8720c'}
+                            onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}>
+                            Terms of Service
+                        </Link>
+                    </div>
                 </div>
             </div>
 

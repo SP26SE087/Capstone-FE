@@ -15,6 +15,7 @@ export interface UpdateUserRequest {
     googleScholarUrl?: string;
     githubUrl?: string;
     studentId?: string;
+    phoneNumber?: string;
 }
 
 export interface UserResponse {

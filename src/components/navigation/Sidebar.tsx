@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, Link } from 'react-router-dom';
 import {
     LayoutDashboard,
     Briefcase,
@@ -94,6 +94,26 @@ const Sidebar: React.FC = () => {
                 )}
 
             </nav>
+
+            <div style={{
+                padding: '1rem 1.25rem',
+                borderTop: '1px solid var(--border-light)',
+                display: 'flex',
+                justifyContent: 'center',
+                gap: '12px',
+            }}>
+                <Link to="/privacy" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textDecoration: 'none' }}
+                    onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-color)'}
+                    onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
+                    Privacy Policy
+                </Link>
+                <span style={{ fontSize: '0.7rem', color: 'var(--border-color)' }}>·</span>
+                <Link to="/terms" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textDecoration: 'none' }}
+                    onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-color)'}
+                    onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
+                    Terms of Service
+                </Link>
+            </div>
         </aside>
     );
 };

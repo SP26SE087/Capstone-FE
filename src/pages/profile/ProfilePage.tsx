@@ -4,10 +4,11 @@ import { useToastStore } from '@/store/slices/toastSlice';
 import MainLayout from '@/layout/MainLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { userService, ProfileResponse } from '@/services/userService';
+import { authService } from '@/services/authService';
 import { SystemRoleMap } from '@/types/enums';
 import {
     Eye, Edit3, Save, User, Mail, Shield, Calendar,
-    Loader2, CheckCircle, AlertTriangle, Phone,
+    Loader2, CheckCircle, Phone,
     Link as LinkIcon, GraduationCap, RefreshCw, Info
 } from 'lucide-react';
 
@@ -133,6 +134,7 @@ const ProfilePage: React.FC = () => {
             });
             addToast('Profile updated successfully!', 'success');
             setIsEditMode(false);
+            authService.patchStoredUser({ fullName: editData.fullName.trim() || undefined });
             refreshUser();
             fetchProfile();
         } catch (error: any) {
