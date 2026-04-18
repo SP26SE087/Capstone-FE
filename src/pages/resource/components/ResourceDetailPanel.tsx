@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import SearchableSelect from '@/components/common/SearchableSelect';
 import { Resource, ResourceType, UpdateResourceRequest } from '@/types/booking';
 import { resourceService } from '@/services/resourceService';
 import { userService, UserResponse } from '@/services/userService';
@@ -501,18 +502,15 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
                     <div style={sectionStyle}>
                         <div style={labelStyle}><UserCog size={12} /> Assign Manager</div>
                         <div style={{ display: 'flex', gap: '8px' }}>
-                            <select
-                                style={{ ...inputStyle, flex: 1 }}
-                                value={selectedManagerId}
-                                onChange={e => setSelectedManagerId(e.target.value)}
-                            >
-                                <option value="">— Select a manager —</option>
-                                {users.map(u => (
-                                    <option key={u.userId} value={u.userId}>
-                                        {u.fullName} ({u.email})
-                                    </option>
-                                ))}
-                            </select>
+                            <div style={{ flex: 1 }}>
+                                <SearchableSelect
+                                    options={users.map(u => ({ id: u.userId, name: u.fullName, info: u.email }))}
+                                    value={selectedManagerId}
+                                    onChange={v => setSelectedManagerId(v as string)}
+                                    placeholder="— Select a manager —"
+                                    icon={<UserCog size={14} />}
+                                />
+                            </div>
                             <button
                                 onClick={handleAssignManager}
                                 disabled={assigning || !selectedManagerId}

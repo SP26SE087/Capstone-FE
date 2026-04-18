@@ -139,10 +139,10 @@ export const bookingService = {
   },
 
   checkIn: async (bookingId: string, note?: string): Promise<void> => {
-    await api.post('/api/equipment-logs', { bookingId, action: 1, note: note || undefined });
+    await api.post('/api/equipment-logs', { bookingId, action: 2, note: note || undefined });
   },
 
   checkOut: async (bookingId: string, resourceId: string, note?: string): Promise<void> => {
-    await api.put('/api/equipment-logs', { resourceId, bookingId, action: 2, note: note || undefined });
+    await api.put('/api/equipment-logs', { resourceId, bookingId, action: 1, note: note || undefined });
   },
 };

@@ -325,11 +325,11 @@ const ResourceBooking: React.FC = () => {
         try {
             await Promise.all(targets.map(b => bookingService.checkIn(b.id, bulkCheckInNote.trim() || undefined)));
             const n = targets.length;
-            showToast(`Check-in recorded for ${n} booking${n > 1 ? 's' : ''}.`, 'success');
+            showToast(`Check-out recorded for ${n} booking${n > 1 ? 's' : ''}.`, 'success');
             setBulkSelectedIds([]); setBulkCheckInNote('');
             fetchData();
         } catch (err: any) {
-            showToast(err?.response?.data?.message || 'Check-in failed.', 'error');
+            showToast(err?.response?.data?.message || 'Check-out failed.', 'error');
         } finally { setBulkChecking(false); }
     };
 
@@ -340,11 +340,11 @@ const ResourceBooking: React.FC = () => {
         try {
             await Promise.all(targets.map(b => bookingService.checkOut(b.id, b.resourceIds?.[0] ?? '', bulkCheckOutNote.trim() || undefined)));
             const n = targets.length;
-            showToast(`Check-out recorded for ${n} booking${n > 1 ? 's' : ''}.`, 'success');
+            showToast(`Check-in recorded for ${n} booking${n > 1 ? 's' : ''}.`, 'success');
             setBulkSelectedIds([]); setBulkCheckOutNote('');
             fetchData();
         } catch (err: any) {
-            showToast(err?.response?.data?.message || 'Check-out failed.', 'error');
+            showToast(err?.response?.data?.message || 'Check-in failed.', 'error');
         } finally { setBulkChecking(false); }
     };
 
@@ -808,38 +808,38 @@ const ResourceBooking: React.FC = () => {
                                                     </div>
                                                 )}
 
-                                                {/* Check-in row */}
+                                                {/* Check-out row (Approved → give resource to user) */}
                                                 {selApproved.length > 0 && (
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#059669', flexShrink: 0, width: '64px' }}>Check In</span>
+                                                        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#2563eb', flexShrink: 0, width: '64px' }}>Check Out</span>
                                                         <input
                                                             value={bulkCheckInNote}
                                                             onChange={e => setBulkCheckInNote(e.target.value)}
                                                             placeholder="Note (optional)..."
-                                                            style={{ flex: 1, padding: '7px 10px', borderRadius: '7px', border: '1.5px solid #d1fae5', fontSize: '0.78rem', outline: 'none', background: '#f0fdf4', height: '34px', boxSizing: 'border-box' as const }}
+                                                            style={{ flex: 1, padding: '7px 10px', borderRadius: '7px', border: '1.5px solid #bfdbfe', fontSize: '0.78rem', outline: 'none', background: '#eff6ff', height: '34px', boxSizing: 'border-box' as const }}
                                                         />
                                                         <button onClick={handleBulkCheckIn} disabled={isBusy}
-                                                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', width: '128px', borderRadius: '7px', border: 'none', background: isBusy ? '#94a3b8' : '#059669', color: '#fff', fontSize: '0.78rem', fontWeight: 700, cursor: isBusy ? 'not-allowed' : 'pointer', flexShrink: 0, height: '34px' }}>
-                                                            {bulkChecking ? <Loader2 size={12} className="animate-spin" /> : <LogIn size={12} />}
-                                                            Check In {selApproved.length}
+                                                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', width: '128px', borderRadius: '7px', border: 'none', background: isBusy ? '#94a3b8' : '#2563eb', color: '#fff', fontSize: '0.78rem', fontWeight: 700, cursor: isBusy ? 'not-allowed' : 'pointer', flexShrink: 0, height: '34px' }}>
+                                                            {bulkChecking ? <Loader2 size={12} className="animate-spin" /> : <LogOut size={12} />}
+                                                            Check Out {selApproved.length}
                                                         </button>
                                                     </div>
                                                 )}
 
-                                                {/* Check-out row */}
+                                                {/* Check-in row (InUse → user returns resource) */}
                                                 {selInUse.length > 0 && (
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#7c3aed', flexShrink: 0, width: '64px' }}>Check Out</span>
+                                                        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#059669', flexShrink: 0, width: '64px' }}>Check In</span>
                                                         <input
                                                             value={bulkCheckOutNote}
                                                             onChange={e => setBulkCheckOutNote(e.target.value)}
                                                             placeholder="Note (optional)..."
-                                                            style={{ flex: 1, padding: '7px 10px', borderRadius: '7px', border: '1.5px solid #e9d5ff', fontSize: '0.78rem', outline: 'none', background: '#faf5ff', height: '34px', boxSizing: 'border-box' as const }}
+                                                            style={{ flex: 1, padding: '7px 10px', borderRadius: '7px', border: '1.5px solid #a7f3d0', fontSize: '0.78rem', outline: 'none', background: '#f0fdf4', height: '34px', boxSizing: 'border-box' as const }}
                                                         />
                                                         <button onClick={handleBulkCheckOut} disabled={isBusy}
-                                                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', width: '128px', borderRadius: '7px', border: 'none', background: isBusy ? '#94a3b8' : '#7c3aed', color: '#fff', fontSize: '0.78rem', fontWeight: 700, cursor: isBusy ? 'not-allowed' : 'pointer', flexShrink: 0, height: '34px' }}>
-                                                            {bulkChecking ? <Loader2 size={12} className="animate-spin" /> : <LogOut size={12} />}
-                                                            Check Out {selInUse.length}
+                                                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', width: '128px', borderRadius: '7px', border: 'none', background: isBusy ? '#94a3b8' : '#059669', color: '#fff', fontSize: '0.78rem', fontWeight: 700, cursor: isBusy ? 'not-allowed' : 'pointer', flexShrink: 0, height: '34px' }}>
+                                                            {bulkChecking ? <Loader2 size={12} className="animate-spin" /> : <LogIn size={12} />}
+                                                            Check In {selInUse.length}
                                                         </button>
                                                     </div>
                                                 )}

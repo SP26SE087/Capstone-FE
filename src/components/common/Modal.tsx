@@ -13,7 +13,7 @@ interface ModalProps {
     disableBackdropClose?: boolean;
 }
 
-const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, footer, variant = 'info', maxWidth = '480px', disableBackdropClose = false }) => {
+const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, footer, variant = 'info', maxWidth = '680px', disableBackdropClose = false }) => {
     if (!isOpen) return null;
 
     return ReactDOM.createPortal(

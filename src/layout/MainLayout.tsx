@@ -19,7 +19,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, customSidebar, hideSi
     return (
         <div className={`app-layout ${showSidebar ? '' : 'no-sidebar'}`}>
             {showSidebar && (customSidebar || <Sidebar />)}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 'calc(100vh / 0.9)', overflow: 'hidden' }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: '100vh', overflow: 'hidden' }}>
                 <Header />
                 <main className={`main-content ${showSidebar ? '' : 'no-sidebar'}`} style={{ overflowY: 'auto', flex: 1 }}>
                     <div className="content-container" style={{ padding: '1.5rem 2rem' }}>
