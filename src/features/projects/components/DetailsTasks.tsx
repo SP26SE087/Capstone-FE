@@ -579,12 +579,14 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                                             const isOpen = openAssigneeDropdownId === assigneeKey;
                                             const selectedMember = projectMembers.find(m => getMemberOptionId(m) === form.assigneeId);
 
-                                            const filteredMembers = projectMembers.filter(m => {
-                                                if (!memberSearchQuery) return true;
-                                                const query = memberSearchQuery.toLowerCase();
-                                                return (m.fullName || m.userName || '').toLowerCase().includes(query) ||
-                                                       (m.email || '').toLowerCase().includes(query);
-                                            });
+                                            const filteredMembers = projectMembers
+                                                .filter(m => m.projectRole !== 1 && m.projectRoleName !== 'Lab Director' && m.roleName !== 'Lab Director')
+                                                .filter(m => {
+                                                    if (!memberSearchQuery) return true;
+                                                    const query = memberSearchQuery.toLowerCase();
+                                                    return (m.fullName || m.userName || '').toLowerCase().includes(query) ||
+                                                           (m.email || '').toLowerCase().includes(query);
+                                                });
 
                                             return (
                                                 <div style={{ position: 'relative' }}>
@@ -766,7 +768,9 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                                             const collabKey = form.tempId;
                                             const isOpen = openCollabDropdownId === collabKey;
                                             const selectedIds: string[] = form.supportMemberIds || [];
-                                            const eligible = projectMembers.filter(m => getMemberOptionId(m) !== form.assigneeId);
+                                            const eligible = projectMembers
+                                                .filter(m => getMemberOptionId(m) !== form.assigneeId)
+                                                .filter(m => m.projectRole !== 1 && m.projectRoleName !== 'Lab Director' && m.roleName !== 'Lab Director');
 
                                             const filteredMembers = eligible.filter(m => {
                                                 if (!memberSearchQuery) return true;

@@ -229,8 +229,16 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({ taskId, onClose, onTa
                                 <div>
                                     <label style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: '6px' }}>Assignee</label>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <div style={{ width: '28px', height: '28px', background: '#e2e8f0', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                            <User size={14} color="#64748b" />
+                                        <div style={{ width: '28px', height: '28px', background: '#e2e8f0', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                                            {(task as any).member?.avatarUrl || (task as any).member?.avatar ? (
+                                                <img 
+                                                    src={(task as any).member?.avatarUrl || (task as any).member?.avatar} 
+                                                    alt="" 
+                                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                                                />
+                                            ) : (
+                                                <User size={14} color="#64748b" />
+                                            )}
                                         </div>
                                         <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1e293b' }}>
                                             {(task as any).assigneeName || task.assignedToName || (task as any).member?.fullName || 'Unassigned'}
@@ -247,14 +255,25 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({ taskId, onClose, onTa
                                         <div style={{ fontSize: '0.78rem', color: '#94a3b8', fontStyle: 'italic' }}>No collaborators</div>
                                     ) : (
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                                            {(task as any).members.map((m: any, idx: number) => (
-                                                <div key={m.memberId || m.userId || idx} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                    <div style={{ width: '24px', height: '24px', background: 'var(--accent-bg)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-color)', fontSize: '0.65rem', fontWeight: 700, flexShrink: 0 }}>
-                                                        {(m.fullName || m.name || '?').charAt(0).toUpperCase()}
+                                            {(task as any).members.map((m: any, idx: number) => {
+                                                const initials = (m.fullName || m.name || '?').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
+                                                return (
+                                                    <div key={m.memberId || m.userId || idx} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                        <div style={{ width: '24px', height: '24px', background: 'var(--accent-bg)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-color)', fontSize: '0.65rem', fontWeight: 700, flexShrink: 0, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
+                                                            {m.avatarUrl || m.avatar ? (
+                                                                <img 
+                                                                    src={m.avatarUrl || m.avatar} 
+                                                                    alt="" 
+                                                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                                                                />
+                                                            ) : (
+                                                                <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--primary-color)' }}>{initials}</span>
+                                                            )}
+                                                        </div>
+                                                        <span style={{ fontSize: '0.8rem', color: '#334155', fontWeight: 500 }}>{m.fullName || m.name || m.email || 'Unknown'}</span>
                                                     </div>
-                                                    <span style={{ fontSize: '0.8rem', color: '#334155', fontWeight: 500 }}>{m.fullName || m.name || m.email || 'Unknown'}</span>
-                                                </div>
-                                            ))}
+                                                );
+                                            })}
                                         </div>
                                     )}
                                 </div>

@@ -703,7 +703,11 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
                             {(() => {
                                 const assigneeKey = '__edit_assignee__';
                                 const isOpen = openAssigneeDropdownId === assigneeKey;
-                                const eligible = projectMembers.filter(m => m.projectRole !== 1);
+                                const eligible = projectMembers.filter(m => 
+                                    m.projectRole !== 1 && 
+                                    m.projectRoleName !== 'Lab Director' && 
+                                    m.roleName !== 'Lab Director'
+                                );
                                 const selectedMember = eligible.find(m => getMemberOptionId(m) === editForm.memberId);
                                 const filteredMembers = eligible.filter(m => {
                                     if (!memberSearchQuery) return true;
@@ -785,7 +789,12 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
                                 const collabKey = '__edit__';
                                 const isOpen = openCollabDropdownId === collabKey;
                                 const selectedIds = editForm.supportMemberIds || [];
-                                const eligible = projectMembers.filter(m => getMemberOptionId(m) !== editForm.memberId);
+                                const eligible = projectMembers.filter(m => 
+                                    getMemberOptionId(m) !== editForm.memberId &&
+                                    m.projectRole !== 1 && 
+                                    m.projectRoleName !== 'Lab Director' && 
+                                    m.roleName !== 'Lab Director'
+                                );
                                 const filteredMembers = eligible.filter(m => {
                                     if (!memberSearchQuery) return true;
                                     const q = memberSearchQuery.toLowerCase();
@@ -896,8 +905,16 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
                         <label style={labelStyle}>Assignee</label>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <div style={{ width: '28px', height: '28px', background: '#e2e8f0', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                    <User size={14} color="#64748b" />
+                                <div style={{ width: '28px', height: '28px', background: '#e2e8f0', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                                    {(activeTask as any).member?.avatarUrl || (activeTask as any).member?.avatar ? (
+                                        <img 
+                                            src={(activeTask as any).member?.avatarUrl || (activeTask as any).member?.avatar} 
+                                            alt="" 
+                                            style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                                        />
+                                    ) : (
+                                        <User size={14} color="#64748b" />
+                                    )}
                                 </div>
                                 <div>
                                     <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#1e293b' }}>
@@ -922,17 +939,28 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
                                     <div style={{ marginTop: '0.25rem' }}>
                                         <label style={labelStyle}>Collaborators ({collabs.length})</label>
                                         <div style={{ ...inputStyle, background: 'white', padding: '8px 10px', maxHeight: '120px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }} className="custom-scrollbar">
-                                            {collabs.map((collab: any) => (
-                                                <div key={collab.id || collab.fullName} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                    <div style={{ width: '24px', height: '24px', background: '#e2e8f0', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                                        <User size={12} color="#64748b" />
+                                            {collabs.map((collab: any) => {
+                                                const initials = (collab.fullName || collab.userName || '?').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
+                                                return (
+                                                    <div key={collab.id || collab.fullName} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                        <div style={{ width: '24px', height: '24px', background: 'var(--accent-bg)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
+                                                            {collab.avatarUrl || collab.avatar ? (
+                                                                <img 
+                                                                    src={collab.avatarUrl || collab.avatar} 
+                                                                    alt="" 
+                                                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                                                                />
+                                                            ) : (
+                                                                <span style={{ fontSize: '0.6rem', fontWeight: 700, color: 'var(--primary-color)' }}>{initials}</span>
+                                                            )}
+                                                        </div>
+                                                        <div>
+                                                            <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#1e293b' }}>{collab.fullName}</div>
+                                                            {collab.email && <div style={{ fontSize: '0.68rem', color: '#64748b' }}>{collab.email}</div>}
+                                                        </div>
                                                     </div>
-                                                    <div>
-                                                        <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#1e293b' }}>{collab.fullName}</div>
-                                                        {collab.email && <div style={{ fontSize: '0.68rem', color: '#64748b' }}>{collab.email}</div>}
-                                                    </div>
-                                                </div>
-                                            ))}
+                                                );
+                                            })}
                                         </div>
                                     </div>
                                 );

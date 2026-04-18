@@ -268,9 +268,16 @@ const PaperSubmissions: React.FC = () => {
 
     const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
+    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+
     const handleAddDocumentChange = (file: File | null) => {
         if (isPdfFile(file)) {
             showToast('PDF upload is currently disabled. Please upload DOC, DOCX, TXT, PPT, or PPTX.', 'error');
+            setAddDocument(null);
+            return;
+        }
+        if (file && file.size > MAX_FILE_SIZE) {
+            showToast('File size exceeds 10 MB limit. Please upload a smaller file.', 'error');
             setAddDocument(null);
             return;
         }
@@ -280,6 +287,11 @@ const PaperSubmissions: React.FC = () => {
     const handleEditDocumentChange = (file: File | null) => {
         if (isPdfFile(file)) {
             showToast('PDF upload is currently disabled. Please upload DOC, DOCX, TXT, PPT, or PPTX.', 'error');
+            setEditDocument(null);
+            return;
+        }
+        if (file && file.size > MAX_FILE_SIZE) {
+            showToast('File size exceeds 10 MB limit. Please upload a smaller file.', 'error');
             setEditDocument(null);
             return;
         }

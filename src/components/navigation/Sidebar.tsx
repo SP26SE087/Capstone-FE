@@ -102,6 +102,12 @@ const Sidebar: React.FC = () => {
                 justifyContent: 'center',
                 gap: '12px',
             }}>
+                <Link to="/" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textDecoration: 'none' }}
+                    onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-color)'}
+                    onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
+                    Homepage
+                </Link>
+                <span style={{ fontSize: '0.7rem', color: 'var(--border-color)' }}>·</span>
                 <Link to="/privacy" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textDecoration: 'none' }}
                     onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-color)'}
                     onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>

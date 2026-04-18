@@ -223,6 +223,13 @@ const LoginPage: React.FC = () => {
                     <p style={{ color: '#64748b', fontSize: '0.75rem', lineHeight: 1.5, margin: '0 0 10px' }}>
                         Internal access only. Unauthorized attempts will be logged and reported.
                     </p>
+                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '10px' }}>
+                        <Link to="/" style={{ color: '#94a3b8', fontSize: '0.75rem', textDecoration: 'none' }}
+                            onMouseEnter={e => e.currentTarget.style.color = '#e8720c'}
+                            onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}>
+                            ← Back to Homepage
+                        </Link>
+                    </div>
                     <div style={{ display: 'flex', justifyContent: 'center', gap: '16px' }}>
                         <Link to="/privacy" style={{ color: '#94a3b8', fontSize: '0.72rem', textDecoration: 'none' }}
                             onMouseEnter={e => e.currentTarget.style.color = '#e8720c'}
