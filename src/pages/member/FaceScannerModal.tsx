@@ -12,11 +12,7 @@ interface FaceScannerModalProps {
     userName: string;
 }
 
-// In dev, use Vite proxy path to avoid Cloudflare 524 and CORS issues.
-// In production, the face server must have CORS headers and Cloudflare proxy disabled.
-const FACE_VIDEO_FEED = import.meta.env.DEV
-    ? '/face/video_feed'
-    : `${(import.meta.env.VITE_FACE_SERVER_URL as string || 'http://localhost:5000').replace(/\/$/, '')}/video_feed`;
+const FACE_VIDEO_FEED = '/face/video_feed';
 
 const FaceScannerModal: React.FC<FaceScannerModalProps> = ({ isOpen, onClose, initialStudentId, userName }) => {
     const [isScanning, setIsScanning] = useState(false);

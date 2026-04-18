@@ -1,10 +1,6 @@
 import axios from 'axios';
 
-// In dev, requests go through Vite proxy at /face/* to avoid CORS.
-// In production, the face server must have CORS headers configured.
-const FACE_BASE = import.meta.env.DEV
-    ? '/face'
-    : (import.meta.env.VITE_FACE_SERVER_URL as string || 'http://localhost:5000').replace(/\/$/, '');
+const FACE_BASE = '/face';
 
 const faceApi = axios.create({
     baseURL: FACE_BASE,
