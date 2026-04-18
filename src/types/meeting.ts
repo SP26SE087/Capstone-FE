@@ -58,6 +58,7 @@ export interface MeetingResponse {
     attendees: AttendeeResponse[] | null;
     currentPresenter: PresenterInfo | null;
     recordingUrl: string | null;
+    hasEmbedding?: boolean;
 }
 
 export interface CreateMeetingRequest {

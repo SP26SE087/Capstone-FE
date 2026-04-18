@@ -9,7 +9,8 @@ import {
     XCircle,
     AlertCircle,
     Play,
-    Calendar
+    Calendar,
+    Sparkles
 } from 'lucide-react';
 
 interface ScheduleListProps {
@@ -129,21 +130,34 @@ const ScheduleList: React.FC<ScheduleListProps> = (props) => {
                             }}>
                                 {meeting.title || 'Untitled Meeting'}
                             </h4>
-                            <span style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                padding: '3px 8px',
-                                borderRadius: '20px',
-                                fontSize: '0.65rem',
-                                fontWeight: 700,
-                                background: statusInfo.bg,
-                                color: statusInfo.color,
-                                flexShrink: 0,
-                                whiteSpace: 'nowrap' as const
-                            }}>
-                                {statusInfo.icon} {statusInfo.label}
-                            </span>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0 }}>
+                                <span style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    padding: '3px 8px',
+                                    borderRadius: '20px',
+                                    fontSize: '0.65rem',
+                                    fontWeight: 700,
+                                    background: statusInfo.bg,
+                                    color: statusInfo.color,
+                                    whiteSpace: 'nowrap' as const
+                                }}>
+                                    {statusInfo.icon} {statusInfo.label}
+                                </span>
+                                <span style={{
+                                    display: 'flex', alignItems: 'center', gap: '3px',
+                                    fontSize: '0.62rem', fontWeight: 500, padding: '2px 7px',
+                                    borderRadius: '6px',
+                                    background: meeting.hasEmbedding ? 'linear-gradient(135deg, #f0fdf4, #dcfce7)' : '#f1f5f9',
+                                    color: meeting.hasEmbedding ? '#166534' : '#94a3b8',
+                                    border: `1px solid ${meeting.hasEmbedding ? '#bbf7d0' : '#e2e8f0'}`,
+                                    whiteSpace: 'nowrap' as const
+                                }}>
+                                    <Sparkles size={10} />
+                                    {meeting.hasEmbedding ? 'Can Semantic Search' : 'Cannot Semantic Search'}
+                                </span>
+                            </div>
                         </div>
 
                         {/* Middle: Time & Date */}

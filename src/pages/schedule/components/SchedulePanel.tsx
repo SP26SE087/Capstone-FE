@@ -30,7 +30,8 @@ import {
     Lock,
     X,
     Mic,
-    RefreshCw
+    RefreshCw,
+    Sparkles
 } from 'lucide-react';
 
 interface SchedulePanelProps {
@@ -382,16 +383,29 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                             {isCreating ? 'New Schedule' : (meeting?.title || 'Schedule Details')}
                         </h3>
                         {!isCreating && statusInfo && (
-                            <span style={{
-                                fontSize: '0.68rem',
-                                fontWeight: 700,
-                                color: statusInfo.color,
-                                background: statusInfo.bg,
-                                padding: '2px 8px',
-                                borderRadius: '12px'
-                            }}>
-                                {statusInfo.label}
-                            </span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                <span style={{
+                                    fontSize: '0.68rem',
+                                    fontWeight: 700,
+                                    color: statusInfo.color,
+                                    background: statusInfo.bg,
+                                    padding: '2px 8px',
+                                    borderRadius: '12px'
+                                }}>
+                                    {statusInfo.label}
+                                </span>
+                                <span style={{
+                                    display: 'flex', alignItems: 'center', gap: '3px',
+                                    fontSize: '0.65rem', fontWeight: 500, padding: '2px 8px',
+                                    borderRadius: '6px',
+                                    background: meeting?.hasEmbedding ? 'linear-gradient(135deg, #f0fdf4, #dcfce7)' : '#f1f5f9',
+                                    color: meeting?.hasEmbedding ? '#166534' : '#64748b',
+                                    border: `1px solid ${meeting?.hasEmbedding ? '#bbf7d0' : '#e2e8f0'}`
+                                }}>
+                                    <Sparkles size={11} />
+                                    {meeting?.hasEmbedding ? 'Can Semantic Search' : 'Cannot Semantic Search'}
+                                </span>
+                            </div>
                         )}
                     </div>
                 </div>
