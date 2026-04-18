@@ -368,6 +368,8 @@ input[type='number'].no-spinner {
 
 .header-user-info {
   text-align: right;
+  max-width: 160px;
+  min-width: 0;
 }
 
 .header-user-name {
@@ -375,12 +377,18 @@ input[type='number'].no-spinner {
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .header-user-role {
   display: block;
   font-size: 0.7rem;
   color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .header-avatar {
@@ -694,10 +702,18 @@ a:hover {
   box-shadow: 0 2px 8px rgba(232, 114, 12, 0.25);
 }
 
-.btn-primary:hover {
+.btn-primary:hover:not(:disabled) {
   background: #D4670B;
   box-shadow: 0 4px 14px rgba(232, 114, 12, 0.35);
   transform: translateY(-1px);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+  box-shadow: none;
+  transform: none;
 }
 
 .btn-secondary {

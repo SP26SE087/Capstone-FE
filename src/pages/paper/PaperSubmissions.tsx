@@ -129,6 +129,8 @@ const PaperSubmissions: React.FC = () => {
     const [pageIndex, setPageIndex] = useState(1);
     const [pageSize] = useState(50);
     const [totalCount, setTotalCount] = useState(0);
+    const [uiPage, setUiPage] = useState(1);
+    const UI_PAGE_SIZE = 10;
 
     // Semantic search
     const [semanticResults, setSemanticResults] = useState<PaperSubmissionResponse[] | null>(null);
@@ -1047,6 +1049,11 @@ const PaperSubmissions: React.FC = () => {
         });
     }, [papers, semanticResults, search, filterStatus, filterProjectId]);
 
+    useEffect(() => { setUiPage(1); }, [search, filterStatus, filterProjectId, semanticResults]);
+
+    const uiTotalPages = Math.max(1, Math.ceil(filtered.length / UI_PAGE_SIZE));
+    const pagedItems = filtered.slice((uiPage - 1) * UI_PAGE_SIZE, uiPage * UI_PAGE_SIZE);
+
     // Stats
     const draftCount = papers.filter(p => p.status === SubmissionStatus.Draft).length;
     const reviewCount = papers.filter(p => p.status === SubmissionStatus.InternalReview).length;
@@ -1465,8 +1472,9 @@ const PaperSubmissions: React.FC = () => {
                                 <p style={{ fontSize: '0.85rem' }}>Create your first paper submission to get started.</p>
                             </div>
                         ) : (
-                            <div className="paper-list-scroll custom-scrollbar" style={{ display: 'flex', flexDirection: 'column', gap: '10px', overflowY: 'auto', minHeight: 0 }}>
-                                {filtered.map(paper => {
+                            <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+                            <div className="paper-list-scroll custom-scrollbar" style={{ display: 'flex', flexDirection: 'column', gap: '10px', overflowY: 'auto', minHeight: 0, flex: 1 }}>
+                                {pagedItems.map(paper => {
                                     const color = STATUS_COLOR[paper.status];
                                     const bg = STATUS_BG[paper.status];
                                     const isActive = selectedPaper?.paperSubmissionId === paper.paperSubmissionId;
@@ -1502,17 +1510,51 @@ const PaperSubmissions: React.FC = () => {
                                                         </div>
                                                     )}
                                                 </div>
-                                                <span style={{
-                                                    fontSize: '0.65rem', fontWeight: 800, padding: '3px 9px',
-                                                    borderRadius: '20px', background: bg, color, flexShrink: 0,
-                                                    border: `1px solid ${color}33`
-                                                }}>
-                                                    {SubmissionStatusLabel[paper.status]}
-                                                </span>
+                                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0 }}>
+                                                    <span style={{
+                                                        fontSize: '0.65rem', fontWeight: 800, padding: '3px 9px',
+                                                        borderRadius: '20px', background: bg, color,
+                                                        border: `1px solid ${color}33`
+                                                    }}>
+                                                        {SubmissionStatusLabel[paper.status]}
+                                                    </span>
+                                                    <span style={{
+                                                        display: 'flex', alignItems: 'center', gap: '3px',
+                                                        fontSize: '0.62rem', fontWeight: 500, padding: '2px 7px',
+                                                        borderRadius: '6px',
+                                                        background: paper.hasEmbedding ? 'linear-gradient(135deg, #f0fdf4, #dcfce7)' : '#f1f5f9',
+                                                        color: paper.hasEmbedding ? '#166534' : '#94a3b8',
+                                                        border: `1px solid ${paper.hasEmbedding ? '#bbf7d0' : '#e2e8f0'}`
+                                                    }}>
+                                                        <Sparkles size={10} />
+                                                        {paper.hasEmbedding ? 'Can Semantic Search' : 'Cannot Semantic Search'}
+                                                    </span>
+                                                </div>
                                             </div>
                                         </div>
                                     );
                                 })}
+                            </div>
+                            {filtered.length > 0 && (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 4px 0', borderTop: '1px solid #f1f5f9', flexShrink: 0 }}>
+                                    <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600 }}>
+                                        {(uiPage - 1) * UI_PAGE_SIZE + 1}–{Math.min(uiPage * UI_PAGE_SIZE, filtered.length)} / {filtered.length}
+                                    </span>
+                                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                                        <button
+                                            disabled={uiPage === 1}
+                                            onClick={() => setUiPage(p => p - 1)}
+                                            style={{ padding: '4px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', background: uiPage === 1 ? '#f8fafc' : '#fff', color: uiPage === 1 ? '#cbd5e1' : '#475569', fontSize: '0.78rem', fontWeight: 700, cursor: uiPage === 1 ? 'not-allowed' : 'pointer' }}
+                                        >← Prev</button>
+                                        <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#64748b', padding: '0 8px' }}>{uiPage} / {uiTotalPages}</span>
+                                        <button
+                                            disabled={uiPage === uiTotalPages}
+                                            onClick={() => setUiPage(p => p + 1)}
+                                            style={{ padding: '4px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', background: uiPage === uiTotalPages ? '#f8fafc' : '#fff', color: uiPage === uiTotalPages ? '#cbd5e1' : '#475569', fontSize: '0.78rem', fontWeight: 700, cursor: uiPage === uiTotalPages ? 'not-allowed' : 'pointer' }}
+                                        >Next →</button>
+                                    </div>
+                                </div>
+                            )}
                             </div>
                         )}
                     </div>)}
@@ -1548,13 +1590,26 @@ const PaperSubmissions: React.FC = () => {
                                             {activePanel === 'create' ? 'New Paper' : activePanel === 'edit' ? 'Edit Paper' : (selectedPaper?.title || 'Paper Details')}
                                         </h3>
                                         {activePanel === 'view' && selectedPaper && (
-                                            <span style={{
-                                                fontSize: '0.65rem', fontWeight: 700, padding: '2px 8px', borderRadius: '12px',
-                                                background: STATUS_BG[selectedPaper.status],
-                                                color: STATUS_COLOR[selectedPaper.status]
-                                            }}>
-                                                {SubmissionStatusLabel[selectedPaper.status]}
-                                            </span>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                                <span style={{
+                                                    fontSize: '0.65rem', fontWeight: 700, padding: '2px 8px', borderRadius: '12px',
+                                                    background: STATUS_BG[selectedPaper.status],
+                                                    color: STATUS_COLOR[selectedPaper.status]
+                                                }}>
+                                                    {SubmissionStatusLabel[selectedPaper.status]}
+                                                </span>
+                                                <span style={{
+                                                    display: 'flex', alignItems: 'center', gap: '3px',
+                                                    fontSize: '0.65rem', fontWeight: 500, padding: '2px 8px',
+                                                    borderRadius: '6px',
+                                                    background: selectedPaper.hasEmbedding ? 'linear-gradient(135deg, #f0fdf4, #dcfce7)' : '#f1f5f9',
+                                                    color: selectedPaper.hasEmbedding ? '#166534' : '#64748b',
+                                                    border: `1px solid ${selectedPaper.hasEmbedding ? '#bbf7d0' : '#e2e8f0'}`
+                                                }}>
+                                                    <Sparkles size={11} />
+                                                    {selectedPaper.hasEmbedding ? 'Can Semantic Search' : 'Cannot Semantic Search'}
+                                                </span>
+                                            </div>
                                         )}
                                     </div>
                                 </div>

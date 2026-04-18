@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { validateSpecialChars } from '@/utils/validation';
 import { useToastStore } from '@/store/slices/toastSlice';
 import MainLayout from '@/layout/MainLayout';
@@ -19,6 +19,7 @@ const ProfilePage: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [imgError, setImgError] = useState(false);
     const [isEditMode, setIsEditMode] = useState(false);
+    const isEditModeRef = useRef(false);
     const [submitting, setSubmitting] = useState(false);
     const { addToast } = useToastStore();
 
@@ -40,6 +41,25 @@ const ProfilePage: React.FC = () => {
     const setError = (field: keyof typeof fieldErrors, v: string) =>
         setFieldErrors(prev => ({ ...prev, [field]: v }));
 
+    // Keep ref in sync so async callbacks can read current edit mode without stale closure
+    useEffect(() => { isEditModeRef.current = isEditMode; }, [isEditMode]);
+
+    const syncEditData = (data: typeof editData) => {
+        setEditData(data);
+        setFieldErrors({ studentId: '', phoneNumber: '', orcid: '', googleScholarUrl: '', githubUrl: '' });
+    };
+
+    const enterEditMode = (source: ProfileResponse) => {
+        syncEditData({
+            fullName: source.fullName || '',
+            studentId: source.studentId || '',
+            phoneNumber: source.phoneNumber || '',
+            orcid: source.orcid || '',
+            googleScholarUrl: source.googleScholarUrl || '',
+            githubUrl: source.githubUrl || '',
+        });
+        setIsEditMode(true);
+    };
 
     useEffect(() => {
         // Immediately wipe previous user's data before fetching the new one
@@ -80,14 +100,17 @@ const ProfilePage: React.FC = () => {
         try {
             const data = await userService.getProfile();
             setProfile(data);
-            setEditData({
-                fullName: data.fullName || '',
-                studentId: data.studentId || '',
-                phoneNumber: data.phoneNumber || '',
-                orcid: data.orcid || '',
-                googleScholarUrl: data.googleScholarUrl || '',
-                githubUrl: data.githubUrl || ''
-            });
+            // Never overwrite in-progress edits
+            if (!isEditModeRef.current) {
+                setEditData({
+                    fullName: data.fullName || '',
+                    studentId: data.studentId || '',
+                    phoneNumber: data.phoneNumber || '',
+                    orcid: data.orcid || '',
+                    googleScholarUrl: data.googleScholarUrl || '',
+                    githubUrl: data.githubUrl || ''
+                });
+            }
         } catch (error) {
             addToast('Failed to load profile data.', 'error');
         } finally { setLoading(false); }
@@ -184,12 +207,12 @@ const ProfilePage: React.FC = () => {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                         <div style={{ display: 'flex', background: '#e2e8f0', padding: '4px', borderRadius: '12px' }}>
                             <button onClick={handleCancelEdit} className={`tab-btn ${!isEditMode ? 'active' : ''}`}><Eye size={16} /> View</button>
-                            <button onClick={() => setIsEditMode(true)} className={`tab-btn ${isEditMode ? 'active' : ''}`}><Edit3 size={16} /> Edit</button>
+                            <button onClick={() => profile && enterEditMode(profile)} className={`tab-btn ${isEditMode ? 'active' : ''}`}><Edit3 size={16} /> Edit</button>
                         </div>
                         {isEditMode && (
                             <div style={{ display: 'flex', gap: '10px' }}>
                                 <button className="btn btn-secondary" onClick={handleCancelEdit} disabled={submitting}>Cancel</button>
-                                <button className="btn btn-primary" onClick={handleSave} disabled={submitting}>
+                                <button className="btn btn-primary" onClick={handleSave} disabled={submitting || Object.values(fieldErrors).some(Boolean)}>
                                     {submitting ? <RefreshCw className="animate-spin" size={18} /> : <Save size={18} />}
                                     {submitting ? 'Saving...' : 'Save Changes'}
                                 </button>
@@ -228,10 +251,10 @@ const ProfilePage: React.FC = () => {
 
                             {/* Identity info */}
                             <div style={{ flex: 1, minWidth: 0 }}>
-                                <h2 style={{ margin: '0 0 8px 0', fontSize: '1.6rem', fontWeight: 800, letterSpacing: '-0.02em' }}>
+                                <h2 style={{ margin: '0 0 8px 0', fontSize: '1.6rem', fontWeight: 800, letterSpacing: '-0.02em', wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
                                     {profile?.fullName || authUser.name}
                                 </h2>
-                                <p style={{ margin: '0 0 12px 0', fontSize: '0.9rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                                <p style={{ margin: '0 0 12px 0', fontSize: '0.9rem', color: 'var(--text-secondary)', fontWeight: 500, wordBreak: 'break-all' }}>
                                     {profile?.email || authUser.email}
                                 </p>
 
@@ -548,7 +571,7 @@ const FieldValue: React.FC<{ muted?: boolean; children: React.ReactNode }> = ({ 
     <p style={{
         margin: 0, fontSize: '0.95rem', fontWeight: 600,
         color: muted ? 'var(--text-muted)' : 'var(--text-primary)',
-        padding: '10px 0'
+        padding: '10px 0', wordBreak: 'break-word', overflowWrap: 'anywhere'
     }}>
         {children}
     </p>

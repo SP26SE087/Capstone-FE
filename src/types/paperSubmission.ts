@@ -88,6 +88,7 @@ export interface PaperSubmissionResponse {
     lastUpdatedByFullName?: string | null;
     lastUpdatedByEmail?: string | null;
     editable: boolean;
+    hasEmbedding?: boolean;
     reason?: string | null;
     members: PaperMemberResponse[];
     externalUsers?: ExternalUserResponse[] | null;
