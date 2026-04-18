@@ -193,7 +193,6 @@ const PaperSubmissions: React.FC = () => {
 
     // Action loading
     const [actionLoading, setActionLoading] = useState<string | null>(null);
-    const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
     const [submitReviewLoading, setSubmitReviewLoading] = useState(false);
     const [indexingLoading, setIndexingLoading] = useState(false);
 
@@ -547,7 +546,6 @@ const PaperSubmissions: React.FC = () => {
             await paperSubmissionService.delete(id);
             await loadPapers(pageIndex);
             showToast('Paper deleted.', 'success');
-            setDeleteConfirmId(null);
             setActivePanel(null); setSelectedPaper(null);
         } catch (err: any) {
             showToast(err.response?.data?.message || 'Failed to delete paper.', 'error');
@@ -898,7 +896,6 @@ const PaperSubmissions: React.FC = () => {
     const openView = (paper: PaperSubmissionResponse) => {
         setSelectedPaper(paper);
         setActivePanel('view');
-        setDeleteConfirmId(null);
         setShowPdfViewer(false);
         setViewerUrl(null);
         setCurrentUserMembership(null);
@@ -1748,11 +1745,12 @@ const PaperSubmissions: React.FC = () => {
                                             <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: '5px' }}>
                                                 {editAssigneeIds.map(uid => {
                                                     const m = projectMembers.find((x: any) => (x.userId || x.memberId || x.id) === uid);
+                                                    const a = (selectedPaper?.assignees ?? []).find(x => x.userId === uid);
                                                     return (
                                                         <span key={uid} style={{ background: '#f0fdf4', padding: '3px 10px', borderRadius: '20px', border: '1px solid #bbf7d0', fontSize: '0.76rem', fontWeight: 600, color: '#15803d', cursor: 'pointer' }}
                                                             onClick={() => setAssigneesModalOpen(true)}
                                                         >
-                                                            {m?.fullName || m?.email || uid}
+                                                            {m?.fullName || m?.email || a?.fullName || a?.email || uid}
                                                         </span>
                                                     );
                                                 })}
@@ -1970,21 +1968,18 @@ const PaperSubmissions: React.FC = () => {
                                                     style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: '1px solid #bfdbfe', background: '#eff6ff', color: '#3b82f6', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>
                                                     {submitReviewLoading ? <><Loader2 size={14} className="animate-spin" /> Submitting...</> : <><Send size={14} /> Submit for Internal Review</>}
                                                 </button>
-                                                {canEdit && (deleteConfirmId === selectedPaper.paperSubmissionId ? (
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', borderRadius: '9px', background: '#fef2f2', border: '1px solid #fecaca', width: '100%' }}>
-                                                        <span style={{ flex: 1, fontSize: '0.8rem', fontWeight: 600, color: '#dc2626' }}>Delete this paper?</span>
-                                                        <button onClick={() => setDeleteConfirmId(null)} style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700 }}>Cancel</button>
-                                                        <button onClick={() => handleDelete(selectedPaper.paperSubmissionId)} disabled={!!actionLoading}
-                                                            style={{ padding: '4px 10px', borderRadius: '6px', border: 'none', background: '#ef4444', color: '#fff', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700 }}>
-                                                            {actionLoading ? <Loader2 size={12} className="animate-spin" /> : 'Delete'}
-                                                        </button>
-                                                    </div>
-                                                ) : (
-                                                    <button onClick={() => setDeleteConfirmId(selectedPaper.paperSubmissionId)}
+                                                {canEdit && (
+                                                    <button onClick={() => openConfirm({
+                                                        title: 'Delete Paper',
+                                                        message: 'Are you sure you want to delete this paper? This action cannot be undone.',
+                                                        confirmText: 'Delete',
+                                                        variant: 'danger',
+                                                        onConfirm: () => handleDelete(selectedPaper.paperSubmissionId),
+                                                    })}
                                                         style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: '1px solid #fecaca', background: '#fef2f2', color: '#ef4444', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>
                                                         <Trash2 size={14} /> Delete
                                                     </button>
-                                                ))}
+                                                )}
                                             </div>
                                         )}
 

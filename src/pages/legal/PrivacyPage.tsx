@@ -8,7 +8,7 @@ const SYSTEM_NAME = 'LabSync';
 const CONTACT_EMAIL = 'contact@aitalab.edu.vn';
 
 const PrivacyPage: React.FC = () => (
-    <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'Be Vietnam Pro, sans-serif' }}>
+    <div style={{ minHeight: 'calc(100vh / 0.9)', background: '#f8fafc', fontFamily: 'Be Vietnam Pro, sans-serif' }}>
         {/* Header */}
         <header style={{ background: '#fff', borderBottom: '1px solid #e2e8f0', padding: '1rem 2rem', display: 'flex', alignItems: 'center', gap: '12px' }}>
             <Link to="/login" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}>

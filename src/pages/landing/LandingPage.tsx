@@ -20,7 +20,7 @@ const LandingPage: React.FC = () => {
     const appPath = Number(stored?.role) === SystemRoleEnum.Admin ? '/user-management' : '/dashboard';
 
     return (
-        <div style={{ minHeight: '100vh', fontFamily: 'Be Vietnam Pro, sans-serif', background: '#f8fafc', color: '#1e293b' }}>
+        <div style={{ minHeight: 'calc(100vh / 0.9)', fontFamily: 'Be Vietnam Pro, sans-serif', background: '#f8fafc', color: '#1e293b' }}>
             {/* Nav */}
             <nav style={{ background: '#fff', borderBottom: '1px solid #e2e8f0', padding: '0 2rem', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>

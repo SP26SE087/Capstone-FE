@@ -45,7 +45,7 @@ const Sidebar: React.FC = () => {
     return (
         <aside className="sidebar">
             <div className="sidebar-header">
-                <div className="sidebar-brand">
+                <Link to="/" className="sidebar-brand" style={{ textDecoration: 'none' }}>
                     <div className="sidebar-brand-icon">
                         <FlaskConical size={20} />
                     </div>
@@ -53,7 +53,7 @@ const Sidebar: React.FC = () => {
                         <h2 className="sidebar-title">Researcher Space</h2>
                         <span className="sidebar-subtitle">AiTA Lab@FPTU</span>
                     </div>
-                </div>
+                </Link>
             </div>
 
             <nav className="sidebar-nav">
@@ -99,26 +99,28 @@ const Sidebar: React.FC = () => {
                 padding: '1rem 1.25rem',
                 borderTop: '1px solid var(--border-light)',
                 display: 'flex',
-                justifyContent: 'center',
-                gap: '12px',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '6px',
             }}>
                 <Link to="/" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textDecoration: 'none' }}
                     onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-color)'}
                     onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
                     Homepage
                 </Link>
-                <span style={{ fontSize: '0.7rem', color: 'var(--border-color)' }}>·</span>
-                <Link to="/privacy" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textDecoration: 'none' }}
-                    onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-color)'}
-                    onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
-                    Privacy Policy
-                </Link>
-                <span style={{ fontSize: '0.7rem', color: 'var(--border-color)' }}>·</span>
-                <Link to="/terms" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textDecoration: 'none' }}
-                    onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-color)'}
-                    onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
-                    Terms of Service
-                </Link>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                    <Link to="/privacy" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textDecoration: 'none' }}
+                        onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-color)'}
+                        onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
+                        Privacy Policy
+                    </Link>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--border-color)' }}>·</span>
+                    <Link to="/terms" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textDecoration: 'none' }}
+                        onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-color)'}
+                        onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
+                        Terms of Service
+                    </Link>
+                </div>
             </div>
         </aside>
     );
