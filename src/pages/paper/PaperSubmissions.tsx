@@ -389,8 +389,9 @@ const PaperSubmissions: React.FC = () => {
         }
     };
 
-    const validateForm = (data: { title: string; conferenceName: string; paperUrl?: string; abstract?: string }) => {
+    const validateForm = (data: { title: string; conferenceName: string; paperUrl?: string; abstract?: string; projectId?: string }) => {
         const errs: Record<string, string> = {};
+        if (!data.projectId?.trim()) errs.projectId = 'Project is required';
         if (!data.title?.trim()) errs.title = 'Title is required';
         else if (validateSpecialChars(data.title)) errs.title = validateSpecialChars(data.title);
         if (!data.conferenceName?.trim()) errs.conferenceName = 'Conference / Journal name is required';
@@ -404,7 +405,7 @@ const PaperSubmissions: React.FC = () => {
     };
 
     const handleCreate = async () => {
-        if (!validateForm({ title: addTitle, conferenceName: addConference, paperUrl: addPaperUrl, abstract: addAbstract })) return;
+        if (!validateForm({ title: addTitle, conferenceName: addConference, paperUrl: addPaperUrl, abstract: addAbstract, projectId: addProjectId })) return;
         const hasInvalidExternalAuthor = addExternalUsers.some(eu =>
             hasExternalAuthorValidationErrors(validateExternalAuthorProfileFields({
                 ...blankEu,
@@ -423,10 +424,6 @@ const PaperSubmissions: React.FC = () => {
         }
         if (addMembers.length === 0 && addExternalUsers.length === 0) {
             showToast('Please add at least one author before creating paper.', 'error');
-            return;
-        }
-        if (!addDocument) {
-            showToast('Please upload a document before creating paper.', 'error');
             return;
         }
         if (isPdfFile(addDocument)) {
@@ -472,7 +469,7 @@ const PaperSubmissions: React.FC = () => {
 
     const handleUpdate = async () => {
         if (!selectedPaper) return;
-        if (!validateForm({ title: editData.title || '', conferenceName: editData.conferenceName || '', paperUrl: editData.paperUrl, abstract: editData.abstract })) return;
+        if (!validateForm({ title: editData.title || '', conferenceName: editData.conferenceName || '', paperUrl: editData.paperUrl, abstract: editData.abstract, projectId: editData.projectId })) return;
         if (isPdfFile(editDocument)) {
             showToast('PDF upload is currently disabled.', 'error');
             return;
@@ -1724,7 +1721,7 @@ const PaperSubmissions: React.FC = () => {
                                         externalUsers={editExternalUsers}
                                         onOpenAuthorsModal={() => setAuthorsModalOpen(true)}
                                         onAuthorClick={(info) => setAuthorDetail(info)}
-                                        hidePaperUrl={![SubmissionStatus.Approved, SubmissionStatus.Submitted, SubmissionStatus.Revision, SubmissionStatus.Decision, SubmissionStatus.Accepted, SubmissionStatus.CameraReady, SubmissionStatus.Published].includes(selectedPaper.status)}
+                                        hidePaperUrl={false}
                                     />
 
                                     {/* Additional Assignees — edit */}
@@ -1902,7 +1899,7 @@ const PaperSubmissions: React.FC = () => {
                                             <div>
                                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
                                                     <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' as const, letterSpacing: '0.6px' }}>Assignees</div>
-                                                    {selectedPaper.projectId && (meIsAssignee || isDirector || selectedPaper.editable) && (
+                                                    {activePanel === 'edit' && selectedPaper.projectId && (meIsAssignee || isDirector || selectedPaper.editable) && (
                                                         <button type="button"
                                                             onClick={() => setViewAssigneesModalOpen(true)}
                                                             style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', borderRadius: '7px', border: '1px solid #e2e8f0', background: '#f8fafc', color: '#475569', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700 }}>
@@ -2093,13 +2090,21 @@ const PaperSubmissions: React.FC = () => {
 
                                         {/* Rejected → Revert to Draft (Leader / LabDirector only) */}
                                         {selectedPaper.status === SubmissionStatus.Rejected && (
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', borderRadius: '9px', background: '#fef2f2', border: '1px solid #fecaca' }}>
-                                                <span style={{ flex: 1, fontSize: '0.82rem', fontWeight: 600, color: '#dc2626' }}>Paper rejected.</span>
-                                                {canRevertToDraft && (
-                                                <button onClick={handleRevertToDraft} disabled={!!actionLoading}
-                                                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: 'none', background: '#3b82f6', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem', boxShadow: '0 2px 8px rgba(59,130,246,0.25)' }}>
-                                                    {actionLoading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />} Revert to Draft
-                                                </button>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '10px 14px', borderRadius: '9px', background: '#fef2f2', border: '1px solid #fecaca' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                    <span style={{ flex: 1, fontSize: '0.82rem', fontWeight: 600, color: '#dc2626' }}>Paper rejected.</span>
+                                                    {canRevertToDraft && (
+                                                        <button onClick={handleRevertToDraft} disabled={!!actionLoading}
+                                                            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '9px', border: 'none', background: '#3b82f6', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem', boxShadow: '0 2px 8px rgba(59,130,246,0.25)' }}>
+                                                            {actionLoading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />} Revert to Draft
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                {selectedPaper.reason && (
+                                                    <div style={{ fontSize: '0.8rem', color: '#7f1d1d', background: '#fff', border: '1px solid #fecaca', borderRadius: '7px', padding: '8px 12px', lineHeight: '1.5' }}>
+                                                        <span style={{ fontWeight: 700, display: 'block', marginBottom: '2px', color: '#dc2626' }}>Rejection reason:</span>
+                                                        {selectedPaper.reason}
+                                                    </div>
                                                 )}
                                             </div>
                                         )}
@@ -2279,7 +2284,7 @@ const PaperFormFields: React.FC<PaperFormFieldsProps> = ({
                 {formErrors.conferenceName && <span style={{ color: '#ef4444', fontSize: '0.72rem' }}>{formErrors.conferenceName}</span>}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label style={fieldLabelStyle}>Project</label>
+                <label style={fieldLabelStyle}>Project <span style={{ color: '#ef4444' }}>*</span></label>
                 <AppSelect
                     value={data.projectId}
                     onChange={pid => onProjectChange(pid)}
@@ -2291,6 +2296,7 @@ const PaperFormFields: React.FC<PaperFormFieldsProps> = ({
                     isClearable={!!data.projectId}
                     size="md"
                 />
+                {formErrors.projectId && <span style={{ color: '#ef4444', fontSize: '0.72rem' }}>{formErrors.projectId}</span>}
             </div>
         </div>
         {!hidePaperUrl && (
