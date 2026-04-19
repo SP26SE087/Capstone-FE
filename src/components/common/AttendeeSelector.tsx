@@ -230,18 +230,6 @@ const AttendeeSelector: React.FC<AttendeeSelectorProps> = ({
                 </button>
             </div>
 
-            {/* Exclusion hint */}
-            {excludeEmails.length > 0 && (
-                <div style={{
-                    display: 'flex', alignItems: 'center', gap: '6px',
-                    padding: '6px 10px', borderRadius: '8px', marginBottom: '10px',
-                    background: '#fffbeb', border: '1px solid #fde68a',
-                    fontSize: '0.7rem', fontWeight: 600, color: '#92400e'
-                }}>
-                    <span style={{ fontSize: '0.8rem' }}>⚠</span>
-                    {excludeEmails.length} {excludeEmails.length === 1 ? 'person is' : 'people are'} hidden — already assigned as presenter
-                </div>
-            )}
 
             {/* Users Mode */}
             {activeMode === 'users' && (
@@ -276,33 +264,15 @@ const AttendeeSelector: React.FC<AttendeeSelectorProps> = ({
                             const email = u.email || '';
                             const name = u.fullName || '';
                             const selected = isSelected(email);
+                            const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(name || email)}&size=52&background=1e293b&color=ffffff&bold=true&rounded=true`;
                             return (
-                                <div
-                                    key={u.userId || email}
-                                    onClick={() => toggleUser(email, name, 'user')}
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'space-between',
-                                        padding: '8px 10px',
-                                        borderRadius: '8px',
-                                        cursor: 'pointer',
-                                        background: selected ? '#eff6ff' : '#fff',
-                                        border: selected ? '1px solid #bfdbfe' : '1px solid var(--border-light)',
-                                        transition: 'all 0.15s'
-                                    }}
+                                <div key={u.userId || email} onClick={() => toggleUser(email, name, 'user')}
+                                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 10px', borderRadius: '8px', cursor: 'pointer', background: selected ? '#eff6ff' : '#fff', border: selected ? '1px solid #bfdbfe' : '1px solid var(--border-light)', transition: 'all 0.15s' }}
                                     onMouseEnter={e => { if (!selected) e.currentTarget.style.background = 'var(--surface-hover)'; }}
-                                    onMouseLeave={e => { if (!selected) e.currentTarget.style.background = '#fff'; }}
+                                    onMouseLeave={e => { if (!selected) e.currentTarget.style.background = selected ? '#eff6ff' : '#fff'; }}
                                 >
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <div style={{
-                                            width: '26px', height: '26px', borderRadius: '50%',
-                                            background: selected ? '#3b82f6' : 'var(--primary-color)',
-                                            color: '#fff', display: 'flex', alignItems: 'center',
-                                            justifyContent: 'center', fontSize: '0.65rem', fontWeight: 700
-                                        }}>
-                                            {name[0]?.toUpperCase() || '?'}
-                                        </div>
+                                        <img src={avatarUrl} alt={name} style={{ width: '26px', height: '26px', borderRadius: '50%', flexShrink: 0 }} />
                                         <div>
                                             <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)' }}>{name}</div>
                                             <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{email}</div>
@@ -319,25 +289,32 @@ const AttendeeSelector: React.FC<AttendeeSelectorProps> = ({
             {/* Project Mode */}
             {activeMode === 'project' && (
                 <div>
-                    <select
-                        style={{
-                            width: '100%',
-                            padding: '8px 12px',
-                            borderRadius: '8px',
-                            border: '1.5px solid var(--border-color)',
-                            fontSize: '0.82rem',
-                            fontFamily: 'inherit',
-                            outline: 'none',
-                            marginBottom: '8px'
-                        }}
-                        value={selectedProjectId}
-                        onChange={e => setSelectedProjectId(e.target.value)}
-                    >
-                        <option value="">Choose a project...</option>
-                        {Object.entries(projectsMap).map(([id, name]) => (
-                            <option key={id} value={id}>{name}</option>
-                        ))}
-                    </select>
+                    {/* Styled project selector */}
+                    <div style={{ position: 'relative', marginBottom: '8px' }}>
+                        <select
+                            style={{
+                                width: '100%', padding: '9px 32px 9px 12px',
+                                borderRadius: '10px', border: '1.5px solid #e2e8f0',
+                                fontSize: '0.82rem', fontFamily: 'inherit', outline: 'none',
+                                background: '#fff', color: selectedProjectId ? 'var(--text-primary)' : '#94a3b8',
+                                fontWeight: selectedProjectId ? 600 : 400,
+                                cursor: 'pointer', appearance: 'none' as any,
+                                transition: 'border-color 0.15s',
+                            }}
+                            value={selectedProjectId}
+                            onChange={e => setSelectedProjectId(e.target.value)}
+                            onFocus={e => { e.currentTarget.style.borderColor = 'var(--accent-color)'; }}
+                            onBlur={e => { e.currentTarget.style.borderColor = '#e2e8f0'; }}
+                        >
+                            <option value="">Choose a project...</option>
+                            {Object.entries(projectsMap).map(([id, name]) => (
+                                <option key={id} value={id}>{name}</option>
+                            ))}
+                        </select>
+                        <svg style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="6 9 12 15 18 9" />
+                        </svg>
+                    </div>
                     <div style={{ maxHeight: '200px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }} className="custom-scrollbar">
                         {projectMembersLoading ? (
                             <div style={{ textAlign: 'center', padding: '1rem' }}>
@@ -352,34 +329,15 @@ const AttendeeSelector: React.FC<AttendeeSelectorProps> = ({
                             const name = m.fullName || m.userName || '';
                             const role = m.projectRoleName || '';
                             const selected = isSelected(email);
+                            const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(name || email)}&size=52&background=1e293b&color=ffffff&bold=true&rounded=true`;
                             return (
-                                <div
-                                    key={m.memberId || m.userId || email}
-                                    onClick={() => email && toggleUser(email, name, 'project')}
-                                    style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'space-between',
-                                        padding: '8px 10px',
-                                        borderRadius: '8px',
-                                        cursor: email ? 'pointer' : 'default',
-                                        background: selected ? '#ecfdf5' : '#fff',
-                                        border: selected ? '1px solid #bbf7d0' : '1px solid var(--border-light)',
-                                        opacity: email ? 1 : 0.5,
-                                        transition: 'all 0.15s'
-                                    }}
+                                <div key={m.memberId || m.userId || email} onClick={() => email && toggleUser(email, name, 'project')}
+                                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 10px', borderRadius: '8px', cursor: email ? 'pointer' : 'default', background: selected ? '#ecfdf5' : '#fff', border: selected ? '1px solid #bbf7d0' : '1px solid var(--border-light)', opacity: email ? 1 : 0.5, transition: 'all 0.15s' }}
                                     onMouseEnter={e => { if (!selected && email) e.currentTarget.style.background = 'var(--surface-hover)'; }}
-                                    onMouseLeave={e => { if (!selected && email) e.currentTarget.style.background = '#fff'; }}
+                                    onMouseLeave={e => { if (!selected && email) e.currentTarget.style.background = selected ? '#ecfdf5' : '#fff'; }}
                                 >
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                        <div style={{
-                                            width: '26px', height: '26px', borderRadius: '50%',
-                                            background: selected ? '#10b981' : 'var(--primary-color)',
-                                            color: '#fff', display: 'flex', alignItems: 'center',
-                                            justifyContent: 'center', fontSize: '0.65rem', fontWeight: 700
-                                        }}>
-                                            {name[0]?.toUpperCase() || '?'}
-                                        </div>
+                                        <img src={avatarUrl} alt={name} style={{ width: '26px', height: '26px', borderRadius: '50%', flexShrink: 0 }} />
                                         <div>
                                             <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)' }}>{name || 'Unknown'}</div>
                                             <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{email || 'No email'}{role ? ` · ${role}` : ''}</div>

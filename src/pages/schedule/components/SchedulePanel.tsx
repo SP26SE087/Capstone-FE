@@ -31,7 +31,13 @@ import {
     X,
     Mic,
     RefreshCw,
-    Sparkles
+    Sparkles,
+    ArrowRight,
+    CheckCircle2,
+    XCircle,
+    HelpCircle,
+    Timer,
+    Info
 } from 'lucide-react';
 
 interface SchedulePanelProps {
@@ -415,16 +421,36 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                             onClick={onToggleAINote}
                             title="AI Notes"
                             style={{
-                                display: 'flex', alignItems: 'center', gap: '5px',
-                                padding: '6px 12px', borderRadius: '8px', cursor: 'pointer',
-                                fontSize: '0.75rem', fontWeight: 700,
-                                border: showAINote ? '1.5px solid #6366f1' : '1px solid #e2e8f0',
-                                background: showAINote ? '#f5f3ff' : '#fff',
-                                color: showAINote ? '#6366f1' : '#64748b',
-                                transition: 'all 0.2s'
+                                display: 'flex', alignItems: 'center', gap: '6px',
+                                padding: '7px 14px', borderRadius: '10px', cursor: 'pointer',
+                                fontSize: '0.78rem', fontWeight: 800,
+                                border: 'none',
+                                background: showAINote
+                                    ? 'linear-gradient(135deg, #6366f1, #8b5cf6)'
+                                    : 'linear-gradient(135deg, #f5f3ff, #ede9fe)',
+                                color: showAINote ? '#fff' : '#6366f1',
+                                boxShadow: showAINote
+                                    ? '0 4px 14px rgba(99,102,241,0.4)'
+                                    : '0 2px 8px rgba(99,102,241,0.15)',
+                                transition: 'all 0.2s',
+                                letterSpacing: '0.01em'
+                            }}
+                            onMouseEnter={e => {
+                                if (!showAINote) {
+                                    e.currentTarget.style.background = 'linear-gradient(135deg, #6366f1, #8b5cf6)';
+                                    e.currentTarget.style.color = '#fff';
+                                    e.currentTarget.style.boxShadow = '0 4px 14px rgba(99,102,241,0.35)';
+                                }
+                            }}
+                            onMouseLeave={e => {
+                                if (!showAINote) {
+                                    e.currentTarget.style.background = 'linear-gradient(135deg, #f5f3ff, #ede9fe)';
+                                    e.currentTarget.style.color = '#6366f1';
+                                    e.currentTarget.style.boxShadow = '0 2px 8px rgba(99,102,241,0.15)';
+                                }
                             }}
                         >
-                            <Mic size={13} /> AI Notes
+                            <Sparkles size={13} /> AI Notes
                         </button>
                     )}
                     {!isCreating && meetingId && canCancel && (
@@ -633,130 +659,90 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                         />
                     </div>
 
-                    {/* Start Time + Duration — full width stacked for clarity */}
-                    <div style={{ marginBottom: '14px' }}>
-                        <label style={labelStyle}><Clock size={12} /> Start Time</label>
-                        <input
-                            type="time"
-                            disabled={!canEdit}
-                            value={startTime ? (startTime.includes('T') ? startTime.split('T')[1].slice(0, 5) : startTime.slice(0, 5)) : '09:00'}
-                            onChange={e => {
-                                const t = e.target.value;
-                                if (t) handleStartTimeChange(`${meetingDate}T${t}`);
-                            }}
-                            style={{
-                                ...inputStyle,
-                                cursor: canEdit ? 'pointer' : 'default',
-                                ...(canEdit ? {} : { background: '#f8fafc', color: 'var(--text-secondary)' })
-                            }}
-                            onFocus={e => { if (canEdit) { e.currentTarget.style.borderColor = 'var(--accent-color)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,114,12,0.08)'; } }}
-                            onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.boxShadow = 'none'; }}
-                        />
-                    </div>
-
-                    <div style={{ marginBottom: '14px' }}>
-                        <label style={{ ...labelStyle, marginBottom: '8px' }}><Clock size={12} /> Duration</label>
-                        {/* Quick-pick pills */}
-                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' as const, marginBottom: '10px' }}>
-                            {[
-                                { val: 15, label: '15 min' },
-                                { val: 30, label: '30 min' },
-                                { val: 45, label: '45 min' },
-                                { val: 60, label: '1 hour' },
-                                { val: 90, label: '1.5 hrs' },
-                                { val: 120, label: '2 hours' },
-                            ].map(({ val, label }) => (
-                                <button
-                                    key={val}
-                                    type="button"
+                    {/* Time + Duration — split by edit vs view */}
+                    {canEdit ? (
+                        <>
+                            {/* Edit/Create: separate Start Time + Duration (original layout) */}
+                            <div style={{ marginBottom: '14px' }}>
+                                <label style={labelStyle}><Clock size={12} /> Start Time</label>
+                                <input
+                                    type="time"
                                     disabled={!canEdit}
-                                    onClick={() => setDurationMinutes(val)}
-                                    style={{
-                                        padding: '6px 12px', borderRadius: '8px', border: '1.5px solid',
-                                        borderColor: durationMinutes === val ? 'var(--accent-color)' : '#e2e8f0',
-                                        background: durationMinutes === val ? 'rgba(232,114,12,0.10)' : '#fff',
-                                        color: durationMinutes === val ? 'var(--accent-color)' : '#64748b',
-                                        fontSize: '0.75rem', fontWeight: 700,
-                                        cursor: canEdit ? 'pointer' : 'default',
-                                        transition: 'all 0.15s',
-                                        boxShadow: durationMinutes === val ? '0 2px 6px rgba(232,114,12,0.15)' : 'none'
-                                    }}
-                                >
-                                    {label}
-                                </button>
-                            ))}
-                        </div>
-                        {/* Stepper for custom duration */}
-                        <div style={{
-                            display: 'flex', alignItems: 'center', gap: '0',
-                            border: '1.5px solid var(--border-color)', borderRadius: '10px',
-                            overflow: 'hidden', background: '#fff'
-                        }}>
-                            <button
-                                type="button"
-                                disabled={!canEdit || durationMinutes <= 5}
-                                onClick={() => setDurationMinutes(d => Math.max(5, d - 5))}
-                                style={{
-                                    width: '44px', height: '52px', border: 'none', background: 'transparent',
-                                    fontSize: '1.1rem', fontWeight: 700, color: '#64748b',
-                                    cursor: (!canEdit || durationMinutes <= 5) ? 'not-allowed' : 'pointer',
-                                    opacity: (!canEdit || durationMinutes <= 5) ? 0.4 : 1,
-                                    transition: 'all 0.15s', flexShrink: 0
-                                }}
-                                onMouseEnter={e => { if (canEdit && durationMinutes > 5) e.currentTarget.style.background = '#f1f5f9'; }}
-                                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-                            >−</button>
-                            <div style={{
-                                flex: 1, textAlign: 'center', borderLeft: '1px solid #e2e8f0', borderRight: '1px solid #e2e8f0',
-                                padding: '0 8px', height: '52px', display: 'flex', flexDirection: 'column',
-                                alignItems: 'center', justifyContent: 'center'
-                            }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                    <input
-                                        type="number"
-                                        min={5}
-                                        max={480}
-                                        disabled={!canEdit}
-                                        value={durationMinutes}
-                                        className="no-spinner"
-                                        onChange={e => {
-                                            const v = parseInt(e.target.value, 10);
-                                            if (!isNaN(v)) setDurationMinutes(Math.max(5, Math.min(480, v)));
-                                        }}
-                                        style={{
-                                            width: '52px', border: 'none', background: 'transparent',
-                                            textAlign: 'center', fontSize: '0.9rem', fontWeight: 800,
-                                            color: 'var(--text-primary)', outline: 'none',
-                                            cursor: canEdit ? 'text' : 'not-allowed',
-                                        }}
-                                    />
-                                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>min</span>
-                                </div>
-                                {startTime && (
-                                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', marginTop: '2px' }}>
-                                        <span style={{ fontSize: '0.63rem', color: '#10b981', fontWeight: 600, letterSpacing: '0.02em' }}>ends at</span>
-                                        <span style={{ fontSize: '0.78rem', color: '#047857', fontWeight: 800, letterSpacing: '0.05em', fontVariantNumeric: 'tabular-nums' }}>
-                                            {(() => { const e = new Date(new Date(startTime).getTime() + durationMinutes * 60000); return `${String(e.getHours()).padStart(2, '0')}:${String(e.getMinutes()).padStart(2, '0')}`; })()}
-                                        </span>
-                                    </div>
-                                )}
+                                    value={startTime ? (startTime.includes('T') ? startTime.split('T')[1].slice(0, 5) : startTime.slice(0, 5)) : '09:00'}
+                                    onChange={e => { const t = e.target.value; if (t) handleStartTimeChange(`${meetingDate}T${t}`); }}
+                                    style={{ ...inputStyle, cursor: 'pointer' }}
+                                    onFocus={e => { e.currentTarget.style.borderColor = 'var(--accent-color)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,114,12,0.08)'; }}
+                                    onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.boxShadow = 'none'; }}
+                                />
                             </div>
-                            <button
-                                type="button"
-                                disabled={!canEdit || durationMinutes >= 480}
-                                onClick={() => setDurationMinutes(d => Math.min(480, d + 5))}
-                                style={{
-                                    width: '44px', height: '52px', border: 'none', background: 'transparent',
-                                    fontSize: '1.1rem', fontWeight: 700, color: '#64748b',
-                                    cursor: (!canEdit || durationMinutes >= 480) ? 'not-allowed' : 'pointer',
-                                    opacity: (!canEdit || durationMinutes >= 480) ? 0.4 : 1,
-                                    transition: 'all 0.15s', flexShrink: 0
-                                }}
-                                onMouseEnter={e => { if (canEdit && durationMinutes < 480) e.currentTarget.style.background = '#f1f5f9'; }}
-                                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-                            >+</button>
+                            <div style={{ marginBottom: '14px' }}>
+                                <label style={{ ...labelStyle, marginBottom: '8px' }}><Clock size={12} /> Duration</label>
+                                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' as const, marginBottom: '10px' }}>
+                                    {[{ val: 15, label: '15 min' }, { val: 30, label: '30 min' }, { val: 45, label: '45 min' }, { val: 60, label: '1 hour' }, { val: 90, label: '1.5 hrs' }, { val: 120, label: '2 hours' }].map(({ val, label }) => (
+                                        <button key={val} type="button" onClick={() => setDurationMinutes(val)} style={{
+                                            padding: '6px 12px', borderRadius: '8px', border: '1.5px solid',
+                                            borderColor: durationMinutes === val ? 'var(--accent-color)' : '#e2e8f0',
+                                            background: durationMinutes === val ? 'rgba(232,114,12,0.10)' : '#fff',
+                                            color: durationMinutes === val ? 'var(--accent-color)' : '#64748b',
+                                            fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s',
+                                            boxShadow: durationMinutes === val ? '0 2px 6px rgba(232,114,12,0.15)' : 'none'
+                                        }}>{label}</button>
+                                    ))}
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', border: '1.5px solid var(--border-color)', borderRadius: '10px', overflow: 'hidden', background: '#fff' }}>
+                                    <button type="button" disabled={durationMinutes <= 15} onClick={() => setDurationMinutes(d => Math.max(15, d - 15))}
+                                        style={{ width: '44px', height: '52px', border: 'none', background: 'transparent', fontSize: '1.1rem', fontWeight: 700, color: '#64748b', cursor: durationMinutes <= 15 ? 'not-allowed' : 'pointer', opacity: durationMinutes <= 15 ? 0.4 : 1, transition: 'all 0.15s', flexShrink: 0 }}
+                                        onMouseEnter={e => { if (durationMinutes > 15) e.currentTarget.style.background = '#f1f5f9'; }}
+                                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}>−</button>
+                                    <div style={{ flex: 1, textAlign: 'center', borderLeft: '1px solid #e2e8f0', borderRight: '1px solid #e2e8f0', padding: '0 8px', height: '52px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                            <input type="number" min={15} max={480} step={15} disabled={!canEdit} value={durationMinutes} className="no-spinner"
+                                                onChange={e => { const v = parseInt(e.target.value, 10); if (!isNaN(v)) setDurationMinutes(Math.max(15, Math.min(480, v))); }}
+                                                style={{ width: '52px', border: 'none', background: 'transparent', textAlign: 'center', fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', outline: 'none' }} />
+                                            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>min</span>
+                                        </div>
+                                        {startTime && (
+                                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', marginTop: '2px' }}>
+                                                <span style={{ fontSize: '0.63rem', color: '#10b981', fontWeight: 600 }}>ends at</span>
+                                                <span style={{ fontSize: '0.78rem', color: '#047857', fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
+                                                    {(() => { const e = new Date(new Date(startTime).getTime() + durationMinutes * 60000); const h = e.getHours(); const m = e.getMinutes(); const ampm = h >= 12 ? 'PM' : 'AM'; const h12 = h % 12 || 12; return `${String(h12).padStart(2,'0')}:${String(m).padStart(2,'0')} ${ampm}`; })()}
+                                                </span>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <button type="button" disabled={durationMinutes >= 480} onClick={() => setDurationMinutes(d => Math.min(480, d + 15))}
+                                        style={{ width: '44px', height: '52px', border: 'none', background: 'transparent', fontSize: '1.1rem', fontWeight: 700, color: '#64748b', cursor: durationMinutes >= 480 ? 'not-allowed' : 'pointer', opacity: durationMinutes >= 480 ? 0.4 : 1, transition: 'all 0.15s', flexShrink: 0 }}
+                                        onMouseEnter={e => { if (durationMinutes < 480) e.currentTarget.style.background = '#f1f5f9'; }}
+                                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}>+</button>
+                                </div>
+                            </div>
+                        </>
+                    ) : (
+                        /* View: time range card — neutral, AM/PM */
+                        <div style={{ marginBottom: '14px' }}>
+                            <label style={{ ...labelStyle, marginBottom: '8px' }}><Clock size={12} /> Schedule</label>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 14px', borderRadius: '12px', background: '#f8fafc', border: '1.5px solid #e2e8f0' }}>
+                                <div style={{ flex: 1 }}>
+                                    <div style={{ fontSize: '0.58rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '3px' }}>Start</div>
+                                    <div style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
+                                        {startTime ? (() => { const d = new Date(startTime); const h = d.getHours(); const m = d.getMinutes(); const ap = h >= 12 ? 'PM' : 'AM'; const h12 = h % 12 || 12; return `${String(h12).padStart(2,'0')}:${String(m).padStart(2,'0')} ${ap}`; })() : '--:--'}
+                                    </div>
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', flexShrink: 0 }}>
+                                    <ArrowRight size={15} color="#94a3b8" />
+                                    <span style={{ fontSize: '0.58rem', color: '#94a3b8', fontWeight: 700 }}>
+                                        {(() => { const h = Math.floor(durationMinutes / 60); const m = durationMinutes % 60; if (h === 0) return `${m}m`; if (m === 0) return `${h}h`; return `${h}h ${m}m`; })()}
+                                    </span>
+                                </div>
+                                <div style={{ flex: 1, textAlign: 'right' }}>
+                                    <div style={{ fontSize: '0.58rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '3px' }}>End</div>
+                                    <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#10b981', fontVariantNumeric: 'tabular-nums' }}>
+                                        {startTime ? (() => { const e = new Date(new Date(startTime).getTime() + durationMinutes * 60000); const h = e.getHours(); const m = e.getMinutes(); const ap = h >= 12 ? 'PM' : 'AM'; const h12 = h % 12 || 12; return `${String(h12).padStart(2,'0')}:${String(m).padStart(2,'0')} ${ap}`; })() : '--:--'}
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                    </div>
+                    )}
                     {dateError && (
                         <div style={{
                             display: 'flex', alignItems: 'center', gap: '6px',
@@ -854,82 +840,49 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                 {/* Attendee List (view mode) */}
                 {!isCreating && meeting?.attendees && meeting.attendees.length > 0 && (
                     <div style={sectionStyle}>
-                        <button
-                            onClick={() => setShowAttendees(!showAttendees)}
-                            style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                width: '100%',
-                                background: 'none',
-                                border: 'none',
-                                cursor: 'pointer',
-                                padding: 0,
-                                marginBottom: showAttendees ? '12px' : 0
-                            }}
-                        >
-                            <span style={labelStyle}><Users size={12} /> Invitation Status ({meeting.attendees.length})</span>
+                        <button onClick={() => setShowAttendees(!showAttendees)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginBottom: showAttendees ? '12px' : 0 }}>
+                            <span style={labelStyle}>
+                                <Users size={12} /> Attendees
+                                <span style={{ marginLeft: '6px', fontSize: '0.65rem', fontWeight: 700, background: '#e0e7ff', color: '#6366f1', padding: '1px 7px', borderRadius: '10px' }}>
+                                    {meeting.attendees.length}
+                                </span>
+                            </span>
                             {showAttendees ? <ChevronUp size={14} color="var(--text-muted)" /> : <ChevronDown size={14} color="var(--text-muted)" />}
                         </button>
 
                         {showAttendees && (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                                 {meeting.attendees.map((att, idx) => {
-                                    const rsColors: Record<number, string> = {
-                                        [AttendeeResponseStatus.Accepted]: '#10b981',
-                                        [AttendeeResponseStatus.Declined]: '#ef4444',
-                                        [AttendeeResponseStatus.Tentative]: '#f59e0b',
-                                        [AttendeeResponseStatus.NeedsAction]: '#94a3b8'
+                                    const rsConfig: Record<number, { color: string; bg: string; icon: React.ReactNode; label: string }> = {
+                                        [AttendeeResponseStatus.Accepted]:    { color: '#059669', bg: '#d1fae5', icon: <CheckCircle2 size={12} />, label: 'Accepted' },
+                                        [AttendeeResponseStatus.Declined]:    { color: '#dc2626', bg: '#fee2e2', icon: <XCircle size={12} />,      label: 'Declined' },
+                                        [AttendeeResponseStatus.Tentative]:   { color: '#d97706', bg: '#fef3c7', icon: <HelpCircle size={12} />,   label: 'Maybe' },
+                                        [AttendeeResponseStatus.NeedsAction]: { color: '#94a3b8', bg: '#f1f5f9', icon: <Timer size={12} />,        label: 'Pending' },
                                     };
-                                    const rsLabels: Record<number, string> = {
-                                        [AttendeeResponseStatus.Accepted]: 'Accepted',
-                                        [AttendeeResponseStatus.Declined]: 'Declined',
-                                        [AttendeeResponseStatus.Tentative]: 'Tentative',
-                                        [AttendeeResponseStatus.NeedsAction]: 'Pending'
-                                    };
+                                    const rs = rsConfig[att.responseStatus] ?? rsConfig[AttendeeResponseStatus.NeedsAction];
+                                    const name = att.displayName || att.email || 'Unknown';
+                                    const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&size=64&background=6366f1&color=ffffff&bold=true&rounded=true`;
                                     return (
-                                        <div key={idx} style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'space-between',
-                                            padding: '8px 12px',
-                                            borderRadius: '8px',
-                                            background: '#fff',
-                                            border: '1px solid var(--border-light)'
-                                        }}>
+                                        <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', borderRadius: '10px', background: '#fafafa', border: '1px solid var(--border-light)', transition: 'background 0.15s' }}
+                                            onMouseEnter={e => { e.currentTarget.style.background = '#f8fafc'; }}
+                                            onMouseLeave={e => { e.currentTarget.style.background = '#fafafa'; }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                                <div style={{
-                                                    width: '28px',
-                                                    height: '28px',
-                                                    borderRadius: '50%',
-                                                    background: 'var(--primary-color)',
-                                                    color: '#fff',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    fontSize: '0.7rem',
-                                                    fontWeight: 700
-                                                }}>
-                                                    {(att.displayName || att.email || '?')[0].toUpperCase()}
+                                                <img
+                                                    src={avatarUrl}
+                                                    alt={name}
+                                                    style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+                                                    onError={e => { e.currentTarget.style.display = 'none'; (e.currentTarget.nextSibling as HTMLElement)?.style.setProperty('display', 'flex'); }}
+                                                />
+                                                <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#1e293b', color: '#fff', display: 'none', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 700, flexShrink: 0 }}>
+                                                    {name[0].toUpperCase()}
                                                 </div>
                                                 <div>
-                                                    <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                                                        {att.displayName || att.email || 'Unknown'}
-                                                    </div>
-                                                    {att.displayName && att.email && (
-                                                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{att.email}</div>
-                                                    )}
+                                                    <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.2 }}>{name}</div>
+                                                    {att.displayName && att.email && <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '1px' }}>{att.email}</div>}
                                                 </div>
                                             </div>
-                                            <span style={{
-                                                fontSize: '0.65rem',
-                                                fontWeight: 700,
-                                                color: rsColors[att.responseStatus] || '#94a3b8',
-                                                background: `${rsColors[att.responseStatus] || '#94a3b8'}12`,
-                                                padding: '2px 8px',
-                                                borderRadius: '10px'
-                                            }}>
-                                                {rsLabels[att.responseStatus] || 'Unknown'}
+                                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.65rem', fontWeight: 700, color: rs.color, background: rs.bg, padding: '3px 8px', borderRadius: '10px', flexShrink: 0 }}>
+                                                {rs.icon} {rs.label}
                                             </span>
                                         </div>
                                     );
@@ -982,20 +935,61 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
 
                 {/* Meta Info (view mode) */}
                 {!isCreating && meeting && (
-                    <div style={sectionStyle}>
-                        <div style={labelStyle}><FileText size={12} /> Meeting Info</div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                            <div style={{ padding: '8px 12px', background: '#fff', borderRadius: '8px', border: '1px solid var(--border-light)', gridColumn: '1 / -1' }}>
-                                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '2px' }}>Created At</div>
-                                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                                    {formatDisplayDate(meeting.createdAt)}
+                    <div style={{ ...sectionStyle, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                        <div style={{ ...labelStyle, marginBottom: '10px' }}><Info size={12} /> Meeting Info</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            {/* Created at */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 12px', background: '#fff', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                                <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: '#ede9fe', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                    <Calendar size={14} color="#6366f1" />
+                                </div>
+                                <div>
+                                    <div style={{ fontSize: '0.62rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Created</div>
+                                    <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>{formatDisplayDate(meeting.createdAt)}</div>
                                 </div>
                             </div>
+
+                            {/* Status */}
+                            {meeting.status !== undefined && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 12px', background: '#fff', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                                    <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                        <CheckCircle2 size={14} color="#10b981" />
+                                    </div>
+                                    <div>
+                                        <div style={{ fontSize: '0.62rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Status</div>
+                                        <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                            {typeof meeting.status === 'number'
+                                                ? ['Scheduled', 'In Progress', 'Completed', 'Cancelled'][meeting.status] ?? `Status ${meeting.status}`
+                                                : String(meeting.status)}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Project */}
                             {meeting.projectId && projectsMap[meeting.projectId] && (
-                                <div style={{ padding: '8px 12px', background: '#fff', borderRadius: '8px', border: '1px solid var(--border-light)', gridColumn: '1 / -1' }}>
-                                    <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '2px' }}>Project</div>
-                                    <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--accent-color)' }}>
-                                        {projectsMap[meeting.projectId]}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 12px', background: '#fff', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                                    <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                        <MapPin size={14} color="var(--accent-color)" />
+                                    </div>
+                                    <div>
+                                        <div style={{ fontSize: '0.62rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Project</div>
+                                        <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--accent-color)' }}>{projectsMap[meeting.projectId]}</div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Attendee count */}
+                            {meeting.attendees && meeting.attendees.length > 0 && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 12px', background: '#fff', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                                    <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: '#f0f9ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                        <Users size={14} color="#0ea5e9" />
+                                    </div>
+                                    <div>
+                                        <div style={{ fontSize: '0.62rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Attendees</div>
+                                        <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                            {meeting.attendees.length} people · {meeting.attendees.filter(a => a.responseStatus === AttendeeResponseStatus.Accepted).length} accepted
+                                        </div>
                                     </div>
                                 </div>
                             )}

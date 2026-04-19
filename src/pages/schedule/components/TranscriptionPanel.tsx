@@ -76,6 +76,117 @@ interface SuggestedTask extends TaskSuggestion {
     _saved: boolean;
 }
 
+// ── Custom Select ────────────────────────────────────────────────────────────
+interface SelectOption { value: string; label: string; }
+interface CustomSelectProps {
+    value: string;
+    onChange: (val: string) => void;
+    options: SelectOption[];
+    disabled?: boolean;
+    placeholder?: string;
+    color?: string;
+}
+
+const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, disabled, placeholder, color = '#6366f1' }) => {
+    const [open, setOpen] = useState(false);
+    const triggerRef = useRef<HTMLButtonElement>(null);
+    const dropdownRef = useRef<HTMLDivElement>(null);
+    const [rect, setRect] = useState<DOMRect | null>(null);
+
+    const selected = options.find(o => o.value === value);
+
+    const handleToggle = () => {
+        if (disabled) return;
+        if (!open && triggerRef.current) setRect(triggerRef.current.getBoundingClientRect());
+        setOpen(v => !v);
+    };
+
+    useEffect(() => {
+        if (!open) return;
+        const close = (e: MouseEvent) => {
+            if (!triggerRef.current?.contains(e.target as Node) && !dropdownRef.current?.contains(e.target as Node))
+                setOpen(false);
+        };
+        document.addEventListener('mousedown', close);
+        return () => document.removeEventListener('mousedown', close);
+    }, [open]);
+
+    useEffect(() => {
+        if (!open) return;
+        const update = () => { if (triggerRef.current) setRect(triggerRef.current.getBoundingClientRect()); };
+        window.addEventListener('scroll', update, true);
+        window.addEventListener('resize', update);
+        return () => { window.removeEventListener('scroll', update, true); window.removeEventListener('resize', update); };
+    }, [open]);
+
+    // Derive tinted bg from color hex — works for the 3 colors we use
+    const tintBg = color === '#10b981' ? '#f0fdf4' : color === '#f59e0b' ? '#fffbeb' : '#faf5ff';
+    const hoverBg = color === '#10b981' ? '#dcfce7' : color === '#f59e0b' ? '#fef3c7' : '#f5f3ff';
+    const borderColor = color === '#10b981' ? '#6ee7b7' : color === '#f59e0b' ? '#fde68a' : '#e0e7ff';
+    const shadowRgb = color === '#10b981' ? '16,185,129' : color === '#f59e0b' ? '245,158,11' : '99,102,241';
+
+    return (
+        <>
+            <button
+                ref={triggerRef}
+                type="button"
+                onClick={handleToggle}
+                disabled={disabled}
+                style={{
+                    width: '100%', height: '32px', padding: '0 10px',
+                    borderRadius: '9px',
+                    border: `1.5px solid ${open ? color : '#e2e8f0'}`,
+                    background: disabled ? '#f8fafc' : open ? tintBg : '#fff',
+                    color: disabled ? '#94a3b8' : '#334155',
+                    fontSize: '0.82rem', fontFamily: 'inherit',
+                    cursor: disabled ? 'not-allowed' : 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px',
+                    boxSizing: 'border-box' as const, transition: 'border-color 0.15s, background 0.15s',
+                    outline: 'none',
+                }}
+            >
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, textAlign: 'left', fontSize: '0.76rem' }}>
+                    {selected?.label ?? placeholder ?? '—'}
+                </span>
+                <ChevronDown size={12} color={open ? color : '#94a3b8'} style={{ flexShrink: 0, transition: 'transform 0.2s', transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }} />
+            </button>
+            {open && rect && ReactDOM.createPortal(
+                <div ref={dropdownRef} style={{
+                    position: 'fixed', top: rect.bottom + 4, left: rect.left, width: rect.width,
+                    background: '#fff', borderRadius: '12px',
+                    border: `1.5px solid ${borderColor}`,
+                    boxShadow: `0 8px 32px rgba(${shadowRgb},0.18)`,
+                    zIndex: 99999, overflow: 'hidden',
+                    animation: 'cs-drop 0.15s ease-out',
+                }}>
+                    {options.map(opt => {
+                        const isSelected = opt.value === value;
+                        return (
+                            <div key={opt.value}
+                                onMouseDown={e => { e.preventDefault(); onChange(opt.value); setOpen(false); }}
+                                style={{
+                                    padding: '8px 12px', fontSize: '0.8rem', cursor: 'pointer',
+                                    background: isSelected ? tintBg : 'transparent',
+                                    color: isSelected ? color : '#334155',
+                                    fontWeight: isSelected ? 700 : 400,
+                                    display: 'flex', alignItems: 'center', gap: '6px',
+                                    transition: 'background 0.1s',
+                                }}
+                                onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = hoverBg; }}
+                                onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent'; }}
+                            >
+                                {isSelected ? <Check size={12} color={color} style={{ flexShrink: 0 }} /> : <span style={{ width: 12, flexShrink: 0 }} />}
+                                {opt.label}
+                            </div>
+                        );
+                    })}
+                </div>,
+                document.body
+            )}
+        </>
+    );
+};
+
 const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetingId, meetingName, onProcessingChange, hideTasks = false }) => {
     const { addToast } = useToastStore();
     const { user: authUser } = useAuth();
@@ -135,7 +246,7 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
             : [];
     });
     const [allUsers, setAllUsers] = useState<{ id: string; name: string; email: string }[]>([]);
-    const [projectMembers, setProjectMembers] = useState<{ id: string; name: string; email: string }[]>([]);
+    const [projectMembers, setProjectMembers] = useState<{ id: string; name: string; email: string; projectRole?: number }[]>([]);
     const [currentUserRole, setCurrentUserRole] = useState<number | null>(null);
     const [activeTab, setActiveTab] = useState<'transcript' | 'summary' | 'tasks'>(() => {
         const s = useTranscriptionStore.getState();
@@ -344,11 +455,14 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
         }).catch(() => setCurrentUserRole(null));
 
         membershipService.getProjectMembers(selectedProjectId).then((members: any[]) => {
-            setProjectMembers(members.map((m: any) => ({
-                id: m.memberId || m.id,
-                name: m.fullName || m.userName || m.email || '',
-                email: m.email || ''
-            })));
+            setProjectMembers(members
+                .filter((m: any) => (m.projectRole ?? m.roleId ?? m.role) !== 1)
+                .map((m: any) => ({
+                    id: m.memberId || m.id,
+                    name: m.fullName || m.userName || m.email || '',
+                    email: m.email || '',
+                    projectRole: m.projectRole ?? m.roleId ?? m.role,
+                })));
         }).catch(() => setProjectMembers(allUsers));
     }, [selectedProjectId, allUsers]);
 
@@ -540,20 +654,67 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
     return (
         <div style={{ display: 'flex', gap: '16px', height: '100%' }}>
 
-            {/* ════════ LEFT: AI Notes Controls ════════ */}
+            {/* ════════ RIGHT: AI Notes Controls (order: 2) ════════ */}
             <div style={{
-                flex: leftPanelOpen ? '0 0 280px' : '0 0 52px',
-                width: leftPanelOpen ? '280px' : '52px',
-                minWidth: leftPanelOpen ? '280px' : '52px',
+                flex: leftPanelOpen ? '0 0 280px' : '0 0 44px',
+                width: leftPanelOpen ? '280px' : '44px',
+                minWidth: leftPanelOpen ? '280px' : '44px',
+                order: 2,
+                animation: 'tp-panel-right 0.4s cubic-bezier(0,0,0.2,1) 0.18s both',
                 display: 'flex', flexDirection: 'column',
                 background: '#fff', borderRadius: '16px',
-                border: '1.5px solid #e0e7ff', padding: '12px',
+                border: '1.5px solid #e0e7ff',
+                padding: leftPanelOpen ? '12px' : '8px 0',
                 boxShadow: '0 4px 20px rgba(99,102,241,0.08)',
                 overflow: 'hidden',
-                transition: 'flex 0.25s ease, width 0.25s ease, min-width 0.25s ease'
+                transition: 'flex 0.25s ease, width 0.25s ease, min-width 0.25s ease, padding 0.25s ease'
             }}>
-                {/* Header */}
-                <div style={{
+                {/* ── Collapsed strip ── */}
+                {!leftPanelOpen && (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', flex: 1 }}>
+                        {/* Mic icon */}
+                        <div style={{
+                            width: '28px', height: '28px', borderRadius: '8px',
+                            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                            color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            boxShadow: '0 4px 12px rgba(99,102,241,0.25)', flexShrink: 0
+                        }}>
+                            <Mic size={13} />
+                        </div>
+
+                        {/* Expand button */}
+                        <button
+                            onClick={() => setLeftPanelOpen(true)}
+                            title="Expand panel"
+                            style={{
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                width: '28px', height: '28px', borderRadius: '8px',
+                                border: '1.5px solid #e0e7ff',
+                                background: 'linear-gradient(135deg, #f5f3ff, #ede9fe)',
+                                color: '#6366f1', cursor: 'pointer',
+                                transition: 'all 0.2s', flexShrink: 0
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.background = 'linear-gradient(135deg,#6366f1,#8b5cf6)'; e.currentTarget.style.color = '#fff'; e.currentTarget.style.borderColor = '#6366f1'; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = 'linear-gradient(135deg,#f5f3ff,#ede9fe)'; e.currentTarget.style.color = '#6366f1'; e.currentTarget.style.borderColor = '#e0e7ff'; }}
+                        >
+                            <ChevronLeft size={14} />
+                        </button>
+
+                        {/* Progress dots — vertical */}
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', marginTop: '4px' }}>
+                            {([hasTranscript ? null : 'active', hasTranscript && !hasSummary ? 'active' : hasTranscript ? 'done' : null, hasSummary ? 'done' : hasTranscript ? 'active' : null, suggestedTasks.length > 0 ? 'done' : hasSummary ? 'active' : null] as const).map((state, i) => (
+                                <div key={i} style={{
+                                    width: '5px', height: state === 'active' ? '14px' : '5px', borderRadius: '3px',
+                                    background: state === 'active' ? '#6366f1' : state === 'done' ? '#a5b4fc' : '#e2e8f0',
+                                    transition: 'all 0.3s ease'
+                                }} />
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* ── Expanded header ── */}
+                {leftPanelOpen && <div style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                     marginBottom: '10px', paddingBottom: '8px', borderBottom: '1px solid #f1f5f9'
                 }}>
@@ -568,19 +729,18 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                         </div>
                         <div style={{ minWidth: 0 }}>
                             <h3 style={{ margin: 0, fontSize: '0.82rem', fontWeight: 800, color: '#1e293b' }}>AI Notes</h3>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '3px', marginTop: '2px', flexWrap: 'wrap' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '5px' }}>
                                 {(['Upload', 'Transcript', 'Summary', 'Tasks'] as const).map((step, i) => {
                                     const reached = i === 0 ? true : i === 1 ? hasTranscript : i === 2 ? hasSummary : suggestedTasks.length > 0;
                                     const active = i === 0 ? !hasTranscript : i === 1 ? hasTranscript && !hasSummary : i === 2 ? hasSummary && suggestedTasks.length === 0 : suggestedTasks.length > 0;
                                     return (
                                         <React.Fragment key={step}>
-                                            <span style={{
-                                                fontSize: '0.55rem', fontWeight: 700, padding: '1px 5px', borderRadius: '20px',
-                                                background: active ? '#6366f1' : reached ? '#e0e7ff' : '#f1f5f9',
-                                                color: active ? '#fff' : reached ? '#6366f1' : '#94a3b8',
-                                                transition: 'all 0.3s'
-                                            }}>{step}</span>
-                                            {i < 3 && <span style={{ fontSize: '0.5rem', color: '#cbd5e1' }}>{'\u203A'}</span>}
+                                            <div style={{
+                                                width: active ? '20px' : '8px', height: '6px', borderRadius: '3px',
+                                                background: active ? '#6366f1' : reached ? '#a5b4fc' : '#e2e8f0',
+                                                transition: 'all 0.3s ease'
+                                            }} />
+                                            {i < 3 && <div style={{ width: '6px', height: '1px', background: reached && !active ? '#a5b4fc' : '#e2e8f0', flexShrink: 0 }} />}
                                         </React.Fragment>
                                     );
                                 })}
@@ -589,8 +749,8 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
                         <button
-                            onClick={() => setLeftPanelOpen(o => !o)}
-                            title={leftPanelOpen ? 'Collapse panel' : 'Expand panel'}
+                            onClick={() => setLeftPanelOpen(false)}
+                            title="Collapse panel"
                             style={{
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                                 width: '28px', height: '28px', borderRadius: '6px',
@@ -601,7 +761,7 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                             onMouseEnter={e => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.color = '#475569'; }}
                             onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = '#94a3b8'; }}
                         >
-                            {leftPanelOpen ? <ChevronLeft size={13} /> : <ChevronRight size={13} />}
+                            <ChevronRight size={13} />
                         </button>
                         <button
                             onClick={handleClose}
@@ -619,7 +779,7 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                             <X size={13} />
                         </button>
                     </div>
-                </div>
+                </div>}
 
                 {/* Transcript list button — below header */}
                 {leftPanelOpen && meetingId && (
@@ -678,10 +838,15 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                             onClick={() => fileRef.current?.click()}
                             style={{
                                 border: `2px dashed ${file ? '#6366f1' : '#e2e8f0'}`,
-                                borderRadius: '10px', padding: '10px 12px',
+                                borderRadius: '12px',
+                                aspectRatio: '1 / 1',
+                                display: 'flex', flexDirection: 'column',
+                                alignItems: 'center', justifyContent: 'center',
                                 textAlign: 'center', cursor: 'pointer',
                                 background: file ? '#f5f3ff' : '#fafafa',
-                                marginBottom: '8px', transition: 'all 0.2s'
+                                marginBottom: '8px', transition: 'all 0.2s',
+                                padding: '12px', boxSizing: 'border-box' as const,
+                                gap: '6px'
                             }}
                             onMouseEnter={e => { e.currentTarget.style.borderColor = '#6366f1'; e.currentTarget.style.background = '#f5f3ff'; }}
                             onMouseLeave={e => { e.currentTarget.style.borderColor = file ? '#6366f1' : '#e2e8f0'; e.currentTarget.style.background = file ? '#f5f3ff' : '#fafafa'; }}
@@ -693,14 +858,24 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                                 style={{ display: 'none' }}
                                 onChange={e => setFile(e.target.files?.[0] || null)}
                             />
-                            <FileAudio size={20} color={file ? '#6366f1' : '#94a3b8'} style={{ marginBottom: '4px' }} />
-                            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: file ? '#6366f1' : '#64748b' }}>
+                            <div style={{
+                                width: '44px', height: '44px', borderRadius: '12px',
+                                background: file ? 'linear-gradient(135deg,#6366f1,#8b5cf6)' : '#f1f5f9',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                boxShadow: file ? '0 4px 12px rgba(99,102,241,0.25)' : 'none',
+                                transition: 'all 0.2s', flexShrink: 0
+                            }}>
+                                <FileAudio size={20} color={file ? '#fff' : '#94a3b8'} />
+                            </div>
+                            <div style={{ fontSize: '0.73rem', fontWeight: 700, color: file ? '#6366f1' : '#64748b', lineHeight: '1.3', wordBreak: 'break-all' }}>
                                 {file ? file.name : 'Click to select file'}
                             </div>
-                            {file && (
-                                <div style={{ fontSize: '0.65rem', color: '#94a3b8', marginTop: '2px' }}>
+                            {file ? (
+                                <div style={{ fontSize: '0.62rem', color: '#94a3b8', background: '#f1f5f9', borderRadius: '6px', padding: '2px 8px' }}>
                                     {(file.size / 1024 / 1024).toFixed(1)} MB
                                 </div>
+                            ) : (
+                                <div style={{ fontSize: '0.62rem', color: '#cbd5e1' }}>MP3, MP4, WAV, M4A...</div>
                             )}
                         </div>
 
@@ -708,18 +883,15 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '8px' }}>
                             <div>
                                 <label style={{ ...labelStyle, fontSize: '0.6rem', marginBottom: '3px' }}>Model</label>
-                                <select value={selectedModel} onChange={e => setSelectedModel(e.target.value)} style={{ ...selectStyle, fontSize: '0.76rem' }}>
-                                    {models.length === 0
-                                        ? <option value="">Default</option>
-                                        : models.map(m => <option key={m.id || ''} value={m.id || ''}>{m.name || m.id}</option>)
-                                    }
-                                </select>
+                                <CustomSelect
+                                    value={selectedModel}
+                                    onChange={setSelectedModel}
+                                    options={models.length === 0 ? [{ value: '', label: 'Default' }] : models.map(m => ({ value: m.id || '', label: m.name || m.id || '' }))}
+                                />
                             </div>
                             <div>
                                 <label style={{ ...labelStyle, fontSize: '0.6rem', marginBottom: '3px' }}>Language</label>
-                                <select value={language} onChange={e => setLanguage(e.target.value)} style={{ ...selectStyle, fontSize: '0.76rem' }}>
-                                    {LANGUAGES.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
-                                </select>
+                                <CustomSelect value={language} onChange={setLanguage} options={LANGUAGES} />
                             </div>
                         </div>
 
@@ -776,27 +948,24 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                                 <div style={{ display: 'flex', gap: '6px' }}>
                                     <div style={{ flex: 1 }}>
                                         <label style={{ ...labelStyle, fontSize: '0.6rem', marginBottom: '3px' }}>Language</label>
-                                        <select value={summaryLanguage} onChange={e => setSummaryLanguage(e.target.value)} style={{ ...selectStyle, fontSize: '0.76rem' }}>
-                                            <option value="vi">Tiếng Việt</option>
-                                            <option value="en">English</option>
-                                        </select>
+                                        <CustomSelect value={summaryLanguage} onChange={setSummaryLanguage} options={LANGUAGES} color="#10b981" />
                                     </div>
                                     <div style={{ flex: 1 }}>
                                         <label style={{ ...labelStyle, fontSize: '0.6rem', marginBottom: '3px' }}>Length</label>
-                                        <select value={summaryLength} onChange={e => setSummaryLength(e.target.value)} style={{ ...selectStyle, fontSize: '0.76rem' }}>
-                                            <option value="short">Short</option>
-                                            <option value="medium">Medium</option>
-                                            <option value="long">Long</option>
-                                        </select>
+                                        <CustomSelect value={summaryLength} onChange={setSummaryLength} color="#10b981" options={[
+                                            { value: 'short', label: 'Short' },
+                                            { value: 'medium', label: 'Medium' },
+                                            { value: 'long', label: 'Long' },
+                                        ]} />
                                     </div>
                                 </div>
                                 <div>
                                     <label style={{ ...labelStyle, fontSize: '0.6rem', marginBottom: '3px' }}>Format</label>
-                                    <select value={summaryStyle} onChange={e => setSummaryStyle(e.target.value)} style={{ ...selectStyle, fontSize: '0.76rem' }}>
-                                        <option value="paragraph">Paragraph</option>
-                                        <option value="bullet_points">Bullet Points</option>
-                                        <option value="key_points">Key Points</option>
-                                    </select>
+                                    <CustomSelect value={summaryStyle} onChange={setSummaryStyle} color="#10b981" options={[
+                                        { value: 'paragraph', label: 'Paragraph' },
+                                        { value: 'bullet_points', label: 'Bullet Points' },
+                                        { value: 'key_points', label: 'Key Points' },
+                                    ]} />
                                 </div>
                                 <div>
                                     <label style={{ ...labelStyle, fontSize: '0.6rem', marginBottom: '3px' }}>Custom Prompt (optional)</label>
@@ -839,26 +1008,22 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '8px' }}>
                                 <div>
                                     <label style={{ ...labelStyle, fontSize: '0.6rem', marginBottom: '3px' }}>Project *</label>
-                                    <select
+                                    <CustomSelect
                                         value={selectedProjectId}
-                                        onChange={e => { setSelectedProjectId(e.target.value); setSelectedMilestoneId(''); setSuggestedTasks([]); }}
-                                        style={{ ...selectStyle, fontSize: '0.76rem' }}
-                                    >
-                                        <option value="">Select project...</option>
-                                        {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                                    </select>
+                                        onChange={val => { setSelectedProjectId(val); setSelectedMilestoneId(''); setSuggestedTasks([]); }}
+                                        options={[{ value: '', label: 'Select project...' }, ...projects.map(p => ({ value: p.id, label: p.name }))]}
+                                        color="#f59e0b"
+                                    />
                                 </div>
                                 <div>
                                     <label style={{ ...labelStyle, fontSize: '0.6rem', marginBottom: '3px' }}>Milestone</label>
-                                    <select
+                                    <CustomSelect
                                         value={selectedMilestoneId}
-                                        onChange={e => setSelectedMilestoneId(e.target.value)}
+                                        onChange={setSelectedMilestoneId}
                                         disabled={!selectedProjectId || milestones.length === 0}
-                                        style={{ ...selectStyle, fontSize: '0.76rem', background: !selectedProjectId ? '#f8fafc' : '#fff' }}
-                                    >
-                                        <option value="">No milestone</option>
-                                        {milestones.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-                                    </select>
+                                        options={[{ value: '', label: 'No milestone' }, ...milestones.map(m => ({ value: m.id, label: m.name }))]}
+                                        color="#f59e0b"
+                                    />
                                 </div>
                             </div>
                             {currentUserRole !== null && currentUserRole !== 1 && currentUserRole !== 4 && (
@@ -886,12 +1051,14 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                 </div>}
             </div>
 
-            {/* ════════ CENTER: Tabs Content ════════ */}
+            {/* ════════ LEFT: Tabs Content (order: 1) ════════ */}
             <div style={{
                 flex: 1, minWidth: 0,
+                order: 1,
                 display: 'flex', flexDirection: 'column',
                 background: '#fff', borderRadius: '16px',
                 border: '1px solid var(--border-color)',
+                animation: 'tp-panel-left 0.4s cubic-bezier(0,0,0.2,1) 0.08s both',
                 overflow: 'hidden'
             }}>
                 <div style={{ display: 'flex', background: '#f8fafc', borderBottom: '1.5px solid #e2e8f0', userSelect: 'none', flexShrink: 0 }}>
@@ -1199,27 +1366,26 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
                                                             <div>
                                                                 <label style={{ ...labelStyle, fontSize: '0.62rem', marginBottom: '3px' }}>Priority</label>
-                                                                <select value={task.priority ?? 2} onChange={e => updateTaskField(idx, 'priority', parseInt(e.target.value))} style={{ ...selectStyle }}>
-                                                                    <option value={1}>Low</option>
-                                                                    <option value={2}>Normal</option>
-                                                                    <option value={3}>High</option>
-                                                                    <option value={4}>Urgent</option>
-                                                                </select>
+                                                                <CustomSelect
+                                                                    value={String(task.priority ?? 2)}
+                                                                    onChange={val => updateTaskField(idx, 'priority', parseInt(val))}
+                                                                    options={[
+                                                                        { value: '1', label: 'Low' },
+                                                                        { value: '2', label: 'Normal' },
+                                                                        { value: '3', label: 'High' },
+                                                                        { value: '4', label: 'Urgent' },
+                                                                    ]}
+                                                                />
                                                             </div>
                                                             <div>
                                                                 <label style={{ ...labelStyle, fontSize: '0.62rem', marginBottom: '3px' }}>
                                                                     <User size={9} /> Assignee
                                                                 </label>
-                                                                <select
+                                                                <CustomSelect
                                                                     value={task._assigneeId || task.assigneeId || ''}
-                                                                    onChange={e => { updateTaskField(idx, '_assigneeId', e.target.value); updateTaskField(idx, 'assigneeId', e.target.value); }}
-                                                                    style={{ ...selectStyle }}
-                                                                >
-                                                                    <option value="">Unassigned</option>
-                                                                    {projectMembers.map(u => (
-                                                                        <option key={u.id} value={u.id}>{u.name || u.email}</option>
-                                                                    ))}
-                                                                </select>
+                                                                    onChange={val => { updateTaskField(idx, '_assigneeId', val); updateTaskField(idx, 'assigneeId', val); }}
+                                                                    options={[{ value: '', label: 'Unassigned' }, ...projectMembers.map(u => ({ value: u.id, label: u.name || u.email }))]}
+                                                                />
                                                             </div>
                                                             <div>
                                                                 <label style={{ ...labelStyle, fontSize: '0.62rem', marginBottom: '3px' }}>Start Date</label>
@@ -1447,6 +1613,9 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
                 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
                 @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+                @keyframes cs-drop { from { opacity: 0; transform: translateY(-6px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+                @keyframes tp-panel-left  { from { opacity: 0; transform: translateX(-28px); } to { opacity: 1; transform: translateX(0); } }
+                @keyframes tp-panel-right { from { opacity: 0; transform: translateX(28px);  } to { opacity: 1; transform: translateX(0); } }
                 .animate-spin { animation: spin 1s linear infinite; }
             `}</style>
         </div>

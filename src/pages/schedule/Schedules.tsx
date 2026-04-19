@@ -70,6 +70,7 @@ const Schedules: React.FC = () => {
     // Panel system
     const [activePanel, setActivePanel] = useState<ScheduleTab | null>(null);
     const [showTranscription, setShowTranscription] = useState(false);
+    const [isExitingTranscription, setIsExitingTranscription] = useState(false);
     const [isTranscriptionProcessing, setIsTranscriptionProcessing] = useState(false);
     const [showConfirmSwitch, setShowConfirmSwitch] = useState(false);
     const [pendingTab, setPendingTab] = useState<ListTabType | null>(null);
@@ -118,9 +119,14 @@ const Schedules: React.FC = () => {
         }
     };
 
-    const handleCloseTranscription = () => {
+    const doCloseTranscription = () => {
+        setIsExitingTranscription(false);
         setShowTranscription(false);
         storeClearTranscription();
+    };
+
+    const handleCloseTranscription = () => {
+        setIsExitingTranscription(true);
     };
 
     // Fetch metadata
@@ -289,6 +295,20 @@ const Schedules: React.FC = () => {
 
     return (
         <MainLayout role={user?.role} userName={user?.name}>
+            <style>{`
+                @keyframes tp-enter {
+                    from { opacity: 0; transform: translateX(56px) scale(0.97); }
+                    to   { opacity: 1; transform: translateX(0)    scale(1);    }
+                }
+                @keyframes tp-exit {
+                    from { opacity: 1; transform: translateX(0)    scale(1);    }
+                    to   { opacity: 0; transform: translateX(56px) scale(0.97); }
+                }
+                @keyframes panel-enter {
+                    from { opacity: 0; transform: translateX(40px) scale(0.97); }
+                    to   { opacity: 1; transform: translateX(0)    scale(1);    }
+                }
+            `}</style>
             <div className="page-container" style={{ padding: '1.5rem 2rem', maxWidth: '1600px', margin: '0 auto' }}>
                 {/* Header */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
@@ -611,12 +631,12 @@ const Schedules: React.FC = () => {
 
                         {/* Meeting detail panel — hidden when AI Notes is open */}
                         {activePanel && !showTranscription && (
-                            <div style={{
+                            <div key={activePanel.meetingId || activePanel.id} style={{
                                 flex: 4, minWidth: 0, overflow: 'hidden',
                                 display: 'flex', flexDirection: 'column',
                                 background: '#fff', borderRadius: '16px',
                                 border: '1px solid var(--border-color)', padding: '1.5rem',
-                                transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
+                                animation: 'panel-enter 0.38s cubic-bezier(0,0,0.2,1) both',
                             }}>
                                 <SchedulePanel
                                     key={activePanel.meetingId || activePanel.id}
@@ -642,13 +662,17 @@ const Schedules: React.FC = () => {
                             </div>
                         )}
 
-                        {/* AI Notes / Transcription panel — takes full width */}
-                        {showTranscription && (
-                            <div style={{
-                                flex: 10, minWidth: 0, overflow: 'hidden',
-                                display: 'flex', flexDirection: 'column',
-                                transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
-                            }}>
+                        {/* AI Notes / Transcription panel — to the right of the detail panel */}
+                        {(showTranscription || isExitingTranscription) && (
+                            <div
+                                onAnimationEnd={() => { if (isExitingTranscription) doCloseTranscription(); }}
+                                style={{
+                                    flex: 6, minWidth: 0, overflow: 'hidden',
+                                    display: 'flex', flexDirection: 'column',
+                                    animation: isExitingTranscription
+                                        ? 'tp-exit 0.3s cubic-bezier(0.4,0,1,1) forwards'
+                                        : 'tp-enter 0.38s cubic-bezier(0,0,0.2,1) both',
+                                }}>
                                 <TranscriptionPanel
                                     onClose={handleCloseTranscription}
                                     meetingId={
