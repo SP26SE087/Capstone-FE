@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import ConfirmModal from '@/components/common/ConfirmModal';
 import {
     MeetingResponse,
@@ -29,7 +29,6 @@ import {
     AlertCircle,
     Lock,
     X,
-    Mic,
     RefreshCw,
     Sparkles,
     ArrowRight,
@@ -37,7 +36,8 @@ import {
     XCircle,
     HelpCircle,
     Timer,
-    Info
+    Info,
+    Search
 } from 'lucide-react';
 
 interface SchedulePanelProps {
@@ -80,6 +80,30 @@ const formatDisplayDate = (dateStr: string) => {
     const hours = d.getHours().toString().padStart(2, '0');
     const minutes = d.getMinutes().toString().padStart(2, '0');
     return `${day}/${month}/${year} ${hours}:${minutes}`;
+};
+
+const DURATION_MIN_MINUTES = 15;
+const DURATION_MAX_MINUTES = 480;
+const DURATION_STEP_MINUTES = 15;
+const DURATION_PRESETS = [30, 45, 60, 90];
+
+const clampDurationMinutes = (value: number) =>
+    Math.max(DURATION_MIN_MINUTES, Math.min(DURATION_MAX_MINUTES, value));
+
+const formatTimeToAmPm = (date: Date) => {
+    const h = date.getHours();
+    const m = date.getMinutes();
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 || 12;
+    return `${String(h12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${ampm}`;
+};
+
+const formatDurationReadable = (minutes: number) => {
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    if (h === 0) return `${m}m`;
+    if (m === 0) return `${h}h`;
+    return `${h}h ${m}m`;
 };
 
 const inputStyle: React.CSSProperties = {
@@ -144,9 +168,17 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
         const d = new Date();
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     });
-    const [startTime, setStartTime] = useState('');
-    const [durationMinutes, setDurationMinutes] = useState(60);
+    const [startTime, setStartTime] = useState(() => {
+        const d = new Date();
+        const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        return `${date}T09:00`;
+    });
+    const [durationMinutes, setDurationMinutes] = useState(45);
     const [projectId, setProjectId] = useState('');
+    const startTimeInputRef = useRef<HTMLInputElement | null>(null);
+    const [projectDropdownOpen, setProjectDropdownOpen] = useState(false);
+    const [projectSearch, setProjectSearch] = useState('');
+    const projectDropdownRef = useRef<HTMLDivElement | null>(null);
     const [selectedAttendees, setSelectedAttendees] = useState<SelectedAttendee[]>([]);
 
     // Detail sections collapse
@@ -167,6 +199,29 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
             }
         }
     }, [meetingId, isCreating]);
+
+    useEffect(() => {
+        if (!projectDropdownOpen) return;
+
+        const handleOutsideClick = (event: MouseEvent) => {
+            if (
+                projectDropdownRef.current &&
+                !projectDropdownRef.current.contains(event.target as Node)
+            ) {
+                setProjectDropdownOpen(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleOutsideClick);
+        return () => document.removeEventListener('mousedown', handleOutsideClick);
+    }, [projectDropdownOpen]);
+
+    useEffect(() => {
+        if (!isCreating) {
+            setProjectDropdownOpen(false);
+            setProjectSearch('');
+        }
+    }, [isCreating]);
 
     const loadMeeting = async (eventId: string, silent: boolean = false) => {
         if (!silent) setLoading(true);
@@ -365,6 +420,28 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
         today.setHours(0, 0, 0, 0);
         return meetingDate >= today;
     })());
+
+    const clampedDurationMinutes = clampDurationMinutes(durationMinutes);
+    const parsedStartTime = startTime ? new Date(startTime) : null;
+    const validStartTime = parsedStartTime && !isNaN(parsedStartTime.getTime()) ? parsedStartTime : null;
+    const startTimeDisplay = validStartTime ? formatTimeToAmPm(validStartTime) : '--:--';
+    const endTimeDisplay = validStartTime
+        ? formatTimeToAmPm(new Date(validStartTime.getTime() + clampedDurationMinutes * 60000))
+        : '--:--';
+    const durationReadable = formatDurationReadable(clampedDurationMinutes);
+    const selectedTimeValue = startTime
+        ? (startTime.includes('T') ? startTime.split('T')[1].slice(0, 5) : startTime.slice(0, 5))
+        : '09:00';
+    const projectEntries = useMemo(
+        () => Object.entries(projectsMap).sort(([, a], [, b]) => a.localeCompare(b)),
+        [projectsMap]
+    );
+    const filteredProjectEntries = useMemo(() => {
+        const q = projectSearch.trim().toLowerCase();
+        if (!q) return projectEntries;
+        return projectEntries.filter(([, name]) => name.toLowerCase().includes(q));
+    }, [projectEntries, projectSearch]);
+    const selectedProjectName = projectId ? projectsMap[projectId] : '';
 
     return (
         <>
@@ -662,58 +739,231 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                     {/* Time + Duration — split by edit vs view */}
                     {canEdit ? (
                         <>
-                            {/* Edit/Create: separate Start Time + Duration (original layout) */}
+                            {/* Edit/Create: native time picker with polished input styling */}
                             <div style={{ marginBottom: '14px' }}>
-                                <label style={labelStyle}><Clock size={12} /> Start Time</label>
-                                <input
-                                    type="time"
-                                    disabled={!canEdit}
-                                    value={startTime ? (startTime.includes('T') ? startTime.split('T')[1].slice(0, 5) : startTime.slice(0, 5)) : '09:00'}
-                                    onChange={e => { const t = e.target.value; if (t) handleStartTimeChange(`${meetingDate}T${t}`); }}
-                                    style={{ ...inputStyle, cursor: 'pointer' }}
-                                    onFocus={e => { e.currentTarget.style.borderColor = 'var(--accent-color)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,114,12,0.08)'; }}
-                                    onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.boxShadow = 'none'; }}
-                                />
+                                <label style={labelStyle}>Start Time</label>
+                                <div style={{
+                                    position: 'relative',
+                                    border: '1.5px solid #dbe4ee',
+                                    borderRadius: '10px',
+                                    background: '#fff',
+                                    transition: 'border-color 0.2s, box-shadow 0.2s',
+                                    cursor: canEdit ? 'pointer' : 'not-allowed'
+                                }}
+                                    onClick={() => {
+                                        if (!canEdit || !startTimeInputRef.current) return;
+                                        const pickerInput = startTimeInputRef.current as HTMLInputElement & { showPicker?: () => void };
+                                        if (typeof pickerInput.showPicker === 'function') {
+                                            pickerInput.showPicker();
+                                        } else {
+                                            startTimeInputRef.current.focus();
+                                        }
+                                    }
+                                }>
+                                    <input
+                                        ref={startTimeInputRef}
+                                        type="time"
+                                        step={900}
+                                        disabled={!canEdit}
+                                        value={selectedTimeValue}
+                                        onChange={e => {
+                                            const t = e.target.value;
+                                            if (t) handleStartTimeChange(`${meetingDate}T${t}`);
+                                        }}
+                                        style={{
+                                            ...inputStyle,
+                                            border: 'none',
+                                            boxShadow: 'none',
+                                            padding: '10px 12px',
+                                            fontWeight: 700,
+                                            fontVariantNumeric: 'tabular-nums',
+                                            cursor: canEdit ? 'pointer' : 'not-allowed'
+                                        }}
+                                        onFocus={e => {
+                                            const wrapper = e.currentTarget.parentElement as HTMLElement | null;
+                                            if (wrapper) {
+                                                wrapper.style.borderColor = 'var(--accent-color)';
+                                                wrapper.style.boxShadow = '0 0 0 3px rgba(232,114,12,0.08)';
+                                            }
+                                        }}
+                                        onBlur={e => {
+                                            const wrapper = e.currentTarget.parentElement as HTMLElement | null;
+                                            if (wrapper) {
+                                                wrapper.style.borderColor = '#dbe4ee';
+                                                wrapper.style.boxShadow = 'none';
+                                            }
+                                        }}
+                                    />
+                                </div>
                             </div>
                             <div style={{ marginBottom: '14px' }}>
                                 <label style={{ ...labelStyle, marginBottom: '8px' }}><Clock size={12} /> Duration</label>
-                                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' as const, marginBottom: '10px' }}>
-                                    {[{ val: 15, label: '15 min' }, { val: 30, label: '30 min' }, { val: 45, label: '45 min' }, { val: 60, label: '1 hour' }, { val: 90, label: '1.5 hrs' }, { val: 120, label: '2 hours' }].map(({ val, label }) => (
-                                        <button key={val} type="button" onClick={() => setDurationMinutes(val)} style={{
-                                            padding: '6px 12px', borderRadius: '8px', border: '1.5px solid',
-                                            borderColor: durationMinutes === val ? 'var(--accent-color)' : '#e2e8f0',
-                                            background: durationMinutes === val ? 'rgba(232,114,12,0.10)' : '#fff',
-                                            color: durationMinutes === val ? 'var(--accent-color)' : '#64748b',
-                                            fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s',
-                                            boxShadow: durationMinutes === val ? '0 2px 6px rgba(232,114,12,0.15)' : 'none'
-                                        }}>{label}</button>
-                                    ))}
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'center', border: '1.5px solid var(--border-color)', borderRadius: '10px', overflow: 'hidden', background: '#fff' }}>
-                                    <button type="button" disabled={durationMinutes <= 15} onClick={() => setDurationMinutes(d => Math.max(15, d - 15))}
-                                        style={{ width: '44px', height: '52px', border: 'none', background: 'transparent', fontSize: '1.1rem', fontWeight: 700, color: '#64748b', cursor: durationMinutes <= 15 ? 'not-allowed' : 'pointer', opacity: durationMinutes <= 15 ? 0.4 : 1, transition: 'all 0.15s', flexShrink: 0 }}
-                                        onMouseEnter={e => { if (durationMinutes > 15) e.currentTarget.style.background = '#f1f5f9'; }}
-                                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}>−</button>
-                                    <div style={{ flex: 1, textAlign: 'center', borderLeft: '1px solid #e2e8f0', borderRight: '1px solid #e2e8f0', padding: '0 8px', height: '52px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                            <input type="number" min={15} max={480} step={15} disabled={!canEdit} value={durationMinutes} className="no-spinner"
-                                                onChange={e => { const v = parseInt(e.target.value, 10); if (!isNaN(v)) setDurationMinutes(Math.max(15, Math.min(480, v))); }}
-                                                style={{ width: '52px', border: 'none', background: 'transparent', textAlign: 'center', fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', outline: 'none' }} />
-                                            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>min</span>
+                                <div style={{
+                                    border: '1px solid #e2e8f0',
+                                    borderRadius: '14px',
+                                    background: 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)',
+                                    padding: '10px',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '10px'
+                                }}>
+                                    <div style={{
+                                        border: '1px solid #e2e8f0',
+                                        borderRadius: '12px',
+                                        padding: '9px 10px',
+                                        background: '#fff',
+                                        display: 'grid',
+                                        gridTemplateColumns: '1fr auto 1fr',
+                                        alignItems: 'center',
+                                        gap: '8px'
+                                    }}>
+                                        <div>
+                                            <div style={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#94a3b8' }}>Start</div>
+                                            <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#1e293b', fontVariantNumeric: 'tabular-nums' }}>{startTimeDisplay}</div>
                                         </div>
-                                        {startTime && (
-                                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', marginTop: '2px' }}>
-                                                <span style={{ fontSize: '0.63rem', color: '#10b981', fontWeight: 600 }}>ends at</span>
-                                                <span style={{ fontSize: '0.78rem', color: '#047857', fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
-                                                    {(() => { const e = new Date(new Date(startTime).getTime() + durationMinutes * 60000); const h = e.getHours(); const m = e.getMinutes(); const ampm = h >= 12 ? 'PM' : 'AM'; const h12 = h % 12 || 12; return `${String(h12).padStart(2,'0')}:${String(m).padStart(2,'0')} ${ampm}`; })()}
-                                                </span>
-                                            </div>
-                                        )}
+                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px' }}>
+                                            <ArrowRight size={14} color="#94a3b8" />
+                                            <span style={{ fontSize: '0.64rem', color: '#64748b', fontWeight: 700 }}>{durationReadable}</span>
+                                        </div>
+                                        <div style={{ textAlign: 'right' }}>
+                                            <div style={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#94a3b8' }}>End</div>
+                                            <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#047857', fontVariantNumeric: 'tabular-nums' }}>{endTimeDisplay}</div>
+                                        </div>
                                     </div>
-                                    <button type="button" disabled={durationMinutes >= 480} onClick={() => setDurationMinutes(d => Math.min(480, d + 15))}
-                                        style={{ width: '44px', height: '52px', border: 'none', background: 'transparent', fontSize: '1.1rem', fontWeight: 700, color: '#64748b', cursor: durationMinutes >= 480 ? 'not-allowed' : 'pointer', opacity: durationMinutes >= 480 ? 0.4 : 1, transition: 'all 0.15s', flexShrink: 0 }}
-                                        onMouseEnter={e => { if (durationMinutes < 480) e.currentTarget.style.background = '#f1f5f9'; }}
-                                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}>+</button>
+
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '8px' }}>
+                                        {DURATION_PRESETS.map((val) => (
+                                            <button
+                                                key={val}
+                                                type="button"
+                                                onClick={() => setDurationMinutes(val)}
+                                                style={{
+                                                    padding: '8px 10px',
+                                                    borderRadius: '10px',
+                                                    border: clampedDurationMinutes === val ? '1.5px solid #fb923c' : '1.2px solid #dbe4ee',
+                                                    background: clampedDurationMinutes === val
+                                                        ? 'linear-gradient(135deg, rgba(251,146,60,0.18), rgba(249,115,22,0.06))'
+                                                        : '#fff',
+                                                    color: clampedDurationMinutes === val ? '#c2410c' : '#475569',
+                                                    fontSize: '0.75rem',
+                                                    fontWeight: 800,
+                                                    cursor: 'pointer',
+                                                    transition: 'all 0.16s',
+                                                    boxShadow: clampedDurationMinutes === val ? '0 4px 10px rgba(249,115,22,0.2)' : 'none'
+                                                }}
+                                            >
+                                                {formatDurationReadable(val)}
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    <div style={{ display: 'grid', gridTemplateColumns: '44px 1fr 44px', gap: '8px', alignItems: 'stretch' }}>
+                                        <button
+                                            type="button"
+                                            disabled={clampedDurationMinutes <= DURATION_MIN_MINUTES}
+                                            onClick={() => setDurationMinutes(d => clampDurationMinutes(d - DURATION_STEP_MINUTES))}
+                                            style={{
+                                                borderRadius: '12px',
+                                                border: '1.2px solid #dbe4ee',
+                                                background: '#fff',
+                                                color: '#475569',
+                                                fontSize: '1.05rem',
+                                                fontWeight: 800,
+                                                cursor: clampedDurationMinutes <= DURATION_MIN_MINUTES ? 'not-allowed' : 'pointer',
+                                                opacity: clampedDurationMinutes <= DURATION_MIN_MINUTES ? 0.45 : 1,
+                                                transition: 'all 0.15s',
+                                                lineHeight: 1
+                                            }}
+                                            onMouseEnter={e => {
+                                                if (clampedDurationMinutes > DURATION_MIN_MINUTES) {
+                                                    e.currentTarget.style.borderColor = '#fb923c';
+                                                    e.currentTarget.style.background = '#fff7ed';
+                                                }
+                                            }}
+                                            onMouseLeave={e => {
+                                                e.currentTarget.style.borderColor = '#dbe4ee';
+                                                e.currentTarget.style.background = '#fff';
+                                            }}
+                                        >
+                                            -
+                                        </button>
+
+                                        <div style={{
+                                            border: '1.2px solid #dbe4ee',
+                                            borderRadius: '12px',
+                                            background: '#fff',
+                                            minHeight: '58px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            padding: '8px 12px',
+                                            gap: '10px'
+                                        }}>
+                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                                                <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+                                                    <input
+                                                        type="number"
+                                                        min={DURATION_MIN_MINUTES}
+                                                        max={DURATION_MAX_MINUTES}
+                                                        step={DURATION_STEP_MINUTES}
+                                                        disabled={!canEdit}
+                                                        value={clampedDurationMinutes}
+                                                        className="no-spinner"
+                                                        onChange={e => {
+                                                            const v = parseInt(e.target.value, 10);
+                                                            if (!isNaN(v)) setDurationMinutes(clampDurationMinutes(v));
+                                                        }}
+                                                        style={{
+                                                            width: '58px',
+                                                            border: 'none',
+                                                            background: 'transparent',
+                                                            textAlign: 'right',
+                                                            fontSize: '1rem',
+                                                            fontWeight: 900,
+                                                            color: 'var(--text-primary)',
+                                                            outline: 'none',
+                                                            padding: 0
+                                                        }}
+                                                    />
+                                                    <span style={{ fontSize: '0.73rem', fontWeight: 700, color: 'var(--text-muted)' }}>minutes</span>
+                                                </div>
+                                                <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748b' }}>
+                                                    Duration: {durationReadable}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <button
+                                            type="button"
+                                            disabled={clampedDurationMinutes >= DURATION_MAX_MINUTES}
+                                            onClick={() => setDurationMinutes(d => clampDurationMinutes(d + DURATION_STEP_MINUTES))}
+                                            style={{
+                                                borderRadius: '12px',
+                                                border: '1.2px solid #dbe4ee',
+                                                background: '#fff',
+                                                color: '#475569',
+                                                fontSize: '1.05rem',
+                                                fontWeight: 800,
+                                                cursor: clampedDurationMinutes >= DURATION_MAX_MINUTES ? 'not-allowed' : 'pointer',
+                                                opacity: clampedDurationMinutes >= DURATION_MAX_MINUTES ? 0.45 : 1,
+                                                transition: 'all 0.15s',
+                                                lineHeight: 1
+                                            }}
+                                            onMouseEnter={e => {
+                                                if (clampedDurationMinutes < DURATION_MAX_MINUTES) {
+                                                    e.currentTarget.style.borderColor = '#fb923c';
+                                                    e.currentTarget.style.background = '#fff7ed';
+                                                }
+                                            }}
+                                            onMouseLeave={e => {
+                                                e.currentTarget.style.borderColor = '#dbe4ee';
+                                                e.currentTarget.style.background = '#fff';
+                                            }}
+                                        >
+                                            +
+                                        </button>
+                                    </div>
+
                                 </div>
                             </div>
                         </>
@@ -757,17 +1007,218 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
 
                     {isCreating && (
                         <div style={{ marginBottom: '14px' }}>
-                            <label style={labelStyle}><MapPin size={12} /> Project</label>
-                            <select
-                                style={inputStyle}
-                                value={projectId}
-                                onChange={e => setProjectId(e.target.value)}
-                            >
-                                <option value="">No Project</option>
-                                {Object.entries(projectsMap).map(([id, name]) => (
-                                    <option key={id} value={id}>{name}</option>
-                                ))}
-                            </select>
+                            <label style={labelStyle}>Project</label>
+                            <div ref={projectDropdownRef} style={{ position: 'relative' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => setProjectDropdownOpen(v => !v)}
+                                    style={{
+                                        width: '100%',
+                                        border: projectDropdownOpen ? '1.5px solid #0ea5e9' : '1.5px solid #dbe4ee',
+                                        borderRadius: '14px',
+                                        background: projectId ? 'linear-gradient(135deg, #f0f9ff, #ffffff)' : '#fff',
+                                        padding: '10px 12px',
+                                        display: 'grid',
+                                        gridTemplateColumns: '1fr auto',
+                                        alignItems: 'center',
+                                        gap: '8px',
+                                        cursor: 'pointer',
+                                        boxShadow: projectDropdownOpen ? '0 8px 24px rgba(14,165,233,0.16)' : '0 2px 8px rgba(15,23,42,0.05)',
+                                        transition: 'all 0.18s'
+                                    }}
+                                >
+                                    <div style={{ textAlign: 'left', minWidth: 0 }}>
+                                        <div style={{
+                                            fontSize: '0.61rem',
+                                            textTransform: 'uppercase',
+                                            letterSpacing: '0.08em',
+                                            fontWeight: 800,
+                                            color: '#64748b',
+                                            marginBottom: '2px'
+                                        }}>
+                                            Project Context
+                                        </div>
+                                        <div style={{
+                                            fontSize: '0.83rem',
+                                            fontWeight: projectId ? 700 : 600,
+                                            color: projectId ? '#0f172a' : '#94a3b8',
+                                            whiteSpace: 'nowrap',
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis'
+                                        }}>
+                                            {projectId ? selectedProjectName : 'Choose a project for this meeting'}
+                                        </div>
+                                    </div>
+                                    <ChevronDown
+                                        size={14}
+                                        color="#64748b"
+                                        style={{
+                                            transform: projectDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                                            transition: 'transform 0.15s',
+                                            flexShrink: 0
+                                        }}
+                                    />
+                                </button>
+
+                                {projectDropdownOpen && (
+                                    <div style={{
+                                        position: 'absolute',
+                                        top: 'calc(100% + 9px)',
+                                        left: 0,
+                                        right: 0,
+                                        zIndex: 40,
+                                        border: '1px solid #cbd5e1',
+                                        borderRadius: '14px',
+                                        background: '#fff',
+                                        boxShadow: '0 20px 34px rgba(15,23,42,0.18)',
+                                        overflow: 'hidden'
+                                    }}>
+                                        <div style={{
+                                            padding: '9px',
+                                            background: 'linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)',
+                                            borderBottom: '1px solid #e2e8f0'
+                                        }}>
+                                            <div style={{ position: 'relative' }}>
+                                                <Search
+                                                    size={13}
+                                                    style={{
+                                                        position: 'absolute',
+                                                        left: '9px',
+                                                        top: '50%',
+                                                        transform: 'translateY(-50%)',
+                                                        color: '#94a3b8'
+                                                    }}
+                                                />
+                                                <input
+                                                    value={projectSearch}
+                                                    onChange={(e) => setProjectSearch(e.target.value)}
+                                                    placeholder="Search by project name..."
+                                                    style={{
+                                                        width: '100%',
+                                                        border: '1px solid #dbe4ee',
+                                                        borderRadius: '9px',
+                                                        fontSize: '0.78rem',
+                                                        fontFamily: 'inherit',
+                                                        padding: '8px 10px 8px 30px',
+                                                        outline: 'none',
+                                                        background: '#fff'
+                                                    }}
+                                                    onFocus={e => { e.currentTarget.style.borderColor = '#0ea5e9'; }}
+                                                    onBlur={e => { e.currentTarget.style.borderColor = '#dbe4ee'; }}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div style={{ maxHeight: '240px', overflowY: 'auto', padding: '8px', background: '#f8fafc' }} className="custom-scrollbar">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setProjectId('');
+                                                    setProjectDropdownOpen(false);
+                                                    setProjectSearch('');
+                                                }}
+                                                style={{
+                                                    width: '100%',
+                                                    border: !projectId ? '1.5px solid #7dd3fc' : '1px solid #e2e8f0',
+                                                    borderRadius: '10px',
+                                                    background: !projectId ? '#ecfeff' : '#fff',
+                                                    padding: '9px 10px',
+                                                    textAlign: 'left',
+                                                    cursor: 'pointer',
+                                                    marginBottom: '7px',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'space-between',
+                                                    gap: '8px'
+                                                }}
+                                            >
+                                                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: !projectId ? '#0369a1' : '#334155' }}>
+                                                    No Project (Independent meeting)
+                                                </span>
+                                                {!projectId && <CheckCircle2 size={15} color="#0284c7" />}
+                                            </button>
+
+                                            {filteredProjectEntries.length === 0 ? (
+                                                <div style={{
+                                                    border: '1px dashed #cbd5e1',
+                                                    borderRadius: '10px',
+                                                    background: '#fff',
+                                                    textAlign: 'center',
+                                                    padding: '14px 10px',
+                                                    color: '#64748b',
+                                                    fontSize: '0.75rem',
+                                                    fontWeight: 600
+                                                }}>
+                                                    No projects found with this keyword
+                                                </div>
+                                            ) : filteredProjectEntries.map(([id, name]) => {
+                                                const selected = projectId === id;
+                                                return (
+                                                    <button
+                                                        key={id}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setProjectId(id);
+                                                            setProjectDropdownOpen(false);
+                                                            setProjectSearch('');
+                                                        }}
+                                                        style={{
+                                                            width: '100%',
+                                                            border: selected ? '1.5px solid #7dd3fc' : '1px solid #e2e8f0',
+                                                            borderRadius: '10px',
+                                                            background: selected ? '#ecfeff' : '#fff',
+                                                            padding: '8px 10px',
+                                                            marginBottom: '7px',
+                                                            textAlign: 'left',
+                                                            cursor: 'pointer',
+                                                            display: 'grid',
+                                                            gridTemplateColumns: '1fr auto',
+                                                            alignItems: 'center',
+                                                            gap: '10px',
+                                                            transition: 'all 0.14s'
+                                                        }}
+                                                        onMouseEnter={e => {
+                                                            if (!selected) e.currentTarget.style.background = '#f0f9ff';
+                                                        }}
+                                                        onMouseLeave={e => {
+                                                            if (!selected) e.currentTarget.style.background = '#fff';
+                                                        }}
+                                                    >
+                                                        <div style={{ minWidth: 0 }}>
+                                                            <div style={{
+                                                                fontSize: '0.79rem',
+                                                                fontWeight: selected ? 700 : 600,
+                                                                color: selected ? '#075985' : '#1e293b',
+                                                                whiteSpace: 'nowrap',
+                                                                overflow: 'hidden',
+                                                                textOverflow: 'ellipsis'
+                                                            }}>
+                                                                {name}
+                                                            </div>
+                                                            <div style={{ fontSize: '0.66rem', color: '#94a3b8', fontWeight: 600 }}>
+                                                                Use this project as context
+                                                            </div>
+                                                        </div>
+                                                        {selected && <CheckCircle2 size={15} color="#0284c7" />}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div style={{
+                                    marginTop: '8px',
+                                    fontSize: '0.7rem',
+                                    fontWeight: 600,
+                                    color: projectId ? '#0369a1' : '#64748b',
+                                    lineHeight: 1.35
+                                }}>
+                                    {projectId
+                                        ? `Selected project: ${selectedProjectName}`
+                                        : 'No project selected. You can still invite attendees manually.'}
+                                </div>
+                            </div>
                         </div>
                     )}
 
@@ -1003,7 +1454,7 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                 paddingTop: '14px',
                 borderTop: '1px solid var(--border-light)',
                 display: 'flex',
-                justifyContent: 'space-between',
+                justifyContent: isCreating ? 'flex-end' : 'space-between',
                 alignItems: 'center',
                 gap: '10px',
                 marginTop: 'auto'
@@ -1031,23 +1482,34 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                         onClick={handleSave}
                         disabled={saving || !title.trim() || !!dateError}
                         style={{
-                            padding: '8px 24px',
-                            borderRadius: '10px',
+                            padding: isCreating ? '10px 26px' : '9px 24px',
+                            borderRadius: '12px',
                             border: 'none',
-                            background: (!title.trim() || saving || !!dateError) ? '#94a3b8' : 'var(--accent-color)',
+                            background: (!title.trim() || saving || !!dateError)
+                                ? '#94a3b8'
+                                : (isCreating
+                                    ? 'linear-gradient(135deg, #fb923c, #ea580c)'
+                                    : 'linear-gradient(135deg, var(--accent-color), #f59e0b)'),
                             color: '#fff',
                             cursor: (!title.trim() || saving || !!dateError) ? 'not-allowed' : 'pointer',
-                            fontSize: '0.8rem',
-                            fontWeight: 700,
+                            fontSize: '0.81rem',
+                            fontWeight: 800,
+                            letterSpacing: '0.01em',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '6px',
+                            justifyContent: 'center',
+                            gap: isCreating ? '0px' : '7px',
+                            minWidth: isCreating ? '156px' : '150px',
                             transition: 'all 0.2s',
-                            boxShadow: (!title.trim() || saving) ? 'none' : '0 4px 12px rgba(232,114,12,0.25)'
+                            boxShadow: (!title.trim() || saving || !!dateError)
+                                ? 'none'
+                                : (isCreating
+                                    ? '0 10px 24px rgba(234,88,12,0.34)'
+                                    : '0 6px 14px rgba(232,114,12,0.28)')
                         }}
                     >
-                        {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                        {isCreating ? 'Create' : 'Save Changes'}
+                        {saving ? <Loader2 size={14} className="animate-spin" /> : (!isCreating && <Save size={14} />)}
+                        {isCreating ? 'Create Schedule' : 'Save Changes'}
                     </button>
                 )}
             </div>

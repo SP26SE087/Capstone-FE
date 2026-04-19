@@ -458,6 +458,8 @@ const Schedules: React.FC = () => {
                             <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' as const }}>Status:</span>
                             <AppSelect
                                 size="sm"
+                                variant="scheduleFilter"
+                                isSearchable={false}
                                 value={filterStatus}
                                 onChange={setFilterStatus}
                                 options={[
@@ -474,6 +476,8 @@ const Schedules: React.FC = () => {
                             <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' as const }}>Project:</span>
                             <AppSelect
                                 size="sm"
+                                variant="scheduleFilter"
+                                isSearchable={false}
                                 value={filterProjectId}
                                 onChange={setFilterProjectId}
                                 options={[
