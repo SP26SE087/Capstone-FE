@@ -2344,7 +2344,7 @@ const PaperFormFields: React.FC<PaperFormFieldsProps> = ({
                     {data.document
                         ? data.document.name
                         : existingDocumentUrl
-                            ? existingDocumentUrl.split('/').pop()?.split('?')[0] || 'Current document'
+                            ? 'Document uploaded — click to replace'
                             : 'Click to upload or drag a file here'}
                 </span>
                 {data.document && (
