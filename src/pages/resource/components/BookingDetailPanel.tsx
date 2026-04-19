@@ -302,7 +302,7 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                                     fontSize: '0.62rem', color: '#64748b',
                                     display: 'inline-flex', alignItems: 'center', gap: '3px'
                                 }}>
-                                    · by <span style={{ fontWeight: 700, color: '#334155' }}>{booking.approvedByName}</span>
+                                    · <span style={{ fontWeight: 700, color: '#059669' }}>Manager:</span> <span style={{ fontWeight: 700, color: '#334155' }}>{booking.approvedByName}</span>
                                     {booking.approvedAt && (
                                         <span style={{ color: '#94a3b8' }}>· {formatDisplayDate(booking.approvedAt)}</span>
                                     )}
@@ -338,7 +338,7 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                 {/* Requester Info */}
                 {(booking.userFullName || booking.userEmail) && (
                     <div style={sectionStyle}>
-                        <div style={labelStyle}><User size={11} /> Requested By</div>
+                        <div style={labelStyle}><User size={11} /> Borrower</div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                             {booking.userFullName && (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>

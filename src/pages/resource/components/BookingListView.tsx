@@ -49,7 +49,7 @@ const fmtTime = (s: string) => {
 
 interface BookingGroup {
     key: string; title: string; startTime: string; endTime: string;
-    userFullName?: string; anyUrgent: boolean; bookings: Booking[];
+    userFullName?: string; approvedByName?: string | null; anyUrgent: boolean; bookings: Booking[];
 }
 
 function groupBookings(bookings: Booking[]): BookingGroup[] {
@@ -57,10 +57,11 @@ function groupBookings(bookings: Booking[]): BookingGroup[] {
     for (const b of bookings) {
         const key = `${b.title}||${b.startTime}||${b.endTime}`;
         if (!map.has(key))
-            map.set(key, { key, title: b.title, startTime: b.startTime, endTime: b.endTime, userFullName: b.userFullName, anyUrgent: false, bookings: [] });
+            map.set(key, { key, title: b.title, startTime: b.startTime, endTime: b.endTime, userFullName: b.userFullName, approvedByName: b.approvedByName, anyUrgent: false, bookings: [] });
         const g = map.get(key)!;
         g.bookings.push(b);
         if (b.isUrgent) g.anyUrgent = true;
+        if (!g.approvedByName && b.approvedByName) g.approvedByName = b.approvedByName;
     }
     return [...map.values()];
 }
@@ -248,7 +249,14 @@ const BookingListView: React.FC<BookingListViewProps> = ({
                             <span style={{ display: 'flex', alignItems: 'center', gap: '2px' }}><Calendar size={9} /> {fmtDate(group.startTime)}</span>
                             <span style={{ display: 'flex', alignItems: 'center', gap: '2px' }}><Clock size={9} /> {fmtTime(group.startTime)} – {fmtTime(group.endTime)}</span>
                             {group.userFullName && (
-                                <span style={{ display: 'flex', alignItems: 'center', gap: '2px', fontWeight: 600, color: '#475569' }}><User size={9} /> {group.userFullName}</span>
+                                <span style={{ display: 'flex', alignItems: 'center', gap: '2px', fontWeight: 600, color: '#2563eb', background: '#eff6ff', padding: '1px 5px', borderRadius: '4px' }}>
+                                    <User size={9} /> Borrower: {group.userFullName}
+                                </span>
+                            )}
+                            {group.approvedByName && (
+                                <span style={{ display: 'flex', alignItems: 'center', gap: '2px', fontWeight: 600, color: '#059669', background: '#f0fdf4', padding: '1px 5px', borderRadius: '4px' }}>
+                                    <User size={9} /> Manager: {group.approvedByName}
+                                </span>
                             )}
                         </div>
                     </div>

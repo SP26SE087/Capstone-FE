@@ -284,25 +284,32 @@ const ConfigurationPage: React.FC = () => {
             {/* Delete Confirm Modal */}
             {deleteConfirmId && (
                 <div style={{
-                    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000,
+                    position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(4px)', zIndex: 1000,
                     display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px'
                 }}>
-                    <div className="card" style={{ width: '100%', maxWidth: '380px', padding: '24px' }}>
-                        <h3 style={{ margin: '0 0 12px', fontSize: '1rem', fontWeight: 600 }}>Delete Research Field</h3>
-                        <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', margin: '0 0 20px' }}>
-                            Are you sure you want to delete this research field? This action cannot be undone.
-                        </p>
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                            <button onClick={() => setDeleteConfirmId(null)} className="btn btn-secondary" style={{ padding: '8px 16px', fontSize: '0.875rem' }}>
+                    <div style={{ width: '100%', maxWidth: '400px', background: '#fff', borderRadius: '20px', padding: '2rem', boxShadow: '0 20px 60px rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                            <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: '#fff1f2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                <Trash2 size={24} color="#e11d48" />
+                            </div>
+                            <div>
+                                <h3 style={{ margin: '0 0 4px', fontSize: '1rem', fontWeight: 700, color: '#1e293b' }}>Delete Research Field</h3>
+                                <p style={{ color: '#64748b', fontSize: '0.85rem', margin: 0, lineHeight: 1.5 }}>
+                                    Are you sure? This action cannot be undone.
+                                </p>
+                            </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                            <button onClick={() => setDeleteConfirmId(null)} className="btn btn-secondary" style={{ flex: 1, padding: '10px 16px', borderRadius: '10px' }}>
                                 Cancel
                             </button>
                             <button
                                 onClick={() => handleDelete(deleteConfirmId)}
                                 disabled={deleteLoading}
-                                className="btn"
-                                style={{ padding: '8px 16px', fontSize: '0.875rem', background: '#ef4444', color: 'white', border: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}
+                                className="btn btn-danger"
+                                style={{ flex: 1, padding: '10px 16px', borderRadius: '10px' }}
                             >
-                                {deleteLoading ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Trash2 size={16} />}
+                                {deleteLoading ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
                                 Delete
                             </button>
                         </div>

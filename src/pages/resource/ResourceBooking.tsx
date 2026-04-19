@@ -61,7 +61,7 @@ interface ActivePanel {
 // ─── Equipment log action label ──────────────────────────────────────────────
 const getLogActionConfig = (action: EquipmentLogAction) =>
     action === EquipmentLogAction.CheckOut
-        ? { label: 'Check Out', color: '#2563eb', bg: '#eff6ff', icon: <LogOut size={12} /> }
+        ? { label: 'Check Out', color: '#2563eb', bg: '#eff6ff', icon: <LogOut size={12} style={{ transform: 'scaleX(-1)' }} /> }
         : { label: 'Check In', color: '#16a34a', bg: '#f0fdf4', icon: <LogIn size={12} /> };
 
 const formatDate = (s: string) => {
@@ -820,7 +820,7 @@ const ResourceBooking: React.FC = () => {
                                                         />
                                                         <button onClick={handleBulkCheckIn} disabled={isBusy}
                                                             style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', width: '128px', borderRadius: '7px', border: 'none', background: isBusy ? '#94a3b8' : '#2563eb', color: '#fff', fontSize: '0.78rem', fontWeight: 700, cursor: isBusy ? 'not-allowed' : 'pointer', flexShrink: 0, height: '34px' }}>
-                                                            {bulkChecking ? <Loader2 size={12} className="animate-spin" /> : <LogOut size={12} />}
+                                                            {bulkChecking ? <Loader2 size={12} className="animate-spin" /> : <LogOut size={12} style={{ transform: 'scaleX(-1)' }} />}
                                                             Check Out {selApproved.length}
                                                         </button>
                                                     </div>
@@ -867,6 +867,12 @@ const ResourceBooking: React.FC = () => {
                                         </div>
                                     ) : displayLogs.map((log, idx) => {
                                         const action = getLogActionConfig(log.action);
+                                        const logBooking = log.bookingId
+                                            ? [...myBookings, ...allBookings, ...managedBookings].find(b => b.id === log.bookingId || b.bookingId === log.bookingId)
+                                            : undefined;
+                                        const cardHoursLate = (log.action === EquipmentLogAction.CheckOut && logBooking?.endTime)
+                                            ? Math.floor((Date.now() - new Date(logBooking.endTime).getTime()) / 3_600_000)
+                                            : 0;
                                         return (
                                             <div key={log.id} style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '12px 16px', borderBottom: idx < displayLogs.length - 1 ? '1px solid #f1f5f9' : 'none', transition: 'background 0.15s', cursor: 'pointer', background: activePanel?.targetId === log.id ? '#f0f9ff' : 'transparent', outline: activePanel?.targetId === log.id ? '2px solid #0284c7' : 'none', outlineOffset: '-2px', borderRadius: activePanel?.targetId === log.id ? '8px' : undefined }}
                                                 onClick={() => handleViewLog(log)}
@@ -878,9 +884,18 @@ const ResourceBooking: React.FC = () => {
                                                 </div>
                                                 <div style={{ flex: 1, minWidth: 0 }}>
                                                     <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{log.resourceName || 'Unknown Resource'}</div>
-                                                    <div style={{ fontSize: '0.72rem', color: '#64748b' }}>by {log.userFullName || log.userName}</div>
+                                                    <div style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                                                        <span style={{ fontWeight: 700, color: '#2563eb' }}>Borrower:</span> {log.userFullName || log.userName}
+                                                    </div>
                                                 </div>
-                                                <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600, flexShrink: 0 }}>{formatDate(log.loggedAt)}</div>
+                                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '3px', flexShrink: 0 }}>
+                                                    <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600 }}>{formatDate(log.loggedAt)}</div>
+                                                    {cardHoursLate > 0 && (
+                                                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '5px', padding: '2px 6px', fontSize: '0.65rem', fontWeight: 800, color: '#dc2626' }}>
+                                                            ⚠ LATE: {cardHoursLate}h
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
                                         );
                                     })}
@@ -969,6 +984,12 @@ const ResourceBooking: React.FC = () => {
                             {activePanel.type === 'view_log' && activePanel.log && (() => {
                                 const log = activePanel.log!;
                                 const action = getLogActionConfig(log.action);
+                                const relatedBooking = log.bookingId
+                                    ? [...myBookings, ...allBookings, ...managedBookings].find(b => b.id === log.bookingId || b.bookingId === log.bookingId)
+                                    : undefined;
+                                const hoursLate = (log.action === EquipmentLogAction.CheckOut && relatedBooking?.endTime)
+                                    ? Math.floor((Date.now() - new Date(relatedBooking.endTime).getTime()) / 3_600_000)
+                                    : 0;
                                 const cardStyle: React.CSSProperties = { background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', padding: '14px 16px', marginBottom: '10px' };
                                 const labelSt: React.CSSProperties = { fontSize: '0.68rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.7px', marginBottom: '4px' };
                                 const valueSt: React.CSSProperties = { fontSize: '0.88rem', fontWeight: 600, color: '#1e293b', wordBreak: 'break-word' };
@@ -994,12 +1015,19 @@ const ResourceBooking: React.FC = () => {
                                         {/* Date */}
                                         <div style={cardStyle}>
                                             <div style={labelSt}>Logged At</div>
-                                            <div style={{ ...valueSt, color: '#2563eb' }}>{formatDate(log.loggedAt)}</div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                                <div style={{ ...valueSt, color: '#2563eb' }}>{formatDate(log.loggedAt)}</div>
+                                                {hoursLate > 0 && (
+                                                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', padding: '3px 8px', fontSize: '0.7rem', fontWeight: 800, color: '#dc2626', letterSpacing: '0.4px' }}>
+                                                        ⚠ LATE: {hoursLate}h
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
 
                                         {/* User */}
                                         <div style={cardStyle}>
-                                            <div style={labelSt}>Performed By</div>
+                                            <div style={labelSt}>Borrower</div>
                                             <div style={valueSt}>{log.userFullName || log.userName}</div>
                                             {log.userEmail && <div style={subValueSt}>{log.userEmail}</div>}
                                         </div>

@@ -81,7 +81,16 @@ const GlobalBookingList: React.FC<GlobalBookingListProps> = ({ bookings, loading
                 <tr key={booking.id} style={{ borderBottom: '1px solid #f1f5f9', transition: 'background 0.2s' }} className="table-row-hover">
                   <td style={{ padding: '1rem 1.5rem' }}>
                     <div style={{ fontWeight: 600, color: '#1e293b', fontSize: '0.9rem' }}>{booking.title}</div>
-                    <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>By {booking.userName}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '2px' }}>
+                      <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#2563eb', background: '#eff6ff', padding: '1px 6px', borderRadius: '4px' }}>
+                        Borrower: {booking.userFullName || booking.userName}
+                      </span>
+                      {booking.approvedByName && (
+                        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#059669', background: '#f0fdf4', padding: '1px 6px', borderRadius: '4px' }}>
+                          Manager: {booking.approvedByName}
+                        </span>
+                      )}
+                    </div>
                     {isSplit && <div style={{ fontSize: '0.7rem', color: '#3b82f6', marginTop: '2px', fontWeight: 600 }}>{booking.resourceName}</div>}
                   </td>
                   {!isSplit && (

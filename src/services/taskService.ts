@@ -119,8 +119,10 @@ export const taskService = {
 
     update: async (taskId: string, taskData: any): Promise<any> => {
         try {
+            const GUID_EMPTY = '00000000-0000-0000-0000-000000000000';
             const hasMemberId = Object.prototype.hasOwnProperty.call(taskData, 'memberId');
-            const nextMemberId = hasMemberId ? (taskData.memberId || null) : undefined;
+            const rawMemberId = hasMemberId ? (taskData.memberId || GUID_EMPTY) : undefined;
+            const nextMemberId = rawMemberId === GUID_EMPTY ? null : rawMemberId;
 
             const hasSupportMembers = Object.prototype.hasOwnProperty.call(taskData, 'supportMembers');
 
@@ -155,7 +157,7 @@ export const taskService = {
                 description: taskData.description,
                 priority: taskData.priority,
                 status: taskData.status,
-                ...(hasMemberId ? { memberId: nextMemberId } : {}),
+                ...(hasMemberId ? { memberId: rawMemberId } : {}),
                 startDate: taskData.startDate,
                 dueDate: taskData.dueDate,
                 milestoneId: taskData.milestoneId || null

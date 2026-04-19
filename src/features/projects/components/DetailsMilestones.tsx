@@ -193,7 +193,7 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                 description: draft.description,
                 priority: draft.priority,
                 status: draft.status,
-                memberId: draft.assigneeId,
+                memberId: draft.assigneeId || '00000000-0000-0000-0000-000000000000',
                 milestoneId: mId,
                 projectId: projectId,
                 startDate: draft.startDate + "T00:00:00.000Z",
@@ -227,13 +227,33 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
         if (savingTaskId === taskId) return;
         setSavingTaskId(taskId);
         try {
+            const GUID_EMPTY = '00000000-0000-0000-0000-000000000000';
+            const newMemberId = task.memberId !== undefined ? task.memberId : (task as any).assignedToId;
+            const isUnassigning = !newMemberId;
+
+            // If unassigning, DELETE the current assignee's task-member record first
+            if (isUnassigning) {
+                try {
+                    const currentTaskMembers = await taskService.getMembers(taskId);
+                    const prevAssigneeId = (task as any).assignedToId || (task as any)._prevMemberId;
+                    const currentAssignee = currentTaskMembers.find((tm: any) => {
+                        const mKey = tm.membershipId || tm.memberId || tm.member?.membershipId || tm.member?.id;
+                        return mKey === prevAssigneeId;
+                    });
+                    const assocId = currentAssignee?.id || currentAssignee?.taskMemberId || currentAssignee?.taskMemberID || currentAssignee?.taskMemberAssociationId;
+                    if (assocId) await taskService.removeMember(assocId);
+                } catch (e) {
+                    console.warn('Could not remove assignee task-member record:', e);
+                }
+            }
+
             // Construct base payload
             const updatePayload: any = {
                 name: task.name,
                 description: task.description,
                 status: task.status,
                 priority: task.priority,
-                memberId: task.memberId || (task as any).assignedToId,
+                memberId: newMemberId || GUID_EMPTY,
                 supportMembers: task.collaboratorIds || [],
                 milestoneId: activeMilestone?.milestoneId || (activeMilestone as any)?.id || editingMilestoneId,
                 projectId: projectId
@@ -1252,8 +1272,9 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                                                                 style={{ ...compactInput, width: '100%', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', background: 'white', paddingLeft: '10px', paddingRight: '8px' }}
                                                                             >
                                                                                 {selectedMember ? (
-                                                                                    <div style={{ width: '18px', height: '18px', borderRadius: '50%', background: 'var(--primary-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '0.55rem', fontWeight: 700, color: 'white' }}>
-                                                                                        {(selectedMember.fullName || selectedMember.userName || '?').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
+                                                                                    <div style={{ width: '18px', height: '18px', borderRadius: '50%', background: 'var(--primary-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '0.55rem', fontWeight: 700, color: 'white', overflow: 'hidden', position: 'relative' }}>
+                                                                                        <span>{(selectedMember.fullName || selectedMember.userName || '?').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}</span>
+                                                                                        {(selectedMember.avatarUrl || selectedMember.avatar) && <img src={selectedMember.avatarUrl || selectedMember.avatar} alt="" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
                                                                                     </div>
                                                                                 ) : (
                                                                                     <User size={12} color="#94a3b8" style={{ flexShrink: 0 }} />
@@ -1285,7 +1306,10 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                                                                                 const initials = (m.fullName || m.userName || '?').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
                                                                                                 return (
                                                                                                     <div key={mId} onClick={() => { updateDraft(draft.id, 'assigneeId', mId); const next = (draft.collaboratorIds || []).filter(id => id !== mId); if (next.length !== (draft.collaboratorIds || []).length) updateDraft(draft.id, 'collaboratorIds', next); setOpenAssigneeDropdownId(null); }} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 8px', cursor: 'pointer', borderRadius: '6px', background: isSelected ? '#f1f5f9' : 'transparent' }}>
-                                                                                                        <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: isSelected ? 'var(--primary-color)' : '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700, color: isSelected ? 'white' : '#64748b', flexShrink: 0 }}>{initials}</div>
+                                                                                                        <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700, color: '#64748b', flexShrink: 0, overflow: 'hidden', position: 'relative' }}>
+                                                                                                            <span>{initials}</span>
+                                                                                                            {(m.avatarUrl || m.avatar) && <img src={m.avatarUrl || m.avatar} alt="" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
+                                                                                                        </div>
                                                                                                         <span style={{ fontSize: '0.72rem', fontWeight: 500, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.fullName || m.userName}</span>
                                                                                                         {isSelected && <CheckCircle size={12} style={{ marginLeft: 'auto', flexShrink: 0, color: 'var(--primary-color)' }} />}
                                                                                                     </div>
@@ -1340,7 +1364,10 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                                                                                 const initials = (m.fullName || m.userName || '?').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
                                                                                                 return (
                                                                                                     <div key={mId} onClick={() => { const next = isSelected ? selectedIds.filter(id => id !== mId) : [...selectedIds, mId]; updateDraft(draft.id, 'collaboratorIds', next); }} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 8px', cursor: 'pointer', borderRadius: '6px', background: isSelected ? '#f1f5f9' : 'transparent' }}>
-                                                                                                        <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: isSelected ? 'var(--accent-color, #6366f1)' : '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700, color: isSelected ? 'white' : '#64748b', flexShrink: 0 }}>{initials}</div>
+                                                                                                        <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: isSelected ? 'var(--accent-color, #6366f1)' : '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700, color: isSelected ? 'white' : '#64748b', flexShrink: 0, overflow: 'hidden', position: 'relative' }}>
+                                                                                                            <span style={{ fontSize: '0.6rem', fontWeight: 700 }}>{initials}</span>
+                                                                                                            {(m.avatarUrl || m.avatar) && <img src={m.avatarUrl || m.avatar} alt="" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
+                                                                                                        </div>
                                                                                                         <span style={{ fontSize: '0.72rem', fontWeight: 500, color: '#1e293b', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.fullName || m.userName}</span>
                                                                                                         {isSelected && <CheckCircle size={12} style={{ flexShrink: 0, color: 'var(--accent-color, #6366f1)' }} />}
                                                                                                     </div>
@@ -1611,8 +1638,9 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                                                                                 style={{ ...compactInput, width: '100%', display: 'flex', alignItems: 'center', gap: '6px', cursor: canEditFull ? 'pointer' : 'default', background: canEditFull ? 'white' : 'var(--border-light)', paddingLeft: '10px', paddingRight: '8px', fontSize: '0.75rem', borderRadius: '10px' }}
                                                                                             >
                                                                                                 {selectedMember ? (
-                                                                                                    <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: 'var(--primary-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '0.55rem', fontWeight: 700, color: 'white' }}>
-                                                                                                        {(selectedMember.fullName || selectedMember.userName || '?').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
+                                                                                                    <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: 'var(--primary-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '0.55rem', fontWeight: 700, color: 'white', overflow: 'hidden', position: 'relative' }}>
+                                                                                                        <span>{(selectedMember.fullName || selectedMember.userName || '?').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}</span>
+                                                                                                        {(selectedMember.avatarUrl || selectedMember.avatar) && <img src={selectedMember.avatarUrl || selectedMember.avatar} alt="" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
                                                                                                     </div>
                                                                                                 ) : (
                                                                                                     <User size={13} color="#94a3b8" style={{ flexShrink: 0 }} />
@@ -1644,7 +1672,10 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                                                                                                 const initials = (m.fullName || m.userName || '?').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
                                                                                                                 return (
                                                                                                                     <div key={mId} onClick={() => { handleUpdateTaskField(task.taskId, 'memberId', mId); const cur = (task as any).collaboratorIds || []; const next = cur.filter((id: string) => id !== mId); if (next.length !== cur.length) handleUpdateTaskField(task.taskId, 'collaboratorIds', next); setOpenAssigneeDropdownId(null); }} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 8px', cursor: 'pointer', borderRadius: '6px', background: isSelected ? '#f1f5f9' : 'transparent' }}>
-                                                                                                                        <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: isSelected ? 'var(--primary-color)' : '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700, color: isSelected ? 'white' : '#64748b', flexShrink: 0 }}>{initials}</div>
+                                                                                                                        <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700, color: '#64748b', flexShrink: 0, overflow: 'hidden', position: 'relative' }}>
+                                                                                                                            <span>{initials}</span>
+                                                                                                                            {(m.avatarUrl || m.avatar) && <img src={m.avatarUrl || m.avatar} alt="" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
+                                                                                                                        </div>
                                                                                                                         <span style={{ fontSize: '0.72rem', fontWeight: 500, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.fullName || m.userName}</span>
                                                                                                                         {isSelected && <CheckCircle size={12} style={{ marginLeft: 'auto', flexShrink: 0, color: 'var(--primary-color)' }} />}
                                                                                                                     </div>
@@ -1704,7 +1735,10 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                                                                                                 const initials = (m.fullName || m.userName || '?').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
                                                                                                                 return (
                                                                                                                     <div key={mId} onClick={() => { const next = isSelected ? selectedIds.filter((id: string) => id !== mId) : [...selectedIds, mId]; handleUpdateTaskField(task.taskId, 'collaboratorIds', next); }} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 8px', cursor: 'pointer', borderRadius: '6px', background: isSelected ? '#f1f5f9' : 'transparent' }}>
-                                                                                                                        <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: isSelected ? '#6366f1' : '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700, color: isSelected ? 'white' : '#64748b', flexShrink: 0 }}>{initials}</div>
+                                                                                                                        <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: isSelected ? '#6366f1' : '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700, color: isSelected ? 'white' : '#64748b', flexShrink: 0, overflow: 'hidden', position: 'relative' }}>
+                                                                                                                            <span style={{ fontSize: '0.6rem', fontWeight: 700 }}>{initials}</span>
+                                                                                                                            {(m.avatarUrl || m.avatar) && <img src={m.avatarUrl || m.avatar} alt="" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
+                                                                                                                        </div>
                                                                                                                         <span style={{ fontSize: '0.72rem', fontWeight: 500, color: '#1e293b', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.fullName || m.userName}</span>
                                                                                                                         {isSelected && <CheckCircle size={12} style={{ flexShrink: 0, color: '#6366f1' }} />}
                                                                                                                     </div>

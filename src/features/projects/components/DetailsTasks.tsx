@@ -618,12 +618,12 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                                                             justifyContent: 'center',
                                                             overflow: 'hidden',
                                                             border: '1px solid #e2e8f0',
-                                                            flexShrink: 0
+                                                            flexShrink: 0,
+                                                            position: 'relative'
                                                         }}>
-                                                            {selectedMember?.avatarUrl || selectedMember?.AvatarUrl ? (
-                                                                <img src={selectedMember.avatarUrl || selectedMember.AvatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                                            ) : (
-                                                                <User size={12} style={{ color: selectedMember ? 'var(--primary-color)' : '#94a3b8' }} />
+                                                            <User size={12} style={{ color: selectedMember ? 'var(--primary-color)' : '#94a3b8' }} />
+                                                            {(selectedMember?.avatarUrl || selectedMember?.AvatarUrl || selectedMember?.avatar) && (
+                                                                <img src={selectedMember.avatarUrl || selectedMember.AvatarUrl || selectedMember.avatar} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                                                             )}
                                                         </div>
                                                         <span style={{
@@ -736,12 +736,11 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                                                                                     }}
                                                                                 >
                                                                                     <div style={{
-                                                                                        width: '28px', height: '28px', borderRadius: '50%', background: 'var(--accent-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', border: '1px solid #e2e8f0', flexShrink: 0
+                                                                                        width: '28px', height: '28px', borderRadius: '50%', background: 'var(--accent-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', border: '1px solid #e2e8f0', flexShrink: 0, position: 'relative'
                                                                                     }}>
-                                                                                        {m.avatarUrl || m.AvatarUrl ? (
-                                                                                            <img src={m.avatarUrl || m.AvatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                                                                        ) : (
-                                                                                            <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--primary-color)' }}>{initials}</span>
+                                                                                        <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--primary-color)' }}>{initials}</span>
+                                                                                        {(m.avatarUrl || m.AvatarUrl || m.avatar) && (
+                                                                                            <img src={m.avatarUrl || m.AvatarUrl || m.avatar} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                                                                                         )}
                                                                                     </div>
                                                                                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -806,14 +805,11 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                                                                 <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
                                                                     {selectedMembers.slice(0, 3).map((m, idx) => (
                                                                         <div key={getMemberOptionId(m)} style={{
-                                                                            width: '24px', height: '24px', borderRadius: '50%', background: 'white', border: '1.5px solid white', marginLeft: idx > 0 ? '-10px' : 0, overflow: 'hidden', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', zIndex: 3 - idx
+                                                                            width: '24px', height: '24px', borderRadius: '50%', background: 'var(--accent-bg)', border: '1.5px solid white', marginLeft: idx > 0 ? '-10px' : 0, overflow: 'hidden', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', zIndex: 3 - idx, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center'
                                                                         }}>
-                                                                            {m.avatarUrl || m.AvatarUrl ? (
-                                                                                <img src={m.avatarUrl || m.AvatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                                                            ) : (
-                                                                                <div style={{ width: '100%', height: '100%', background: 'var(--accent-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700, color: 'var(--primary-color)' }}>
-                                                                                    {(m.fullName || m.userName || '?')[0].toUpperCase()}
-                                                                                </div>
+                                                                            <span style={{ fontSize: '0.6rem', fontWeight: 700, color: 'var(--primary-color)' }}>{(m.fullName || m.userName || '?')[0].toUpperCase()}</span>
+                                                                            {(m.avatarUrl || m.AvatarUrl || m.avatar) && (
+                                                                                <img src={m.avatarUrl || m.AvatarUrl || m.avatar} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                                                                             )}
                                                                         </div>
                                                                     ))}
@@ -903,12 +899,11 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                                                                                         {checked && <Check size={10} color="white" strokeWidth={3} />}
                                                                                     </div>
                                                                                     <div style={{
-                                                                                        width: '28px', height: '28px', borderRadius: '50%', background: 'var(--accent-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', border: '1px solid #e2e8f0', flexShrink: 0
+                                                                                        width: '28px', height: '28px', borderRadius: '50%', background: 'var(--accent-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', border: '1px solid #e2e8f0', flexShrink: 0, position: 'relative'
                                                                                     }}>
-                                                                                        {m.avatarUrl || m.AvatarUrl ? (
-                                                                                            <img src={m.avatarUrl || m.AvatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                                                                        ) : (
-                                                                                            <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--primary-color)' }}>{initials}</span>
+                                                                                        <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--primary-color)' }}>{initials}</span>
+                                                                                        {(m.avatarUrl || m.AvatarUrl || m.avatar) && (
+                                                                                            <img src={m.avatarUrl || m.AvatarUrl || m.avatar} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                                                                                         )}
                                                                                     </div>
                                                                                     <div style={{ flex: 1, minWidth: 0 }}>

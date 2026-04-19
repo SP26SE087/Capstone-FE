@@ -754,6 +754,20 @@ a:hover {
   color: var(--accent-color);
 }
 
+.btn-danger {
+  background: #e11d48;
+  color: white;
+  border-color: #e11d48;
+  box-shadow: 0 2px 8px rgba(225, 29, 72, 0.25);
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #be123c;
+  border-color: #be123c;
+  box-shadow: 0 4px 14px rgba(225, 29, 72, 0.35);
+  transform: translateY(-1px);
+}
+
 /* =============================================
    STAT WIDGET — reusable stat cards
    ============================================= */

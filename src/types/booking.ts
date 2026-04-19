@@ -165,6 +165,7 @@ export interface EquipmentLog {
   action: EquipmentLogAction;
   note?: string;
   loggedAt: string;
+  returnDeadline?: string;
 }
 
 export enum EquipmentLogAction {

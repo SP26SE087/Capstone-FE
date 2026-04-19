@@ -3,7 +3,7 @@ import AppSelect from '@/components/common/AppSelect';
 import { validateSpecialChars } from '@/utils/validation';
 import {
     Search, X, User, Calendar, Loader2, Play, Send,
-    Upload, Paperclip, Target, ChevronDown, Check, RotateCw, CheckCircle2, Pencil, Save, Edit3, Download
+    Upload, Paperclip, Target, ChevronDown, Check, RotateCw, CheckCircle2, Pencil, Save, Edit3, Download, Trash2
 } from 'lucide-react';
 import { Task, TaskStatus, Priority, Milestone, MilestoneStatus, Project, ProjectRoleEnum } from '@/types';
 import { milestoneService, taskService } from '@/services';
@@ -98,6 +98,8 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
     });
     const [editError, setEditError] = useState<string | null>(null);
     const [editSaving, setEditSaving] = useState(false);
+    const [deletingTask, setDeletingTask] = useState(false);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
     // ── Dropdowns ──
     const [openCollabDropdownId, setOpenCollabDropdownId] = useState<string | null>(null);
@@ -233,9 +235,11 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
             const matchedMember = typeof item === 'object'
                 ? item
                 : projectMembers.find(pm => getMemberOptionId(pm) === normalizeId(item));
+            const pmMatch = projectMembers.find(pm => getMemberOptionId(pm) === getMemberOptionId(matchedMember));
             const id = getMemberOptionId(matchedMember) || normalizeId(item);
             const fullName = matchedMember?.fullName || matchedMember?.userName || matchedMember?.name || matchedMember?.email || (typeof item === 'string' ? item : 'Member');
-            return { id, fullName, email: matchedMember?.email || '' };
+            const avatarUrl = pmMatch?.avatarUrl || pmMatch?.avatar || matchedMember?.avatarUrl || matchedMember?.avatar || '';
+            return { id, fullName, email: matchedMember?.email || '', avatarUrl };
         }).filter((item: any) => !!item.id || !!item.fullName);
     };
 
@@ -491,10 +495,25 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
             supportMembers: Array.isArray(editForm.supportMemberIds) ? editForm.supportMemberIds : [],
             projectId: (activeTask as any).projectId || project.projectId || (project as any).id,
         };
-        updatePayload.memberId = editForm.memberId || null;
+        updatePayload.memberId = editForm.memberId || '00000000-0000-0000-0000-000000000000';
         updatePayload.startDate = editForm.startDate ? new Date(editForm.startDate).toISOString() : null;
         updatePayload.dueDate = editForm.dueDate ? new Date(editForm.dueDate).toISOString() : null;
         try {
+            // If unassigning, explicitly DELETE the current assignee's task-member record
+            if (!editForm.memberId && originalMemberId) {
+                try {
+                    const currentTaskMembers = await taskService.getMembers(tId);
+                    const currentAssignee = currentTaskMembers.find((tm: any) => {
+                        const mKey = tm.membershipId || tm.memberId || tm.member?.membershipId || tm.member?.id;
+                        const uKey = tm.userId || tm.user?.id;
+                        return mKey === originalMemberId || uKey === originalMemberId;
+                    });
+                    const assocId = currentAssignee?.id || currentAssignee?.taskMemberId || currentAssignee?.taskMemberID || currentAssignee?.taskMemberAssociationId;
+                    if (assocId) await taskService.removeMember(assocId);
+                } catch (e) {
+                    console.warn('Could not remove assignee task-member record:', e);
+                }
+            }
             await taskService.update(tId, updatePayload);
             await refreshSelectedTaskViews(tId);
             setIsEditMode(false);
@@ -719,10 +738,11 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
                                         <button type="button"
                                             onClick={() => { setOpenAssigneeDropdownId(isOpen ? null : assigneeKey); setMemberSearchQuery(''); }}
                                             style={{ ...inputStyle, padding: '0.5rem 0.8rem', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', background: 'white', border: isOpen ? '1.5px solid var(--primary-color)' : '1.5px solid #e2e8f0', boxShadow: isOpen ? '0 0 0 3px rgba(var(--primary-rgb), 0.1)' : 'none' }}>
-                                            <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: selectedMember ? 'var(--accent-bg)' : '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', border: '1px solid #e2e8f0', flexShrink: 0 }}>
-                                                {selectedMember?.avatarUrl || selectedMember?.AvatarUrl
-                                                    ? <img src={selectedMember.avatarUrl || selectedMember.AvatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                                    : <User size={12} style={{ color: selectedMember ? 'var(--primary-color)' : '#94a3b8' }} />}
+                                            <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: selectedMember ? 'var(--accent-bg)' : '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', border: '1px solid #e2e8f0', flexShrink: 0, position: 'relative' }}>
+                                                <User size={12} style={{ color: selectedMember ? 'var(--primary-color)' : '#94a3b8' }} />
+                                                {(selectedMember?.avatarUrl || selectedMember?.AvatarUrl || selectedMember?.avatar) && (
+                                                    <img src={selectedMember.avatarUrl || selectedMember.AvatarUrl || selectedMember.avatar} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                                                )}
                                             </div>
                                             <span style={{ flex: 1, color: selectedMember ? '#1e293b' : '#94a3b8', fontWeight: selectedMember ? 600 : 400, fontSize: '0.85rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                                 {selectedMember ? (selectedMember.fullName || selectedMember.userName) : 'Unassigned'}
@@ -759,10 +779,11 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
                                                                     <div key={mId}
                                                                         onClick={() => { setEditForm(f => ({ ...f, memberId: mId, supportMemberIds: f.supportMemberIds.filter(id => id !== mId) })); setOpenAssigneeDropdownId(null); }}
                                                                         style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', cursor: 'pointer', borderRadius: '6px', background: isSelected ? '#f1f5f9' : 'transparent', transition: 'background 0.15s' }}>
-                                                                        <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'var(--accent-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', border: '1px solid #e2e8f0', flexShrink: 0 }}>
-                                                                            {m.avatarUrl || m.AvatarUrl
-                                                                                ? <img src={m.avatarUrl || m.AvatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                                                                : <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--primary-color)' }}>{initials}</span>}
+                                                                        <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'var(--accent-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', border: '1px solid #e2e8f0', flexShrink: 0, position: 'relative' }}>
+                                                                            <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--primary-color)' }}>{initials}</span>
+                                                                            {(m.avatarUrl || m.AvatarUrl || m.avatar) && (
+                                                                                <img src={m.avatarUrl || m.AvatarUrl || m.avatar} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                                                                            )}
                                                                         </div>
                                                                         <div style={{ flex: 1, minWidth: 0 }}>
                                                                             <div style={{ fontSize: '0.8rem', fontWeight: 600, color: isSelected ? 'var(--primary-color)' : '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.fullName || m.userName}</div>
@@ -810,10 +831,11 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, overflow: 'hidden' }}>
                                                     <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
                                                         {selectedMembers.slice(0, 3).map((m, idx) => (
-                                                            <div key={getMemberOptionId(m)} style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'white', border: '1.5px solid white', marginLeft: idx > 0 ? '-10px' : 0, overflow: 'hidden', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', zIndex: 3 - idx }}>
-                                                                {m.avatarUrl || m.AvatarUrl
-                                                                    ? <img src={m.avatarUrl || m.AvatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                                                    : <div style={{ width: '100%', height: '100%', background: 'var(--accent-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 700, color: 'var(--primary-color)' }}>{(m.fullName || m.userName || '?')[0].toUpperCase()}</div>}
+                                                            <div key={getMemberOptionId(m)} style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'var(--accent-bg)', border: '1.5px solid white', marginLeft: idx > 0 ? '-10px' : 0, overflow: 'hidden', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', zIndex: 3 - idx, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                                <span style={{ fontSize: '0.6rem', fontWeight: 700, color: 'var(--primary-color)' }}>{(m.fullName || m.userName || '?')[0].toUpperCase()}</span>
+                                                                {(m.avatarUrl || m.AvatarUrl || m.avatar) && (
+                                                                    <img src={m.avatarUrl || m.AvatarUrl || m.avatar} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                                                                )}
                                                             </div>
                                                         ))}
                                                         {selectedMembers.length > 3 && (
@@ -849,10 +871,11 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
                                                                     <div key={mId}
                                                                         onClick={() => setEditForm(f => ({ ...f, supportMemberIds: isSelected ? f.supportMemberIds.filter(id => id !== mId) : [...f.supportMemberIds, mId] }))}
                                                                         style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', cursor: 'pointer', borderRadius: '6px', background: isSelected ? '#f1f5f9' : 'transparent', transition: 'background 0.15s' }}>
-                                                                        <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'var(--accent-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', border: '1px solid #e2e8f0', flexShrink: 0 }}>
-                                                                            {m.avatarUrl || m.AvatarUrl
-                                                                                ? <img src={m.avatarUrl || m.AvatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                                                                : <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--primary-color)' }}>{initials}</span>}
+                                                                        <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'var(--accent-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', border: '1px solid #e2e8f0', flexShrink: 0, position: 'relative' }}>
+                                                                            <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--primary-color)' }}>{initials}</span>
+                                                                            {(m.avatarUrl || m.AvatarUrl || m.avatar) && (
+                                                                                <img src={m.avatarUrl || m.AvatarUrl || m.avatar} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                                                                            )}
                                                                         </div>
                                                                         <div style={{ flex: 1, minWidth: 0 }}>
                                                                             <div style={{ fontSize: '0.8rem', fontWeight: 600, color: isSelected ? 'var(--primary-color)' : '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.fullName || m.userName}</div>
@@ -905,17 +928,23 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
                         <label style={labelStyle}>Assignee</label>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <div style={{ width: '28px', height: '28px', background: '#e2e8f0', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                                    {(activeTask as any).member?.avatarUrl || (activeTask as any).member?.avatar ? (
-                                        <img 
-                                            src={(activeTask as any).member?.avatarUrl || (activeTask as any).member?.avatar} 
-                                            alt="" 
-                                            style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-                                        />
-                                    ) : (
-                                        <User size={14} color="#64748b" />
-                                    )}
-                                </div>
+                                {(() => {
+                                    const pmAssignee = projectMembers.find(pm =>
+                                        pm.memberId === (activeTask as any).memberId ||
+                                        getMemberOptionId(pm) === normalizeId((activeTask as any).memberId)
+                                    );
+                                    const avatarSrc = pmAssignee?.avatarUrl || pmAssignee?.avatar ||
+                                        (activeTask as any).member?.avatarUrl || (activeTask as any).member?.avatar;
+                                    return (
+                                        <div style={{ width: '28px', height: '28px', background: '#e2e8f0', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
+                                            {avatarSrc ? (
+                                                <img src={avatarSrc} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                                            ) : (
+                                                <User size={14} color="#64748b" />
+                                            )}
+                                        </div>
+                                    );
+                                })()}
                                 <div>
                                     <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#1e293b' }}>
                                         {(activeTask as any).member?.fullName || (activeTask as any).member?.userName || (activeTask as any).member?.name || (activeTask as any).assigneeName || (activeTask as any).assignedToName || 'Unassigned'}
@@ -943,15 +972,10 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
                                                 const initials = (collab.fullName || collab.userName || '?').split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2);
                                                 return (
                                                     <div key={collab.id || collab.fullName} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                        <div style={{ width: '24px', height: '24px', background: 'var(--accent-bg)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
-                                                            {collab.avatarUrl || collab.avatar ? (
-                                                                <img 
-                                                                    src={collab.avatarUrl || collab.avatar} 
-                                                                    alt="" 
-                                                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-                                                                />
-                                                            ) : (
-                                                                <span style={{ fontSize: '0.6rem', fontWeight: 700, color: 'var(--primary-color)' }}>{initials}</span>
+                                                        <div style={{ width: '24px', height: '24px', background: 'var(--accent-bg)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden', border: '1px solid #e2e8f0', position: 'relative' }}>
+                                                            <span style={{ fontSize: '0.6rem', fontWeight: 700, color: 'var(--primary-color)' }}>{initials}</span>
+                                                            {(collab.avatarUrl || collab.avatar) && (
+                                                                <img src={collab.avatarUrl || collab.avatar} alt="" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
                                                             )}
                                                         </div>
                                                         <div>
@@ -1111,6 +1135,21 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
                             </button>
                         )}
 
+                        {/* Delete task */}
+                        {isSpecialRole && !isArchived && !isEditMode && activeTask.status === TaskStatus.Todo && (
+                            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                <button
+                                    onClick={() => setShowDeleteConfirm(true)}
+                                    disabled={deletingTask}
+                                    style={{ padding: '6px 14px', background: '#fff1f2', color: '#e11d48', border: '1.5px solid #fecdd3', borderRadius: '8px', fontWeight: 700, fontSize: '0.72rem', cursor: deletingTask ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s', opacity: deletingTask ? 0.6 : 1 }}
+                                    onMouseOver={e => { if (!deletingTask) e.currentTarget.style.background = '#ffe4e6'; }}
+                                    onMouseOut={e => { e.currentTarget.style.background = '#fff1f2'; }}
+                                >
+                                    {deletingTask ? <Loader2 size={12} className="animate-spin-slow" /> : <Trash2 size={12} />} Delete task
+                                </button>
+                            </div>
+                        )}
+
                         {/* Observer notice */}
                         {!(activeTask as any).isAssignee && viewContext !== 'personal' && !isSpecialRole && (
                             <div style={{ textAlign: 'center', padding: '1.5rem', color: '#94a3b8', fontSize: '0.75rem', background: '#f8fafc', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
@@ -1215,6 +1254,24 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
             )}
 
             {/* Confirm Modals */}
+            <ConfirmModal isOpen={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)}
+                onConfirm={async () => {
+                    setShowDeleteConfirm(false);
+                    const tId = activeTask.taskId || (activeTask as any).id;
+                    setDeletingTask(true);
+                    try {
+                        await taskService.delete(tId);
+                        refreshTasks();
+                        onPersonalRefresh();
+                        showToast('Task deleted.', 'success');
+                    } catch {
+                        showToast('Failed to delete task.', 'error');
+                    } finally {
+                        setDeletingTask(false);
+                    }
+                }}
+                title="Delete Task" message="Are you sure you want to delete this task? This action cannot be undone."
+                confirmText="Delete" cancelText="Cancel" variant="danger" />
             <ConfirmModal isOpen={!!pendingSubmitTaskId} onClose={() => setPendingSubmitTaskId(null)}
                 onConfirm={async () => { const id = pendingSubmitTaskId; setPendingSubmitTaskId(null); if (id) await handleSubmitForReview(id); }}
                 title="Confirm Submit" message="Submit this task for review? Make sure your evidence is correct and complete."
