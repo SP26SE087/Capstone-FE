@@ -315,9 +315,11 @@ const PaperSubmissions: React.FC = () => {
         try {
             setLoading(true);
             const data = await paperSubmissionService.getAll({ pageIndex: page, pageSize });
-            setPapers(data.items || []);
+            const items = data.items || [];
+            setPapers(items);
             setTotalCount(data.totalCount ?? 0);
             setPageIndex(data.pageIndex ?? page);
+            return items;
         } catch (err: any) {
             showToast(!err.response ? 'Cannot connect to Paper Submission server.' : 'Failed to load papers.', 'error');
             setPapers([]);
@@ -1722,6 +1724,7 @@ const PaperSubmissions: React.FC = () => {
                                         onOpenAuthorsModal={() => setAuthorsModalOpen(true)}
                                         onAuthorClick={(info) => setAuthorDetail(info)}
                                         hidePaperUrl={false}
+                                        existingDocumentUrl={editDocument ? null : (selectedPaper.document || null)}
                                     />
 
                                     {/* Additional Assignees — edit */}
@@ -1899,7 +1902,7 @@ const PaperSubmissions: React.FC = () => {
                                             <div>
                                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
                                                     <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase' as const, letterSpacing: '0.6px' }}>Assignees</div>
-                                                    {activePanel === 'edit' && selectedPaper.projectId && (meIsAssignee || isDirector || selectedPaper.editable) && (
+                                                    {selectedPaper.projectId && (meIsAssignee || isDirector || selectedPaper.editable) && (
                                                         <button type="button"
                                                             onClick={() => setViewAssigneesModalOpen(true)}
                                                             style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 10px', borderRadius: '7px', border: '1px solid #e2e8f0', background: '#f8fafc', color: '#475569', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700 }}>
@@ -2210,10 +2213,26 @@ const PaperSubmissions: React.FC = () => {
                     membersLoading={membersLoading}
                     initialMemberIds={(activePanel === 'edit' ? editData.members : addMembers).map((m: PaperMemberRequest) => m.membershipId)}
                     initialExternals={activePanel === 'edit' ? editExternalUsers : addExternalUsers}
-                    onSave={(memberIds, externals) => {
+                    onSave={async (memberIds, externals) => {
                         const requests: PaperMemberRequest[] = memberIds.map(mid => ({ membershipId: mid, role: PaperRoleEnum.CoAuthor }));
                         if (activePanel === 'edit') {
                             setEditData((p: any) => ({ ...p, members: requests }));
+                            // Call delete API immediately for removed external users
+                            if (selectedPaper) {
+                                const deletedIds = editExternalUsers
+                                    .filter(eu => eu.externalUserId && !externals.some((e: any) => e.externalUserId === eu.externalUserId))
+                                    .map((eu: any) => eu.externalUserId);
+                                for (const id of deletedIds) {
+                                    try { await paperSubmissionService.deleteExternalUser(selectedPaper.paperSubmissionId, id); } catch { /* skip */ }
+                                }
+                                if (deletedIds.length > 0) {
+                                    const updatedList = await loadPapers(pageIndex);
+                                    if (updatedList) {
+                                        const refreshed = updatedList.find((p: any) => p.paperSubmissionId === selectedPaper.paperSubmissionId);
+                                        if (refreshed) setSelectedPaper(refreshed);
+                                    }
+                                }
+                            }
                             setEditExternalUsers(externals);
                         } else {
                             setAddMembers(requests);
@@ -2262,12 +2281,13 @@ interface PaperFormFieldsProps {
     externalUsers?: ExternalUserCreateDto[];
     onOpenAuthorsModal?: () => void;
     onAuthorClick?: (info: { type: 'member' | 'external'; data: any }) => void;
+    existingDocumentUrl?: string | null;
 }
 
 const PaperFormFields: React.FC<PaperFormFieldsProps> = ({
     data, onChange, onProjectChange, onMembersChange, onDocumentChange,
     projects, projectMembers, membersLoading, formErrors, extraField, hidePaperUrl,
-    externalUsers, onOpenAuthorsModal, onAuthorClick,
+    externalUsers, onOpenAuthorsModal, onAuthorClick, existingDocumentUrl,
 }) => (
     <>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -2312,16 +2332,20 @@ const PaperFormFields: React.FC<PaperFormFieldsProps> = ({
             <label style={{
                 display: 'flex', alignItems: 'center', gap: '10px',
                 padding: '9px 12px', borderRadius: '9px', border: '1.5px dashed #cbd5e1',
-                background: data.document ? '#f0fdf4' : '#f8fafc',
+                background: (data.document || existingDocumentUrl) ? '#f0fdf4' : '#f8fafc',
                 cursor: 'pointer', transition: 'all 0.2s', fontSize: '0.82rem', fontWeight: 600,
-                color: data.document ? '#15803d' : '#64748b'
+                color: (data.document || existingDocumentUrl) ? '#15803d' : '#64748b'
             }}
                 onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--accent-color)')}
                 onMouseLeave={e => (e.currentTarget.style.borderColor = '#cbd5e1')}
             >
                 <Upload size={15} style={{ flexShrink: 0 }} />
                 <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {data.document ? data.document.name : 'Click to upload or drag a file here'}
+                    {data.document
+                        ? data.document.name
+                        : existingDocumentUrl
+                            ? existingDocumentUrl.split('/').pop()?.split('?')[0] || 'Current document'
+                            : 'Click to upload or drag a file here'}
                 </span>
                 {data.document && (
                     <button

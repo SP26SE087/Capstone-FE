@@ -254,7 +254,7 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
     });
     const [showConfirmClose, setShowConfirmClose] = useState(false);
     const [showTranscriptPopover, setShowTranscriptPopover] = useState(false);
-    const [popoverRect, setPopoverRect] = useState<{ top: number; bottom: number; right: number } | null>(null);
+    const [popoverRect, setPopoverRect] = useState<{ top: number; bottom: number; right: number; left: number } | null>(null);
     const transcriptWrapperRef = useRef<HTMLDivElement>(null);
     const popoverPortalRef = useRef<HTMLDivElement>(null);
 
@@ -282,7 +282,7 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
         const update = () => {
             if (transcriptWrapperRef.current) {
                 const r = transcriptWrapperRef.current.getBoundingClientRect();
-                setPopoverRect({ top: r.top, bottom: r.bottom, right: r.right });
+                setPopoverRect({ top: r.top, bottom: r.bottom, right: r.right, left: r.left });
             }
         };
         window.addEventListener('scroll', update, true);
@@ -788,7 +788,7 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                             onClick={() => {
                                 if (transcriptWrapperRef.current) {
                                     const r = transcriptWrapperRef.current.getBoundingClientRect();
-                                    setPopoverRect({ top: r.top, bottom: r.bottom, right: r.right });
+                                    setPopoverRect({ top: r.top, bottom: r.bottom, right: r.right, left: r.left });
                                 }
                                 setShowTranscriptPopover(v => !v);
                             }}
@@ -1496,7 +1496,7 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                     style={{
                         position: 'fixed',
                         top: popoverRect.top,
-                        left: popoverRect.right + 8,
+                        left: popoverRect.left - 308,
                         width: '300px',
                         background: '#fff',
                         borderRadius: '14px',

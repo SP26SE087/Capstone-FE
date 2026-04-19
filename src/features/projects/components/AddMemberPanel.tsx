@@ -105,6 +105,7 @@ const AddMemberPanel: React.FC<AddMemberPanelProps> = ({
     const filteredUsers = allUsers.filter(u => {
         const role = Number(u.role);
         if (role === 1 || role === 2) return false; // skip Admin & Lab Director system roles
+        if (u.isActive === false) return false; // skip inactive users
         const q = userSearchQuery.toLowerCase();
         return (
             (u.fullName || u.userName || '').toLowerCase().includes(q) ||
@@ -290,6 +291,7 @@ const AddMemberPanel: React.FC<AddMemberPanelProps> = ({
                         {filteredUsers.map(user => {
                             const uid = user.userId || user.id;
                             const userEmail = user.email || '';
+
                             // Compare by email to avoid exposing userId
                             const isAlreadyIn = !!userEmail && existingMemberIds.some(
                                 e => e && e.toLowerCase() === userEmail.toLowerCase()
