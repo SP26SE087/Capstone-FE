@@ -34,9 +34,9 @@ const InviteMemberForm: React.FC<InviteMemberFormProps> = ({ onSuccess, onCancel
             newErrors.email = 'Please enter a valid email address';
         }
 
-        // Phone validation (optional but must be digits)
-        if (phoneNumber && !/^\d+$/.test(phoneNumber)) {
-            newErrors.phone = 'Phone number must contain only digits';
+        // Phone validation (optional)
+        if (phoneNumber && !/^(\+[1-9]\d{6,14}|0\d{9})$/.test(phoneNumber)) {
+            newErrors.phone = 'Invalid phone number format (e.g. 0912345678 or +84912345678)';
         }
 
         setErrors(newErrors);
@@ -163,7 +163,7 @@ const InviteMemberForm: React.FC<InviteMemberFormProps> = ({ onSuccess, onCancel
                     <input
                         type="text"
                         className="form-input"
-                        placeholder="e.g. 0123456789"
+                        placeholder="e.g. 0912345678 or +84912345678"
                         style={{ 
                             width: '100%',
                             borderColor: errors.phone ? 'var(--danger)' : undefined,
@@ -171,8 +171,14 @@ const InviteMemberForm: React.FC<InviteMemberFormProps> = ({ onSuccess, onCancel
                         }}
                         value={phoneNumber}
                         onChange={(e) => {
-                            setPhoneNumber(e.target.value);
-                            if (errors.phone) setErrors({ ...errors, phone: undefined });
+                            const v = e.target.value;
+                            setPhoneNumber(v);
+                            setErrors(prev => ({
+                                ...prev,
+                                phone: v && !/^(\+[1-9]\d{6,14}|0\d{9})$/.test(v)
+                                    ? 'Invalid phone number format (e.g. 0912345678 or +84912345678)'
+                                    : undefined
+                            }));
                         }}
                     />
                     {errors.phone && (
@@ -180,9 +186,6 @@ const InviteMemberForm: React.FC<InviteMemberFormProps> = ({ onSuccess, onCancel
                             {errors.phone}
                         </div>
                     )}
-                    <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                        Input digits only, no spaces or special characters.
-                    </span>
                 </div>
 
                 {/* System Role Field */}
@@ -221,7 +224,7 @@ const InviteMemberForm: React.FC<InviteMemberFormProps> = ({ onSuccess, onCancel
                     <button 
                         type="submit" 
                         className="btn btn-primary" 
-                        disabled={loading}
+                        disabled={loading || !!errors.email || !!errors.phone}
                         style={{ width: '100%', padding: '0.75rem' }}
                     >
                         {loading ? (

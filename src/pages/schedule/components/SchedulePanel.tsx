@@ -29,7 +29,6 @@ import {
     AlertCircle,
     Lock,
     X,
-    Mic,
     RefreshCw,
     Sparkles,
     ArrowRight,
@@ -371,7 +370,7 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             {/* Panel Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '12px', borderBottom: '1px solid var(--border-light)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
                     <div style={{
                         width: '32px',
                         height: '32px',
@@ -380,11 +379,12 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                         color: '#fff',
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'center'
+                        justifyContent: 'center',
+                        flexShrink: 0
                     }}>
                         {isCreating ? <Plus size={16} /> : <Calendar size={16} />}
                     </div>
-                    <div>
+                    <div style={{ minWidth: 0 }}>
                         <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
                             {isCreating ? 'New Schedule' : (meeting?.title || 'Schedule Details')}
                         </h3>
@@ -415,92 +415,39 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                         )}
                     </div>
                 </div>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexShrink: 0 }}>
                     {!isCreating && onToggleAINote && (
                         <button
                             onClick={onToggleAINote}
                             title="AI Notes"
                             style={{
-                                display: 'flex', alignItems: 'center', gap: '6px',
-                                padding: '7px 14px', borderRadius: '10px', cursor: 'pointer',
-                                fontSize: '0.78rem', fontWeight: 800,
-                                border: 'none',
+                                display: 'flex', alignItems: 'center', gap: '4px',
+                                padding: '5px 10px', borderRadius: '8px', cursor: 'pointer',
+                                fontSize: '0.72rem', fontWeight: 700,
+                                border: 'none', whiteSpace: 'nowrap',
                                 background: showAINote
                                     ? 'linear-gradient(135deg, #6366f1, #8b5cf6)'
                                     : 'linear-gradient(135deg, #f5f3ff, #ede9fe)',
                                 color: showAINote ? '#fff' : '#6366f1',
                                 boxShadow: showAINote
-                                    ? '0 4px 14px rgba(99,102,241,0.4)'
-                                    : '0 2px 8px rgba(99,102,241,0.15)',
+                                    ? '0 3px 10px rgba(99,102,241,0.4)'
+                                    : '0 1px 4px rgba(99,102,241,0.15)',
                                 transition: 'all 0.2s',
-                                letterSpacing: '0.01em'
                             }}
                             onMouseEnter={e => {
                                 if (!showAINote) {
                                     e.currentTarget.style.background = 'linear-gradient(135deg, #6366f1, #8b5cf6)';
                                     e.currentTarget.style.color = '#fff';
-                                    e.currentTarget.style.boxShadow = '0 4px 14px rgba(99,102,241,0.35)';
                                 }
                             }}
                             onMouseLeave={e => {
                                 if (!showAINote) {
                                     e.currentTarget.style.background = 'linear-gradient(135deg, #f5f3ff, #ede9fe)';
                                     e.currentTarget.style.color = '#6366f1';
-                                    e.currentTarget.style.boxShadow = '0 2px 8px rgba(99,102,241,0.15)';
                                 }
                             }}
                         >
-                            <Sparkles size={13} /> AI Notes
-                        </button>
-                    )}
-                    {!isCreating && meetingId && canCancel && (
-                        <button
-                            onClick={handleCancel}
-                            disabled={cancelling}
-                            title="Cancel this meeting"
-                            style={{
-                                background: '#fff7ed',
-                                border: '1px solid #fed7aa',
-                                color: '#ea580c',
-                                padding: '6px 12px',
-                                borderRadius: '8px',
-                                cursor: cancelling ? 'not-allowed' : 'pointer',
-                                fontSize: '0.75rem',
-                                fontWeight: 700,
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                transition: 'all 0.2s',
-                                opacity: cancelling ? 0.6 : 1
-                            }}
-                        >
-                            {cancelling ? <Loader2 size={14} className="animate-spin" /> : <X size={14} />}
-                            Cancel Meeting
-                        </button>
-                    )}
-                    {!isCreating && meetingId && canDelete && (
-                        <button
-                            onClick={handleDelete}
-                            disabled={deleting}
-                            title="Delete this meeting (only Scheduled meetings)"
-                            style={{
-                                background: '#fef2f2',
-                                border: '1px solid #fecaca',
-                                color: '#ef4444',
-                                padding: '6px 12px',
-                                borderRadius: '8px',
-                                cursor: deleting ? 'not-allowed' : 'pointer',
-                                fontSize: '0.75rem',
-                                fontWeight: 700,
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                transition: 'all 0.2s',
-                                opacity: deleting ? 0.6 : 1
-                            }}
-                        >
-                            {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                            Delete
+                            <Sparkles size={11} /> AI Notes
                         </button>
                     )}
                     <button
@@ -861,19 +808,14 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                                     };
                                     const rs = rsConfig[att.responseStatus] ?? rsConfig[AttendeeResponseStatus.NeedsAction];
                                     const name = att.displayName || att.email || 'Unknown';
-                                    const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&size=64&background=6366f1&color=ffffff&bold=true&rounded=true`;
+                                    const avatarColors = ['#6366f1','#8b5cf6','#3b82f6','#10b981','#f59e0b','#ef4444','#ec4899'];
+                                    const avatarBg = avatarColors[(name.charCodeAt(0) || 0) % avatarColors.length];
                                     return (
                                         <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', borderRadius: '10px', background: '#fafafa', border: '1px solid var(--border-light)', transition: 'background 0.15s' }}
                                             onMouseEnter={e => { e.currentTarget.style.background = '#f8fafc'; }}
                                             onMouseLeave={e => { e.currentTarget.style.background = '#fafafa'; }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                                <img
-                                                    src={avatarUrl}
-                                                    alt={name}
-                                                    style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
-                                                    onError={e => { e.currentTarget.style.display = 'none'; (e.currentTarget.nextSibling as HTMLElement)?.style.setProperty('display', 'flex'); }}
-                                                />
-                                                <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#1e293b', color: '#fff', display: 'none', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 700, flexShrink: 0 }}>
+                                                <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: avatarBg, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 700, flexShrink: 0 }}>
                                                     {name[0].toUpperCase()}
                                                 </div>
                                                 <div>
@@ -1005,51 +947,107 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                gap: '10px',
+                gap: '8px',
                 marginTop: 'auto'
             }}>
-                {!isCreating && meeting?.id && (
-                    <button
-                        onClick={handleIndexing}
-                        disabled={indexing}
-                        style={{
-                            display: 'flex', alignItems: 'center', gap: '5px',
-                            padding: '6px 12px', borderRadius: '8px', cursor: 'pointer',
-                            fontSize: '0.75rem', fontWeight: 700,
-                            border: '1px solid #e2e8f0',
-                            background: '#fff',
-                            color: '#64748b',
-                            transition: 'all 0.2s'
-                        }}
-                    >
-                        <RefreshCw size={13} className={indexing ? 'animate-spin' : ''} />
-                        Insert to Semantic Search
-                    </button>
-                )}
-                {canEdit && (
-                    <button
-                        onClick={handleSave}
-                        disabled={saving || !title.trim() || !!dateError}
-                        style={{
-                            padding: '8px 24px',
-                            borderRadius: '10px',
-                            border: 'none',
-                            background: (!title.trim() || saving || !!dateError) ? '#94a3b8' : 'var(--accent-color)',
-                            color: '#fff',
-                            cursor: (!title.trim() || saving || !!dateError) ? 'not-allowed' : 'pointer',
-                            fontSize: '0.8rem',
-                            fontWeight: 700,
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            transition: 'all 0.2s',
-                            boxShadow: (!title.trim() || saving) ? 'none' : '0 4px 12px rgba(232,114,12,0.25)'
-                        }}
-                    >
-                        {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                        {isCreating ? 'Create' : 'Save Changes'}
-                    </button>
-                )}
+                {/* Left: destructive actions */}
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                    {!isCreating && meetingId && canCancel && (
+                        <button
+                            onClick={handleCancel}
+                            disabled={cancelling}
+                            title="Cancel this meeting"
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: '4px',
+                                padding: '6px 10px', borderRadius: '8px',
+                                cursor: cancelling ? 'not-allowed' : 'pointer',
+                                fontSize: '0.72rem', fontWeight: 700,
+                                border: '1.5px solid #fed7aa',
+                                background: 'transparent',
+                                color: '#ea580c',
+                                transition: 'all 0.2s',
+                                opacity: cancelling ? 0.6 : 1,
+                                whiteSpace: 'nowrap' as const
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.background = '#fff7ed'; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                        >
+                            {cancelling ? <Loader2 size={13} className="animate-spin" /> : <X size={13} />}
+                            Cancel
+                        </button>
+                    )}
+                    {!isCreating && meetingId && canDelete && (
+                        <button
+                            onClick={handleDelete}
+                            disabled={deleting}
+                            title="Delete this meeting"
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: '4px',
+                                padding: '6px 10px', borderRadius: '8px',
+                                cursor: deleting ? 'not-allowed' : 'pointer',
+                                fontSize: '0.72rem', fontWeight: 700,
+                                border: '1.5px solid #fecaca',
+                                background: 'transparent',
+                                color: '#ef4444',
+                                transition: 'all 0.2s',
+                                opacity: deleting ? 0.6 : 1,
+                                whiteSpace: 'nowrap' as const
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.background = '#fef2f2'; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                        >
+                            {deleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                            Delete
+                        </button>
+                    )}
+                </div>
+                {/* Right: semantic search + save */}
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    {!isCreating && meeting?.id && (
+                        <button
+                            onClick={handleIndexing}
+                            disabled={indexing}
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: '5px',
+                                padding: '6px 10px', borderRadius: '8px', cursor: 'pointer',
+                                fontSize: '0.72rem', fontWeight: 700,
+                                border: '1px solid #e2e8f0',
+                                background: '#fff',
+                                color: '#64748b',
+                                transition: 'all 0.2s',
+                                whiteSpace: 'nowrap' as const
+                            }}
+                        >
+                            <RefreshCw size={12} className={indexing ? 'animate-spin' : ''} />
+                            Semantic Search
+                        </button>
+                    )}
+                    {canEdit && (
+                        <button
+                            onClick={handleSave}
+                            disabled={saving || !title.trim() || !!dateError}
+                            style={{
+                                padding: '7px 20px',
+                                borderRadius: '10px',
+                                border: 'none',
+                                background: (!title.trim() || saving || !!dateError) ? '#94a3b8' : 'var(--accent-color)',
+                                color: '#fff',
+                                cursor: (!title.trim() || saving || !!dateError) ? 'not-allowed' : 'pointer',
+                                fontSize: '0.8rem',
+                                fontWeight: 700,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                transition: 'all 0.2s',
+                                whiteSpace: 'nowrap' as const,
+                                boxShadow: (!title.trim() || saving) ? 'none' : '0 4px 12px rgba(232,114,12,0.25)'
+                            }}
+                        >
+                            {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                            {isCreating ? 'Create' : 'Save'}
+                        </button>
+                    )}
+                </div>
             </div>
         </div>
         
