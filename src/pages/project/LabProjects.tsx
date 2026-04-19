@@ -79,10 +79,11 @@ const MILESTONE_STATUS: Record<number, { label: string; icon: React.ReactNode; c
 };
 
 const STATUS: Record<number, { label: string; color: string; bg: string }> = {
-    0: { label: 'Inactive',  color: '#64748b', bg: '#f1f5f9' },
-    1: { label: 'Active',    color: '#16a34a', bg: '#dcfce7' },
-    2: { label: 'Completed', color: '#2563eb', bg: '#dbeafe' },
-    3: { label: 'Archived',  color: '#9333ea', bg: '#f3e8ff' },
+    1: { label: 'Active',    color: '#10b981', bg: '#ecfdf5' },
+    2: { label: 'Inactive',  color: '#f57c00', bg: '#fff3e0' },
+    3: { label: 'Archived',  color: '#6b7280', bg: '#f3f4f6' },
+    4: { label: 'Completed', color: '#3b82f6', bg: '#eff6ff' },
+    5: { label: 'Cancelled', color: '#dc2626', bg: '#fef2f2' },
 };
 
 const PANEL_HEIGHT = 'calc(100vh - 170px)';
@@ -137,10 +138,11 @@ const LabProjects: React.FC = () => {
 
     const statusOptions = [
         { value: 'All' as const, label: 'All' },
-        { value: 0, label: 'Inactive' },
         { value: 1, label: 'Active' },
-        { value: 2, label: 'Completed' },
+        { value: 2, label: 'Inactive' },
         { value: 3, label: 'Archived' },
+        { value: 4, label: 'Completed' },
+        { value: 5, label: 'Cancelled' },
     ];
 
     return (
