@@ -152,12 +152,13 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, d
             </button>
             {open && rect && ReactDOM.createPortal(
                 <div ref={dropdownRef} style={{
-                    position: 'fixed', top: rect.bottom + 4, left: rect.left, width: rect.width,
+                    position: 'fixed', bottom: window.innerHeight - rect.top + 4, left: rect.left, width: rect.width,
                     background: '#fff', borderRadius: '12px',
                     border: `1.5px solid ${borderColor}`,
                     boxShadow: `0 8px 32px rgba(${shadowRgb},0.18)`,
                     zIndex: 99999, overflow: 'hidden',
-                    animation: 'cs-drop 0.15s ease-out',
+                    maxHeight: '200px', overflowY: 'auto',
+                    animation: 'cs-drop-up 0.15s ease-out',
                 }}>
                     {options.map(opt => {
                         const isSelected = opt.value === value;
@@ -1614,6 +1615,7 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
                 @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
                 @keyframes cs-drop { from { opacity: 0; transform: translateY(-6px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+                @keyframes cs-drop-up { from { opacity: 0; transform: translateY(6px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
                 @keyframes tp-panel-left  { from { opacity: 0; transform: translateX(-28px); } to { opacity: 1; transform: translateX(0); } }
                 @keyframes tp-panel-right { from { opacity: 0; transform: translateX(28px);  } to { opacity: 1; transform: translateX(0); } }
                 .animate-spin { animation: spin 1s linear infinite; }

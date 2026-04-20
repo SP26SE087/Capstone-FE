@@ -18,7 +18,9 @@ import {
     MapPin,
     Zap,
     Minus,
-    Plus
+    Plus,
+    LogIn,
+    LogOut
 } from 'lucide-react';
 
 interface BookingDetailPanelProps {
@@ -127,6 +129,10 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
     const [showRejectForm, setShowRejectForm] = useState(false);
     const [showCancelForm, setShowCancelForm] = useState(false);
     const [showApproveForm, setShowApproveForm] = useState(false);
+    const [showCheckOutForm, setShowCheckOutForm] = useState(false);
+    const [showCheckInForm, setShowCheckInForm] = useState(false);
+    const [checkOutNote, setCheckOutNote] = useState('');
+    const [checkInNote, setCheckInNote] = useState('');
 
     useEffect(() => {
         if (bookingId) loadBooking();
@@ -225,6 +231,39 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
         }
     };
 
+    const handleCheckOut = async () => {
+        setActionLoading(true);
+        try {
+            await bookingService.checkIn(bookingId, checkOutNote.trim() || undefined);
+            onSaved(false, 'Check-out recorded.');
+            setShowCheckOutForm(false);
+            setCheckOutNote('');
+            loadBooking();
+        } catch (err: any) {
+            const msg = err?.response?.data?.message || 'Check-out failed.';
+            addToast(msg, 'error');
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const handleCheckIn = async () => {
+        const firstResourceId = bookingResourceIds[0] ?? '';
+        setActionLoading(true);
+        try {
+            await bookingService.checkOut(bookingId, firstResourceId, checkInNote.trim() || undefined);
+            onSaved(false, 'Check-in recorded.');
+            setShowCheckInForm(false);
+            setCheckInNote('');
+            loadBooking();
+        } catch (err: any) {
+            const msg = err?.response?.data?.message || 'Check-in failed.';
+            addToast(msg, 'error');
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
 
     // Hooks must come before any early returns
     const bookingResources = booking?.resources ?? [];
@@ -259,6 +298,8 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
     const isRequester = !!currentUserEmail && !!bookingUserEmail && currentUserEmail === bookingUserEmail;
     const canApproveReject = isManagedView && booking.status === BookingStatus.Pending;
     const canCancel = isRequester && booking.status === BookingStatus.Pending;
+    const canCheckOut = isManagedView && booking.status === BookingStatus.Approved;
+    const canCheckIn = isManagedView && booking.status === BookingStatus.InUse;
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -648,6 +689,94 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                     </div>
                 )}
 
+                {/* Check Out Form (Approved → InUse) */}
+                {showCheckOutForm && canCheckOut && (
+                    <div style={{ ...sectionStyle, background: '#eff6ff', border: '1px solid #bfdbfe' }}>
+                        <div style={{ ...labelStyle, color: '#2563eb' }}><LogOut size={11} style={{ transform: 'scaleX(-1)' }} /> Check Out — Record Pickup</div>
+                        <textarea
+                            style={{
+                                width: '100%', padding: '7px 10px', borderRadius: '7px',
+                                border: '1.5px solid #bfdbfe', fontSize: '0.78rem', fontFamily: 'inherit',
+                                outline: 'none', minHeight: '48px', resize: 'vertical' as const,
+                                background: '#fff', marginBottom: '8px', boxSizing: 'border-box' as const
+                            }}
+                            value={checkOutNote}
+                            onChange={e => setCheckOutNote(e.target.value)}
+                            placeholder="Note (optional)..."
+                        />
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                            <button
+                                onClick={handleCheckOut}
+                                disabled={actionLoading}
+                                style={{
+                                    padding: '6px 16px', borderRadius: '8px', border: 'none',
+                                    background: '#2563eb', color: '#fff',
+                                    cursor: actionLoading ? 'not-allowed' : 'pointer',
+                                    fontSize: '0.78rem', fontWeight: 700,
+                                    display: 'flex', alignItems: 'center', gap: '4px'
+                                }}
+                            >
+                                {actionLoading ? <Loader2 size={12} className="animate-spin" /> : <LogOut size={12} style={{ transform: 'scaleX(-1)' }} />} Confirm Check Out
+                            </button>
+                            <button
+                                onClick={() => { setShowCheckOutForm(false); setCheckOutNote(''); }}
+                                style={{
+                                    padding: '6px 16px', borderRadius: '8px',
+                                    border: '1px solid var(--border-color)', background: '#fff',
+                                    color: 'var(--text-secondary)', cursor: 'pointer',
+                                    fontSize: '0.78rem', fontWeight: 700
+                                }}
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* Check In Form (InUse → Completed) */}
+                {showCheckInForm && canCheckIn && (
+                    <div style={{ ...sectionStyle, background: '#f0fdf4', border: '1px solid #a7f3d0' }}>
+                        <div style={{ ...labelStyle, color: '#059669' }}><LogIn size={11} /> Check In — Record Return</div>
+                        <textarea
+                            style={{
+                                width: '100%', padding: '7px 10px', borderRadius: '7px',
+                                border: '1.5px solid #a7f3d0', fontSize: '0.78rem', fontFamily: 'inherit',
+                                outline: 'none', minHeight: '48px', resize: 'vertical' as const,
+                                background: '#fff', marginBottom: '8px', boxSizing: 'border-box' as const
+                            }}
+                            value={checkInNote}
+                            onChange={e => setCheckInNote(e.target.value)}
+                            placeholder="Note (optional)..."
+                        />
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                            <button
+                                onClick={handleCheckIn}
+                                disabled={actionLoading}
+                                style={{
+                                    padding: '6px 16px', borderRadius: '8px', border: 'none',
+                                    background: '#059669', color: '#fff',
+                                    cursor: actionLoading ? 'not-allowed' : 'pointer',
+                                    fontSize: '0.78rem', fontWeight: 700,
+                                    display: 'flex', alignItems: 'center', gap: '4px'
+                                }}
+                            >
+                                {actionLoading ? <Loader2 size={12} className="animate-spin" /> : <LogIn size={12} />} Confirm Check In
+                            </button>
+                            <button
+                                onClick={() => { setShowCheckInForm(false); setCheckInNote(''); }}
+                                style={{
+                                    padding: '6px 16px', borderRadius: '8px',
+                                    border: '1px solid var(--border-color)', background: '#fff',
+                                    color: 'var(--text-secondary)', cursor: 'pointer',
+                                    fontSize: '0.78rem', fontWeight: 700
+                                }}
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                )}
+
                 {/* Cancel Form */}
                 {showCancelForm && canCancel && (
                     <div style={{ ...sectionStyle, background: '#f3f4f6', border: '1px solid #e5e7eb' }}>
@@ -700,8 +829,38 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                 display: 'flex', justifyContent: 'space-between',
                 gap: '10px', marginTop: '12px'
             }}>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                    {canCancel && !showCancelForm && !showApproveForm && !showRejectForm && (
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    {canCheckOut && !showCheckOutForm && !showCheckInForm && !showApproveForm && !showRejectForm && !showCancelForm && (
+                        <button
+                            onClick={() => setShowCheckOutForm(true)}
+                            style={{
+                                padding: '8px 16px', borderRadius: '10px',
+                                border: 'none', background: '#2563eb',
+                                color: '#fff', cursor: 'pointer',
+                                fontSize: '0.8rem', fontWeight: 700,
+                                display: 'flex', alignItems: 'center', gap: '6px',
+                                boxShadow: '0 2px 8px rgba(37,99,235,0.2)'
+                            }}
+                        >
+                            <LogOut size={14} style={{ transform: 'scaleX(-1)' }} /> Check Out
+                        </button>
+                    )}
+                    {canCheckIn && !showCheckInForm && !showCheckOutForm && !showApproveForm && !showRejectForm && !showCancelForm && (
+                        <button
+                            onClick={() => setShowCheckInForm(true)}
+                            style={{
+                                padding: '8px 16px', borderRadius: '10px',
+                                border: 'none', background: '#059669',
+                                color: '#fff', cursor: 'pointer',
+                                fontSize: '0.8rem', fontWeight: 700,
+                                display: 'flex', alignItems: 'center', gap: '6px',
+                                boxShadow: '0 2px 8px rgba(5,150,105,0.2)'
+                            }}
+                        >
+                            <LogIn size={14} /> Check In
+                        </button>
+                    )}
+                    {canCancel && !showCancelForm && !showApproveForm && !showRejectForm && !showCheckOutForm && !showCheckInForm && (
                         <button
                             onClick={() => { setShowCancelForm(true); setShowApproveForm(false); setShowRejectForm(false); }}
                             style={{

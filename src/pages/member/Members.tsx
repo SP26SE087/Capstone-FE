@@ -62,9 +62,11 @@ const Members: React.FC = () => {
             const data = await userService.getAll();
             setMembers(data);
             setError(null);
+            return data as any[];
         } catch (err) {
             console.error('Failed to fetch members:', err);
             setError((err as any).message || 'Failed to load lab members.');
+            return [] as any[];
         } finally {
             setLoading(false);
         }
@@ -436,7 +438,21 @@ const Members: React.FC = () => {
                                 }}
                                 isProjectPanelOpen={isProjectPanelOpen}
                                 isLabDirector={isLabDirector}
-                                onUpdated={() => fetchMembers()}
+                                onUpdated={async () => {
+                                    const fresh = await fetchMembers();
+                                    setCheckLogData(prev => {
+                                        if (!prev) return prev;
+                                        const updated = fresh.find((m: any) =>
+                                            (m.email || '').toLowerCase() === prev.email.toLowerCase()
+                                        );
+                                        if (!updated) return prev;
+                                        return {
+                                            ...prev,
+                                            studentId: String(updated.studentId ?? updated.StudentId ?? prev.studentId),
+                                            userName: updated.fullName || updated.userName || prev.userName,
+                                        };
+                                    });
+                                }}
                                 onDeleted={() => {
                                     addToast('User deleted successfully.', 'success');
                                     setSelectedUserId(null);

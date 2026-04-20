@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const FACE_BASE = '/face';
+const FACE_BASE = (import.meta.env.VITE_FACE_SERVER_URL as string || 'http://localhost:5000').replace(/\/$/, '');
 
 const faceApi = axios.create({
     baseURL: FACE_BASE,

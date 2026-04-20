@@ -12,7 +12,8 @@ interface FaceScannerModalProps {
     userName: string;
 }
 
-const FACE_VIDEO_FEED = '/face/video_feed';
+const FACE_BASE_URL = (import.meta.env.VITE_FACE_SERVER_URL as string || 'http://localhost:5000').replace(/\/$/, '');
+const FACE_VIDEO_FEED = `${FACE_BASE_URL}/video_feed`;
 
 const FaceScannerModal: React.FC<FaceScannerModalProps> = ({ isOpen, onClose, initialStudentId, userName }) => {
     const [isScanning, setIsScanning] = useState(false);

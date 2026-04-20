@@ -188,7 +188,7 @@ const Projects: React.FC = () => {
 
     const filteredProjects = useMemo(() => projects
         .filter(p => {
-            const name = (p.projectName || '').toLowerCase();
+            const name = (p.projectName || (p as any).name || '').toLowerCase();
             const matchesSearch = name.includes(searchTerm.toLowerCase());
             const matchesStatus = statusFilter === 'All' || p.status === statusFilter;
             return matchesSearch && matchesStatus;
