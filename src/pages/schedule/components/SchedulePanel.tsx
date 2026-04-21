@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import ConfirmModal from '@/components/common/ConfirmModal';
 import {
     MeetingResponse,
@@ -7,8 +7,11 @@ import {
     UpdateMeetingRequest,
     AttendeeResponseStatus
 } from '@/types/meeting';
+import { SeminarMeetingResponse, CreateSeminarSwapRequest } from '@/types/seminar';
 import meetingService from '@/services/meetingService';
+import seminarService from '@/services/seminarService';
 import { useAuth } from '@/hooks/useAuth';
+import { useToastStore } from '@/store/slices/toastSlice';
 import AttendeeSelector, { SelectedAttendee } from '@/components/common/AttendeeSelector';
 import CalendarPicker from '@/components/common/CalendarPicker';
 import {
@@ -32,11 +35,13 @@ import {
     RefreshCw,
     Sparkles,
     ArrowRight,
+    ArrowLeftRight,
     CheckCircle2,
     XCircle,
     HelpCircle,
     Timer,
-    Info
+    Info,
+    Search
 } from 'lucide-react';
 
 interface SchedulePanelProps {
@@ -47,6 +52,8 @@ interface SchedulePanelProps {
     onSaved: (shouldClose?: boolean, message?: string, newEventId?: string) => void;
     onTitleChange?: (title: string) => void;
     projectsMap: Record<string, string>;
+    seminarMeeting?: SeminarMeetingResponse | null;
+    allowSeminarSwap?: boolean;
     onToggleAINote?: () => void;
     showAINote?: boolean;
     initialData?: MeetingResponse;
@@ -79,6 +86,30 @@ const formatDisplayDate = (dateStr: string) => {
     const hours = d.getHours().toString().padStart(2, '0');
     const minutes = d.getMinutes().toString().padStart(2, '0');
     return `${day}/${month}/${year} ${hours}:${minutes}`;
+};
+
+const DURATION_MIN_MINUTES = 15;
+const DURATION_MAX_MINUTES = 480;
+const DURATION_STEP_MINUTES = 15;
+const DURATION_PRESETS = [30, 45, 60, 90];
+
+const clampDurationMinutes = (value: number) =>
+    Math.max(DURATION_MIN_MINUTES, Math.min(DURATION_MAX_MINUTES, value));
+
+const formatTimeToAmPm = (date: Date) => {
+    const h = date.getHours();
+    const m = date.getMinutes();
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 || 12;
+    return `${String(h12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${ampm}`;
+};
+
+const formatDurationReadable = (minutes: number) => {
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    if (h === 0) return `${m}m`;
+    if (m === 0) return `${h}h`;
+    return `${h}h ${m}m`;
 };
 
 const inputStyle: React.CSSProperties = {
@@ -122,11 +153,14 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
     onSaved,
     onTitleChange,
     projectsMap,
+    seminarMeeting,
+    allowSeminarSwap = false,
     onToggleAINote,
     showAINote,
     initialData
 }) => {
     const { user } = useAuth();
+    const { addToast } = useToastStore();
     const [meeting, setMeeting] = useState<MeetingResponse | null>(null);
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -135,6 +169,7 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
     const [indexing, setIndexing] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(false);
     const [confirmCancel, setConfirmCancel] = useState(false);
+    const [descExpanded, setDescExpanded] = useState(false);
 
     // Form fields
     const [title, setTitle] = useState('');
@@ -143,9 +178,17 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
         const d = new Date();
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     });
-    const [startTime, setStartTime] = useState('');
-    const [durationMinutes, setDurationMinutes] = useState(60);
+    const [startTime, setStartTime] = useState(() => {
+        const d = new Date();
+        const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        return `${date}T09:00`;
+    });
+    const [durationMinutes, setDurationMinutes] = useState(45);
     const [projectId, setProjectId] = useState('');
+    const startTimeInputRef = useRef<HTMLInputElement | null>(null);
+    const [projectDropdownOpen, setProjectDropdownOpen] = useState(false);
+    const [projectSearch, setProjectSearch] = useState('');
+    const projectDropdownRef = useRef<HTMLDivElement | null>(null);
     const [selectedAttendees, setSelectedAttendees] = useState<SelectedAttendee[]>([]);
 
     // Detail sections collapse
@@ -153,6 +196,14 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
     const [showInviteSection, setShowInviteSection] = useState(true);
     const [dateError, setDateError] = useState('');
     const [attendeeError, setAttendeeError] = useState('');
+
+    // Seminar swap request
+    const [swapAccordionOpen, setSwapAccordionOpen] = useState(false);
+    const [swapTargets, setSwapTargets] = useState<SeminarMeetingResponse[]>([]);
+    const [swapTargetId, setSwapTargetId] = useState('');
+    const [swapReason, setSwapReason] = useState('');
+    const [submittingSwap, setSubmittingSwap] = useState(false);
+    const [showSwapConfirm, setShowSwapConfirm] = useState(false);
 
     // Load meeting details
     useEffect(() => {
@@ -166,6 +217,37 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
             }
         }
     }, [meetingId, isCreating]);
+
+    useEffect(() => {
+        if (!projectDropdownOpen) return;
+
+        const handleOutsideClick = (event: MouseEvent) => {
+            if (
+                projectDropdownRef.current &&
+                !projectDropdownRef.current.contains(event.target as Node)
+            ) {
+                setProjectDropdownOpen(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleOutsideClick);
+        return () => document.removeEventListener('mousedown', handleOutsideClick);
+    }, [projectDropdownOpen]);
+
+    useEffect(() => {
+        if (!isCreating) {
+            setProjectDropdownOpen(false);
+            setProjectSearch('');
+        }
+    }, [isCreating]);
+
+    useEffect(() => {
+        setSwapAccordionOpen(false);
+        setSwapTargets([]);
+        setSwapTargetId('');
+        setSwapReason('');
+        setShowSwapConfirm(false);
+    }, [seminarMeeting?.seminarMeetingId]);
 
     const loadMeeting = async (eventId: string, silent: boolean = false) => {
         if (!silent) setLoading(true);
@@ -339,6 +421,56 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
         }
     };
 
+    const handleOpenSwapForm = async () => {
+        if (!seminarMeeting || swapTargets.length > 0) return;
+
+        try {
+            const data = await seminarService.getAllSeminarMeetings();
+            const threeDaysFromNow = Date.now() + 3 * 24 * 60 * 60 * 1000;
+            const filtered = Array.isArray(data)
+                ? data.filter(m =>
+                    m.seminarMeetingId !== seminarMeeting.seminarMeetingId &&
+                    m.seminarId === seminarMeeting.seminarId &&
+                    m.presenterId !== seminarMeeting.presenterId &&
+                    new Date(m.meetingDate).getTime() > threeDaysFromNow
+                )
+                : [];
+
+            filtered.sort((a, b) => new Date(a.meetingDate).getTime() - new Date(b.meetingDate).getTime());
+            setSwapTargets(filtered);
+        } catch (err) {
+            console.error('Failed to load meetings for swap:', err);
+            addToast('Failed to load swap targets.', 'error');
+        }
+    };
+
+    const handleSubmitSwap = async () => {
+        if (!seminarMeeting || !swapTargetId) return;
+
+        setSubmittingSwap(true);
+        try {
+            const req: CreateSeminarSwapRequest = {
+                sourceSeminarMeetingId: seminarMeeting.seminarMeetingId,
+                targetSeminarMeetingId: swapTargetId,
+                reason: swapReason.trim() || null,
+                expiresAtUtc: null,
+            };
+
+            await seminarService.createSwapRequest(req);
+            setSwapAccordionOpen(false);
+            setSwapTargetId('');
+            setSwapReason('');
+            setSwapTargets([]);
+            addToast('Swap request submitted successfully.', 'success');
+            onSaved(false, 'Swap request submitted successfully.');
+        } catch (err: any) {
+            const msg = err?.response?.data?.message || err?.response?.data?.title || 'Failed to submit swap request.';
+            addToast(msg, 'error');
+        } finally {
+            setSubmittingSwap(false);
+        }
+    };
+
     if (loading) {
         return (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '300px' }}>
@@ -364,13 +496,40 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
         today.setHours(0, 0, 0, 0);
         return meetingDate >= today;
     })());
+    const canRequestSeminarSwap = !isCreating
+        && allowSeminarSwap
+        && !!seminarMeeting
+        && !!user?.userId
+        && seminarMeeting.presenterId === user.userId;
+
+    const clampedDurationMinutes = clampDurationMinutes(durationMinutes);
+    const parsedStartTime = startTime ? new Date(startTime) : null;
+    const validStartTime = parsedStartTime && !isNaN(parsedStartTime.getTime()) ? parsedStartTime : null;
+    const startTimeDisplay = validStartTime ? formatTimeToAmPm(validStartTime) : '--:--';
+    const endTimeDisplay = validStartTime
+        ? formatTimeToAmPm(new Date(validStartTime.getTime() + clampedDurationMinutes * 60000))
+        : '--:--';
+    const durationReadable = formatDurationReadable(clampedDurationMinutes);
+    const selectedTimeValue = startTime
+        ? (startTime.includes('T') ? startTime.split('T')[1].slice(0, 5) : startTime.slice(0, 5))
+        : '09:00';
+    const projectEntries = useMemo(
+        () => Object.entries(projectsMap).sort(([, a], [, b]) => a.localeCompare(b)),
+        [projectsMap]
+    );
+    const filteredProjectEntries = useMemo(() => {
+        const q = projectSearch.trim().toLowerCase();
+        if (!q) return projectEntries;
+        return projectEntries.filter(([, name]) => name.toLowerCase().includes(q));
+    }, [projectEntries, projectSearch]);
+    const selectedProjectName = projectId ? projectsMap[projectId] : '';
 
     return (
         <>
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             {/* Panel Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '12px', borderBottom: '1px solid var(--border-light)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <div style={{
                         width: '32px',
                         height: '32px',
@@ -379,12 +538,11 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                         color: '#fff',
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0
+                        justifyContent: 'center'
                     }}>
                         {isCreating ? <Plus size={16} /> : <Calendar size={16} />}
                     </div>
-                    <div style={{ minWidth: 0 }}>
+                    <div>
                         <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
                             {isCreating ? 'New Schedule' : (meeting?.title || 'Schedule Details')}
                         </h3>
@@ -415,39 +573,96 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                         )}
                     </div>
                 </div>
-                <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexShrink: 0 }}>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                     {!isCreating && onToggleAINote && (
                         <button
                             onClick={onToggleAINote}
-                            title="AI Notes"
+                            title={showAINote ? 'Close AI Notes' : 'Open AI Notes'}
                             style={{
-                                display: 'flex', alignItems: 'center', gap: '4px',
-                                padding: '5px 10px', borderRadius: '8px', cursor: 'pointer',
-                                fontSize: '0.72rem', fontWeight: 700,
-                                border: 'none', whiteSpace: 'nowrap',
+                                display: 'flex', alignItems: 'center', gap: '6px',
+                                padding: '7px 16px', borderRadius: '10px', cursor: 'pointer',
+                                fontSize: '0.8rem', fontWeight: 800,
+                                border: showAINote ? 'none' : '1.5px solid #c4b5fd',
                                 background: showAINote
                                     ? 'linear-gradient(135deg, #6366f1, #8b5cf6)'
-                                    : 'linear-gradient(135deg, #f5f3ff, #ede9fe)',
-                                color: showAINote ? '#fff' : '#6366f1',
+                                    : '#faf5ff',
+                                color: showAINote ? '#fff' : '#7c3aed',
                                 boxShadow: showAINote
-                                    ? '0 3px 10px rgba(99,102,241,0.4)'
-                                    : '0 1px 4px rgba(99,102,241,0.15)',
+                                    ? '0 4px 16px rgba(99,102,241,0.45)'
+                                    : '0 1px 4px rgba(139,92,246,0.12)',
                                 transition: 'all 0.2s',
+                                letterSpacing: '0.01em',
+                                position: 'relative' as const,
                             }}
                             onMouseEnter={e => {
                                 if (!showAINote) {
                                     e.currentTarget.style.background = 'linear-gradient(135deg, #6366f1, #8b5cf6)';
                                     e.currentTarget.style.color = '#fff';
+                                    e.currentTarget.style.border = 'none';
+                                    e.currentTarget.style.boxShadow = '0 4px 16px rgba(99,102,241,0.4)';
                                 }
                             }}
                             onMouseLeave={e => {
                                 if (!showAINote) {
-                                    e.currentTarget.style.background = 'linear-gradient(135deg, #f5f3ff, #ede9fe)';
-                                    e.currentTarget.style.color = '#6366f1';
+                                    e.currentTarget.style.background = '#faf5ff';
+                                    e.currentTarget.style.color = '#7c3aed';
+                                    e.currentTarget.style.border = '1.5px solid #c4b5fd';
+                                    e.currentTarget.style.boxShadow = '0 1px 4px rgba(139,92,246,0.12)';
                                 }
                             }}
                         >
-                            <Sparkles size={11} /> AI Notes
+                            <Sparkles size={14} />
+                            {showAINote ? 'Close Notes' : 'AI Notes'}
+                        </button>
+                    )}
+                    {!isCreating && meetingId && canCancel && (
+                        <button
+                            onClick={handleCancel}
+                            disabled={cancelling}
+                            title="Cancel this meeting"
+                            style={{
+                                background: '#fff7ed',
+                                border: '1px solid #fed7aa',
+                                color: '#ea580c',
+                                padding: '6px 12px',
+                                borderRadius: '8px',
+                                cursor: cancelling ? 'not-allowed' : 'pointer',
+                                fontSize: '0.75rem',
+                                fontWeight: 700,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                transition: 'all 0.2s',
+                                opacity: cancelling ? 0.6 : 1
+                            }}
+                        >
+                            {cancelling ? <Loader2 size={14} className="animate-spin" /> : <X size={14} />}
+                            Cancel Meeting
+                        </button>
+                    )}
+                    {!isCreating && meetingId && canDelete && (
+                        <button
+                            onClick={handleDelete}
+                            disabled={deleting}
+                            title="Delete this meeting (only Scheduled meetings)"
+                            style={{
+                                background: '#fef2f2',
+                                border: '1px solid #fecaca',
+                                color: '#ef4444',
+                                padding: '6px 12px',
+                                borderRadius: '8px',
+                                cursor: deleting ? 'not-allowed' : 'pointer',
+                                fontSize: '0.75rem',
+                                fontWeight: 700,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                transition: 'all 0.2s',
+                                opacity: deleting ? 0.6 : 1
+                            }}
+                        >
+                            {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                            Delete
                         </button>
                     )}
                     <button
@@ -584,16 +799,45 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                     </div>
 
                     <div style={{ marginBottom: '14px' }}>
-                        <label style={labelStyle}><FileText size={12} /> Description</label>
-                        <textarea
-                            style={{ ...inputStyle, minHeight: '80px', resize: canEdit ? ('vertical' as const) : ('none' as const), ...(canEdit ? {} : { background: '#f8fafc', color: 'var(--text-secondary)', cursor: 'default' }) }}
-                            value={description}
-                            onChange={e => { if (canEdit) setDescription(e.target.value); }}
-                            readOnly={!canEdit}
-                            placeholder="Meeting description, agenda overview..."
-                            onFocus={e => { if (canEdit) { e.currentTarget.style.borderColor = 'var(--accent-color)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,114,12,0.08)'; } }}
-                            onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.boxShadow = 'none'; }}
-                        />
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                            <label style={{ ...labelStyle, marginBottom: 0 }}><FileText size={12} /> Description</label>
+                            {!canEdit && description && (
+                                <button
+                                    type="button"
+                                    onClick={() => setDescExpanded(v => !v)}
+                                    style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '0.7rem', fontWeight: 700, color: 'var(--accent-color)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }}
+                                >
+                                    {descExpanded ? <><ChevronUp size={11} /> Collapse</> : <><ChevronDown size={11} /> Expand</>}
+                                </button>
+                            )}
+                        </div>
+                        {canEdit ? (
+                            <textarea
+                                style={{ ...inputStyle, minHeight: '80px', resize: 'vertical' as const }}
+                                value={description}
+                                onChange={e => setDescription(e.target.value)}
+                                placeholder="Meeting description, agenda overview..."
+                                onFocus={e => { e.currentTarget.style.borderColor = 'var(--accent-color)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,114,12,0.08)'; }}
+                                onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.boxShadow = 'none'; }}
+                            />
+                        ) : description ? (
+                            <div style={{
+                                fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: '1.6',
+                                padding: '8px 10px', borderRadius: '8px', background: '#f8fafc',
+                                border: '1px solid var(--border-color)',
+                                maxHeight: descExpanded ? 'none' : '60px',
+                                overflow: 'hidden',
+                                position: 'relative',
+                                whiteSpace: 'pre-wrap' as const,
+                            }}>
+                                {description}
+                                {!descExpanded && description.length > 120 && (
+                                    <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '28px', background: 'linear-gradient(transparent, #f8fafc)' }} />
+                                )}
+                            </div>
+                        ) : (
+                            <div style={{ fontSize: '0.82rem', color: '#94a3b8', fontStyle: 'italic', padding: '8px 10px' }}>No description</div>
+                        )}
                     </div>
 
                     <div style={{ marginBottom: '14px' }}>
@@ -609,58 +853,231 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                     {/* Time + Duration — split by edit vs view */}
                     {canEdit ? (
                         <>
-                            {/* Edit/Create: separate Start Time + Duration (original layout) */}
+                            {/* Edit/Create: native time picker with polished input styling */}
                             <div style={{ marginBottom: '14px' }}>
-                                <label style={labelStyle}><Clock size={12} /> Start Time</label>
-                                <input
-                                    type="time"
-                                    disabled={!canEdit}
-                                    value={startTime ? (startTime.includes('T') ? startTime.split('T')[1].slice(0, 5) : startTime.slice(0, 5)) : '09:00'}
-                                    onChange={e => { const t = e.target.value; if (t) handleStartTimeChange(`${meetingDate}T${t}`); }}
-                                    style={{ ...inputStyle, cursor: 'pointer' }}
-                                    onFocus={e => { e.currentTarget.style.borderColor = 'var(--accent-color)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,114,12,0.08)'; }}
-                                    onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.boxShadow = 'none'; }}
-                                />
+                                <label style={labelStyle}>Start Time</label>
+                                <div style={{
+                                    position: 'relative',
+                                    border: '1.5px solid #dbe4ee',
+                                    borderRadius: '10px',
+                                    background: '#fff',
+                                    transition: 'border-color 0.2s, box-shadow 0.2s',
+                                    cursor: canEdit ? 'pointer' : 'not-allowed'
+                                }}
+                                    onClick={() => {
+                                        if (!canEdit || !startTimeInputRef.current) return;
+                                        const pickerInput = startTimeInputRef.current as HTMLInputElement & { showPicker?: () => void };
+                                        if (typeof pickerInput.showPicker === 'function') {
+                                            pickerInput.showPicker();
+                                        } else {
+                                            startTimeInputRef.current.focus();
+                                        }
+                                    }
+                                }>
+                                    <input
+                                        ref={startTimeInputRef}
+                                        type="time"
+                                        step={900}
+                                        disabled={!canEdit}
+                                        value={selectedTimeValue}
+                                        onChange={e => {
+                                            const t = e.target.value;
+                                            if (t) handleStartTimeChange(`${meetingDate}T${t}`);
+                                        }}
+                                        style={{
+                                            ...inputStyle,
+                                            border: 'none',
+                                            boxShadow: 'none',
+                                            padding: '10px 12px',
+                                            fontWeight: 700,
+                                            fontVariantNumeric: 'tabular-nums',
+                                            cursor: canEdit ? 'pointer' : 'not-allowed'
+                                        }}
+                                        onFocus={e => {
+                                            const wrapper = e.currentTarget.parentElement as HTMLElement | null;
+                                            if (wrapper) {
+                                                wrapper.style.borderColor = 'var(--accent-color)';
+                                                wrapper.style.boxShadow = '0 0 0 3px rgba(232,114,12,0.08)';
+                                            }
+                                        }}
+                                        onBlur={e => {
+                                            const wrapper = e.currentTarget.parentElement as HTMLElement | null;
+                                            if (wrapper) {
+                                                wrapper.style.borderColor = '#dbe4ee';
+                                                wrapper.style.boxShadow = 'none';
+                                            }
+                                        }}
+                                    />
+                                </div>
                             </div>
                             <div style={{ marginBottom: '14px' }}>
                                 <label style={{ ...labelStyle, marginBottom: '8px' }}><Clock size={12} /> Duration</label>
-                                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' as const, marginBottom: '10px' }}>
-                                    {[{ val: 15, label: '15 min' }, { val: 30, label: '30 min' }, { val: 45, label: '45 min' }, { val: 60, label: '1 hour' }, { val: 90, label: '1.5 hrs' }, { val: 120, label: '2 hours' }].map(({ val, label }) => (
-                                        <button key={val} type="button" onClick={() => setDurationMinutes(val)} style={{
-                                            padding: '6px 12px', borderRadius: '8px', border: '1.5px solid',
-                                            borderColor: durationMinutes === val ? 'var(--accent-color)' : '#e2e8f0',
-                                            background: durationMinutes === val ? 'rgba(232,114,12,0.10)' : '#fff',
-                                            color: durationMinutes === val ? 'var(--accent-color)' : '#64748b',
-                                            fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s',
-                                            boxShadow: durationMinutes === val ? '0 2px 6px rgba(232,114,12,0.15)' : 'none'
-                                        }}>{label}</button>
-                                    ))}
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'center', border: '1.5px solid var(--border-color)', borderRadius: '10px', overflow: 'hidden', background: '#fff' }}>
-                                    <button type="button" disabled={durationMinutes <= 15} onClick={() => setDurationMinutes(d => Math.max(15, d - 15))}
-                                        style={{ width: '44px', height: '52px', border: 'none', background: 'transparent', fontSize: '1.1rem', fontWeight: 700, color: '#64748b', cursor: durationMinutes <= 15 ? 'not-allowed' : 'pointer', opacity: durationMinutes <= 15 ? 0.4 : 1, transition: 'all 0.15s', flexShrink: 0 }}
-                                        onMouseEnter={e => { if (durationMinutes > 15) e.currentTarget.style.background = '#f1f5f9'; }}
-                                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}>−</button>
-                                    <div style={{ flex: 1, textAlign: 'center', borderLeft: '1px solid #e2e8f0', borderRight: '1px solid #e2e8f0', padding: '0 8px', height: '52px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                            <input type="number" min={15} max={480} step={15} disabled={!canEdit} value={durationMinutes} className="no-spinner"
-                                                onChange={e => { const v = parseInt(e.target.value, 10); if (!isNaN(v)) setDurationMinutes(Math.max(15, Math.min(480, v))); }}
-                                                style={{ width: '52px', border: 'none', background: 'transparent', textAlign: 'center', fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-primary)', outline: 'none' }} />
-                                            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>min</span>
+                                <div style={{
+                                    border: '1px solid #e2e8f0',
+                                    borderRadius: '14px',
+                                    background: 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)',
+                                    padding: '10px',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '10px'
+                                }}>
+                                    <div style={{
+                                        border: '1px solid #e2e8f0',
+                                        borderRadius: '12px',
+                                        padding: '9px 10px',
+                                        background: '#fff',
+                                        display: 'grid',
+                                        gridTemplateColumns: '1fr auto 1fr',
+                                        alignItems: 'center',
+                                        gap: '8px'
+                                    }}>
+                                        <div>
+                                            <div style={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#94a3b8' }}>Start</div>
+                                            <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#1e293b', fontVariantNumeric: 'tabular-nums' }}>{startTimeDisplay}</div>
                                         </div>
-                                        {startTime && (
-                                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', marginTop: '2px' }}>
-                                                <span style={{ fontSize: '0.63rem', color: '#10b981', fontWeight: 600 }}>ends at</span>
-                                                <span style={{ fontSize: '0.78rem', color: '#047857', fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
-                                                    {(() => { const e = new Date(new Date(startTime).getTime() + durationMinutes * 60000); const h = e.getHours(); const m = e.getMinutes(); const ampm = h >= 12 ? 'PM' : 'AM'; const h12 = h % 12 || 12; return `${String(h12).padStart(2,'0')}:${String(m).padStart(2,'0')} ${ampm}`; })()}
-                                                </span>
-                                            </div>
-                                        )}
+                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px' }}>
+                                            <ArrowRight size={14} color="#94a3b8" />
+                                            <span style={{ fontSize: '0.64rem', color: '#64748b', fontWeight: 700 }}>{durationReadable}</span>
+                                        </div>
+                                        <div style={{ textAlign: 'right' }}>
+                                            <div style={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#94a3b8' }}>End</div>
+                                            <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#047857', fontVariantNumeric: 'tabular-nums' }}>{endTimeDisplay}</div>
+                                        </div>
                                     </div>
-                                    <button type="button" disabled={durationMinutes >= 480} onClick={() => setDurationMinutes(d => Math.min(480, d + 15))}
-                                        style={{ width: '44px', height: '52px', border: 'none', background: 'transparent', fontSize: '1.1rem', fontWeight: 700, color: '#64748b', cursor: durationMinutes >= 480 ? 'not-allowed' : 'pointer', opacity: durationMinutes >= 480 ? 0.4 : 1, transition: 'all 0.15s', flexShrink: 0 }}
-                                        onMouseEnter={e => { if (durationMinutes < 480) e.currentTarget.style.background = '#f1f5f9'; }}
-                                        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}>+</button>
+
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '8px' }}>
+                                        {DURATION_PRESETS.map((val) => (
+                                            <button
+                                                key={val}
+                                                type="button"
+                                                onClick={() => setDurationMinutes(val)}
+                                                style={{
+                                                    padding: '8px 10px',
+                                                    borderRadius: '10px',
+                                                    border: clampedDurationMinutes === val ? '1.5px solid #fb923c' : '1.2px solid #dbe4ee',
+                                                    background: clampedDurationMinutes === val
+                                                        ? 'linear-gradient(135deg, rgba(251,146,60,0.18), rgba(249,115,22,0.06))'
+                                                        : '#fff',
+                                                    color: clampedDurationMinutes === val ? '#c2410c' : '#475569',
+                                                    fontSize: '0.75rem',
+                                                    fontWeight: 800,
+                                                    cursor: 'pointer',
+                                                    transition: 'all 0.16s',
+                                                    boxShadow: clampedDurationMinutes === val ? '0 4px 10px rgba(249,115,22,0.2)' : 'none'
+                                                }}
+                                            >
+                                                {formatDurationReadable(val)}
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    <div style={{ display: 'grid', gridTemplateColumns: '44px 1fr 44px', gap: '8px', alignItems: 'stretch' }}>
+                                        <button
+                                            type="button"
+                                            disabled={clampedDurationMinutes <= DURATION_MIN_MINUTES}
+                                            onClick={() => setDurationMinutes(d => clampDurationMinutes(d - DURATION_STEP_MINUTES))}
+                                            style={{
+                                                borderRadius: '12px',
+                                                border: '1.2px solid #dbe4ee',
+                                                background: '#fff',
+                                                color: '#475569',
+                                                fontSize: '1.05rem',
+                                                fontWeight: 800,
+                                                cursor: clampedDurationMinutes <= DURATION_MIN_MINUTES ? 'not-allowed' : 'pointer',
+                                                opacity: clampedDurationMinutes <= DURATION_MIN_MINUTES ? 0.45 : 1,
+                                                transition: 'all 0.15s',
+                                                lineHeight: 1
+                                            }}
+                                            onMouseEnter={e => {
+                                                if (clampedDurationMinutes > DURATION_MIN_MINUTES) {
+                                                    e.currentTarget.style.borderColor = '#fb923c';
+                                                    e.currentTarget.style.background = '#fff7ed';
+                                                }
+                                            }}
+                                            onMouseLeave={e => {
+                                                e.currentTarget.style.borderColor = '#dbe4ee';
+                                                e.currentTarget.style.background = '#fff';
+                                            }}
+                                        >
+                                            -
+                                        </button>
+
+                                        <div style={{
+                                            border: '1.2px solid #dbe4ee',
+                                            borderRadius: '12px',
+                                            background: '#fff',
+                                            minHeight: '58px',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            padding: '8px 12px',
+                                            gap: '10px'
+                                        }}>
+                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                                                <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+                                                    <input
+                                                        type="number"
+                                                        min={DURATION_MIN_MINUTES}
+                                                        max={DURATION_MAX_MINUTES}
+                                                        step={DURATION_STEP_MINUTES}
+                                                        disabled={!canEdit}
+                                                        value={clampedDurationMinutes}
+                                                        className="no-spinner"
+                                                        onChange={e => {
+                                                            const v = parseInt(e.target.value, 10);
+                                                            if (!isNaN(v)) setDurationMinutes(clampDurationMinutes(v));
+                                                        }}
+                                                        style={{
+                                                            width: '58px',
+                                                            border: 'none',
+                                                            background: 'transparent',
+                                                            textAlign: 'right',
+                                                            fontSize: '1rem',
+                                                            fontWeight: 900,
+                                                            color: 'var(--text-primary)',
+                                                            outline: 'none',
+                                                            padding: 0
+                                                        }}
+                                                    />
+                                                    <span style={{ fontSize: '0.73rem', fontWeight: 700, color: 'var(--text-muted)' }}>minutes</span>
+                                                </div>
+                                                <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#64748b' }}>
+                                                    Duration: {durationReadable}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <button
+                                            type="button"
+                                            disabled={clampedDurationMinutes >= DURATION_MAX_MINUTES}
+                                            onClick={() => setDurationMinutes(d => clampDurationMinutes(d + DURATION_STEP_MINUTES))}
+                                            style={{
+                                                borderRadius: '12px',
+                                                border: '1.2px solid #dbe4ee',
+                                                background: '#fff',
+                                                color: '#475569',
+                                                fontSize: '1.05rem',
+                                                fontWeight: 800,
+                                                cursor: clampedDurationMinutes >= DURATION_MAX_MINUTES ? 'not-allowed' : 'pointer',
+                                                opacity: clampedDurationMinutes >= DURATION_MAX_MINUTES ? 0.45 : 1,
+                                                transition: 'all 0.15s',
+                                                lineHeight: 1
+                                            }}
+                                            onMouseEnter={e => {
+                                                if (clampedDurationMinutes < DURATION_MAX_MINUTES) {
+                                                    e.currentTarget.style.borderColor = '#fb923c';
+                                                    e.currentTarget.style.background = '#fff7ed';
+                                                }
+                                            }}
+                                            onMouseLeave={e => {
+                                                e.currentTarget.style.borderColor = '#dbe4ee';
+                                                e.currentTarget.style.background = '#fff';
+                                            }}
+                                        >
+                                            +
+                                        </button>
+                                    </div>
+
                                 </div>
                             </div>
                         </>
@@ -704,17 +1121,218 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
 
                     {isCreating && (
                         <div style={{ marginBottom: '14px' }}>
-                            <label style={labelStyle}><MapPin size={12} /> Project</label>
-                            <select
-                                style={inputStyle}
-                                value={projectId}
-                                onChange={e => setProjectId(e.target.value)}
-                            >
-                                <option value="">No Project</option>
-                                {Object.entries(projectsMap).map(([id, name]) => (
-                                    <option key={id} value={id}>{name}</option>
-                                ))}
-                            </select>
+                            <label style={labelStyle}>Project</label>
+                            <div ref={projectDropdownRef} style={{ position: 'relative' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => setProjectDropdownOpen(v => !v)}
+                                    style={{
+                                        width: '100%',
+                                        border: projectDropdownOpen ? '1.5px solid #0ea5e9' : '1.5px solid #dbe4ee',
+                                        borderRadius: '14px',
+                                        background: projectId ? 'linear-gradient(135deg, #f0f9ff, #ffffff)' : '#fff',
+                                        padding: '10px 12px',
+                                        display: 'grid',
+                                        gridTemplateColumns: '1fr auto',
+                                        alignItems: 'center',
+                                        gap: '8px',
+                                        cursor: 'pointer',
+                                        boxShadow: projectDropdownOpen ? '0 8px 24px rgba(14,165,233,0.16)' : '0 2px 8px rgba(15,23,42,0.05)',
+                                        transition: 'all 0.18s'
+                                    }}
+                                >
+                                    <div style={{ textAlign: 'left', minWidth: 0 }}>
+                                        <div style={{
+                                            fontSize: '0.61rem',
+                                            textTransform: 'uppercase',
+                                            letterSpacing: '0.08em',
+                                            fontWeight: 800,
+                                            color: '#64748b',
+                                            marginBottom: '2px'
+                                        }}>
+                                            Project Context
+                                        </div>
+                                        <div style={{
+                                            fontSize: '0.83rem',
+                                            fontWeight: projectId ? 700 : 600,
+                                            color: projectId ? '#0f172a' : '#94a3b8',
+                                            whiteSpace: 'nowrap',
+                                            overflow: 'hidden',
+                                            textOverflow: 'ellipsis'
+                                        }}>
+                                            {projectId ? selectedProjectName : 'Choose a project for this meeting'}
+                                        </div>
+                                    </div>
+                                    <ChevronDown
+                                        size={14}
+                                        color="#64748b"
+                                        style={{
+                                            transform: projectDropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                                            transition: 'transform 0.15s',
+                                            flexShrink: 0
+                                        }}
+                                    />
+                                </button>
+
+                                {projectDropdownOpen && (
+                                    <div style={{
+                                        position: 'absolute',
+                                        top: 'calc(100% + 9px)',
+                                        left: 0,
+                                        right: 0,
+                                        zIndex: 40,
+                                        border: '1px solid #cbd5e1',
+                                        borderRadius: '14px',
+                                        background: '#fff',
+                                        boxShadow: '0 20px 34px rgba(15,23,42,0.18)',
+                                        overflow: 'hidden'
+                                    }}>
+                                        <div style={{
+                                            padding: '9px',
+                                            background: 'linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)',
+                                            borderBottom: '1px solid #e2e8f0'
+                                        }}>
+                                            <div style={{ position: 'relative' }}>
+                                                <Search
+                                                    size={13}
+                                                    style={{
+                                                        position: 'absolute',
+                                                        left: '9px',
+                                                        top: '50%',
+                                                        transform: 'translateY(-50%)',
+                                                        color: '#94a3b8'
+                                                    }}
+                                                />
+                                                <input
+                                                    value={projectSearch}
+                                                    onChange={(e) => setProjectSearch(e.target.value)}
+                                                    placeholder="Search by project name..."
+                                                    style={{
+                                                        width: '100%',
+                                                        border: '1px solid #dbe4ee',
+                                                        borderRadius: '9px',
+                                                        fontSize: '0.78rem',
+                                                        fontFamily: 'inherit',
+                                                        padding: '8px 10px 8px 30px',
+                                                        outline: 'none',
+                                                        background: '#fff'
+                                                    }}
+                                                    onFocus={e => { e.currentTarget.style.borderColor = '#0ea5e9'; }}
+                                                    onBlur={e => { e.currentTarget.style.borderColor = '#dbe4ee'; }}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div style={{ maxHeight: '240px', overflowY: 'auto', padding: '8px', background: '#f8fafc' }} className="custom-scrollbar">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setProjectId('');
+                                                    setProjectDropdownOpen(false);
+                                                    setProjectSearch('');
+                                                }}
+                                                style={{
+                                                    width: '100%',
+                                                    border: !projectId ? '1.5px solid #7dd3fc' : '1px solid #e2e8f0',
+                                                    borderRadius: '10px',
+                                                    background: !projectId ? '#ecfeff' : '#fff',
+                                                    padding: '9px 10px',
+                                                    textAlign: 'left',
+                                                    cursor: 'pointer',
+                                                    marginBottom: '7px',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'space-between',
+                                                    gap: '8px'
+                                                }}
+                                            >
+                                                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: !projectId ? '#0369a1' : '#334155' }}>
+                                                    No Project (Independent meeting)
+                                                </span>
+                                                {!projectId && <CheckCircle2 size={15} color="#0284c7" />}
+                                            </button>
+
+                                            {filteredProjectEntries.length === 0 ? (
+                                                <div style={{
+                                                    border: '1px dashed #cbd5e1',
+                                                    borderRadius: '10px',
+                                                    background: '#fff',
+                                                    textAlign: 'center',
+                                                    padding: '14px 10px',
+                                                    color: '#64748b',
+                                                    fontSize: '0.75rem',
+                                                    fontWeight: 600
+                                                }}>
+                                                    No projects found with this keyword
+                                                </div>
+                                            ) : filteredProjectEntries.map(([id, name]) => {
+                                                const selected = projectId === id;
+                                                return (
+                                                    <button
+                                                        key={id}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setProjectId(id);
+                                                            setProjectDropdownOpen(false);
+                                                            setProjectSearch('');
+                                                        }}
+                                                        style={{
+                                                            width: '100%',
+                                                            border: selected ? '1.5px solid #7dd3fc' : '1px solid #e2e8f0',
+                                                            borderRadius: '10px',
+                                                            background: selected ? '#ecfeff' : '#fff',
+                                                            padding: '8px 10px',
+                                                            marginBottom: '7px',
+                                                            textAlign: 'left',
+                                                            cursor: 'pointer',
+                                                            display: 'grid',
+                                                            gridTemplateColumns: '1fr auto',
+                                                            alignItems: 'center',
+                                                            gap: '10px',
+                                                            transition: 'all 0.14s'
+                                                        }}
+                                                        onMouseEnter={e => {
+                                                            if (!selected) e.currentTarget.style.background = '#f0f9ff';
+                                                        }}
+                                                        onMouseLeave={e => {
+                                                            if (!selected) e.currentTarget.style.background = '#fff';
+                                                        }}
+                                                    >
+                                                        <div style={{ minWidth: 0 }}>
+                                                            <div style={{
+                                                                fontSize: '0.79rem',
+                                                                fontWeight: selected ? 700 : 600,
+                                                                color: selected ? '#075985' : '#1e293b',
+                                                                whiteSpace: 'nowrap',
+                                                                overflow: 'hidden',
+                                                                textOverflow: 'ellipsis'
+                                                            }}>
+                                                                {name}
+                                                            </div>
+                                                            <div style={{ fontSize: '0.66rem', color: '#94a3b8', fontWeight: 600 }}>
+                                                                Use this project as context
+                                                            </div>
+                                                        </div>
+                                                        {selected && <CheckCircle2 size={15} color="#0284c7" />}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div style={{
+                                    marginTop: '8px',
+                                    fontSize: '0.7rem',
+                                    fontWeight: 600,
+                                    color: projectId ? '#0369a1' : '#64748b',
+                                    lineHeight: 1.35
+                                }}>
+                                    {projectId
+                                        ? `Selected project: ${selectedProjectName}`
+                                        : 'No project selected. You can still invite attendees manually.'}
+                                </div>
+                            </div>
                         </div>
                     )}
 
@@ -808,14 +1426,19 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                                     };
                                     const rs = rsConfig[att.responseStatus] ?? rsConfig[AttendeeResponseStatus.NeedsAction];
                                     const name = att.displayName || att.email || 'Unknown';
-                                    const avatarColors = ['#6366f1','#8b5cf6','#3b82f6','#10b981','#f59e0b','#ef4444','#ec4899'];
-                                    const avatarBg = avatarColors[(name.charCodeAt(0) || 0) % avatarColors.length];
+                                    const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&size=64&background=6366f1&color=ffffff&bold=true&rounded=true`;
                                     return (
                                         <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', borderRadius: '10px', background: '#fafafa', border: '1px solid var(--border-light)', transition: 'background 0.15s' }}
                                             onMouseEnter={e => { e.currentTarget.style.background = '#f8fafc'; }}
                                             onMouseLeave={e => { e.currentTarget.style.background = '#fafafa'; }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                                <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: avatarBg, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 700, flexShrink: 0 }}>
+                                                <img
+                                                    src={avatarUrl}
+                                                    alt={name}
+                                                    style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+                                                    onError={e => { e.currentTarget.style.display = 'none'; (e.currentTarget.nextSibling as HTMLElement)?.style.setProperty('display', 'flex'); }}
+                                                />
+                                                <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#1e293b', color: '#fff', display: 'none', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 700, flexShrink: 0 }}>
                                                     {name[0].toUpperCase()}
                                                 </div>
                                                 <div>
@@ -940,116 +1563,178 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                 )}
             </div>
 
+            {/* Seminar Swap Request */}
+            {canRequestSeminarSwap && swapAccordionOpen && (
+                <div style={{ borderTop: '1px solid #e9d5ff', background: '#faf5ff', padding: '14px 16px' }}>
+                    <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#7c3aed', textTransform: 'uppercase' as const, letterSpacing: '0.7px', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <ArrowLeftRight size={12} /> Request Session Swap
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        <div>
+                            <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' as const, letterSpacing: '0.05em', marginBottom: '6px' }}>
+                                Swap With <span style={{ color: '#ef4444' }}>*</span>
+                            </div>
+                            <div style={{ border: `1.5px solid ${swapTargetId ? '#7c3aed' : '#e9d5ff'}`, borderRadius: '10px', overflow: 'hidden', maxHeight: '180px', overflowY: 'auto', background: '#fff' }} className="custom-scrollbar">
+                                {swapTargets.length === 0 ? (
+                                    <div style={{ padding: '10px 12px', fontSize: '0.8rem', color: '#94a3b8', fontStyle: 'italic' }}>No other sessions available in this seminar series.</div>
+                                ) : swapTargets.map(m => {
+                                    const isSel = swapTargetId === m.seminarMeetingId;
+                                    return (
+                                        <div
+                                            key={m.seminarMeetingId}
+                                            onClick={() => setSwapTargetId(m.seminarMeetingId)}
+                                            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', cursor: 'pointer', background: isSel ? '#f5f3ff' : 'transparent', borderBottom: '1px solid #f1f5f9', transition: 'background 0.15s' }}
+                                            onMouseEnter={e => { if (!isSel) e.currentTarget.style.background = '#faf5ff'; }}
+                                            onMouseLeave={e => { if (!isSel) e.currentTarget.style.background = 'transparent'; }}
+                                        >
+                                            <div style={{ width: '14px', height: '14px', flexShrink: 0, borderRadius: '50%', border: `2px solid ${isSel ? '#7c3aed' : '#cbd5e1'}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                {isSel && <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#7c3aed' }} />}
+                                            </div>
+                                            <div style={{ minWidth: 0 }}>
+                                                <div style={{ fontSize: '0.8rem', fontWeight: isSel ? 700 : 600, color: isSel ? '#6d28d9' : 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                    {m.title || 'Untitled'}
+                                                </div>
+                                                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{new Date(m.meetingDate).toLocaleDateString('vi-VN')}</div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        <div>
+                            <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' as const, letterSpacing: '0.05em', marginBottom: '4px' }}>
+                                Reason <span style={{ fontWeight: 500, textTransform: 'none' as const }}>(optional)</span>
+                            </div>
+                            <textarea
+                                value={swapReason}
+                                onChange={e => setSwapReason(e.target.value)}
+                                placeholder="Why do you need to swap?"
+                                style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1.5px solid #e9d5ff', fontSize: '0.8rem', fontFamily: 'inherit', outline: 'none', minHeight: '60px', resize: 'none' as const, background: '#fff', boxSizing: 'border-box' as const }}
+                                onFocus={e => { e.currentTarget.style.borderColor = '#7c3aed'; }}
+                                onBlur={e => { e.currentTarget.style.borderColor = '#e9d5ff'; }}
+                            />
+                        </div>
+
+                        <button
+                            onClick={() => setShowSwapConfirm(true)}
+                            disabled={!swapTargetId || submittingSwap}
+                            style={{ padding: '8px 14px', borderRadius: '10px', border: 'none', background: (!swapTargetId || submittingSwap) ? '#e2e8f0' : '#7c3aed', color: '#fff', cursor: (!swapTargetId || submittingSwap) ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', boxShadow: (!swapTargetId || submittingSwap) ? 'none' : '0 4px 12px rgba(124,58,237,0.3)', transition: 'all 0.2s' }}
+                        >
+                            {submittingSwap ? <Loader2 size={13} className="animate-spin" /> : <ArrowLeftRight size={13} />} Submit Swap Request
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {/* Footer Actions */}
             <div style={{
                 paddingTop: '14px',
                 borderTop: '1px solid var(--border-light)',
                 display: 'flex',
-                justifyContent: 'space-between',
+                justifyContent: isCreating ? 'flex-end' : 'space-between',
                 alignItems: 'center',
-                gap: '8px',
+                gap: '10px',
                 marginTop: 'auto'
             }}>
-                {/* Left: destructive actions */}
-                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                    {!isCreating && meetingId && canCancel && (
-                        <button
-                            onClick={handleCancel}
-                            disabled={cancelling}
-                            title="Cancel this meeting"
-                            style={{
-                                display: 'flex', alignItems: 'center', gap: '4px',
-                                padding: '6px 10px', borderRadius: '8px',
-                                cursor: cancelling ? 'not-allowed' : 'pointer',
-                                fontSize: '0.72rem', fontWeight: 700,
-                                border: '1.5px solid #fed7aa',
-                                background: 'transparent',
-                                color: '#ea580c',
-                                transition: 'all 0.2s',
-                                opacity: cancelling ? 0.6 : 1,
-                                whiteSpace: 'nowrap' as const
-                            }}
-                            onMouseEnter={e => { e.currentTarget.style.background = '#fff7ed'; }}
-                            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-                        >
-                            {cancelling ? <Loader2 size={13} className="animate-spin" /> : <X size={13} />}
-                            Cancel
-                        </button>
-                    )}
-                    {!isCreating && meetingId && canDelete && (
-                        <button
-                            onClick={handleDelete}
-                            disabled={deleting}
-                            title="Delete this meeting"
-                            style={{
-                                display: 'flex', alignItems: 'center', gap: '4px',
-                                padding: '6px 10px', borderRadius: '8px',
-                                cursor: deleting ? 'not-allowed' : 'pointer',
-                                fontSize: '0.72rem', fontWeight: 700,
-                                border: '1.5px solid #fecaca',
-                                background: 'transparent',
-                                color: '#ef4444',
-                                transition: 'all 0.2s',
-                                opacity: deleting ? 0.6 : 1,
-                                whiteSpace: 'nowrap' as const
-                            }}
-                            onMouseEnter={e => { e.currentTarget.style.background = '#fef2f2'; }}
-                            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-                        >
-                            {deleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
-                            Delete
-                        </button>
-                    )}
-                </div>
-                {/* Right: semantic search + save */}
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    {!isCreating && meeting?.id && (
-                        <button
-                            onClick={handleIndexing}
-                            disabled={indexing}
-                            style={{
-                                display: 'flex', alignItems: 'center', gap: '5px',
-                                padding: '6px 10px', borderRadius: '8px', cursor: 'pointer',
-                                fontSize: '0.72rem', fontWeight: 700,
-                                border: '1px solid #e2e8f0',
-                                background: '#fff',
-                                color: '#64748b',
-                                transition: 'all 0.2s',
-                                whiteSpace: 'nowrap' as const
-                            }}
-                        >
-                            <RefreshCw size={12} className={indexing ? 'animate-spin' : ''} />
-                            Semantic Search
-                        </button>
-                    )}
-                    {canEdit && (
-                        <button
-                            onClick={handleSave}
-                            disabled={saving || !title.trim() || !!dateError}
-                            style={{
-                                padding: '7px 20px',
-                                borderRadius: '10px',
-                                border: 'none',
-                                background: (!title.trim() || saving || !!dateError) ? '#94a3b8' : 'var(--accent-color)',
-                                color: '#fff',
-                                cursor: (!title.trim() || saving || !!dateError) ? 'not-allowed' : 'pointer',
-                                fontSize: '0.8rem',
-                                fontWeight: 700,
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                                transition: 'all 0.2s',
-                                whiteSpace: 'nowrap' as const,
-                                boxShadow: (!title.trim() || saving) ? 'none' : '0 4px 12px rgba(232,114,12,0.25)'
-                            }}
-                        >
-                            {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                            {isCreating ? 'Create' : 'Save'}
-                        </button>
-                    )}
-                </div>
+                {!isCreating && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {meeting?.id && (
+                            <button
+                                onClick={handleIndexing}
+                                disabled={indexing}
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: '5px',
+                                    padding: '6px 12px', borderRadius: '8px', cursor: 'pointer',
+                                    fontSize: '0.75rem', fontWeight: 700,
+                                    border: '1px solid #e2e8f0',
+                                    background: '#fff',
+                                    color: '#64748b',
+                                    transition: 'all 0.2s'
+                                }}
+                            >
+                                <RefreshCw size={13} className={indexing ? 'animate-spin' : ''} />
+                                Insert to Semantic Search
+                            </button>
+                        )}
+
+                        {canRequestSeminarSwap && (
+                            <button
+                                onClick={() => {
+                                    setSwapAccordionOpen(p => !p);
+                                    if (!swapAccordionOpen) handleOpenSwapForm();
+                                }}
+                                style={{
+                                    padding: '8px 16px', borderRadius: '10px',
+                                    border: swapAccordionOpen ? '1.5px solid #7c3aed' : '1px solid #e9d5ff',
+                                    background: swapAccordionOpen ? '#f5f3ff' : '#faf5ff',
+                                    color: '#7c3aed', cursor: 'pointer',
+                                    fontSize: '0.8rem', fontWeight: 700,
+                                    display: 'flex', alignItems: 'center', gap: '6px',
+                                    transition: 'all 0.2s'
+                                }}
+                            >
+                                <ArrowLeftRight size={14} />
+                                Request Swap
+                                {swapAccordionOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                            </button>
+                        )}
+                    </div>
+                )}
+                {canEdit && (
+                    <button
+                        onClick={handleSave}
+                        disabled={saving || !title.trim() || !!dateError}
+                        style={{
+                            padding: isCreating ? '10px 26px' : '9px 24px',
+                            borderRadius: '12px',
+                            border: 'none',
+                            background: (!title.trim() || saving || !!dateError)
+                                ? '#94a3b8'
+                                : (isCreating
+                                    ? 'linear-gradient(135deg, #fb923c, #ea580c)'
+                                    : 'linear-gradient(135deg, var(--accent-color), #f59e0b)'),
+                            color: '#fff',
+                            cursor: (!title.trim() || saving || !!dateError) ? 'not-allowed' : 'pointer',
+                            fontSize: '0.81rem',
+                            fontWeight: 800,
+                            letterSpacing: '0.01em',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: isCreating ? '0px' : '7px',
+                            minWidth: isCreating ? '156px' : '150px',
+                            transition: 'all 0.2s',
+                            boxShadow: (!title.trim() || saving || !!dateError)
+                                ? 'none'
+                                : (isCreating
+                                    ? '0 10px 24px rgba(234,88,12,0.34)'
+                                    : '0 6px 14px rgba(232,114,12,0.28)')
+                        }}
+                    >
+                        {saving ? <Loader2 size={14} className="animate-spin" /> : (!isCreating && <Save size={14} />)}
+                        {isCreating ? 'Create Schedule' : 'Save Changes'}
+                    </button>
+                )}
             </div>
         </div>
+
+        <ConfirmModal
+            isOpen={showSwapConfirm}
+            onClose={() => setShowSwapConfirm(false)}
+            onConfirm={() => { setShowSwapConfirm(false); handleSubmitSwap(); }}
+            title="Confirm Swap Request"
+            message={
+                <span>
+                    Are you sure you want to submit this swap request?<br />
+                    The other presenter will be notified and must accept before the swap takes effect.
+                </span>
+            }
+            confirmText={submittingSwap ? 'Submitting...' : 'Submit Swap'}
+            cancelText="Go Back"
+            variant="info"
+        />
         
         <ConfirmModal
             isOpen={confirmDelete}

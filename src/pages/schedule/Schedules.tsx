@@ -10,7 +10,6 @@ import {
     Plus,
     Loader2,
     Clock,
-    Filter,
     Target,
     Briefcase,
     Video,
@@ -27,7 +26,9 @@ import {
     RotateCcw,
 } from 'lucide-react';
 import meetingService from '@/services/meetingService';
+import seminarService from '@/services/seminarService';
 import { MeetingResponse, MeetingStatus } from '@/types/meeting';
+import { SeminarMeetingResponse } from '@/types/seminar';
 import { projectService, userService } from '@/services';
 import { useToastStore } from '@/store/slices/toastSlice';
 
@@ -43,6 +44,7 @@ interface ScheduleTab {
     type: 'create' | 'view';
     meetingId?: string;
     actualMeetingId?: string;
+    seminarMeetingId?: string;
     title: string;
     initialData?: MeetingResponse;
 }
@@ -59,8 +61,11 @@ const Schedules: React.FC = () => {
     const [filterProjectId, setFilterProjectId] = useState<string>('');
     const [projectsMap, setProjectsMap] = useState<Record<string, string>>({});
     const [usersMap, setUsersMap] = useState<Record<string, string>>({});
+    const [seminarMeetings, setSeminarMeetings] = useState<SeminarMeetingResponse[]>([]);
     const { addToast } = useToastStore();
-    const [viewMode, setViewMode] = useState<'list' | 'timetable'>('list');
+    const [viewMode, setViewMode] = useState<'list' | 'timetable'>(() => {
+        return (localStorage.getItem('schedule_viewMode') as 'list' | 'timetable') || 'list';
+    });
 
     // Semantic search
     const [semanticResults, setSemanticResults] = useState<MeetingResponse[] | null>(null);
@@ -160,15 +165,24 @@ const Schedules: React.FC = () => {
         setLoading(true);
         try {
             let data;
+            let seminarData;
             if (activeListTab === 'my_invited_meetings') {
-                data = await meetingService.getMyInvitedMeetings();
+                [data, seminarData] = await Promise.all([
+                    meetingService.getMyInvitedMeetings(),
+                    seminarService.getInvitedSeminarMeetings(),
+                ]);
             } else {
-                data = await meetingService.getMyMeetings();
+                [data, seminarData] = await Promise.all([
+                    meetingService.getMyMeetings(),
+                    seminarService.getMySeminarMeetings(),
+                ]);
             }
             setMeetings(Array.isArray(data) ? data : []);
+            setSeminarMeetings(Array.isArray(seminarData) ? seminarData : []);
         } catch (error) {
             console.error('Failed to fetch meetings:', error);
             setMeetings([]);
+            setSeminarMeetings([]);
         } finally {
             setLoading(false);
         }
@@ -210,13 +224,26 @@ const Schedules: React.FC = () => {
         setActivePanel({ id: newId, type: 'create', title: 'New Schedule' });
     };
 
+    const seminarMeetingByEventId = useMemo(() => {
+        const map: Record<string, SeminarMeetingResponse> = {};
+        seminarMeetings.forEach(m => {
+            if (m.googleCalendarEventId) {
+                map[m.googleCalendarEventId] = m;
+            }
+            map[m.seminarMeetingId] = m;
+        });
+        return map;
+    }, [seminarMeetings]);
+
     const handleOpenViewTab = (meeting: MeetingResponse) => {
         const eventId = meeting.googleCalendarEventId || meeting.id;
+        const mappedSeminar = seminarMeetingByEventId[eventId] || null;
         setActivePanel({
             id: `view-${eventId}`,
             type: 'view',
             meetingId: eventId,
             actualMeetingId: meeting.id,
+            seminarMeetingId: mappedSeminar?.seminarMeetingId,
             title: meeting.title || 'Schedule',
             initialData: meeting
         });
@@ -238,6 +265,8 @@ const Schedules: React.FC = () => {
             setShowConfirmSwitch(true);
         } else {
             setActiveListTab(tabId);
+            setFilterStatus('');
+            setFilterProjectId('');
             setShowTranscription(false);
             storeSetShowPanel(false);
             setActivePanel(null);
@@ -247,6 +276,8 @@ const Schedules: React.FC = () => {
     const handleConfirmTabSwitch = () => {
         if (pendingTab) {
             setActiveListTab(pendingTab);
+            setFilterStatus('');
+            setFilterProjectId('');
             setShowTranscription(false);
             storeSetShowPanel(false);
             setActivePanel(null);
@@ -257,21 +288,21 @@ const Schedules: React.FC = () => {
 
     // Filtered meetings
     const displayMeetings = useMemo(() => {
-        if (semanticResults !== null) return semanticResults;
+        const sourceMeetings = semanticResults !== null ? semanticResults : meetings;
 
-        return meetings.filter(m => {
+        return sourceMeetings.filter(m => {
             const query = searchQuery.toLowerCase();
-            const matchesQuery = !query ||
-                (m.title?.toLowerCase().includes(query)) ||
-                (m.description?.toLowerCase().includes(query));
+            const matchesQuery = semanticResults !== null
+                ? true
+                : (!query ||
+                    (m.title?.toLowerCase().includes(query)) ||
+                    (m.description?.toLowerCase().includes(query)));
             const matchesStatus = filterStatus === '' || m.status === Number(filterStatus);
-
             const matchesProject = !filterProjectId || m.projectId === filterProjectId;
             return matchesQuery && matchesStatus && matchesProject;
         }).sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
     }, [meetings, semanticResults, searchQuery, filterStatus, filterProjectId]);
 
-    // Stats
     const scheduledCount = meetings.filter(m => m.status === MeetingStatus.Scheduled).length;
     const completedCount = meetings.filter(m => m.status === MeetingStatus.Completed).length;
     const inProgressCount = meetings.filter(m => m.status === MeetingStatus.InProgress).length;
@@ -279,7 +310,7 @@ const Schedules: React.FC = () => {
 
     // Timetable events
     const timetableEvents: TimetableEvent[] = useMemo(() => {
-        return meetings.map(m => ({
+        return displayMeetings.map(m => ({
             id: m.googleCalendarEventId || m.id,
             title: m.title || 'Untitled',
             startTime: m.startTime,
@@ -291,40 +322,34 @@ const Schedules: React.FC = () => {
             guests: m.attendees?.map(a => a.displayName || a.email).filter(Boolean) || [],
             type: 'meeting' as const
         }));
-    }, [meetings, usersMap]);
+    }, [displayMeetings, usersMap]);
+
+    const activeSeminarMeeting = useMemo(() => {
+        if (!activePanel || activePanel.type !== 'view') return null;
+        if (activePanel.seminarMeetingId) {
+            return seminarMeetings.find(m => m.seminarMeetingId === activePanel.seminarMeetingId) || null;
+        }
+        if (activePanel.meetingId) {
+            return seminarMeetingByEventId[activePanel.meetingId] || null;
+        }
+        return null;
+    }, [activePanel, seminarMeetings, seminarMeetingByEventId]);
 
     return (
         <MainLayout role={user?.role} userName={user?.name}>
             <style>{`
-                @keyframes tp-enter {
-                    from { opacity: 0; transform: translateX(56px) scale(0.97); }
-                    to   { opacity: 1; transform: translateX(0)    scale(1);    }
-                }
-                @keyframes tp-exit {
-                    from { opacity: 1; transform: translateX(0)    scale(1);    }
-                    to   { opacity: 0; transform: translateX(56px) scale(0.97); }
-                }
-                @keyframes panel-enter {
-                    from { opacity: 0; transform: translateX(40px) scale(0.97); }
-                    to   { opacity: 1; transform: translateX(0)    scale(1);    }
-                }
+                @keyframes tp-enter { from { opacity: 0; transform: translateX(56px) scale(0.97); } to { opacity: 1; transform: translateX(0) scale(1); } }
+                @keyframes tp-exit  { from { opacity: 1; transform: translateX(0) scale(1); }        to { opacity: 0; transform: translateX(56px) scale(0.97); } }
+                @keyframes panel-enter { from { opacity: 0; transform: translateX(40px) scale(0.97); } to { opacity: 1; transform: translateX(0) scale(1); } }
+                @keyframes shimmer { from { background-position: -400px 0; } to { background-position: 400px 0; } }
+                .skeleton { background: linear-gradient(90deg, #f1f5f9 25%, #e8eef4 50%, #f1f5f9 75%); background-size: 800px 100%; animation: shimmer 1.4s infinite linear; border-radius: 6px; }
             `}</style>
             <div className="page-container" style={{ padding: '1.5rem 2rem', maxWidth: '1600px', margin: '0 auto' }}>
                 {/* Header */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', gap: '1.5rem' }}>
                     <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-                            <div style={{
-                                width: '40px',
-                                height: '40px',
-                                borderRadius: '12px',
-                                background: 'var(--primary-color)',
-                                color: 'white',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                boxShadow: '0 8px 16px rgba(30, 41, 59, 0.15)'
-                            }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}>
+                            <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'var(--primary-color)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 16px rgba(30,41,59,0.15)', flexShrink: 0 }}>
                                 <Calendar size={24} />
                             </div>
                             <h1 style={{ fontSize: '1.8rem', fontWeight: 900, color: '#1e293b', margin: 0, letterSpacing: '-0.02em' }}>Schedules</h1>
@@ -336,69 +361,22 @@ const Schedules: React.FC = () => {
                     <button
                         onClick={handleRefresh}
                         disabled={refreshing}
-                        style={{ padding: '6px 12px', border: '1px solid #e2e8f0', background: 'white', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
+                        title="Refresh"
+                        style={{
+                            padding: '6px 8px', border: '1px solid #e2e8f0', background: 'white',
+                            borderRadius: '8px', display: 'flex', alignItems: 'center',
+                            cursor: refreshing ? 'not-allowed' : 'pointer',
+                            color: '#64748b', flexShrink: 0,
+                            opacity: refreshing ? 0.5 : 1, transition: 'opacity 0.2s',
+                        }}
                     >
-                        <RotateCcw size={13} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
-                        Refresh
+                        <RotateCcw size={14} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
                     </button>
-                </div>
-
-
-                {/* UNIFIED STATUS BOARD */}
-                <div style={{
-                    background: 'white', padding: '1.25rem 1.5rem', borderRadius: '20px', border: '1px solid #e2e8f0',
-                    display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: '1.5rem', alignItems: 'start',
-                    boxShadow: '0 4px 20px rgba(0,0,0,0.03)', marginBottom: '1.5rem', position: 'relative'
-                }}>
-                    {/* LEFT COLUMN: CRITICAL ALERTS */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                        <h4 style={{ margin: '0 0 0.4rem 0', fontSize: '0.7rem', fontWeight: 800, color: '#ef4444', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                            Action Required
-                        </h4>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.45rem 0', opacity: cancelledCount > 0 ? 1 : 0.45, transition: 'all 0.2s' }}>
-                            <div style={{ width: '24px', height: '24px', borderRadius: '6px', background: '#ef4444', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                <AlertTriangle size={14} />
-                            </div>
-                            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#475569', flex: 1 }}>Cancelled Meetings:</span>
-                            <span style={{ fontSize: '0.9rem', fontWeight: 800, color: cancelledCount > 0 ? '#1e293b' : '#94a3b8' }}>{cancelledCount}</span>
-                        </div>
-                    </div>
-
-                    {/* DIVIDER */}
-                    <div style={{ width: '1px', alignSelf: 'stretch', background: '#f1f5f9' }}></div>
-
-                    {/* RIGHT COLUMN: PROGRESS INDICATORS */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                        <h4 style={{ margin: '0 0 0.4rem 0', fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                            Meeting Metrics
-                        </h4>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.45rem 0', opacity: scheduledCount > 0 ? 1 : 0.45, transition: 'all 0.2s' }}>
-                            <div style={{ width: '24px', height: '24px', borderRadius: '6px', background: '#3b82f6', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                <Clock size={14} />
-                            </div>
-                            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#475569', flex: 1 }}>Scheduled:</span>
-                            <span style={{ fontSize: '0.9rem', fontWeight: 800, color: scheduledCount > 0 ? '#1e293b' : '#94a3b8' }}>{scheduledCount}</span>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.45rem 0', opacity: inProgressCount > 0 ? 1 : 0.45, transition: 'all 0.2s' }}>
-                            <div style={{ width: '24px', height: '24px', borderRadius: '6px', background: '#f59e0b', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                <Video size={14} />
-                            </div>
-                            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#475569', flex: 1 }}>In Progress:</span>
-                            <span style={{ fontSize: '0.9rem', fontWeight: 800, color: inProgressCount > 0 ? '#1e293b' : '#94a3b8' }}>{inProgressCount}</span>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.45rem 0', opacity: completedCount > 0 ? 1 : 0.45, transition: 'all 0.2s' }}>
-                            <div style={{ width: '24px', height: '24px', borderRadius: '6px', background: '#10b981', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                <CheckCircle2 size={14} />
-                            </div>
-                            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#475569', flex: 1 }}>Completed:</span>
-                            <span style={{ fontSize: '0.9rem', fontWeight: 800, color: completedCount > 0 ? '#1e293b' : '#94a3b8' }}>{completedCount}</span>
-                        </div>
-                    </div>
                 </div>
 
                 {/* Search Bar */}
                 <div style={{
-                    padding: '0.75rem 1.5rem',
+                    padding: '0.75rem 1.25rem',
                     borderRadius: '14px',
                     background: '#fff',
                     border: '1px solid var(--border-color)',
@@ -452,35 +430,61 @@ const Schedules: React.FC = () => {
                         </div>
                     )}
 
-                    <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: '20px', paddingTop: '10px', borderTop: '1px solid rgba(0,0,0,0.05)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <Filter size={14} color="var(--text-muted)" />
-                            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' as const }}>Status:</span>
-                            <AppSelect
-                                size="sm"
-                                value={filterStatus}
-                                onChange={setFilterStatus}
-                                options={[
-                                    { value: '', label: 'Any Status' },
-                                    { value: '0', label: 'Scheduled' },
-                                    { value: '1', label: 'In Progress' },
-                                    { value: '2', label: 'Completed' },
-                                    { value: '3', label: 'Cancelled' },
-                                ]}
-                            />
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <Briefcase size={14} color="var(--text-muted)" />
-                            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' as const }}>Project:</span>
-                            <AppSelect
-                                size="sm"
-                                value={filterProjectId}
-                                onChange={setFilterProjectId}
-                                options={[
-                                    { value: '', label: 'All Projects' },
-                                    ...Object.entries(projectsMap).map(([id, name]) => ({ value: id, label: name as string })),
-                                ]}
-                            />
+                    <div style={{ paddingTop: '10px', borderTop: '1px solid rgba(0,0,0,0.05)' }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: '8px', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: '6px' }}>
+                                {([
+                                    { value: '0', label: 'Scheduled', count: scheduledCount, icon: <Clock size={12} />, activeColor: '#2563eb', activeBg: '#eff6ff', activeBorder: '#bfdbfe' },
+                                    { value: '1', label: 'In Progress', count: inProgressCount, icon: <Video size={12} />, activeColor: '#d97706', activeBg: '#fffbeb', activeBorder: '#fde68a' },
+                                    { value: '2', label: 'Completed', count: completedCount, icon: <CheckCircle2 size={12} />, activeColor: '#059669', activeBg: '#f0fdf4', activeBorder: '#bbf7d0' },
+                                    { value: '3', label: 'Cancelled', count: cancelledCount, icon: <AlertTriangle size={12} />, activeColor: '#dc2626', activeBg: '#fef2f2', activeBorder: '#fecaca' },
+                                ] as const).map(({ value, label, count, icon, activeColor, activeBg, activeBorder }) => {
+                                    const isActive = filterStatus === value;
+                                    return (
+                                        <button
+                                            key={value}
+                                            type="button"
+                                            onClick={() => setFilterStatus(isActive ? '' : value)}
+                                            style={{
+                                                display: 'flex', alignItems: 'center', gap: '5px',
+                                                padding: '5px 10px', borderRadius: '8px', cursor: 'pointer',
+                                                fontSize: '0.78rem', fontWeight: 700,
+                                                border: `1.5px solid ${isActive ? activeBorder : '#e2e8f0'}`,
+                                                background: isActive ? activeBg : '#f8fafc',
+                                                color: isActive ? activeColor : '#64748b',
+                                                transition: 'all 0.15s',
+                                            }}
+                                        >
+                                            <span style={{ display: 'flex', color: isActive ? activeColor : '#94a3b8' }}>{icon}</span>
+                                            {label}
+                                            <span style={{
+                                                padding: '0 5px', height: '18px', borderRadius: '5px',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                fontSize: '0.72rem', fontWeight: 800,
+                                                background: isActive ? activeColor : '#e2e8f0',
+                                                color: isActive ? '#fff' : '#64748b',
+                                                minWidth: '18px',
+                                            }}>{count}</span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                                <Briefcase size={13} color="var(--text-muted)" />
+                                <div style={{ width: '200px' }}>
+                                    <AppSelect
+                                        size="sm"
+                                        variant="scheduleFilter"
+                                        isSearchable={false}
+                                        value={filterProjectId}
+                                        onChange={setFilterProjectId}
+                                        options={[
+                                            { value: '', label: 'All Projects' },
+                                            ...Object.entries(projectsMap).map(([id, name]) => ({ value: id, label: name as string })),
+                                        ]}
+                                    />
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -488,7 +492,7 @@ const Schedules: React.FC = () => {
                 {/* View Toggle */}
                 <div style={{ display: 'flex', gap: '4px', marginBottom: '1.5rem' }}>
                     <button
-                        onClick={() => setViewMode('list')}
+                        onClick={() => { setViewMode('list'); localStorage.setItem('schedule_viewMode', 'list'); }}
                         style={{
                             padding: '8px 16px', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 700,
                             border: viewMode === 'list' ? '1.5px solid var(--accent-color)' : '1px solid var(--border-color)',
@@ -500,7 +504,7 @@ const Schedules: React.FC = () => {
                         <List size={16} /> List View
                     </button>
                     <button
-                        onClick={() => { setViewMode('timetable'); setActivePanel(null); setShowTranscription(false); storeSetShowPanel(false); }}
+                        onClick={() => { setViewMode('timetable'); localStorage.setItem('schedule_viewMode', 'timetable'); setActivePanel(null); setShowTranscription(false); storeSetShowPanel(false); }}
                         style={{
                             padding: '8px 16px', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 700,
                             border: viewMode === 'timetable' ? '1.5px solid var(--accent-color)' : '1px solid var(--border-color)',
@@ -621,8 +625,20 @@ const Schedules: React.FC = () => {
                                     ) : (
                                         <div style={{ textAlign: 'center', padding: '4rem 2rem', color: '#94a3b8' }}>
                                             <Target size={48} style={{ marginBottom: '1.5rem', opacity: 0.3 }} />
-                                            <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1e293b' }}>No Schedules</h3>
-                                            <p style={{ fontSize: '0.85rem' }}>Create your first schedule to get started with team meetings.</p>
+                                            <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1e293b' }}>No Schedules Found</h3>
+                                            {(filterStatus !== '' || filterProjectId !== '' || searchQuery !== '') ? (
+                                                <>
+                                                    <p style={{ fontSize: '0.85rem', marginBottom: '1rem' }}>No meetings match your current filters.</p>
+                                                    <button
+                                                        onClick={() => { setFilterStatus(''); setFilterProjectId(''); setSearchQuery(''); setSemanticResults(null); }}
+                                                        style={{ padding: '8px 18px', borderRadius: '10px', border: '1.5px solid var(--accent-color)', background: 'var(--accent-bg)', color: 'var(--accent-color)', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}
+                                                    >
+                                                        Clear all filters
+                                                    </button>
+                                                </>
+                                            ) : (
+                                                <p style={{ fontSize: '0.85rem' }}>Create your first schedule to get started with team meetings.</p>
+                                            )}
                                         </div>
                                     )}
                                 </div>
@@ -632,7 +648,7 @@ const Schedules: React.FC = () => {
                         {/* Meeting detail panel — hidden when AI Notes is open */}
                         {activePanel && !showTranscription && (
                             <div key={activePanel.meetingId || activePanel.id} style={{
-                                flex: 4, minWidth: 0, overflow: 'hidden',
+                                flex: 3, minWidth: 0, overflow: 'hidden',
                                 display: 'flex', flexDirection: 'column',
                                 background: '#fff', borderRadius: '16px',
                                 border: '1px solid var(--border-color)', padding: '1.5rem',
@@ -656,6 +672,8 @@ const Schedules: React.FC = () => {
                                     }}
                                     onTitleChange={handleTitleChange}
                                     projectsMap={projectsMap}
+                                    seminarMeeting={activeSeminarMeeting}
+                                    allowSeminarSwap={activeListTab === 'my_meetings'}
                                     onToggleAINote={handleOpenAINote}
                                     showAINote={showTranscription}
                                 />

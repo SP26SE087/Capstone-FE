@@ -97,7 +97,7 @@ const Sidebar: React.FC = () => {
 
             <div style={{
                 padding: '1rem 1.25rem',
-                borderTop: '1px solid var(--border-light)',
+                borderTop: '1px solid #e2e8f0',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',

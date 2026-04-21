@@ -166,18 +166,20 @@ const CustomSelect: React.FC<CustomSelectProps> = ({ value, onChange, options, d
                             <div key={opt.value}
                                 onMouseDown={e => { e.preventDefault(); onChange(opt.value); setOpen(false); }}
                                 style={{
-                                    padding: '8px 12px', fontSize: '0.8rem', cursor: 'pointer',
+                                    padding: '0 12px', fontSize: '0.8rem', cursor: 'pointer',
+                                    height: '36px', minHeight: '36px', boxSizing: 'border-box' as const,
                                     background: isSelected ? tintBg : 'transparent',
                                     color: isSelected ? color : '#334155',
                                     fontWeight: isSelected ? 700 : 400,
                                     display: 'flex', alignItems: 'center', gap: '6px',
                                     transition: 'background 0.1s',
+                                    overflow: 'hidden',
                                 }}
                                 onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = hoverBg; }}
                                 onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent'; }}
                             >
                                 {isSelected ? <Check size={12} color={color} style={{ flexShrink: 0 }} /> : <span style={{ width: 12, flexShrink: 0 }} />}
-                                {opt.label}
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{opt.label}</span>
                             </div>
                         );
                     })}
