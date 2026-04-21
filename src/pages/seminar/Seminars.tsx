@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import AppSelect from '@/components/common/AppSelect';
 import { useBlocker } from 'react-router-dom';
 import { useTranscriptionStore } from '@/store/slices/transcriptionStore';
 import MainLayout from '@/layout/MainLayout';
@@ -11,7 +10,6 @@ import {
     Calendar,
     Plus,
     Clock,
-    Filter,
     Target,
     ArrowLeftRight,
     List,
@@ -20,7 +18,11 @@ import {
     CheckCircle2,
     FileText,
     Users,
-    RotateCcw
+    RotateCcw,
+    ChevronRight,
+    ChevronDown,
+    ChevronsUpDown,
+    ChevronsDownUp
 } from 'lucide-react';
 import seminarService from '@/services/seminarService';
 import { SeminarMeetingResponse } from '@/types/seminar';
@@ -48,17 +50,19 @@ const Seminars: React.FC = () => {
     const { user } = useAuth();
 
     // Data
-    const [activeTab, setActiveTab] = useState<TabType>('my_seminars');
+    const [activeTab, setActiveTab] = useState<TabType>('all_seminars');
     const [meetings, setMeetings] = useState<SeminarMeetingResponse[]>([]);
     const [loading, setLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
-    const [filterTimeframe, setFilterTimeframe] = useState<string>('');
+    const [filterTimeframe, setFilterTimeframe] = useState<string>('upcoming');
     const [projectsMap, setProjectsMap] = useState<Record<string, string>>({});
     const [usersMap, setUsersMap] = useState<Record<string, string>>({});
     const [emailsMap, setEmailsMap] = useState<Record<string, string>>({});
     const { addToast } = useToastStore();
-    const [viewMode, setViewMode] = useState<'list' | 'timetable'>('list');
-    const [filterSeason, setFilterSeason] = useState<string>('');
+    const [viewMode, setViewMode] = useState<'list' | 'timetable'>(() =>
+        (localStorage.getItem('seminar_viewMode') as 'list' | 'timetable') || 'list'
+    );
+    const [allExpanded, setAllExpanded] = useState<boolean | undefined>(undefined);
     const [refreshing, setRefreshing] = useState(false);
 
     // Panel system
@@ -127,6 +131,7 @@ const Seminars: React.FC = () => {
             setShowConfirmSwitch(true);
         } else {
             setActiveTab(tabId);
+            setFilterTimeframe('');
             setShowTranscription(false);
             storeSetShowPanel(false);
             setActivePanel(null);
@@ -238,18 +243,6 @@ const Seminars: React.FC = () => {
         }
     };
 
-    // Derive seasons from meetings (since there's no GET recurring API)
-    const seasons = useMemo(() => {
-        const map = new Map<string, string>();
-        meetings.forEach(m => {
-            if (m.seminarId && !map.has(m.seminarId)) {
-                const baseTitle = m.title ? m.title.replace(/\s*-\s*Session\s*\d+.*$/i, '') : `Season ${map.size + 1}`;
-                map.set(m.seminarId, baseTitle);
-            }
-        });
-        return Array.from(map.entries()).map(([id, title]) => ({ id, title }));
-    }, [meetings]);
-
     // Filtered meetings
     const displayMeetings = useMemo(() => {
         return meetings.filter(m => {
@@ -259,18 +252,16 @@ const Seminars: React.FC = () => {
                 (m.description?.toLowerCase().includes(query)) ||
                 (m.location?.toLowerCase().includes(query));
 
+            const isUpcoming = new Date(m.meetingDate).getTime() > Date.now();
             let matchesTimeframe = true;
-            if (filterTimeframe === 'upcoming') {
-                matchesTimeframe = new Date(m.meetingDate).getTime() > Date.now();
-            } else if (filterTimeframe === 'past') {
-                matchesTimeframe = new Date(m.meetingDate).getTime() < Date.now();
-            }
+            if (filterTimeframe === 'upcoming') matchesTimeframe = isUpcoming;
+            else if (filterTimeframe === 'past') matchesTimeframe = !isUpcoming;
+            else if (filterTimeframe === 'slides') matchesTimeframe = !!m.slideUrl;
+            else if (filterTimeframe === 'missing') matchesTimeframe = isUpcoming && !m.slideUrl;
 
-            const matchesSeason = !filterSeason || m.seminarId === filterSeason;
-
-            return matchesQuery && matchesTimeframe && matchesSeason;
+            return matchesQuery && matchesTimeframe;
         }).sort((a, b) => new Date(b.meetingDate).getTime() - new Date(a.meetingDate).getTime());
-    }, [meetings, searchQuery, filterTimeframe, filterSeason]);
+    }, [meetings, searchQuery, filterTimeframe]);
 
     const timetableEvents: TimetableEvent[] = useMemo(() => {
         return displayMeetings.map(m => {
@@ -296,7 +287,7 @@ const Seminars: React.FC = () => {
                 presenter: usersMap[m.presenterId] || null,
                 description: m.description,
                 type: 'seminar' as const,
-                color: '#8b5cf6'
+                color: '#e8720c'
             };
         });
     }, [displayMeetings, usersMap]);
@@ -305,25 +296,16 @@ const Seminars: React.FC = () => {
     const upcomingCount = meetings.filter(m => new Date(m.meetingDate).getTime() > Date.now()).length;
     const pastCount = meetings.filter(m => new Date(m.meetingDate).getTime() <= Date.now()).length;
     const withSlidesCount = meetings.filter(m => m.slideUrl).length;
+    const missingSlidesCount = meetings.filter(m => new Date(m.meetingDate).getTime() > Date.now() && !m.slideUrl).length;
 
     return (
         <MainLayout role={user?.role} userName={user?.name}>
             <div className="page-container" style={{ padding: '1.5rem 2rem', maxWidth: '1600px', margin: '0 auto' }}>
                 {/* Header */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', gap: '1.5rem' }}>
                     <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-                            <div style={{
-                                width: '40px',
-                                height: '40px',
-                                borderRadius: '12px',
-                                background: 'linear-gradient(135deg, #6366f1, #818cf8)',
-                                color: 'white',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                boxShadow: '0 8px 16px rgba(99, 102, 241, 0.2)'
-                            }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}>
+                            <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'linear-gradient(135deg, #6366f1, #818cf8)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 16px rgba(99,102,241,0.2)', flexShrink: 0 }}>
                                 <Presentation size={24} />
                             </div>
                             <h1 style={{ fontSize: '1.8rem', fontWeight: 900, color: '#1e293b', margin: 0, letterSpacing: '-0.02em' }}>Seminars</h1>
@@ -335,69 +317,22 @@ const Seminars: React.FC = () => {
                     <button
                         onClick={handleRefresh}
                         disabled={refreshing}
-                        style={{ padding: '6px 12px', border: '1px solid #e2e8f0', background: 'white', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
+                        title="Refresh"
+                        style={{
+                            padding: '6px 8px', border: '1px solid #e2e8f0', background: 'white',
+                            borderRadius: '8px', display: 'flex', alignItems: 'center',
+                            cursor: refreshing ? 'not-allowed' : 'pointer',
+                            color: '#64748b', flexShrink: 0,
+                            opacity: refreshing ? 0.5 : 1, transition: 'opacity 0.2s',
+                        }}
                     >
-                        <RotateCcw size={13} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
-                        Refresh
+                        <RotateCcw size={14} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
                     </button>
-                </div>
-
-
-                {/* UNIFIED STATUS BOARD */}
-                <div style={{
-                    background: 'white', padding: '1.25rem 1.5rem', borderRadius: '20px', border: '1px solid #e2e8f0',
-                    display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: '1.5rem', alignItems: 'start',
-                    boxShadow: '0 4px 20px rgba(0,0,0,0.03)', marginBottom: '1.5rem', position: 'relative'
-                }}>
-                    {/* LEFT COLUMN: CRITICAL ALERTS */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                        <h4 style={{ margin: '0 0 0.4rem 0', fontSize: '0.7rem', fontWeight: 800, color: '#ef4444', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                            Action Required
-                        </h4>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.45rem 0', opacity: 1, transition: 'all 0.2s' }}>
-                            <div style={{ width: '24px', height: '24px', borderRadius: '6px', background: '#f59e0b', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                <AlertTriangle size={14} />
-                            </div>
-                            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#475569', flex: 1 }}>Missing Slides:</span>
-                            <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#1e293b' }}>{upcomingCount - withSlidesCount < 0 ? 0 : upcomingCount - withSlidesCount}</span>
-                        </div>
-                    </div>
-
-                    {/* DIVIDER */}
-                    <div style={{ width: '1px', alignSelf: 'stretch', background: '#f1f5f9' }}></div>
-
-                    {/* RIGHT COLUMN: PROGRESS INDICATORS */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                        <h4 style={{ margin: '0 0 0.4rem 0', fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                            Seminar Metrics
-                        </h4>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.45rem 0', opacity: upcomingCount > 0 ? 1 : 0.45, transition: 'all 0.2s' }}>
-                            <div style={{ width: '24px', height: '24px', borderRadius: '6px', background: '#3b82f6', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                <Clock size={14} />
-                            </div>
-                            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#475569', flex: 1 }}>Upcoming:</span>
-                            <span style={{ fontSize: '0.9rem', fontWeight: 800, color: upcomingCount > 0 ? '#1e293b' : '#94a3b8' }}>{upcomingCount}</span>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.45rem 0', opacity: pastCount > 0 ? 1 : 0.45, transition: 'all 0.2s' }}>
-                            <div style={{ width: '24px', height: '24px', borderRadius: '6px', background: '#10b981', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                <CheckCircle2 size={14} />
-                            </div>
-                            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#475569', flex: 1 }}>Completed:</span>
-                            <span style={{ fontSize: '0.9rem', fontWeight: 800, color: pastCount > 0 ? '#1e293b' : '#94a3b8' }}>{pastCount}</span>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.45rem 0', opacity: withSlidesCount > 0 ? 1 : 0.45, transition: 'all 0.2s' }}>
-                            <div style={{ width: '24px', height: '24px', borderRadius: '6px', background: '#8b5cf6', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                <FileText size={14} />
-                            </div>
-                            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#475569', flex: 1 }}>With Slides:</span>
-                            <span style={{ fontSize: '0.9rem', fontWeight: 800, color: withSlidesCount > 0 ? '#1e293b' : '#94a3b8' }}>{withSlidesCount}</span>
-                        </div>
-                    </div>
                 </div>
 
                 {/* Search Bar */}
                 <div style={{
-                    padding: '0.75rem 1.5rem',
+                    padding: '0.75rem 1.25rem',
                     borderRadius: '14px',
                     background: '#fff',
                     border: '1px solid var(--border-color)',
@@ -417,36 +352,66 @@ const Seminars: React.FC = () => {
                             />
                         </div>
                     </div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: '20px', paddingTop: '10px', borderTop: '1px solid rgba(0,0,0,0.05)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <Filter size={14} color="var(--text-muted)" />
-                            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' as const }}>Timeframe:</span>
-                            <AppSelect
-                                size="sm"
-                                value={filterTimeframe}
-                                onChange={setFilterTimeframe}
-                                options={[
-                                    { value: '', label: 'All' },
-                                    { value: 'upcoming', label: 'Upcoming' },
-                                    { value: 'past', label: 'Past' },
-                                ]}
-                            />
-                        </div>
-                        {activeTab !== 'swap_requests' && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <Presentation size={14} color="var(--text-muted)" />
-                                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' as const }}>Season:</span>
-                                <AppSelect
-                                    size="sm"
-                                    value={filterSeason}
-                                    onChange={setFilterSeason}
-                                    options={[
-                                        { value: '', label: 'All Seasons' },
-                                        ...seasons.map(s => ({ value: s.id, label: s.title })),
-                                    ]}
-                                />
+                    <div style={{ paddingTop: '10px', borderTop: '1px solid rgba(0,0,0,0.05)' }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: '8px', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: '6px' }}>
+                                {([
+                                    { value: 'upcoming', label: 'Upcoming', count: upcomingCount, icon: <Clock size={12} />, activeColor: '#2563eb', activeBg: '#eff6ff', activeBorder: '#bfdbfe' },
+                                    { value: 'past', label: 'Completed', count: pastCount, icon: <CheckCircle2 size={12} />, activeColor: '#059669', activeBg: '#f0fdf4', activeBorder: '#bbf7d0' },
+                                    { value: 'slides', label: 'With Slides', count: withSlidesCount, icon: <FileText size={12} />, activeColor: '#7c3aed', activeBg: '#f5f3ff', activeBorder: '#ddd6fe' },
+                                    { value: 'missing', label: 'Missing Slides', count: missingSlidesCount, icon: <AlertTriangle size={12} />, activeColor: '#d97706', activeBg: '#fffbeb', activeBorder: '#fde68a' },
+                                ] as const).map(({ value, label, count, icon, activeColor, activeBg, activeBorder }) => {
+                                    const isActive = filterTimeframe === value;
+                                    return (
+                                        <button
+                                            key={value}
+                                            type="button"
+                                            onClick={() => setFilterTimeframe(isActive ? '' : value)}
+                                            style={{
+                                                display: 'flex', alignItems: 'center', gap: '5px',
+                                                padding: '5px 10px', borderRadius: '8px', cursor: 'pointer',
+                                                fontSize: '0.78rem', fontWeight: 700,
+                                                border: `1.5px solid ${isActive ? activeBorder : '#e2e8f0'}`,
+                                                background: isActive ? activeBg : '#f8fafc',
+                                                color: isActive ? activeColor : '#64748b',
+                                                transition: 'all 0.15s',
+                                            }}
+                                        >
+                                            <span style={{ display: 'flex', color: isActive ? activeColor : '#94a3b8' }}>{icon}</span>
+                                            {label}
+                                            <span style={{
+                                                padding: '0 5px', height: '18px', borderRadius: '5px',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                fontSize: '0.72rem', fontWeight: 800, minWidth: '18px',
+                                                background: isActive ? activeColor : '#e2e8f0',
+                                                color: isActive ? '#fff' : '#64748b',
+                                            }}>{count}</span>
+                                        </button>
+                                    );
+                                })}
                             </div>
-                        )}
+                            {activeTab !== 'swap_requests' && viewMode !== 'timetable' && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setAllExpanded(v => v === true ? false : true)}
+                                        style={{
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
+                                            padding: '5px 10px', borderRadius: '8px', cursor: 'pointer',
+                                            fontSize: '0.78rem', fontWeight: 700, minWidth: '110px',
+                                            border: `1.5px solid ${allExpanded === true ? '#bfdbfe' : '#e2e8f0'}`,
+                                            background: allExpanded === true ? '#eff6ff' : '#f8fafc',
+                                            color: allExpanded === true ? '#2563eb' : '#475569',
+                                            transition: 'all 0.15s',
+                                        }}
+                                    >
+                                        {allExpanded === true
+                                            ? <><ChevronsDownUp size={13} /> Collapse All</>
+                                            : <><ChevronsUpDown size={13} /> Expand All</>}
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
 
@@ -454,7 +419,7 @@ const Seminars: React.FC = () => {
                 {activeTab !== 'swap_requests' && (
                     <div style={{ display: 'flex', gap: '4px', marginBottom: '1.5rem' }}>
                         <button
-                            onClick={() => setViewMode('list')}
+                            onClick={() => { setViewMode('list'); localStorage.setItem('seminar_viewMode', 'list'); }}
                             style={{
                                 padding: '8px 16px', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 700,
                                 border: viewMode === 'list' ? '1.5px solid var(--accent-color)' : '1px solid var(--border-color)',
@@ -466,7 +431,7 @@ const Seminars: React.FC = () => {
                             <List size={16} /> List View
                         </button>
                         <button
-                            onClick={() => { setViewMode('timetable'); setActivePanel(null); setShowTranscription(false); storeSetShowPanel(false); }}
+                            onClick={() => { setViewMode('timetable'); localStorage.setItem('seminar_viewMode', 'timetable'); setActivePanel(null); setShowTranscription(false); storeSetShowPanel(false); }}
                             style={{
                                 padding: '8px 16px', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 700,
                                 border: viewMode === 'timetable' ? '1.5px solid var(--accent-color)' : '1px solid var(--border-color)',
@@ -485,8 +450,8 @@ const Seminars: React.FC = () => {
                     <div style={{ flex: 1, borderBottom: '1px solid #e2e8f0', overflowX: 'auto', whiteSpace: 'nowrap' as const }} className="custom-scrollbar">
                         <div style={{ display: 'flex', gap: '1rem' }}>
                             {[
-                                { id: 'my_seminars', label: 'My Seminars', icon: <Presentation size={16} /> },
                                 { id: 'all_seminars', label: 'All Seminars', icon: <Calendar size={16} /> },
+                                { id: 'my_seminars', label: 'My Seminars', icon: <Presentation size={16} /> },
                                 { id: 'invited_seminars', label: 'Invited', icon: <Users size={16} /> },
                                 { id: 'swap_requests', label: 'Swap Requests', icon: <ArrowLeftRight size={16} /> }
                             ].map(tab => (
@@ -583,16 +548,30 @@ const Seminars: React.FC = () => {
                                     selectedId={activePanel?.meetingId || null}
                                     onSelect={handleOpenViewTab}
                                     usersMap={usersMap}
+                                    filterTimeframe={filterTimeframe}
+                                    allExpanded={allExpanded}
                                 />
                             ) : (
                                 <div style={{ textAlign: 'center', padding: '4rem 2rem', color: '#94a3b8' }}>
                                     <Target size={48} style={{ marginBottom: '1.5rem', opacity: 0.3 }} />
-                                    <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1e293b' }}>No Seminars</h3>
-                                    <p style={{ fontSize: '0.85rem' }}>
-                                        {activeTab === 'my_seminars'
-                                            ? 'You have no upcoming or past seminar sessions.'
-                                            : 'No seminar sessions found.'}
-                                    </p>
+                                    <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1e293b' }}>No Seminars Found</h3>
+                                    {(filterTimeframe !== '' || searchQuery !== '') ? (
+                                        <>
+                                            <p style={{ fontSize: '0.85rem', marginBottom: '1rem' }}>No sessions match your current filters.</p>
+                                            <button
+                                                onClick={() => { setFilterTimeframe(''); setSearchQuery(''); }}
+                                                style={{ padding: '8px 18px', borderRadius: '10px', border: '1.5px solid var(--accent-color)', background: 'var(--accent-bg)', color: 'var(--accent-color)', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}
+                                            >
+                                                Clear all filters
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <p style={{ fontSize: '0.85rem' }}>
+                                            {activeTab === 'my_seminars'
+                                                ? 'You have no upcoming or past seminar sessions.'
+                                                : 'No seminar sessions found.'}
+                                        </p>
+                                    )}
                                 </div>
                             )}
                         </div>

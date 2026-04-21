@@ -160,6 +160,7 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
     const [indexing, setIndexing] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(false);
     const [confirmCancel, setConfirmCancel] = useState(false);
+    const [descExpanded, setDescExpanded] = useState(false);
 
     // Form fields
     const [title, setTitle] = useState('');
@@ -496,38 +497,42 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                     {!isCreating && onToggleAINote && (
                         <button
                             onClick={onToggleAINote}
-                            title="AI Notes"
+                            title={showAINote ? 'Close AI Notes' : 'Open AI Notes'}
                             style={{
                                 display: 'flex', alignItems: 'center', gap: '6px',
-                                padding: '7px 14px', borderRadius: '10px', cursor: 'pointer',
-                                fontSize: '0.78rem', fontWeight: 800,
-                                border: 'none',
+                                padding: '7px 16px', borderRadius: '10px', cursor: 'pointer',
+                                fontSize: '0.8rem', fontWeight: 800,
+                                border: showAINote ? 'none' : '1.5px solid #c4b5fd',
                                 background: showAINote
                                     ? 'linear-gradient(135deg, #6366f1, #8b5cf6)'
-                                    : 'linear-gradient(135deg, #f5f3ff, #ede9fe)',
-                                color: showAINote ? '#fff' : '#6366f1',
+                                    : '#faf5ff',
+                                color: showAINote ? '#fff' : '#7c3aed',
                                 boxShadow: showAINote
-                                    ? '0 4px 14px rgba(99,102,241,0.4)'
-                                    : '0 2px 8px rgba(99,102,241,0.15)',
+                                    ? '0 4px 16px rgba(99,102,241,0.45)'
+                                    : '0 1px 4px rgba(139,92,246,0.12)',
                                 transition: 'all 0.2s',
-                                letterSpacing: '0.01em'
+                                letterSpacing: '0.01em',
+                                position: 'relative' as const,
                             }}
                             onMouseEnter={e => {
                                 if (!showAINote) {
                                     e.currentTarget.style.background = 'linear-gradient(135deg, #6366f1, #8b5cf6)';
                                     e.currentTarget.style.color = '#fff';
-                                    e.currentTarget.style.boxShadow = '0 4px 14px rgba(99,102,241,0.35)';
+                                    e.currentTarget.style.border = 'none';
+                                    e.currentTarget.style.boxShadow = '0 4px 16px rgba(99,102,241,0.4)';
                                 }
                             }}
                             onMouseLeave={e => {
                                 if (!showAINote) {
-                                    e.currentTarget.style.background = 'linear-gradient(135deg, #f5f3ff, #ede9fe)';
-                                    e.currentTarget.style.color = '#6366f1';
-                                    e.currentTarget.style.boxShadow = '0 2px 8px rgba(99,102,241,0.15)';
+                                    e.currentTarget.style.background = '#faf5ff';
+                                    e.currentTarget.style.color = '#7c3aed';
+                                    e.currentTarget.style.border = '1.5px solid #c4b5fd';
+                                    e.currentTarget.style.boxShadow = '0 1px 4px rgba(139,92,246,0.12)';
                                 }
                             }}
                         >
-                            <Sparkles size={13} /> AI Notes
+                            <Sparkles size={14} />
+                            {showAINote ? 'Close Notes' : 'AI Notes'}
                         </button>
                     )}
                     {!isCreating && meetingId && canCancel && (
@@ -714,16 +719,45 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                     </div>
 
                     <div style={{ marginBottom: '14px' }}>
-                        <label style={labelStyle}><FileText size={12} /> Description</label>
-                        <textarea
-                            style={{ ...inputStyle, minHeight: '80px', resize: canEdit ? ('vertical' as const) : ('none' as const), ...(canEdit ? {} : { background: '#f8fafc', color: 'var(--text-secondary)', cursor: 'default' }) }}
-                            value={description}
-                            onChange={e => { if (canEdit) setDescription(e.target.value); }}
-                            readOnly={!canEdit}
-                            placeholder="Meeting description, agenda overview..."
-                            onFocus={e => { if (canEdit) { e.currentTarget.style.borderColor = 'var(--accent-color)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,114,12,0.08)'; } }}
-                            onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.boxShadow = 'none'; }}
-                        />
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                            <label style={{ ...labelStyle, marginBottom: 0 }}><FileText size={12} /> Description</label>
+                            {!canEdit && description && (
+                                <button
+                                    type="button"
+                                    onClick={() => setDescExpanded(v => !v)}
+                                    style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '0.7rem', fontWeight: 700, color: 'var(--accent-color)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }}
+                                >
+                                    {descExpanded ? <><ChevronUp size={11} /> Collapse</> : <><ChevronDown size={11} /> Expand</>}
+                                </button>
+                            )}
+                        </div>
+                        {canEdit ? (
+                            <textarea
+                                style={{ ...inputStyle, minHeight: '80px', resize: 'vertical' as const }}
+                                value={description}
+                                onChange={e => setDescription(e.target.value)}
+                                placeholder="Meeting description, agenda overview..."
+                                onFocus={e => { e.currentTarget.style.borderColor = 'var(--accent-color)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,114,12,0.08)'; }}
+                                onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.boxShadow = 'none'; }}
+                            />
+                        ) : description ? (
+                            <div style={{
+                                fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: '1.6',
+                                padding: '8px 10px', borderRadius: '8px', background: '#f8fafc',
+                                border: '1px solid var(--border-color)',
+                                maxHeight: descExpanded ? 'none' : '60px',
+                                overflow: 'hidden',
+                                position: 'relative',
+                                whiteSpace: 'pre-wrap' as const,
+                            }}>
+                                {description}
+                                {!descExpanded && description.length > 120 && (
+                                    <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '28px', background: 'linear-gradient(transparent, #f8fafc)' }} />
+                                )}
+                            </div>
+                        ) : (
+                            <div style={{ fontSize: '0.82rem', color: '#94a3b8', fontStyle: 'italic', padding: '8px 10px' }}>No description</div>
+                        )}
                     </div>
 
                     <div style={{ marginBottom: '14px' }}>

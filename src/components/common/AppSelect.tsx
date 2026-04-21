@@ -64,8 +64,8 @@ const buildStyles = (size: 'sm' | 'md', variant: AppSelectVariant): StylesConfig
         }),
         menu: (base) => ({
             ...base,
-            borderRadius: isScheduleFilter ? '10px' : '10px',
-            border: isScheduleFilter ? '1px solid #e2e8f0' : '1px solid #e2e8f0',
+            borderRadius: '10px',
+            border: '1px solid #e2e8f0',
             boxShadow: isScheduleFilter
                 ? '0 10px 24px rgba(15, 23, 42, 0.08)'
                 : '0 8px 28px rgba(0,0,0,0.12)',
@@ -73,6 +73,9 @@ const buildStyles = (size: 'sm' | 'md', variant: AppSelectVariant): StylesConfig
             overflow: 'hidden',
             zIndex: 9999,
             marginTop: '4px',
+            minWidth: '100%',
+            width: 'max-content',
+            maxWidth: '320px',
         }),
         menuList: (base) => ({
             ...base,
@@ -83,9 +86,10 @@ const buildStyles = (size: 'sm' | 'md', variant: AppSelectVariant): StylesConfig
             ...base,
             borderRadius: isScheduleFilter ? '8px' : '6px',
             fontSize: isSm ? '0.82rem' : '0.875rem',
-            fontWeight: state.isSelected ? (isScheduleFilter ? 600 : 600) : (isScheduleFilter ? 500 : 400),
+            fontWeight: state.isSelected ? 600 : (isScheduleFilter ? 500 : 400),
             padding: isSm ? (isScheduleFilter ? '7px 10px' : '6px 10px') : (isScheduleFilter ? '8px 11px' : '8px 12px'),
             marginBottom: isScheduleFilter ? '3px' : 0,
+            whiteSpace: 'nowrap',
             backgroundColor: isScheduleFilter
                 ? (state.isSelected
                     ? 'var(--accent-bg, rgba(232, 114, 12, 0.08))'

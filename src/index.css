@@ -412,8 +412,8 @@ input[type='number'].no-spinner {
    ============================================= */
 .sidebar {
   width: var(--sidebar-width);
-  background: var(--primary-color);
-  color: white;
+  background: #f8fafc;
+  color: #334155;
   position: fixed;
   height: calc(100vh - var(--header-height));
   left: 0;
@@ -421,11 +421,12 @@ input[type='number'].no-spinner {
   z-index: 1000;
   display: flex;
   flex-direction: column;
+  border-right: 1px solid #e2e8f0;
 }
 
 .sidebar-header {
   padding: 1.25rem 1.5rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid #e2e8f0;
 }
 
 .sidebar-brand {
@@ -444,10 +445,11 @@ input[type='number'].no-spinner {
   justify-content: center;
   color: white;
   flex-shrink: 0;
+  box-shadow: 0 4px 10px rgba(232, 114, 12, 0.25);
 }
 
 .sidebar-title {
-  color: white;
+  color: #1e293b;
   margin: 0;
   font-size: 0.95rem;
   font-weight: 700;
@@ -455,7 +457,7 @@ input[type='number'].no-spinner {
 
 .sidebar-subtitle {
   font-size: 0.7rem;
-  color: rgba(255, 255, 255, 0.4);
+  color: #94a3b8;
   font-weight: 500;
 }
 
@@ -464,19 +466,19 @@ input[type='number'].no-spinner {
   padding: 0.75rem 0;
   flex: 1;
   overflow-y: auto;
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 .sidebar-nav::-webkit-scrollbar {
-  display: none; /* Chrome, Safari, Opera */
+  display: none;
 }
 
 .sidebar-section-label {
   padding: 1rem 1.5rem 0.5rem;
   font-size: 0.6rem;
   font-weight: 800;
-  color: rgba(255, 255, 255, 0.3);
+  color: #b0bec5;
   text-transform: uppercase;
   letter-spacing: 1.5px;
 }
@@ -486,24 +488,25 @@ input[type='number'].no-spinner {
   align-items: center;
   gap: 12px;
   padding: 0.7rem 1.5rem;
-  color: rgba(255, 255, 255, 0.5);
+  color: #64748b;
   text-decoration: none;
   font-size: 0.875rem;
   font-weight: 500;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
   border-left: 3px solid transparent;
   background-color: transparent;
 }
 
 .sidebar-link:hover {
-  color: rgba(255, 255, 255, 0.85);
-  background: rgba(255, 255, 255, 0.04);
+  color: #1e293b;
+  background: #eef2f6;
 }
 
 .sidebar-link.active {
-  color: white;
-  background: rgba(255, 255, 255, 0.08);
+  color: var(--accent-color);
+  background: rgba(232, 114, 12, 0.07);
   border-left-color: var(--accent-color);
+  font-weight: 700;
 }
 
 .sidebar-link-icon {
@@ -520,7 +523,7 @@ input[type='number'].no-spinner {
 /* -- Sidebar Footer -- */
 .sidebar-footer {
   padding: 1rem 1.5rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid #e2e8f0;
 }
 
 .sidebar-dev-link {
