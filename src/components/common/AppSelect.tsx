@@ -29,6 +29,7 @@ const buildStyles = (size: 'sm' | 'md', variant: AppSelectVariant): StylesConfig
         control: (base, state) => ({
             ...base,
             minHeight: isSm ? '32px' : '38px',
+            width: '100%',
             borderRadius: isSm ? '8px' : '10px',
             border: state.isFocused
                 ? (isScheduleFilter ? '1.5px solid #94a3b8' : '1.5px solid var(--accent-color, #e8720c)')
@@ -83,9 +84,9 @@ const buildStyles = (size: 'sm' | 'md', variant: AppSelectVariant): StylesConfig
             overflow: 'hidden',
             zIndex: 9999,
             marginTop: '4px',
-            minWidth: '100%',
-            width: 'max-content',
-            maxWidth: '320px',
+            width: isScheduleFilter ? '240px' : 'max-content',
+            minWidth: isScheduleFilter ? '200px' : '100%',
+            maxWidth: isScheduleFilter ? '240px' : '320px',
         }),
         menuList: (base) => ({
             ...base,
@@ -99,7 +100,9 @@ const buildStyles = (size: 'sm' | 'md', variant: AppSelectVariant): StylesConfig
             fontWeight: state.isSelected ? 600 : (isScheduleFilter ? 500 : 400),
             padding: isSm ? (isScheduleFilter ? '7px 10px' : '6px 10px') : (isScheduleFilter ? '8px 11px' : '8px 12px'),
             marginBottom: isScheduleFilter ? '3px' : 0,
-            whiteSpace: 'nowrap',
+            whiteSpace: isScheduleFilter ? 'nowrap' : 'nowrap',
+            overflow: isScheduleFilter ? 'hidden' : 'visible',
+            textOverflow: isScheduleFilter ? 'ellipsis' : 'clip',
             backgroundColor: isScheduleFilter
                 ? (state.isSelected
                     ? 'var(--accent-bg, rgba(232, 114, 12, 0.08))'

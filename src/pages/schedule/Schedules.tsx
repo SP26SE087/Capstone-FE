@@ -471,17 +471,19 @@ const Schedules: React.FC = () => {
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
                                 <Briefcase size={13} color="var(--text-muted)" />
-                                <AppSelect
-                                    size="sm"
-                                    variant="scheduleFilter"
-                                    isSearchable={false}
-                                    value={filterProjectId}
-                                    onChange={setFilterProjectId}
-                                    options={[
-                                        { value: '', label: 'All Projects' },
-                                        ...Object.entries(projectsMap).map(([id, name]) => ({ value: id, label: name as string })),
-                                    ]}
-                                />
+                                <div style={{ width: '200px' }}>
+                                    <AppSelect
+                                        size="sm"
+                                        variant="scheduleFilter"
+                                        isSearchable={false}
+                                        value={filterProjectId}
+                                        onChange={setFilterProjectId}
+                                        options={[
+                                            { value: '', label: 'All Projects' },
+                                            ...Object.entries(projectsMap).map(([id, name]) => ({ value: id, label: name as string })),
+                                        ]}
+                                    />
+                                </div>
                             </div>
                         </div>
                     </div>

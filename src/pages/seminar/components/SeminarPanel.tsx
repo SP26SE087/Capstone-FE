@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { SeminarMeetingResponse, UpdateSeminarMeetingRequest, CreateSeminarSwapRequest } from '@/types/seminar';
 import seminarService from '@/services/seminarService';
 import { API_BASE_URL } from '@/services/api';
@@ -127,6 +127,7 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
     const [swapExpiry, setSwapExpiry] = useState('');
     const [submittingSwap, setSubmittingSwap] = useState(false);
     const [showSwapConfirm, setShowSwapConfirm] = useState(false);
+    const swapOnLoadHandledRef = useRef<string | null>(null);
 
     useEffect(() => {
         if (meetingId) {
@@ -271,7 +272,9 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
     const canEdit = !!user?.email && !!presenterEmail && user.email.toLowerCase() === presenterEmail.toLowerCase();
 
     useEffect(() => {
-        if (!openSwapOnLoad || !canEdit) return;
+        if (!openSwapOnLoad || !canEdit || !meetingId) return;
+        if (swapOnLoadHandledRef.current === meetingId) return;
+        swapOnLoadHandledRef.current = meetingId;
         setSwapAccordionOpen(true);
         handleOpenSwapForm();
     }, [openSwapOnLoad, canEdit, meetingId]);
