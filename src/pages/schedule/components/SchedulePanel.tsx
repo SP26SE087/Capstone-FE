@@ -7,8 +7,11 @@ import {
     UpdateMeetingRequest,
     AttendeeResponseStatus
 } from '@/types/meeting';
+import { SeminarMeetingResponse, CreateSeminarSwapRequest } from '@/types/seminar';
 import meetingService from '@/services/meetingService';
+import seminarService from '@/services/seminarService';
 import { useAuth } from '@/hooks/useAuth';
+import { useToastStore } from '@/store/slices/toastSlice';
 import AttendeeSelector, { SelectedAttendee } from '@/components/common/AttendeeSelector';
 import CalendarPicker from '@/components/common/CalendarPicker';
 import {
@@ -32,6 +35,7 @@ import {
     RefreshCw,
     Sparkles,
     ArrowRight,
+    ArrowLeftRight,
     CheckCircle2,
     XCircle,
     HelpCircle,
@@ -48,6 +52,8 @@ interface SchedulePanelProps {
     onSaved: (shouldClose?: boolean, message?: string, newEventId?: string) => void;
     onTitleChange?: (title: string) => void;
     projectsMap: Record<string, string>;
+    seminarMeeting?: SeminarMeetingResponse | null;
+    allowSeminarSwap?: boolean;
     onToggleAINote?: () => void;
     showAINote?: boolean;
     initialData?: MeetingResponse;
@@ -147,11 +153,14 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
     onSaved,
     onTitleChange,
     projectsMap,
+    seminarMeeting,
+    allowSeminarSwap = false,
     onToggleAINote,
     showAINote,
     initialData
 }) => {
     const { user } = useAuth();
+    const { addToast } = useToastStore();
     const [meeting, setMeeting] = useState<MeetingResponse | null>(null);
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -188,6 +197,14 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
     const [dateError, setDateError] = useState('');
     const [attendeeError, setAttendeeError] = useState('');
 
+    // Seminar swap request
+    const [swapAccordionOpen, setSwapAccordionOpen] = useState(false);
+    const [swapTargets, setSwapTargets] = useState<SeminarMeetingResponse[]>([]);
+    const [swapTargetId, setSwapTargetId] = useState('');
+    const [swapReason, setSwapReason] = useState('');
+    const [submittingSwap, setSubmittingSwap] = useState(false);
+    const [showSwapConfirm, setShowSwapConfirm] = useState(false);
+
     // Load meeting details
     useEffect(() => {
         if (!isCreating && meetingId) {
@@ -223,6 +240,14 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
             setProjectSearch('');
         }
     }, [isCreating]);
+
+    useEffect(() => {
+        setSwapAccordionOpen(false);
+        setSwapTargets([]);
+        setSwapTargetId('');
+        setSwapReason('');
+        setShowSwapConfirm(false);
+    }, [seminarMeeting?.seminarMeetingId]);
 
     const loadMeeting = async (eventId: string, silent: boolean = false) => {
         if (!silent) setLoading(true);
@@ -396,6 +421,56 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
         }
     };
 
+    const handleOpenSwapForm = async () => {
+        if (!seminarMeeting || swapTargets.length > 0) return;
+
+        try {
+            const data = await seminarService.getAllSeminarMeetings();
+            const threeDaysFromNow = Date.now() + 3 * 24 * 60 * 60 * 1000;
+            const filtered = Array.isArray(data)
+                ? data.filter(m =>
+                    m.seminarMeetingId !== seminarMeeting.seminarMeetingId &&
+                    m.seminarId === seminarMeeting.seminarId &&
+                    m.presenterId !== seminarMeeting.presenterId &&
+                    new Date(m.meetingDate).getTime() > threeDaysFromNow
+                )
+                : [];
+
+            filtered.sort((a, b) => new Date(a.meetingDate).getTime() - new Date(b.meetingDate).getTime());
+            setSwapTargets(filtered);
+        } catch (err) {
+            console.error('Failed to load meetings for swap:', err);
+            addToast('Failed to load swap targets.', 'error');
+        }
+    };
+
+    const handleSubmitSwap = async () => {
+        if (!seminarMeeting || !swapTargetId) return;
+
+        setSubmittingSwap(true);
+        try {
+            const req: CreateSeminarSwapRequest = {
+                sourceSeminarMeetingId: seminarMeeting.seminarMeetingId,
+                targetSeminarMeetingId: swapTargetId,
+                reason: swapReason.trim() || null,
+                expiresAtUtc: null,
+            };
+
+            await seminarService.createSwapRequest(req);
+            setSwapAccordionOpen(false);
+            setSwapTargetId('');
+            setSwapReason('');
+            setSwapTargets([]);
+            addToast('Swap request submitted successfully.', 'success');
+            onSaved(false, 'Swap request submitted successfully.');
+        } catch (err: any) {
+            const msg = err?.response?.data?.message || err?.response?.data?.title || 'Failed to submit swap request.';
+            addToast(msg, 'error');
+        } finally {
+            setSubmittingSwap(false);
+        }
+    };
+
     if (loading) {
         return (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '300px' }}>
@@ -421,6 +496,11 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
         today.setHours(0, 0, 0, 0);
         return meetingDate >= today;
     })());
+    const canRequestSeminarSwap = !isCreating
+        && allowSeminarSwap
+        && !!seminarMeeting
+        && !!user?.userId
+        && seminarMeeting.presenterId === user.userId;
 
     const clampedDurationMinutes = clampDurationMinutes(durationMinutes);
     const parsedStartTime = startTime ? new Date(startTime) : null;
@@ -1483,6 +1563,71 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                 )}
             </div>
 
+            {/* Seminar Swap Request */}
+            {canRequestSeminarSwap && swapAccordionOpen && (
+                <div style={{ borderTop: '1px solid #e9d5ff', background: '#faf5ff', padding: '14px 16px' }}>
+                    <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#7c3aed', textTransform: 'uppercase' as const, letterSpacing: '0.7px', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <ArrowLeftRight size={12} /> Request Session Swap
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        <div>
+                            <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' as const, letterSpacing: '0.05em', marginBottom: '6px' }}>
+                                Swap With <span style={{ color: '#ef4444' }}>*</span>
+                            </div>
+                            <div style={{ border: `1.5px solid ${swapTargetId ? '#7c3aed' : '#e9d5ff'}`, borderRadius: '10px', overflow: 'hidden', maxHeight: '180px', overflowY: 'auto', background: '#fff' }} className="custom-scrollbar">
+                                {swapTargets.length === 0 ? (
+                                    <div style={{ padding: '10px 12px', fontSize: '0.8rem', color: '#94a3b8', fontStyle: 'italic' }}>No other sessions available in this seminar series.</div>
+                                ) : swapTargets.map(m => {
+                                    const isSel = swapTargetId === m.seminarMeetingId;
+                                    return (
+                                        <div
+                                            key={m.seminarMeetingId}
+                                            onClick={() => setSwapTargetId(m.seminarMeetingId)}
+                                            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', cursor: 'pointer', background: isSel ? '#f5f3ff' : 'transparent', borderBottom: '1px solid #f1f5f9', transition: 'background 0.15s' }}
+                                            onMouseEnter={e => { if (!isSel) e.currentTarget.style.background = '#faf5ff'; }}
+                                            onMouseLeave={e => { if (!isSel) e.currentTarget.style.background = 'transparent'; }}
+                                        >
+                                            <div style={{ width: '14px', height: '14px', flexShrink: 0, borderRadius: '50%', border: `2px solid ${isSel ? '#7c3aed' : '#cbd5e1'}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                {isSel && <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#7c3aed' }} />}
+                                            </div>
+                                            <div style={{ minWidth: 0 }}>
+                                                <div style={{ fontSize: '0.8rem', fontWeight: isSel ? 700 : 600, color: isSel ? '#6d28d9' : 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                    {m.title || 'Untitled'}
+                                                </div>
+                                                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{new Date(m.meetingDate).toLocaleDateString('vi-VN')}</div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        <div>
+                            <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' as const, letterSpacing: '0.05em', marginBottom: '4px' }}>
+                                Reason <span style={{ fontWeight: 500, textTransform: 'none' as const }}>(optional)</span>
+                            </div>
+                            <textarea
+                                value={swapReason}
+                                onChange={e => setSwapReason(e.target.value)}
+                                placeholder="Why do you need to swap?"
+                                style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1.5px solid #e9d5ff', fontSize: '0.8rem', fontFamily: 'inherit', outline: 'none', minHeight: '60px', resize: 'none' as const, background: '#fff', boxSizing: 'border-box' as const }}
+                                onFocus={e => { e.currentTarget.style.borderColor = '#7c3aed'; }}
+                                onBlur={e => { e.currentTarget.style.borderColor = '#e9d5ff'; }}
+                            />
+                        </div>
+
+                        <button
+                            onClick={() => setShowSwapConfirm(true)}
+                            disabled={!swapTargetId || submittingSwap}
+                            style={{ padding: '8px 14px', borderRadius: '10px', border: 'none', background: (!swapTargetId || submittingSwap) ? '#e2e8f0' : '#7c3aed', color: '#fff', cursor: (!swapTargetId || submittingSwap) ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: '0.8rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', boxShadow: (!swapTargetId || submittingSwap) ? 'none' : '0 4px 12px rgba(124,58,237,0.3)', transition: 'all 0.2s' }}
+                        >
+                            {submittingSwap ? <Loader2 size={13} className="animate-spin" /> : <ArrowLeftRight size={13} />} Submit Swap Request
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {/* Footer Actions */}
             <div style={{
                 paddingTop: '14px',
@@ -1493,23 +1638,49 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                 gap: '10px',
                 marginTop: 'auto'
             }}>
-                {!isCreating && meeting?.id && (
-                    <button
-                        onClick={handleIndexing}
-                        disabled={indexing}
-                        style={{
-                            display: 'flex', alignItems: 'center', gap: '5px',
-                            padding: '6px 12px', borderRadius: '8px', cursor: 'pointer',
-                            fontSize: '0.75rem', fontWeight: 700,
-                            border: '1px solid #e2e8f0',
-                            background: '#fff',
-                            color: '#64748b',
-                            transition: 'all 0.2s'
-                        }}
-                    >
-                        <RefreshCw size={13} className={indexing ? 'animate-spin' : ''} />
-                        Insert to Semantic Search
-                    </button>
+                {!isCreating && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {meeting?.id && (
+                            <button
+                                onClick={handleIndexing}
+                                disabled={indexing}
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: '5px',
+                                    padding: '6px 12px', borderRadius: '8px', cursor: 'pointer',
+                                    fontSize: '0.75rem', fontWeight: 700,
+                                    border: '1px solid #e2e8f0',
+                                    background: '#fff',
+                                    color: '#64748b',
+                                    transition: 'all 0.2s'
+                                }}
+                            >
+                                <RefreshCw size={13} className={indexing ? 'animate-spin' : ''} />
+                                Insert to Semantic Search
+                            </button>
+                        )}
+
+                        {canRequestSeminarSwap && (
+                            <button
+                                onClick={() => {
+                                    setSwapAccordionOpen(p => !p);
+                                    if (!swapAccordionOpen) handleOpenSwapForm();
+                                }}
+                                style={{
+                                    padding: '8px 16px', borderRadius: '10px',
+                                    border: swapAccordionOpen ? '1.5px solid #7c3aed' : '1px solid #e9d5ff',
+                                    background: swapAccordionOpen ? '#f5f3ff' : '#faf5ff',
+                                    color: '#7c3aed', cursor: 'pointer',
+                                    fontSize: '0.8rem', fontWeight: 700,
+                                    display: 'flex', alignItems: 'center', gap: '6px',
+                                    transition: 'all 0.2s'
+                                }}
+                            >
+                                <ArrowLeftRight size={14} />
+                                Request Swap
+                                {swapAccordionOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                            </button>
+                        )}
+                    </div>
                 )}
                 {canEdit && (
                     <button
@@ -1548,6 +1719,22 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                 )}
             </div>
         </div>
+
+        <ConfirmModal
+            isOpen={showSwapConfirm}
+            onClose={() => setShowSwapConfirm(false)}
+            onConfirm={() => { setShowSwapConfirm(false); handleSubmitSwap(); }}
+            title="Confirm Swap Request"
+            message={
+                <span>
+                    Are you sure you want to submit this swap request?<br />
+                    The other presenter will be notified and must accept before the swap takes effect.
+                </span>
+            }
+            confirmText={submittingSwap ? 'Submitting...' : 'Submit Swap'}
+            cancelText="Go Back"
+            variant="info"
+        />
         
         <ConfirmModal
             isOpen={confirmDelete}

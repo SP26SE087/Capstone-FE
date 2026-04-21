@@ -3,6 +3,7 @@ import { useBlocker } from 'react-router-dom';
 import { useTranscriptionStore } from '@/store/slices/transcriptionStore';
 import MainLayout from '@/layout/MainLayout';
 import { useAuth } from '@/hooks/useAuth';
+import AppSelect from '@/components/common/AppSelect';
 import {
     Search,
     Presentation,
@@ -19,8 +20,6 @@ import {
     FileText,
     Users,
     RotateCcw,
-    ChevronRight,
-    ChevronDown,
     ChevronsUpDown,
     ChevronsDownUp
 } from 'lucide-react';
@@ -44,6 +43,8 @@ interface SeminarTab {
     meetingId?: string;
     title: string;
     initialData?: SeminarMeetingResponse;
+    openSwapOnLoad?: boolean;
+    panelNonce?: number;
 }
 
 const Seminars: React.FC = () => {
@@ -55,6 +56,7 @@ const Seminars: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [filterTimeframe, setFilterTimeframe] = useState<string>('upcoming');
+    const [filterSeminarId, setFilterSeminarId] = useState<string>('');
     const [projectsMap, setProjectsMap] = useState<Record<string, string>>({});
     const [usersMap, setUsersMap] = useState<Record<string, string>>({});
     const [emailsMap, setEmailsMap] = useState<Record<string, string>>({});
@@ -67,6 +69,7 @@ const Seminars: React.FC = () => {
 
     // Panel system
     const [activePanel, setActivePanel] = useState<SeminarTab | null>(null);
+    const [closingPanelId, setClosingPanelId] = useState<string | null>(null);
     const [showTranscription, setShowTranscription] = useState(false);
     const [isTranscriptionProcessing, setIsTranscriptionProcessing] = useState(false);
     const [showConfirmSwitch, setShowConfirmSwitch] = useState(false);
@@ -132,6 +135,9 @@ const Seminars: React.FC = () => {
         } else {
             setActiveTab(tabId);
             setFilterTimeframe('');
+            setFilterSeminarId('');
+            if (tabId === 'swap_requests') setViewMode('list');
+            setClosingPanelId(null);
             setShowTranscription(false);
             storeSetShowPanel(false);
             setActivePanel(null);
@@ -141,6 +147,10 @@ const Seminars: React.FC = () => {
     const handleConfirmTabSwitch = () => {
         if (pendingTab) {
             setActiveTab(pendingTab);
+            setFilterTimeframe('');
+            setFilterSeminarId('');
+            if (pendingTab === 'swap_requests') setViewMode('list');
+            setClosingPanelId(null);
             setShowTranscription(false);
             storeSetShowPanel(false);
             setActivePanel(null);
@@ -220,21 +230,31 @@ const Seminars: React.FC = () => {
     // Panel handlers
     const handleAddCreateTab = () => {
         const newId = `create-${Date.now()}`;
+        setClosingPanelId(null);
         setActivePanel({ id: newId, type: 'create', title: 'New Seminar' });
     };
 
-    const handleOpenViewTab = (meeting: SeminarMeetingResponse) => {
+    const handleOpenViewTab = (meeting: SeminarMeetingResponse, opts?: { openSwapOnLoad?: boolean }) => {
+        setClosingPanelId(null);
         setActivePanel({
             id: `view-${meeting.seminarMeetingId}`,
             type: 'view',
             meetingId: meeting.seminarMeetingId,
             title: meeting.title || 'Seminar',
-            initialData: meeting
+            initialData: meeting,
+            openSwapOnLoad: !!opts?.openSwapOnLoad,
+            panelNonce: opts?.openSwapOnLoad ? Date.now() : undefined,
         });
     };
 
     const handleClosePanel = () => {
         setActivePanel(null);
+        setClosingPanelId(null);
+    };
+
+    const handleClosePanelAnimated = () => {
+        if (!activePanel) return;
+        setClosingPanelId(activePanel.id);
     };
 
     const handleTitleChange = (newTitle: string) => {
@@ -242,6 +262,21 @@ const Seminars: React.FC = () => {
             setActivePanel({ ...activePanel, title: newTitle });
         }
     };
+
+    const seminarSeriesOptions = useMemo(() => {
+        const seriesNameMap = new Map<string, string>();
+        meetings.forEach(m => {
+            if (seriesNameMap.has(m.seminarId)) return;
+            const baseTitle = m.title && m.title.includes(' - ')
+                ? m.title.split(' - ')[0].trim()
+                : (m.title || 'Untitled Seminar Series');
+            seriesNameMap.set(m.seminarId, baseTitle);
+        });
+
+        return Array.from(seriesNameMap.entries())
+            .sort((a, b) => a[1].localeCompare(b[1]))
+            .map(([value, label]) => ({ value, label }));
+    }, [meetings]);
 
     // Filtered meetings
     const displayMeetings = useMemo(() => {
@@ -259,13 +294,18 @@ const Seminars: React.FC = () => {
             else if (filterTimeframe === 'slides') matchesTimeframe = !!m.slideUrl;
             else if (filterTimeframe === 'missing') matchesTimeframe = isUpcoming && !m.slideUrl;
 
-            return matchesQuery && matchesTimeframe;
+            const matchesSeries = !filterSeminarId || m.seminarId === filterSeminarId;
+
+            return matchesQuery && matchesTimeframe && matchesSeries;
         }).sort((a, b) => new Date(b.meetingDate).getTime() - new Date(a.meetingDate).getTime());
-    }, [meetings, searchQuery, filterTimeframe]);
+    }, [meetings, searchQuery, filterTimeframe, filterSeminarId]);
 
     const timetableEvents: TimetableEvent[] = useMemo(() => {
         return displayMeetings.map(m => {
             const startDayStr = m.meetingDate.split('T')[0];
+            const presenterEmail = emailsMap[m.presenterId];
+            const isOwnedByCurrentUser = !!user?.email && !!presenterEmail && user.email.toLowerCase() === presenterEmail.toLowerCase();
+            const isUpcoming = new Date(m.meetingDate).getTime() > Date.now();
             
             // Normalize time string to HH:mm:ss if it's just HH:mm or HH
             const normalizeTime = (t: string) => {
@@ -287,10 +327,11 @@ const Seminars: React.FC = () => {
                 presenter: usersMap[m.presenterId] || null,
                 description: m.description,
                 type: 'seminar' as const,
-                color: '#e8720c'
+                color: '#e8720c',
+                swapable: isOwnedByCurrentUser && isUpcoming,
             };
         });
-    }, [displayMeetings, usersMap]);
+    }, [displayMeetings, usersMap, emailsMap, user?.email]);
 
     // Stats
     const upcomingCount = meetings.filter(m => new Date(m.meetingDate).getTime() > Date.now()).length;
@@ -337,7 +378,10 @@ const Seminars: React.FC = () => {
                     background: '#fff',
                     border: '1px solid var(--border-color)',
                     boxShadow: 'var(--shadow-sm)',
-                    marginBottom: '1.5rem'
+                    marginBottom: '1.5rem',
+                    position: 'sticky',
+                    top: 0,
+                    zIndex: 20,
                 }}>
                     <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
                         <div style={{ position: 'relative', flex: 1 }}>
@@ -390,8 +434,28 @@ const Seminars: React.FC = () => {
                                     );
                                 })}
                             </div>
-                            {activeTab !== 'swap_requests' && viewMode !== 'timetable' && (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                            {activeTab !== 'swap_requests' && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, minWidth: 0 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 'clamp(180px, 28vw, 280px)', maxWidth: 'min(100%, 320px)' }}>
+                                        <Presentation size={13} color="var(--text-muted)" />
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <AppSelect
+                                                size="sm"
+                                                variant="scheduleFilter"
+                                                placeholder="Seminar series"
+                                                isSearchable={false}
+                                                isDisabled={seminarSeriesOptions.length === 0}
+                                                value={filterSeminarId}
+                                                onChange={setFilterSeminarId}
+                                                options={[
+                                                    { value: '', label: 'All Seminar Series' },
+                                                    ...seminarSeriesOptions,
+                                                ]}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {viewMode !== 'timetable' && (
                                     <button
                                         type="button"
                                         onClick={() => setAllExpanded(v => v === true ? false : true)}
@@ -409,6 +473,7 @@ const Seminars: React.FC = () => {
                                             ? <><ChevronsDownUp size={13} /> Collapse All</>
                                             : <><ChevronsUpDown size={13} /> Expand All</>}
                                     </button>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -506,22 +571,22 @@ const Seminars: React.FC = () => {
                 </div>
 
                 {/* Main Content */}
-                {viewMode === 'timetable' ? (
-                    <div style={{ height: 'calc(100vh - 280px)', minHeight: '700px' }}>
-                        <WeeklyTimetable
-                            events={timetableEvents}
-                            onEventClick={(evt) => {
-                                const m = meetings.find(mm => mm.seminarMeetingId === evt.id);
-                                if (m) handleOpenViewTab(m);
-                            }}
-                        />
-                    </div>
-                ) : (
-                <div style={{ display: 'flex', gap: '2rem', height: 'calc(100vh - 340px)', minHeight: '650px' }}>
+                <div
+                    style={{
+                        display: 'flex',
+                        gap: '2rem',
+                        height: (activeTab !== 'swap_requests' && viewMode === 'timetable')
+                            ? 'calc(100vh - 280px)'
+                            : 'calc(100vh - 340px)',
+                        minHeight: (activeTab !== 'swap_requests' && viewMode === 'timetable') ? '700px' : '650px'
+                    }}
+                >
                     {/* Left: List or Swap Requests — hidden when transcription is open */}
                     {!showTranscription && (
                     <div style={{
-                        flex: activePanel ? 4 : 10,
+                        flex: activePanel
+                            ? ((activeTab !== 'swap_requests' && viewMode === 'timetable') ? 6 : 4)
+                            : 10,
                         display: 'flex',
                         flexDirection: 'column',
                         transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
@@ -529,7 +594,20 @@ const Seminars: React.FC = () => {
                         overflow: 'hidden'
                     }}>
                         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingRight: '0.5rem' }} className="custom-scrollbar">
-                            {activeTab === 'swap_requests' ? (
+                            {activeTab !== 'swap_requests' && viewMode === 'timetable' ? (
+                                <WeeklyTimetable
+                                    events={timetableEvents}
+                                    deferDetailToPopover
+                                    onEventClick={(evt) => {
+                                        const m = displayMeetings.find(mm => mm.seminarMeetingId === evt.id);
+                                        if (m) handleOpenViewTab(m);
+                                    }}
+                                    onSwapRequestClick={(evt) => {
+                                        const m = displayMeetings.find(mm => mm.seminarMeetingId === evt.id);
+                                        if (m) handleOpenViewTab(m, { openSwapOnLoad: true });
+                                    }}
+                                />
+                            ) : activeTab === 'swap_requests' ? (
                                 <SwapRequests
                                     usersMap={usersMap}
                                     emailsMap={emailsMap}
@@ -555,11 +633,11 @@ const Seminars: React.FC = () => {
                                 <div style={{ textAlign: 'center', padding: '4rem 2rem', color: '#94a3b8' }}>
                                     <Target size={48} style={{ marginBottom: '1.5rem', opacity: 0.3 }} />
                                     <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1e293b' }}>No Seminars Found</h3>
-                                    {(filterTimeframe !== '' || searchQuery !== '') ? (
+                                    {(filterTimeframe !== '' || filterSeminarId !== '' || searchQuery !== '') ? (
                                         <>
                                             <p style={{ fontSize: '0.85rem', marginBottom: '1rem' }}>No sessions match your current filters.</p>
                                             <button
-                                                onClick={() => { setFilterTimeframe(''); setSearchQuery(''); }}
+                                                onClick={() => { setFilterTimeframe(''); setFilterSeminarId(''); setSearchQuery(''); }}
                                                 style={{ padding: '8px 18px', borderRadius: '10px', border: '1.5px solid var(--accent-color)', background: 'var(--accent-bg)', color: 'var(--accent-color)', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}
                                             >
                                                 Clear all filters
@@ -580,22 +658,34 @@ const Seminars: React.FC = () => {
 
                     {/* Right: Panel — hidden when AI Notes is open */}
                     {activePanel && !showTranscription && (
-                        <div style={{
-                            flex: 6,
-                            opacity: 1,
-                            pointerEvents: 'auto',
-                            transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
-                            overflow: 'hidden',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            background: '#fff',
-                            borderRadius: '16px',
-                            border: '1px solid var(--border-color)',
-                            padding: '1.5rem'
-                        }}>
+                        <div
+                            onAnimationEnd={() => {
+                                if (closingPanelId && activePanel.id === closingPanelId) {
+                                    setActivePanel(null);
+                                    setClosingPanelId(null);
+                                    handleCloseTranscription();
+                                }
+                            }}
+                            style={{
+                                flex: (activeTab !== 'swap_requests' && viewMode === 'timetable') ? 4 : 6,
+                                opacity: 1,
+                                pointerEvents: closingPanelId && activePanel.id === closingPanelId ? 'none' : 'auto',
+                                transition: 'all 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+                                overflow: 'hidden',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                background: '#fff',
+                                borderRadius: '16px',
+                                border: '1px solid var(--border-color)',
+                                padding: '1.5rem',
+                                animation: closingPanelId && activePanel.id === closingPanelId
+                                    ? 'seminarPanelExit 0.24s cubic-bezier(0.4, 0, 1, 1) forwards'
+                                    : 'seminarPanelEnter 0.32s cubic-bezier(0, 0, 0.2, 1) both'
+                            }}
+                        >
                             {activePanel.type === 'create' ? (
                                 <CreateSeminarForm
-                                    onClose={handleClosePanel}
+                                    onClose={handleClosePanelAnimated}
                                     onSaved={(shouldClose = false, message?: string) => {
                                         fetchSeminars();
                                         if (message) showToast(message, 'success');
@@ -606,11 +696,12 @@ const Seminars: React.FC = () => {
                                 />
                             ) : (
                                 <SeminarPanel
-                                    key={activePanel.meetingId || activePanel.id}
+                                    key={`${activePanel.meetingId || activePanel.id}-${activePanel.panelNonce || 0}`}
                                     meetingId={activePanel.type === 'view' ? activePanel.meetingId! : null}
                                     initialData={activePanel.initialData}
+                                    openSwapOnLoad={!!activePanel.openSwapOnLoad}
                                     isCreating={false}
-                                    onClose={() => { handleClosePanel(); handleCloseTranscription(); }}
+                                    onClose={handleClosePanelAnimated}
                                     onSaved={(shouldClose = false, message?: string) => {
                                         fetchSeminars();
                                         if (message) showToast(message, 'success');
@@ -651,7 +742,6 @@ const Seminars: React.FC = () => {
                         </div>
                     )}
                 </div>
-                )}
             </div>
 
 
@@ -779,6 +869,8 @@ const Seminars: React.FC = () => {
                 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
                 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
                 @keyframes slideUp { from { transform: translateY(24px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+                @keyframes seminarPanelEnter { from { opacity: 0; transform: translateX(30px) scale(0.98); } to { opacity: 1; transform: translateX(0) scale(1); } }
+                @keyframes seminarPanelExit { from { opacity: 1; transform: translateX(0) scale(1); } to { opacity: 0; transform: translateX(30px) scale(0.98); } }
                 .animate-spin { animation: spin 1s linear infinite; }
             `}</style>
         </MainLayout>

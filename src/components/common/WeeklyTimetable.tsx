@@ -13,6 +13,7 @@ export interface TimetableEvent {
     description?: string | null;
     guests?: (string | null)[] | null;
     type?: 'meeting' | 'seminar';
+    swapable?: boolean;
 }
 
 interface PositionedEvent extends TimetableEvent {
@@ -23,6 +24,8 @@ interface PositionedEvent extends TimetableEvent {
 interface WeeklyTimetableProps {
     events: TimetableEvent[];
     onEventClick?: (event: TimetableEvent) => void;
+    onSwapRequestClick?: (event: TimetableEvent) => void;
+    deferDetailToPopover?: boolean;
 }
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i); // 0:00 - 23:00
@@ -55,7 +58,12 @@ const EVENT_COLORS = [
     '#ec4899', '#14b8a6', '#f97316', '#8b5cf6', '#06b6d4'
 ];
 
-const WeeklyTimetable: React.FC<WeeklyTimetableProps> = ({ events, onEventClick }) => {
+const WeeklyTimetable: React.FC<WeeklyTimetableProps> = ({
+    events,
+    onEventClick,
+    onSwapRequestClick,
+    deferDetailToPopover = false,
+}) => {
     const [currentMonday, setCurrentMonday] = useState<Date>(() => getMonday(new Date()));
     const [activePopover, setActivePopover] = useState<{ event: TimetableEvent, x: number, y: number } | null>(null);
     const [weekAnimation, setWeekAnimation] = useState<'none' | 'slideLeft' | 'slideRight' | 'jump'>('none');
@@ -558,7 +566,9 @@ const WeeklyTimetable: React.FC<WeeklyTimetableProps> = ({ events, onEventClick 
                                                         x: rect.right + 10,
                                                         y: rect.top
                                                     });
-                                                    onEventClick?.(evt);
+                                                    if (!deferDetailToPopover) {
+                                                        onEventClick?.(evt);
+                                                    }
                                                 }}
                                                 style={{
                                                     position: 'absolute',
@@ -706,8 +716,7 @@ const WeeklyTimetable: React.FC<WeeklyTimetableProps> = ({ events, onEventClick 
                             <X size={16} />
                         </button>
 
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                            <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: activePopover.event.color || EVENT_COLORS[0] }} />
+                        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '12px' }}>
                             <div style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', paddingRight: '20px', lineHeight: 1.3 }}>
                                 {activePopover.event.title}
                             </div>
@@ -753,20 +762,97 @@ const WeeklyTimetable: React.FC<WeeklyTimetableProps> = ({ events, onEventClick 
                                 </div>
                             )}
 
-                            {activePopover.event.meetLink ? (
-                                <a
-                                    href={activePopover.event.meetLink}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    onClick={e => e.stopPropagation()}
-                                    style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#10b981', fontSize: '0.82rem', fontWeight: 700, textDecoration: 'none' }}
-                                >
-                                    <Video size={14} /> Join Google Meet
-                                </a>
-                            ) : (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-muted)', fontSize: '0.82rem', fontWeight: 600, fontStyle: 'italic' }}>
-                                    <Video size={14} /> No meeting link
+                            {(deferDetailToPopover || !!onSwapRequestClick) && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
+                                    {/* Action buttons row */}
+                                    <div style={{
+                                        display: 'grid',
+                                        gridTemplateColumns: activePopover.event.swapable && onSwapRequestClick ? '1fr 1fr' : '1fr',
+                                        gap: '8px',
+                                    }}>
+                                        {activePopover.event.swapable && onSwapRequestClick && (
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    onSwapRequestClick(activePopover.event);
+                                                    setActivePopover(null);
+                                                }}
+                                                style={{
+                                                    border: '1px solid #e9d5ff',
+                                                    background: '#faf5ff',
+                                                    color: '#7c3aed',
+                                                    borderRadius: '8px',
+                                                    height: '34px',
+                                                    fontSize: '0.78rem',
+                                                    fontWeight: 700,
+                                                    cursor: 'pointer',
+                                                    transition: 'all 0.2s'
+                                                }}
+                                            >
+                                                Request Swap
+                                            </button>
+                                        )}
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onEventClick?.(activePopover.event);
+                                                setActivePopover(null);
+                                            }}
+                                            style={{
+                                                border: 'none',
+                                                background: 'var(--accent-color, #e8720c)',
+                                                color: '#fff',
+                                                borderRadius: '8px',
+                                                height: '34px',
+                                                fontSize: '0.78rem',
+                                                fontWeight: 700,
+                                                cursor: 'pointer',
+                                                boxShadow: '0 4px 12px rgba(232,114,12,0.28)',
+                                                transition: 'all 0.2s'
+                                            }}
+                                        >
+                                            View Detail
+                                        </button>
+                                    </div>
+
+                                    {/* Meet link below buttons */}
+                                    {activePopover.event.meetLink ? (
+                                        <a
+                                            href={activePopover.event.meetLink}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            onClick={e => e.stopPropagation()}
+                                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', color: '#10b981', fontSize: '0.78rem', fontWeight: 700, textDecoration: 'none', padding: '6px 0', borderTop: '1px solid #f1f5f9' }}
+                                        >
+                                            <Video size={13} /> Join Google Meet
+                                        </a>
+                                    ) : (
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', color: '#cbd5e1', fontSize: '0.75rem', fontWeight: 600, fontStyle: 'italic', paddingTop: '4px', borderTop: '1px solid #f1f5f9' }}>
+                                            <Video size={12} /> No meeting link
+                                        </div>
+                                    )}
                                 </div>
+                            )}
+
+                            {/* Meet link when no buttons */}
+                            {!deferDetailToPopover && !onSwapRequestClick && (
+                                activePopover.event.meetLink ? (
+                                    <a
+                                        href={activePopover.event.meetLink}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        onClick={e => e.stopPropagation()}
+                                        style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#10b981', fontSize: '0.82rem', fontWeight: 700, textDecoration: 'none' }}
+                                    >
+                                        <Video size={14} /> Join Google Meet
+                                    </a>
+                                ) : (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-muted)', fontSize: '0.82rem', fontWeight: 600, fontStyle: 'italic' }}>
+                                        <Video size={14} /> No meeting link
+                                    </div>
+                                )
                             )}
                         </div>
                     </div>

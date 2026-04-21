@@ -26,7 +26,9 @@ import {
     RotateCcw,
 } from 'lucide-react';
 import meetingService from '@/services/meetingService';
+import seminarService from '@/services/seminarService';
 import { MeetingResponse, MeetingStatus } from '@/types/meeting';
+import { SeminarMeetingResponse } from '@/types/seminar';
 import { projectService, userService } from '@/services';
 import { useToastStore } from '@/store/slices/toastSlice';
 
@@ -42,6 +44,7 @@ interface ScheduleTab {
     type: 'create' | 'view';
     meetingId?: string;
     actualMeetingId?: string;
+    seminarMeetingId?: string;
     title: string;
     initialData?: MeetingResponse;
 }
@@ -58,6 +61,7 @@ const Schedules: React.FC = () => {
     const [filterProjectId, setFilterProjectId] = useState<string>('');
     const [projectsMap, setProjectsMap] = useState<Record<string, string>>({});
     const [usersMap, setUsersMap] = useState<Record<string, string>>({});
+    const [seminarMeetings, setSeminarMeetings] = useState<SeminarMeetingResponse[]>([]);
     const { addToast } = useToastStore();
     const [viewMode, setViewMode] = useState<'list' | 'timetable'>(() => {
         return (localStorage.getItem('schedule_viewMode') as 'list' | 'timetable') || 'list';
@@ -161,15 +165,24 @@ const Schedules: React.FC = () => {
         setLoading(true);
         try {
             let data;
+            let seminarData;
             if (activeListTab === 'my_invited_meetings') {
-                data = await meetingService.getMyInvitedMeetings();
+                [data, seminarData] = await Promise.all([
+                    meetingService.getMyInvitedMeetings(),
+                    seminarService.getInvitedSeminarMeetings(),
+                ]);
             } else {
-                data = await meetingService.getMyMeetings();
+                [data, seminarData] = await Promise.all([
+                    meetingService.getMyMeetings(),
+                    seminarService.getMySeminarMeetings(),
+                ]);
             }
             setMeetings(Array.isArray(data) ? data : []);
+            setSeminarMeetings(Array.isArray(seminarData) ? seminarData : []);
         } catch (error) {
             console.error('Failed to fetch meetings:', error);
             setMeetings([]);
+            setSeminarMeetings([]);
         } finally {
             setLoading(false);
         }
@@ -211,13 +224,26 @@ const Schedules: React.FC = () => {
         setActivePanel({ id: newId, type: 'create', title: 'New Schedule' });
     };
 
+    const seminarMeetingByEventId = useMemo(() => {
+        const map: Record<string, SeminarMeetingResponse> = {};
+        seminarMeetings.forEach(m => {
+            if (m.googleCalendarEventId) {
+                map[m.googleCalendarEventId] = m;
+            }
+            map[m.seminarMeetingId] = m;
+        });
+        return map;
+    }, [seminarMeetings]);
+
     const handleOpenViewTab = (meeting: MeetingResponse) => {
         const eventId = meeting.googleCalendarEventId || meeting.id;
+        const mappedSeminar = seminarMeetingByEventId[eventId] || null;
         setActivePanel({
             id: `view-${eventId}`,
             type: 'view',
             meetingId: eventId,
             actualMeetingId: meeting.id,
+            seminarMeetingId: mappedSeminar?.seminarMeetingId,
             title: meeting.title || 'Schedule',
             initialData: meeting
         });
@@ -250,6 +276,8 @@ const Schedules: React.FC = () => {
     const handleConfirmTabSwitch = () => {
         if (pendingTab) {
             setActiveListTab(pendingTab);
+            setFilterStatus('');
+            setFilterProjectId('');
             setShowTranscription(false);
             storeSetShowPanel(false);
             setActivePanel(null);
@@ -260,15 +288,16 @@ const Schedules: React.FC = () => {
 
     // Filtered meetings
     const displayMeetings = useMemo(() => {
-        if (semanticResults !== null) return semanticResults;
+        const sourceMeetings = semanticResults !== null ? semanticResults : meetings;
 
-        return meetings.filter(m => {
+        return sourceMeetings.filter(m => {
             const query = searchQuery.toLowerCase();
-            const matchesQuery = !query ||
-                (m.title?.toLowerCase().includes(query)) ||
-                (m.description?.toLowerCase().includes(query));
+            const matchesQuery = semanticResults !== null
+                ? true
+                : (!query ||
+                    (m.title?.toLowerCase().includes(query)) ||
+                    (m.description?.toLowerCase().includes(query)));
             const matchesStatus = filterStatus === '' || m.status === Number(filterStatus);
-
             const matchesProject = !filterProjectId || m.projectId === filterProjectId;
             return matchesQuery && matchesStatus && matchesProject;
         }).sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
@@ -281,7 +310,7 @@ const Schedules: React.FC = () => {
 
     // Timetable events
     const timetableEvents: TimetableEvent[] = useMemo(() => {
-        return meetings.map(m => ({
+        return displayMeetings.map(m => ({
             id: m.googleCalendarEventId || m.id,
             title: m.title || 'Untitled',
             startTime: m.startTime,
@@ -293,7 +322,18 @@ const Schedules: React.FC = () => {
             guests: m.attendees?.map(a => a.displayName || a.email).filter(Boolean) || [],
             type: 'meeting' as const
         }));
-    }, [meetings, usersMap]);
+    }, [displayMeetings, usersMap]);
+
+    const activeSeminarMeeting = useMemo(() => {
+        if (!activePanel || activePanel.type !== 'view') return null;
+        if (activePanel.seminarMeetingId) {
+            return seminarMeetings.find(m => m.seminarMeetingId === activePanel.seminarMeetingId) || null;
+        }
+        if (activePanel.meetingId) {
+            return seminarMeetingByEventId[activePanel.meetingId] || null;
+        }
+        return null;
+    }, [activePanel, seminarMeetings, seminarMeetingByEventId]);
 
     return (
         <MainLayout role={user?.role} userName={user?.name}>
@@ -630,6 +670,8 @@ const Schedules: React.FC = () => {
                                     }}
                                     onTitleChange={handleTitleChange}
                                     projectsMap={projectsMap}
+                                    seminarMeeting={activeSeminarMeeting}
+                                    allowSeminarSwap={activeListTab === 'my_meetings'}
                                     onToggleAINote={handleOpenAINote}
                                     showAINote={showTranscription}
                                 />

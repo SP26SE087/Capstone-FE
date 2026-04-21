@@ -50,17 +50,27 @@ const buildStyles = (size: 'sm' | 'md', variant: AppSelectVariant): StylesConfig
         valueContainer: (base) => ({
             ...base,
             padding: isSm ? '0 8px' : '2px 10px',
+            minWidth: 0,
+            overflow: 'hidden',
         }),
         singleValue: (base) => ({
             ...base,
             color: isScheduleFilter ? '#475569' : '#1e293b',
             fontWeight: isScheduleFilter ? 600 : 500,
             fontSize: isSm ? '0.82rem' : '0.875rem',
+            maxWidth: '100%',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
         }),
         placeholder: (base) => ({
             ...base,
             color: '#94a3b8',
             fontSize: isSm ? '0.82rem' : '0.875rem',
+            maxWidth: '100%',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
         }),
         menu: (base) => ({
             ...base,
