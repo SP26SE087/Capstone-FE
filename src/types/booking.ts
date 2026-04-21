@@ -28,6 +28,7 @@ export interface Resource {
   // Normalized from API: total / availableCount / damagedCount
   totalQuantity: number;
   availableQuantity: number;
+  availableIds?: string[];   // specific unit IDs that are currently available
   damagedQuantity: number;
   inUseCount?: number;
   isAvailable?: boolean;
@@ -87,8 +88,8 @@ export enum BookingStatus {
   Approved = 2,
   Rejected = 3,
   Cancelled = 4,
-  Completed = 5,
-  InUse = 6
+  InUse = 5,
+  Completed = 6
 }
 
 export interface CreateBookingItem {

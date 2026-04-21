@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import SearchableSelect from '@/components/common/SearchableSelect';
 import { Resource, ResourceType, UpdateResourceRequest } from '@/types/booking';
 import { resourceService } from '@/services/resourceService';
@@ -17,8 +17,96 @@ import {
     Trash2,
     AlertTriangle,
     Hash,
-    UserCog
+    UserCog,
+    ChevronDown
 } from 'lucide-react';
+
+// ─── Lightweight custom select (open/close toggle like native <select>) ────────
+function TypeSelect({ value, onChange, options, isDisabled }: {
+    value: string;
+    onChange: (v: string) => void;
+    options: { value: string; label: string }[];
+    isDisabled?: boolean;
+}) {
+    const [open, setOpen] = useState(false);
+    const ref = useRef<HTMLDivElement>(null);
+    const selected = options.find(o => o.value === value);
+
+    useEffect(() => {
+        if (!open) return;
+        const handler = (e: MouseEvent) => {
+            if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, [open]);
+
+    return (
+        <div ref={ref} style={{ position: 'relative' }}>
+            {/* Trigger */}
+            <div
+                onClick={() => !isDisabled && setOpen(o => !o)}
+                style={{
+                    width: '100%', padding: '10px 14px', borderRadius: '10px',
+                    border: `1.5px solid ${open ? 'var(--accent-color)' : 'var(--border-color)'}`,
+                    boxShadow: open ? '0 0 0 3px rgba(232,114,12,0.08)' : 'none',
+                    fontSize: '0.85rem', fontWeight: 500, fontFamily: 'inherit',
+                    background: isDisabled ? '#f8fafc' : '#fff',
+                    color: selected ? 'var(--text-primary)' : '#94a3b8',
+                    cursor: isDisabled ? 'default' : 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    userSelect: 'none', transition: 'border-color 0.2s, box-shadow 0.2s',
+                    boxSizing: 'border-box',
+                }}
+            >
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {selected?.label ?? '— Select type —'}
+                </span>
+                <ChevronDown
+                    size={14}
+                    style={{
+                        color: open ? 'var(--accent-color)' : '#94a3b8',
+                        flexShrink: 0, marginLeft: 6,
+                        transform: open ? 'rotate(180deg)' : 'none',
+                        transition: 'transform 0.15s, color 0.15s',
+                    }}
+                />
+            </div>
+
+            {/* Dropdown list */}
+            {open && (
+                <div style={{
+                    position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 9999,
+                    background: '#fff', border: '1px solid #e2e8f0', borderRadius: '10px',
+                    boxShadow: '0 8px 28px rgba(0,0,0,0.12)', overflow: 'hidden',
+                }}>
+                    <div style={{ maxHeight: '108px', overflowY: 'auto', padding: '4px' }}>
+                        {[{ value: '', label: '— Select type —' }, ...options].map(o => {
+                            const isSel = o.value === value;
+                            return (
+                                <div
+                                    key={o.value}
+                                    onMouseDown={e => { e.preventDefault(); onChange(o.value); setOpen(false); }}
+                                    style={{
+                                        padding: '8px 12px', borderRadius: '6px',
+                                        fontSize: '0.875rem', fontWeight: isSel ? 600 : 400,
+                                        color: isSel ? '#fff' : '#1e293b',
+                                        background: isSel ? 'var(--accent-color, #e8720c)' : 'transparent',
+                                        cursor: 'pointer', transition: 'background 0.12s',
+                                    }}
+                                    onMouseEnter={e => { if (!isSel) e.currentTarget.style.background = '#fff7ed'; }}
+                                    onMouseLeave={e => { if (!isSel) e.currentTarget.style.background = 'transparent'; }}
+                                >
+                                    {o.label}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
 
 interface ResourceDetailPanelProps {
     resource: Resource;
@@ -408,17 +496,12 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
                                         />
 
                                         <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b' }}>Resource Type</div>
-                                        <select
-                                            style={{ ...inputStyle, ...(!canEdit ? { background: '#f8fafc', color: 'var(--text-secondary)', cursor: 'default' } : {}) }}
+                                        <TypeSelect
                                             value={resourceTypeId}
-                                            onChange={e => { if (canEdit) setResourceTypeId(e.target.value); }}
-                                            disabled={!canEdit}
-                                        >
-                                            <option value="">— Select type —</option>
-                                            {resourceTypes.map(rt => (
-                                                <option key={rt.id} value={rt.id}>{rt.name}</option>
-                                            ))}
-                                        </select>
+                                            onChange={v => { if (canEdit) setResourceTypeId(v); }}
+                                            options={resourceTypes.map(rt => ({ value: rt.id, label: rt.name }))}
+                                            isDisabled={!canEdit}
+                                        />
 
                                         <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b' }}>Flags</div>
                                         <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
@@ -482,7 +565,7 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
                         />
                     </div>
 
-                    <div>
+                    <div style={{ marginBottom: '14px' }}>
                         <label style={{ ...labelStyle, fontSize: '0.68rem' }}><MapPin size={12} /> Location</label>
                         <input
                             style={{ ...inputStyle, ...(!isLabDirector ? { background: '#f8fafc', color: 'var(--text-secondary)', cursor: 'default' } : {}) }}
@@ -492,6 +575,16 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
                             placeholder="Resource location..."
                             onFocus={handleFocus}
                             onBlur={handleBlur}
+                        />
+                    </div>
+
+                    <div>
+                        <label style={{ ...labelStyle, fontSize: '0.68rem' }}><Package size={12} /> Resource Type</label>
+                        <TypeSelect
+                            value={resourceTypeId}
+                            onChange={v => { if (isLabDirector) setResourceTypeId(v); }}
+                            options={resourceTypes.map(rt => ({ value: rt.id, label: rt.name }))}
+                            isDisabled={!isLabDirector}
                         />
                     </div>
                 </div>

@@ -36,12 +36,17 @@ import ResourceListView from './components/ResourceListView';
 import CreateResourceForm from './components/CreateResourceForm';
 import ResourceDetailPanel from './components/ResourceDetailPanel';
 import BookingResourceForm from './components/BookingResourceForm';
+import NewBookingModal from '@/features/resources/NewBookingModal';
 import BookingListView from './components/BookingListView';
 import BookingDetailPanel from './components/BookingDetailPanel';
 import ResourceTypePanel from './components/ResourceTypePanel';
 import ConfirmModal from '@/components/common/ConfirmModal';
+import CalendarView from './views/CalendarView';
+import TimelineView from './views/TimelineView';
+import WorkspaceView from './views/WorkspaceView';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
+type BookingVariant = 'calendar' | 'timeline' | 'workspace' | 'management';
 type MainTab = 'resources' | 'bookings' | 'logs';
 type ResourceSubTab = 'all' | 'my_managed' | 'types';
 type BookingSubTab = 'my' | 'all' | 'managed';
@@ -115,6 +120,8 @@ const ResourceBooking: React.FC = () => {
     const { addToast } = useToastStore();
     const [activePanel, setActivePanel] = useState<ActivePanel | null>(null);
     const [bookingCart, setBookingCart] = useState<{ resourceId: string; quantity: number }[]>([]);
+    const [viewNewBookingOpen, setViewNewBookingOpen] = useState(false);
+    const [viewNewBookingCart, setViewNewBookingCart] = useState<{ resourceId: string; quantity: number }[]>([]);
 
     const isLabDirector = useMemo(() => {
         if (!user) return false;
@@ -122,50 +129,179 @@ const ResourceBooking: React.FC = () => {
         return role === 1 || role === 2;
     }, [user?.role]);
 
+    const isDirectorRole = useMemo(() => {
+        if (!user) return false;
+        return Number(user.role) === 1;
+    }, [user?.role]);
+
+    // ─── Booking variant (Calendar / Timeline / Workspace / Management) ──────
+    const [bookingVariant, setBookingVariant] = useState<BookingVariant>('calendar');
+    const [viewBookings, setViewBookings] = useState<Booking[]>([]);
+    const [viewResources, setViewResources] = useState<Resource[]>([]);
+    const [viewLoading, setViewLoading] = useState(false);
+    const [viewModalBookingId, setViewModalBookingId] = useState<string | null>(null);
+
+    const fetchViewData = useCallback(async () => {
+        setViewLoading(true);
+        try {
+            const [viewRes] = await Promise.all([
+                resourceService.getAllPages(),
+            ]);
+            setViewResources(viewRes);
+
+            if (isLabDirector) {
+                const items = await bookingService.getAllPages();
+                setViewBookings(items);
+            } else {
+                const [managed, upcoming, history] = await Promise.all([
+                    bookingService.getManagedAllPages(),
+                    bookingService.getMyUpcoming(),
+                    bookingService.getMyHistoryAllPages(),
+                ]);
+                const all = [
+                    ...managed,
+                    ...(upcoming as Booking[]),
+                    ...history,
+                ];
+                const unique = Array.from(new Map(all.map(b => [b.id, b])).values());
+                setViewBookings(unique);
+            }
+        } catch (err) {
+            console.error('fetchViewData error', err);
+        } finally {
+            setViewLoading(false);
+        }
+    }, [isLabDirector]);
+
+    useEffect(() => {
+        if (bookingVariant !== 'management') fetchViewData();
+    }, [bookingVariant, fetchViewData]);
+
+    const switchVariant = (v: BookingVariant) => {
+        setBookingVariant(v);
+        if (v === 'management') {
+            setMainTab('resources');
+            setResourceSubTab('all');
+            setActivePanel(null);
+        }
+    };
+
+    const handleViewApprove = async (bookingId: string, note?: string) => {
+        try {
+            await bookingService.approve(bookingId, { bookingId, note });
+            showToast('Booking approved.', 'success');
+            fetchViewData();
+        } catch (err: any) {
+            showToast(err?.response?.data?.message ?? 'Failed to approve.', 'error');
+        }
+    };
+
+    const handleViewAdjust = async (bookingId: string, opts: { newResourceIds: string[]; adjustReason: string }) => {
+        try {
+            await bookingService.approve(bookingId, {
+                bookingId,
+                newResourceIds: opts.newResourceIds,
+                adjustReason: opts.adjustReason,
+            });
+            showToast('Booking adjusted and approved.', 'success');
+            fetchViewData();
+        } catch (err: any) {
+            showToast(err?.response?.data?.message ?? 'Failed to adjust booking.', 'error');
+            throw err;
+        }
+    };
+
+    const handleViewReject = async (bookingId: string, reason?: string) => {
+        try {
+            await bookingService.reject(bookingId, reason ?? 'Rejected');
+            showToast('Booking rejected.', 'success');
+            fetchViewData();
+        } catch (err: any) {
+            showToast(err?.response?.data?.message ?? 'Failed to reject.', 'error');
+        }
+    };
+
+    const handleViewCheckOut = async (bookingId: string) => {
+        // "Check out" = giao thiết bị cho user (Approved → InUse)
+        // API: bookingService.checkIn = action=2 (equipment handed to user)
+        try {
+            await bookingService.checkIn(bookingId);
+            showToast('Equipment checked out to user.', 'success');
+            fetchViewData();
+        } catch (err: any) {
+            showToast(err?.response?.data?.message ?? 'Failed to check out.', 'error');
+        }
+    };
+
+    const handleViewCheckIn = async (bookingId: string) => {
+        // "Check in" = user trả lại thiết bị (InUse → Completed)
+        // API: bookingService.checkOut = action=1 (equipment returned)
+        const booking = viewBookings.find(b => b.id === bookingId);
+        const resourceId = booking?.resourceIds?.[0] ?? booking?.resourceId ?? '';
+        try {
+            await bookingService.checkOut(bookingId, resourceId);
+            showToast('Equipment returned.', 'success');
+            fetchViewData();
+        } catch (err: any) {
+            showToast(err?.response?.data?.message ?? 'Failed to check in.', 'error');
+        }
+    };
+
+    const handleViewOpenBooking = (booking: Booking) => {
+        setViewModalBookingId(booking.id);
+    };
+
+    const handleViewNewBooking = (resource?: Resource, _date?: Date) => {
+        setViewNewBookingCart(
+            resource ? [{ resourceId: resource.id, quantity: 1 }] : []
+        );
+        setViewNewBookingOpen(true);
+    };
+
     const fetchData = useCallback(async () => {
         setLoading(true);
         try {
             switch (activeTab) {
                 case 'resources': {
-                    const [data, types] = await Promise.all([
-                        resourceService.getAll(1, 200),
+                    const [items, types] = await Promise.all([
+                        resourceService.getAllPages(),
                         resourceTypeService.getAll()
                     ]);
-                    setResources(data.items || []);
+                    setResources(items);
                     setResourceTypes(types);
                     break;
                 }
                 case 'my_managed': {
-                    const [data, types] = await Promise.all([
-                        resourceService.getManaged(1, 200),
+                    const [items, types] = await Promise.all([
+                        resourceService.getManagedAllPages(),
                         resourceTypeService.getAll()
                     ]);
-                    setResources(data.items || []);
+                    setResources(items);
                     setResourceTypes(types);
                     break;
                 }
                 case 'my_bookings': {
                     const [upcoming, history] = await Promise.all([
                         bookingService.getMyUpcoming(),
-                        bookingService.getMyHistory(1, 200)
+                        bookingService.getMyHistoryAllPages(),
                     ]);
-                    const all = [...upcoming, ...((history as any).items || [])];
+                    const all = [...upcoming, ...history];
                     const unique = Array.from(new Map(all.map(b => [b.id, b])).values());
                     unique.sort((a, b) => new Date(b.createdAt || b.startTime).getTime() - new Date(a.createdAt || a.startTime).getTime());
                     setMyBookings(unique);
                     break;
                 }
                 case 'all_bookings': {
-                    const data = await bookingService.getAll(1, 200);
-                    const items = (data.items || []).sort((a, b) =>
+                    const items = await bookingService.getAllPages();
+                    items.sort((a, b) =>
                         new Date(b.createdAt || b.startTime).getTime() - new Date(a.createdAt || a.startTime).getTime()
                     );
                     setAllBookings(items);
                     break;
                 }
                 case 'managed_bookings': {
-                    const data = await bookingService.getManaged(1, 200);
-                    const items = (data.items || []).sort((a, b) =>
+                    const items = await bookingService.getManagedAllPages();
+                    items.sort((a, b) =>
                         new Date(b.createdAt || b.startTime).getTime() - new Date(a.createdAt || a.startTime).getTime()
                     );
                     setManagedBookings(items);
@@ -459,27 +595,183 @@ const ResourceBooking: React.FC = () => {
     // ─── Render ──────────────────────────────────────────────────────────────
     return (
         <MainLayout role={user?.role} userName={user?.name}>
-            <div style={{ padding: '1.5rem 2rem', maxWidth: '1600px', margin: '0 auto' }}>
+            <div style={{ padding: '0.5rem 0', maxWidth: '1600px', margin: '0 auto' }}>
 
                 {/* ── Page Header ── */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '1.5rem' }}>
-                    <div style={{
-                        width: '44px', height: '44px', borderRadius: '14px', flexShrink: 0,
-                        background: 'linear-gradient(135deg, #f59e0b, #f97316)',
-                        color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        boxShadow: '0 8px 16px rgba(245,158,11,0.25)'
-                    }}>
-                        <Package size={22} />
-                    </div>
-                    <div>
-                        <h1 style={{ fontSize: '1.5rem', fontWeight: 900, color: '#1e293b', margin: 0, letterSpacing: '-0.02em' }}>
-                            Lab Resources
-                        </h1>
-                        <p style={{ color: '#64748b', fontSize: '0.82rem', margin: 0 }}>
-                            Manage resources, bookings, and equipment logs
-                        </p>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginBottom: '0.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{
+                            width: '44px', height: '44px', borderRadius: '14px', flexShrink: 0,
+                            background: 'linear-gradient(135deg, #f59e0b, #f97316)',
+                            color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            boxShadow: '0 8px 16px rgba(245,158,11,0.25)'
+                        }}>
+                            <Package size={22} />
+                        </div>
+                        <div>
+                            <h1 style={{ fontSize: '1.5rem', fontWeight: 900, color: '#1e293b', margin: 0, letterSpacing: '-0.02em' }}>
+                                Resource Booking
+                            </h1>
+                            <p style={{ color: '#64748b', fontSize: '0.82rem', margin: 0 }}>
+                                See who's using what, when — and find open slots.
+                            </p>
+                        </div>
                     </div>
                 </div>
+
+                {/* ── Variant Tab Strip ── */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: '0.5rem', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: 5, boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+                    {([
+                        { id: 'calendar',   label: 'Calendar',   icon: Calendar },
+                        { id: 'timeline',   label: 'Timeline',   icon: Layers },
+                        { id: 'workspace',  label: 'Workspace',  icon: ClipboardList },
+                    ] as const).map(({ id, label, icon: Icon }) => {
+                        const active = bookingVariant === id;
+                        return (
+                            <button key={id} onClick={() => switchVariant(id)}
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: 7,
+                                    padding: '7px 18px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                                    fontSize: '0.88rem', fontWeight: active ? 700 : 500,
+                                    background: active ? '#fff7ed' : 'transparent',
+                                    color: active ? '#E8720C' : '#64748b',
+                                    boxShadow: active ? '0 1px 4px rgba(232,114,12,0.15)' : 'none',
+                                    transition: 'all 0.15s',
+                                }}>
+                                <Icon size={15} /> {label}
+                            </button>
+                        );
+                    })}
+                    <div style={{ width: 1, height: 24, background: '#e2e8f0', margin: '0 4px' }} />
+                    {([
+                        { id: 'management', label: 'Resources & Logs', icon: Package },
+                    ] as const).map(({ id, label, icon: Icon }) => {
+                        const active = bookingVariant === id;
+                        return (
+                            <button key={id} onClick={() => switchVariant(id)}
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: 7,
+                                    padding: '7px 18px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                                    fontSize: '0.88rem', fontWeight: active ? 700 : 500,
+                                    background: active ? '#f1f5f9' : 'transparent',
+                                    color: active ? '#1e293b' : '#64748b',
+                                    transition: 'all 0.15s',
+                                }}>
+                                <Icon size={15} /> {label}
+                            </button>
+                        );
+                    })}
+                    <div style={{ flex: 1 }} />
+                    {bookingVariant !== 'management' && (
+                        <button onClick={() => { fetchViewData(); }} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 12px', border: '1px solid #e2e8f0', background: 'white', borderRadius: 7, fontSize: '0.78rem', fontWeight: 600, color: '#64748b', cursor: 'pointer' }}>
+                            <RotateCcw size={13} style={{ animation: viewLoading ? 'spin 1s linear infinite' : 'none' }} /> Refresh
+                        </button>
+                    )}
+                </div>
+
+                {/* ── New Booking modal overlay (Calendar / Timeline / Workspace) ── */}
+                {viewNewBookingOpen && (
+                    <NewBookingModal
+                        preSelectedResourceId={viewNewBookingCart[0]?.resourceId}
+                        onClose={() => setViewNewBookingOpen(false)}
+                        onSaved={(message) => {
+                            if (message) showToast(message, 'success');
+                            setViewNewBookingOpen(false);
+                            fetchViewData();
+                        }}
+                    />
+                )}
+
+                {/* ── Booking detail modal overlay (Calendar / Timeline / Workspace) ── */}
+                {viewModalBookingId && (
+                    <div
+                        onClick={() => setViewModalBookingId(null)}
+                        style={{
+                            position: 'fixed', inset: 0, zIndex: 100,
+                            background: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(4px)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+                            animation: 'bk-fade-in 0.2s ease-out',
+                        }}
+                    >
+                        <div
+                            onClick={e => e.stopPropagation()}
+                            style={{
+                                width: '100%', maxWidth: 600, maxHeight: '90vh',
+                                background: '#fff', borderRadius: 16,
+                                boxShadow: '0 24px 48px rgba(0,0,0,0.24)',
+                                display: 'flex', flexDirection: 'column',
+                                overflow: 'auto', zoom: 0.8,
+                            }}
+                            className="bk-scroll"
+                        >
+                            <div style={{ padding: '16px 20px 0', display: 'flex', justifyContent: 'flex-end' }}>
+                                <button
+                                    onClick={() => setViewModalBookingId(null)}
+                                    className="icon-btn"
+                                    style={{ width: 30, height: 30 }}
+                                >
+                                    <X size={16} />
+                                </button>
+                            </div>
+                            <div style={{ padding: '0 20px 20px', flex: 1, minHeight: 0 }}>
+                                <BookingDetailPanel
+                                    key={viewModalBookingId}
+                                    bookingId={viewModalBookingId}
+                                    onClose={() => setViewModalBookingId(null)}
+                                    onSaved={(shouldClose, message) => {
+                                        if (message) showToast(message, 'success');
+                                        if (shouldClose) setViewModalBookingId(null);
+                                        fetchViewData();
+                                    }}
+                                    isLabDirector={isLabDirector}
+                                    isManagedView={isLabDirector}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* ── Calendar / Timeline / Workspace Views ── */}
+                {bookingVariant !== 'management' && (
+                    <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', padding: '16px 16px 12px', height: (isLabDirector && bookingVariant === 'calendar' && viewBookings.some(b => b.status === BookingStatus.Pending)) ? 'calc(115vh / 0.8)' : 'calc((115vh - 120px) / 0.8)', overflow: 'hidden', display: 'flex', flexDirection: 'column', zoom: 0.8 }}>
+                        {viewLoading ? (
+                            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '6rem' }}>
+                                <Loader2 className="animate-spin" size={36} style={{ color: '#E8720C' }} />
+                            </div>
+                        ) : bookingVariant === 'calendar' ? (
+                            <CalendarView
+                                bookings={viewBookings} resources={viewResources}
+                                isManager={isLabDirector}
+                                onOpenBooking={handleViewOpenBooking}
+                                onNewBooking={handleViewNewBooking}
+                                onApprove={handleViewApprove}
+                                onReject={handleViewReject}
+                                onAdjust={handleViewAdjust}
+                            />
+                        ) : bookingVariant === 'timeline' ? (
+                            <TimelineView
+                                bookings={viewBookings} resources={viewResources}
+                                onOpenBooking={handleViewOpenBooking}
+                                onNewBooking={handleViewNewBooking}
+                            />
+                        ) : (
+                            <WorkspaceView
+                                bookings={viewBookings} resources={viewResources}
+                                isManager={isLabDirector}
+                                isDirector={isDirectorRole}
+                                onOpenBooking={handleViewOpenBooking}
+                                onNewBooking={() => handleViewNewBooking()}
+                                onApprove={handleViewApprove}
+                                onReject={handleViewReject}
+                                onCheckOut={handleViewCheckOut}
+                                onCheckIn={handleViewCheckIn}
+                            />
+                        )}
+                    </div>
+                )}
+
+                {/* ── Management Mode (Resources / Bookings / Logs) ── */}
+                {bookingVariant === 'management' && (<>
 
                 {/* - Unified Nav Card - */}
                 {(() => {
@@ -680,8 +972,8 @@ const ResourceBooking: React.FC = () => {
                                     { value: '2', label: 'Approved' },
                                     { value: '3', label: 'Rejected' },
                                     { value: '4', label: 'Cancelled' },
-                                    { value: '5', label: 'Completed' },
-                                    { value: '6', label: 'In Use' },
+                                    { value: '5', label: 'In Use' },
+                                    { value: '6', label: 'Completed' },
                                 ]}
                             />
                         </div>
@@ -1063,7 +1355,6 @@ const ResourceBooking: React.FC = () => {
                         </div>
                     )}
                 </div>
-            </div>
 
             <style>{`
                 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
@@ -1179,6 +1470,9 @@ const ResourceBooking: React.FC = () => {
                 confirmText="Delete"
                 variant="danger"
             />
+
+                </>)} {/* end management mode */}
+            </div>
         </MainLayout>
     );
 };

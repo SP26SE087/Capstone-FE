@@ -12,17 +12,17 @@ interface BookingModalProps {
 
 // ─── Styles ───────────────────────────────────────────────────────
 const S = {
-  overlay: { position: 'fixed' as const, inset: 0, background: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 5000, paddingTop: '80px', paddingBottom: '60px' },
-  modal: { width: '860px', maxWidth: '95vw', maxHeight: '85vh', background: '#fff', borderRadius: '20px', boxShadow: '0 25px 60px -15px rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column' as const, overflow: 'hidden' },
-  header: { padding: '20px 24px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  body: { padding: '24px', overflowY: 'auto' as const, flex: 1, display: 'flex', flexDirection: 'column' as const, gap: '24px' },
-  footer: { padding: '16px 24px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fafbfc' },
-  label: { fontSize: '0.75rem', fontWeight: 700 as const, color: '#64748b', textTransform: 'uppercase' as const, letterSpacing: '0.05em', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' },
-  input: { width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1px solid #e2e8f0', fontSize: '0.9rem', fontWeight: 600 as const, outline: 'none', transition: 'border 0.2s' },
-  section: { background: '#f8fafc', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '20px' },
+  overlay: { position: 'fixed' as const, inset: 0, background: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 5000, paddingTop: '60px', paddingBottom: '40px' },
+  modal: { width: '740px', maxWidth: '95vw', maxHeight: '82vh', background: '#fff', borderRadius: '16px', boxShadow: '0 25px 60px -15px rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column' as const, overflow: 'hidden' },
+  header: { padding: '14px 18px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  body: { padding: '16px 18px', overflowY: 'auto' as const, flex: 1, display: 'flex', flexDirection: 'column' as const, gap: '14px' },
+  footer: { padding: '12px 18px', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fafbfc' },
+  label: { fontSize: '0.7rem', fontWeight: 700 as const, color: '#64748b', textTransform: 'uppercase' as const, letterSpacing: '0.05em', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' },
+  input: { width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.85rem', fontWeight: 600 as const, outline: 'none', transition: 'border 0.2s' },
+  section: { background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', padding: '14px' },
   calDay: (_active: boolean, inRange: boolean, isPast: boolean, isEdge: boolean) => ({
-    width: '36px', height: '36px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-    fontSize: '0.8rem', fontWeight: 700 as const, cursor: isPast ? 'not-allowed' : 'pointer',
+    width: '30px', height: '30px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontSize: '0.75rem', fontWeight: 700 as const, cursor: isPast ? 'not-allowed' : 'pointer',
     background: isEdge ? 'var(--accent-color)' : inRange ? 'rgba(99,102,241,0.12)' : isPast ? '#f8fafc' : '#fff',
     color: isEdge ? '#fff' : inRange ? 'var(--accent-color)' : isPast ? '#cbd5e1' : '#334155',
     border: isEdge ? '2px solid var(--accent-color)' : inRange ? '1px solid rgba(99,102,241,0.3)' : '1px solid #e2e8f0',
@@ -197,8 +197,7 @@ const BookingModal: React.FC<BookingModalProps> = ({ resource, onClose, onSubmit
   useEffect(() => {
     (async () => {
       try {
-        const res = await bookingService.getAll(1, 200);
-        const items = (res as any).items || (Array.isArray(res) ? res : []);
+        const items = await bookingService.getAllPages();
         setExistingBookings(items.filter((b: any) =>
           String(b.resourceId) === String(resource.id) && [BookingStatus.Pending, BookingStatus.Approved, BookingStatus.InUse].includes(Number(b.status))
         ));
@@ -372,12 +371,12 @@ const BookingModal: React.FC<BookingModalProps> = ({ resource, onClose, onSubmit
         {/* ── Header ── */}
         <div style={S.header}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'var(--accent-light)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Calendar size={20} style={{ color: 'var(--accent-color)' }} />
+            <div style={{ width: '32px', height: '32px', borderRadius: '9px', background: 'var(--accent-light)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Calendar size={16} style={{ color: 'var(--accent-color)' }} />
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <h2 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800 }}>Book: {resource.name}</h2>
+                <h2 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800 }}>Book: {resource.name}</h2>
                 {statusBadge(Number(resource.status))}
               </div>
               <p style={{ margin: 0, fontSize: '0.75rem', color: '#94a3b8' }}>
@@ -403,9 +402,9 @@ const BookingModal: React.FC<BookingModalProps> = ({ resource, onClose, onSubmit
                   type="button"
                   onClick={() => setActiveTab(tab)}
                   style={{
-                    padding: '10px 24px', cursor: 'pointer', border: 'none', borderBottom: activeTab === tab ? '2px solid var(--accent-color)' : '2px solid transparent',
+                    padding: '8px 18px', cursor: 'pointer', border: 'none', borderBottom: activeTab === tab ? '2px solid var(--accent-color)' : '2px solid transparent',
                     marginBottom: '-2px', background: 'transparent', transition: 'all 0.2s',
-                    fontSize: '0.85rem', fontWeight: 800, color: activeTab === tab ? 'var(--accent-color)' : '#94a3b8',
+                    fontSize: '0.8rem', fontWeight: 800, color: activeTab === tab ? 'var(--accent-color)' : '#94a3b8',
                     display: 'flex', alignItems: 'center', gap: '6px', position: 'relative' as const,
                   }}
                 >
@@ -420,7 +419,7 @@ const BookingModal: React.FC<BookingModalProps> = ({ resource, onClose, onSubmit
 
           {activeTab === 'details' ? (
             /* ── Details Tab: Title + Purpose ── */
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', animation: 'fadeIn 0.2s ease' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', animation: 'fadeIn 0.2s ease' }}>
               <div>
                 <label style={S.label}><FileText size={13} /> Booking Name</label>
                 <input value={title} onChange={e => { setTitle(e.target.value); setFieldErrors(prev => ({ ...prev, title: validateTextField(e.target.value, 'Booking name', { required: true, maxLength: 300 }) })); }} maxLength={300} placeholder="e.g., Lab session A" required style={{ ...S.input, borderColor: fieldErrors.title ? '#ef4444' : undefined }} />
@@ -429,7 +428,7 @@ const BookingModal: React.FC<BookingModalProps> = ({ resource, onClose, onSubmit
               </div>
               <div>
                 <label style={S.label}><FileText size={13} /> Purpose & Impact</label>
-                <textarea value={purpose} onChange={e => { setPurpose(e.target.value); setFieldErrors(prev => ({ ...prev, purpose: validateTextField(e.target.value, 'Purpose', { maxLength: 2000 }) })); }} maxLength={2000} placeholder="Describe what you need this resource for..." required style={{ ...S.input, height: '120px', resize: 'none', lineHeight: 1.6, borderColor: fieldErrors.purpose ? '#ef4444' : undefined }} />
+                <textarea value={purpose} onChange={e => { setPurpose(e.target.value); setFieldErrors(prev => ({ ...prev, purpose: validateTextField(e.target.value, 'Purpose', { maxLength: 2000 }) })); }} maxLength={2000} placeholder="Describe what you need this resource for..." required style={{ ...S.input, height: '90px', resize: 'none', lineHeight: 1.6, borderColor: fieldErrors.purpose ? '#ef4444' : undefined }} />
                 {fieldErrors.purpose && <div style={{ fontSize: '0.72rem', color: '#ef4444', marginTop: '4px' }}>{fieldErrors.purpose}</div>}
               </div>
             </div>
@@ -438,21 +437,21 @@ const BookingModal: React.FC<BookingModalProps> = ({ resource, onClose, onSubmit
             <>
 
               {/* Row 2: Calendar + Time Matrix side-by-side */}
-              <div style={{ display: 'grid', gridTemplateColumns: '380px 1fr', gap: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '12px' }}>
 
                 {/* ── Calendar ── */}
                 <div style={S.section}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                     <button type="button" onClick={prevMonth} style={{ width: '28px', height: '28px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><ChevronLeft size={14} /></button>
                     <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#1e293b' }}>{MONTHS[calMonth]} {calYear}</span>
                     <button type="button" onClick={nextMonth} style={{ width: '28px', height: '28px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><ChevronRight size={14} /></button>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', textAlign: 'center', marginBottom: '8px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '3px', textAlign: 'center', marginBottom: '6px' }}>
                     {['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'].map(d => <span key={d} style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8' }}>{d}</span>)}
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', justifyItems: 'center' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '3px', justifyItems: 'center' }}>
                     {calDays.map((day, i) => {
                       if (!day) return <div key={`empty-${i}`} />;
                       const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -475,7 +474,7 @@ const BookingModal: React.FC<BookingModalProps> = ({ resource, onClose, onSubmit
                   </div>
 
                   {/* Selected range summary */}
-                  <div style={{ marginTop: '16px', padding: '10px 12px', background: '#fff', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                  <div style={{ marginTop: '10px', padding: '8px 10px', background: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                     <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', marginBottom: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span>{selectingDateEnd ? 'Now click END date' : 'Click or drag to select dates'}</span>
                       {durationDisplay && <span style={{ color: 'var(--accent-color)', fontWeight: 900 }}>{durationDisplay}</span>}
@@ -488,7 +487,7 @@ const BookingModal: React.FC<BookingModalProps> = ({ resource, onClose, onSubmit
 
                 {/* ── Time Heatmap (24h × 12 slots of 5min) ── */}
                 <div style={S.section}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <Clock size={16} color="#64748b" />
                       <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#1e293b' }}>Time Availability</span>
@@ -505,7 +504,7 @@ const BookingModal: React.FC<BookingModalProps> = ({ resource, onClose, onSubmit
                     {selectingTimeEnd ? '⏱ Now click END time' : '⏱ Click or drag to select time'}
                   </div>
 
-                  <div style={{ maxHeight: '200px', overflowY: 'auto', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', padding: '8px', userSelect: 'none' }} onMouseLeave={handleTimeUp}>
+                  <div style={{ maxHeight: '160px', overflowY: 'auto', background: '#fff', borderRadius: '10px', border: '1px solid #e2e8f0', padding: '6px', userSelect: 'none' }} onMouseLeave={handleTimeUp}>
                     {Array.from({ length: 24 }).map((_, h) => (
                       <div key={h} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
                         <span style={{ width: '36px', fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textAlign: 'right' }}>{h.toString().padStart(2, '0')}:00</span>
@@ -542,19 +541,19 @@ const BookingModal: React.FC<BookingModalProps> = ({ resource, onClose, onSubmit
                   </div>
 
                   {/* Time summary */}
-                  <div style={{ marginTop: '12px', display: 'flex', gap: '12px' }}>
-                    <div style={{ flex: 1, padding: '10px 14px', background: '#fff', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-                      <div style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8' }}>START</div>
-                      <div style={{ fontSize: '1rem', fontWeight: 900, color: 'var(--accent-color)' }}>{fmtTime(sObj)}</div>
+                  <div style={{ marginTop: '8px', display: 'flex', gap: '8px' }}>
+                    <div style={{ flex: 1, padding: '7px 10px', background: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                      <div style={{ fontSize: '0.55rem', fontWeight: 800, color: '#94a3b8' }}>START</div>
+                      <div style={{ fontSize: '0.9rem', fontWeight: 900, color: 'var(--accent-color)' }}>{fmtTime(sObj)}</div>
                     </div>
-                    <div style={{ flex: 1, padding: '10px 14px', background: '#fff', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-                      <div style={{ fontSize: '0.6rem', fontWeight: 800, color: '#94a3b8' }}>END</div>
-                      <div style={{ fontSize: '1rem', fontWeight: 900, color: 'var(--accent-color)' }}>{fmtTime(eObj)}</div>
+                    <div style={{ flex: 1, padding: '7px 10px', background: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                      <div style={{ fontSize: '0.55rem', fontWeight: 800, color: '#94a3b8' }}>END</div>
+                      <div style={{ fontSize: '0.9rem', fontWeight: 900, color: 'var(--accent-color)' }}>{fmtTime(eObj)}</div>
                     </div>
                   </div>
 
                   {/* Units selection moved here */}
-                  <div style={{ marginTop: '16px', padding: '12px 16px', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '16px' }}>
+                  <div style={{ marginTop: '10px', padding: '9px 12px', background: '#fff', borderRadius: '10px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <Package size={16} color="#64748b" />
                       <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748b' }}>QUANTITY</span>

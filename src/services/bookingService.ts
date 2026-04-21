@@ -1,6 +1,26 @@
 import api from './api';
 import { Booking, CreateBookingRequest, UpdateBookingRequest, ApproveBookingRequest, BulkApproveItem, BulkApproveResult, PaginatedResponse } from '@/types/booking';
 
+const PAGE_SIZE_MAX = 200;
+
+/**
+ * Fetches every page of a paginated endpoint and returns all items merged.
+ * Uses pageSize=200 (the server maximum) and auto-advances until all pages
+ * are retrieved, so callers never have to guess a large pageSize.
+ */
+async function fetchAllPages<T>(
+  fetcher: (pageIndex: number, pageSize: number) => Promise<PaginatedResponse<T>>,
+): Promise<T[]> {
+  const first = await fetcher(1, PAGE_SIZE_MAX);
+  const items: T[] = [...(first.items ?? [])];
+  const totalPages = first.totalPages ?? Math.ceil((first.totalCount ?? items.length) / PAGE_SIZE_MAX);
+  for (let page = 2; page <= totalPages; page++) {
+    const next = await fetcher(page, PAGE_SIZE_MAX);
+    items.push(...(next.items ?? []));
+  }
+  return items;
+}
+
 // Re-export for backward compatibility with existing feature components
 export type BookingResponse = Booking;
 
@@ -145,4 +165,16 @@ export const bookingService = {
   checkOut: async (bookingId: string, resourceId: string, note?: string): Promise<void> => {
     await api.put('/api/equipment-logs', { resourceId, bookingId, action: 1, note: note || undefined });
   },
+
+  /** Fetch ALL bookings across every page (auto-paginated, max 200/page). */
+  getAllPages: (): Promise<Booking[]> =>
+    fetchAllPages((p, s) => bookingService.getAll(p, s)),
+
+  /** Fetch ALL managed bookings across every page (auto-paginated, max 200/page). */
+  getManagedAllPages: (): Promise<Booking[]> =>
+    fetchAllPages((p, s) => bookingService.getManaged(p, s)),
+
+  /** Fetch ALL history bookings across every page (auto-paginated, max 200/page). */
+  getMyHistoryAllPages: (): Promise<Booking[]> =>
+    fetchAllPages((p, s) => bookingService.getMyHistory(p, s)),
 };

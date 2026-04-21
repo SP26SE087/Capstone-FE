@@ -63,7 +63,7 @@ const LabResourceAdmin: React.FC<LabResourceAdminProps> = ({ initialTab }) => {
       const [resData, logsData, bookingsData, usersRes] = await Promise.all([
         resourceService.getAll(),
         equipmentLogService.getAll(),
-        bookingService.getAll(1, 100),
+        bookingService.getAllPages(),
         userService.getAll()
       ]);
 
@@ -79,7 +79,7 @@ const LabResourceAdmin: React.FC<LabResourceAdminProps> = ({ initialTab }) => {
         userName: userMap.get(log.userId) || log.userName || 'Unknown'
       })).sort((a: any, b: any) => new Date(b.loggedAt).getTime() - new Date(a.loggedAt).getTime()));
 
-      setAllBookings((bookingsData.items || []).map(b => ({
+      setAllBookings((bookingsData as any[]).map(b => ({
         ...b,
         userName: userMap.get(b.userId ?? '') || b.userName || 'Unknown'
       })).sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime()));

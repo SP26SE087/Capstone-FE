@@ -69,7 +69,7 @@ const buildStyles = (size: 'sm' | 'md'): StylesConfig<SelectOption, false, Group
         menuList: (base) => ({
             ...base,
             padding: '4px',
-            maxHeight: '240px',
+            maxHeight: '108px',
         }),
         option: (base, state) => ({
             ...base,
