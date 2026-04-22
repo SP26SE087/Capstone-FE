@@ -19,6 +19,7 @@ const ServerTerminalModal: React.FC<ServerTerminalModalProps> = ({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [token, setToken] = useState<string>('');
   const [wsUrl, setWsUrl] = useState<string>('');
+  const [sessionExpiresAt, setSessionExpiresAt] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -30,12 +31,13 @@ const ServerTerminalModal: React.FC<ServerTerminalModalProps> = ({
     const fetchToken = async () => {
       try {
         setLoading(true);
-        const { token: newToken, wsUrl: newWsUrl } = await computeService.getTerminalToken(access.id);
+        setError(null);
+        const { token: newToken, wsUrl: newWsUrl, expiresAt } = await computeService.getTerminalToken(access.bookingId);
         setToken(newToken);
         setWsUrl(newWsUrl);
-        setError(null);
-      } catch (err) {
-        setError('Failed to get terminal access token');
+        setSessionExpiresAt(expiresAt);
+      } catch (err: any) {
+        setError(err.message || 'Failed to get terminal access token');
         console.error('Error getting terminal token:', err);
       } finally {
         setLoading(false);
@@ -43,7 +45,7 @@ const ServerTerminalModal: React.FC<ServerTerminalModalProps> = ({
     };
 
     fetchToken();
-  }, [isOpen, access.id]);
+  }, [isOpen, access.bookingId]);
 
   const handleCopyIp = async () => {
     if (access.containerIp) {
@@ -177,10 +179,10 @@ const ServerTerminalModal: React.FC<ServerTerminalModalProps> = ({
                     <span>{access.containerIp}</span>
                   </button>
                 )}
-                {access.expiresAt && (
+                {sessionExpiresAt && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#94a3b8', fontSize: '0.75rem' }}>
                     <Clock size={12} />
-                    <span>{formatTimeRemaining(access.expiresAt)}</span>
+                    <span>{formatTimeRemaining(sessionExpiresAt)}</span>
                   </div>
                 )}
               </div>
@@ -303,13 +305,22 @@ const ServerTerminalModal: React.FC<ServerTerminalModalProps> = ({
               >
                 <X size={32} />
               </div>
-              <p style={{ color: '#ef4444', margin: 0, textAlign: 'center' }}>{error}</p>
+              <p style={{ color: '#ef4444', margin: 0, textAlign: 'center', fontSize: '0.9rem' }}>{error}</p>
               <button
-                onClick={() => window.location.reload()}
+                onClick={() => {
+                  setError(null);
+                  setLoading(true);
+                  computeService.getTerminalToken(access.bookingId)
+                    .then(({ token: t, wsUrl: w, expiresAt }) => {
+                      setToken(t); setWsUrl(w); setSessionExpiresAt(expiresAt); setError(null);
+                    })
+                    .catch((err: any) => setError(err.message || 'Failed to get terminal token'))
+                    .finally(() => setLoading(false));
+                }}
                 className="btn btn-secondary"
                 style={{ marginTop: '0.5rem' }}
               >
-                Try Again
+                Retry
               </button>
             </div>
           ) : (
