@@ -146,6 +146,16 @@ const Seminars: React.FC = () => {
         }
     }, []); // eslint-disable-line
 
+    // Close AI Note when user clicks Schedules/Seminars in the sidebar
+    useEffect(() => {
+        const handler = () => {
+            setShowTranscription(false);
+            storeSetShowPanel(false);
+        };
+        window.addEventListener('closeAINote', handler);
+        return () => window.removeEventListener('closeAINote', handler);
+    }, []);
+
     // ── Panel open/close helpers that also sync the store ──────────────────────
     const handleOpenAINote = () => {
         const next = !showTranscription;
@@ -575,8 +585,8 @@ const Seminars: React.FC = () => {
                     </div>
                 </div>
 
-                {/* View Toggle */}
-                {activeTab !== 'swap_requests' && (
+                {/* View Toggle + Tabs — hidden when AI Note is open */}
+                {!showTranscription && activeTab !== 'swap_requests' && (
                     <div style={{ display: 'flex', gap: '4px', marginBottom: '1.5rem' }}>
                         <button
                             onClick={() => { setViewMode('list'); localStorage.setItem('seminar_viewMode', 'list'); }}
@@ -606,7 +616,7 @@ const Seminars: React.FC = () => {
                 )}
 
                 {/* Tabs */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1.5rem' }}>
+                {!showTranscription && <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1.5rem' }}>
                     <div style={{ flex: 1, borderBottom: '1px solid #e2e8f0', overflowX: 'auto', whiteSpace: 'nowrap' as const }} className="custom-scrollbar">
                         <div style={{ display: 'flex', gap: '1rem' }}>
                             {[
@@ -663,7 +673,7 @@ const Seminars: React.FC = () => {
                             <Plus size={18} /> New Seminar Series
                         </button>
                     )}
-                </div>
+                </div>}
 
                 {/* Main Content */}
                 <div

@@ -153,6 +153,16 @@ const Schedules: React.FC = () => {
         }
     }, []); // eslint-disable-line
 
+    // Close AI Note when user clicks Schedules/Seminars in the sidebar
+    useEffect(() => {
+        const handler = () => {
+            setShowTranscription(false);
+            storeSetShowPanel(false);
+        };
+        window.addEventListener('closeAINote', handler);
+        return () => window.removeEventListener('closeAINote', handler);
+    }, []);
+
     // ── Panel open/close helpers that also sync the store ──────────────────────
     const handleOpenAINote = () => {
         const next = !showTranscription;
@@ -588,7 +598,8 @@ const Schedules: React.FC = () => {
                     </div>
                 </div>
 
-                {/* View Toggle */}
+                {/* View Toggle, Breadcrumb, Tabs — hidden when AI Note is open */}
+                {!showTranscription && <>
                 <div style={{ display: 'flex', gap: '4px', marginBottom: '1.5rem' }}>
                     <button
                         onClick={() => { setViewMode('list'); localStorage.setItem('schedule_viewMode', 'list'); }}
@@ -684,6 +695,7 @@ const Schedules: React.FC = () => {
                         </button>
                     </div>
                 </div>
+                </>}
 
                 {/* Main Content */}
                 {viewMode === 'timetable' ? (

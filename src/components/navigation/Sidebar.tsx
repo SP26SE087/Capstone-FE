@@ -23,17 +23,19 @@ const Sidebar: React.FC = () => {
     const isLabDirector = Number(role) === 2 || role === 'LabDirector' || role === 'Lab Director';
     const isMemberOrSenior = Number(role) === 3 || Number(role) === 4 || role === 'Member' || role === 'Senior' || role === 'SeniorResearcher' || role === 'Senior Researcher';
 
+    const closeAINote = () => window.dispatchEvent(new CustomEvent('closeAINote'));
+
     const workspaceItems = [
-        { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/dashboard' },
-        { icon: <Briefcase size={20} />, label: 'My Projects', path: '/projects' },
-        { icon: <FolderKanban size={20} />, label: "Lab's Projects", path: '/lab-projects' },
-        { icon: <CheckSquare size={20} />, label: 'Tasks', path: '/tasks' },
-        { icon: <FileText size={20} />, label: 'Paper Submission', path: '/papers' },
-        { icon: <Users size={20} />, label: 'Members', path: '/members' },
-        { icon: <BarChart2 size={20} />, label: 'Reports', path: '/reports' },
-        { icon: <Box size={20} />, label: 'Booking Resource', path: '/bookings' },
-        { icon: <Calendar size={20} />, label: 'Schedules', path: '/schedules' },
-        { icon: <Presentation size={20} />, label: 'Seminars', path: '/seminars' },
+        { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/dashboard', onNavClick: undefined as (() => void) | undefined },
+        { icon: <Briefcase size={20} />, label: 'My Projects', path: '/projects', onNavClick: undefined },
+        { icon: <FolderKanban size={20} />, label: "Lab's Projects", path: '/lab-projects', onNavClick: undefined },
+        { icon: <CheckSquare size={20} />, label: 'Tasks', path: '/tasks', onNavClick: undefined },
+        { icon: <FileText size={20} />, label: 'Paper Submission', path: '/papers', onNavClick: undefined },
+        { icon: <Users size={20} />, label: 'Members', path: '/members', onNavClick: undefined },
+        { icon: <BarChart2 size={20} />, label: 'Reports', path: '/reports', onNavClick: undefined },
+        { icon: <Box size={20} />, label: 'Booking Resource', path: '/bookings', onNavClick: undefined },
+        { icon: <Calendar size={20} />, label: 'Schedules', path: '/schedules', onNavClick: closeAINote },
+        { icon: <Presentation size={20} />, label: 'Seminars', path: '/seminars', onNavClick: closeAINote },
     ];
 
     const adminItems = [
@@ -64,6 +66,7 @@ const Sidebar: React.FC = () => {
                             <NavLink
                                 key={item.path}
                                 to={item.path}
+                                onClick={item.onNavClick}
                                 className={({ isActive }) =>
                                     `sidebar-link ${isActive ? 'active' : ''}`
                                 }

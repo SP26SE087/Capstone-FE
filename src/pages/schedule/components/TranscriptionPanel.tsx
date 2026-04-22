@@ -264,6 +264,7 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
     const previousActiveTabRef = useRef<'transcript' | 'summary' | 'tasks'>(activeTab);
     const [showConfirmClose, setShowConfirmClose] = useState(false);
     const [showTranscriptPopover, setShowTranscriptPopover] = useState(false);
+    const autoSummarizeRef = useRef<string | null>(null);
     const [popoverRect, setPopoverRect] = useState<{ top: number; bottom: number; right: number; left: number } | null>(null);
     const transcriptWrapperRef = useRef<HTMLDivElement>(null);
     const popoverPortalRef = useRef<HTMLDivElement>(null);
@@ -436,8 +437,12 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
             const full = await transcriptionService.getById(t.id);
             if (full) {
                 setTranscription(full);
-                setSummary(normalizeSummaryText(full.summary));
+                const computedSummary = normalizeSummaryText(full.summary);
+                setSummary(computedSummary);
                 addToast('Transcription loaded.', 'success');
+                if (full.transcribedText && !computedSummary) {
+                    autoSummarizeRef.current = full.id;
+                }
             }
         } catch {
             addToast('Failed to load transcription details.', 'error');
@@ -445,6 +450,13 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
             setReloading(false);
         }
     };
+
+    useEffect(() => {
+        if (autoSummarizeRef.current && transcription?.id === autoSummarizeRef.current && !summarizing) {
+            autoSummarizeRef.current = null;
+            handleSummarize(true);
+        }
+    }, [transcription?.id]);
 
     useEffect(() => {
         if (!selectedProjectId) {
@@ -793,21 +805,6 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                         >
                             <ChevronRight size={13} />
                         </button>
-                        <button
-                            onClick={handleClose}
-                            title="Close"
-                            style={{
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                width: '28px', height: '28px', borderRadius: '6px',
-                                border: '1px solid #e2e8f0', background: '#fff',
-                                color: '#94a3b8', cursor: 'pointer',
-                                transition: 'all 0.2s'
-                            }}
-                            onMouseEnter={e => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.color = '#475569'; }}
-                            onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = '#94a3b8'; }}
-                        >
-                            <X size={13} />
-                        </button>
                     </div>
                 </div>}
 
@@ -1062,6 +1059,25 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                                 ? <><Loader2 size={13} className="animate-spin" /> Generating...</>
                                 : <><Sparkles size={13} /> Generate Summary</>
                             }
+                        </button>
+                    </div>
+
+                    {/* Close AI Notes button — always visible at bottom of controls */}
+                    <div style={{ marginTop: '4px' }}>
+                        <button
+                            onClick={handleClose}
+                            style={{
+                                width: '100%', padding: '8px', borderRadius: '10px',
+                                border: '1.5px solid #e2e8f0', background: '#fff',
+                                color: '#64748b', cursor: 'pointer',
+                                fontWeight: 700, fontSize: '0.78rem',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
+                                transition: 'all 0.2s'
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.borderColor = '#cbd5e1'; e.currentTarget.style.color = '#475569'; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.color = '#64748b'; }}
+                        >
+                            <X size={13} /> Close AI Notes
                         </button>
                     </div>
 
@@ -1627,7 +1643,7 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                                 <p style={{ fontSize: '0.78rem', margin: 0 }}>No transcriptions found.</p>
                                 <p style={{ fontSize: '0.7rem', color: '#cbd5e1', marginTop: '4px' }}>Click refresh to load</p>
                             </div>
-                        ) : meetingTranscriptions.map(t => {
+                        ) : [...meetingTranscriptions].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).map(t => {
                             const isSelected = transcription?.id === t.id;
                             const isFailed = t.status === 'Failed';
                             return (
@@ -1655,9 +1671,20 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                                             {t.status}
                                         </span>
                                     </div>
-                                    <div style={{ fontSize: '0.62rem', color: '#94a3b8', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                                        {t.language && <span>{t.language.toUpperCase()}</span>}
-                                        <span>{new Date(t.createdAt).toLocaleString()}</span>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '4px' }}>
+                                        {t.language && (
+                                            <span style={{
+                                                fontSize: '0.6rem', fontWeight: 800, padding: '1px 6px',
+                                                borderRadius: '4px', background: '#ede9fe', color: '#6366f1',
+                                                letterSpacing: '0.5px', flexShrink: 0
+                                            }}>{t.language.toUpperCase()}</span>
+                                        )}
+                                        <span style={{ fontSize: '0.62rem', color: '#64748b', fontWeight: 600 }}>
+                                            {new Date(t.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                                        </span>
+                                        <span style={{ fontSize: '0.62rem', color: '#94a3b8' }}>
+                                            {new Date(t.createdAt).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                                        </span>
                                     </div>
                                     {isFailed && (
                                         <div style={{ marginTop: '4px', fontSize: '0.65rem', color: '#dc2626', display: 'flex', alignItems: 'flex-start', gap: '3px' }}>
