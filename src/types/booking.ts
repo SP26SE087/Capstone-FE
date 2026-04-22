@@ -2,7 +2,8 @@ export enum ResourceType {
   GPU = 1,
   Equipment = 2,
   Dataset = 3,
-  LabStation = 4
+  LabStation = 4,
+  Compute = 5
 }
 
 export enum ResourceStatus {
@@ -193,4 +194,50 @@ export interface PaginatedResponse<T> {
   pageIndex: number;
   pageSize: number;
   totalPages: number;
+}
+
+// Compute/Server Resource Types
+export interface ComputeTier {
+  id: string;
+  name: string;
+  description: string;
+  gpuCount: number;
+  gpuModel: string;
+  cpuCores: number;
+  ramGB: number;
+  storageGB: number;
+  pricePerHour?: number;
+  available: boolean;
+  maxDurationHours: number;
+}
+
+export enum ComputeAccessStatus {
+  Pending = 1,
+  Provisioning = 2,
+  Ready = 3,
+  Running = 4,
+  Stopped = 5,
+  Terminated = 6,
+  Error = 7
+}
+
+export interface ComputeAccess {
+  id: string;
+  bookingId: string;
+  tierId: string;
+  tierName: string;
+  status: ComputeAccessStatus;
+  terminalUrl?: string;
+  containerIp?: string;
+  startedAt?: string;
+  expiresAt?: string;
+  gpuUtilization?: number;
+  memoryUsage?: number;
+  errorMessage?: string;
+}
+
+export interface ComputeBookingConfig {
+  tierId: string;
+  dockerImage?: string;
+  environmentVariables?: Record<string, string>;
 }
