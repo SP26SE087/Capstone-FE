@@ -19,7 +19,8 @@ import {
     Settings as SettingsIcon,
     AlertCircle,
     Home,
-    Users
+    Users,
+    Package
 } from 'lucide-react';
 /* ProjectRoleEnum already in @/types */
 
@@ -29,12 +30,13 @@ import DetailsMilestones from '@/features/projects/components/DetailsMilestones'
 import DetailsMembers from '@/features/projects/components/DetailsMembers';
 import DetailsTasks from '@/features/projects/components/DetailsTasks';
 import DetailsSettings from '@/features/projects/components/DetailsSettings';
+import DetailsBookingPlan from '@/features/projects/components/DetailsBookingPlan';
 
 // Import Modals & Other Components
 import TaskFormModal from '@/features/tasks/TaskFormModal';
 import ProjectTimeline from '@/features/projects/ProjectTimeline';
 
-type ActiveTab = 'home' | 'timeline' | 'milestones' | 'members' | 'tasks' | 'settings';
+type ActiveTab = 'home' | 'timeline' | 'milestones' | 'members' | 'tasks' | 'settings' | 'resources';
 
 const ProjectDetails: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -662,6 +664,7 @@ const ProjectDetails: React.FC = () => {
                             ),
                             icon: <Users size={18} />
                         },
+                        { id: 'resources', label: 'Resources', icon: <Package size={18} /> },
                         { id: 'settings', label: 'Settings', icon: <SettingsIcon size={18} /> }
                     ].map(tab => (
                         <button
@@ -830,6 +833,14 @@ const ProjectDetails: React.FC = () => {
                                 currentMember={currentMember}
                                 refreshTasks={refetchTasks}
                                 onEditTask={(task) => { setEditingTask(task); setIsTaskModalOpen(true); }}
+                                showToast={showToast}
+                            />
+                        )}
+
+                        {activeTab === 'resources' && (
+                            <DetailsBookingPlan
+                                projectId={id || ''}
+                                canManage={canManageProject}
                                 showToast={showToast}
                             />
                         )}
