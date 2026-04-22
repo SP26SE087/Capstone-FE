@@ -10,6 +10,7 @@ import {
     FileText,
     AlertCircle,
 } from 'lucide-react';
+import { getUpcomingUrgencyLevel, UpcomingUrgencyLevel } from '@/utils/helpers/dateFormatter';
 
 interface SeminarListProps {
     meetings: SeminarMeetingResponse[];
@@ -41,6 +42,43 @@ const getRelativeDate = (dateStr: string) => {
 };
 
 const isUpcoming = (dateStr: string) => new Date(dateStr).getTime() > Date.now();
+
+const getNearMeetingTone = (urgency: UpcomingUrgencyLevel | null) => {
+    if (urgency === 1) {
+        return {
+            background: 'rgba(245, 158, 11, 0.11)',
+            hoverBackground: 'rgba(245, 158, 11, 0.16)',
+            borderColor: 'rgba(245, 158, 11, 0.35)',
+            hoverBorderColor: 'rgba(245, 158, 11, 0.46)',
+            borderLeftColor: 'rgba(245, 158, 11, 0.78)',
+            relDateColor: '#b45309'
+        };
+    }
+
+    if (urgency === 2) {
+        return {
+            background: 'rgba(59, 130, 246, 0.085)',
+            hoverBackground: 'rgba(59, 130, 246, 0.14)',
+            borderColor: 'rgba(59, 130, 246, 0.32)',
+            hoverBorderColor: 'rgba(59, 130, 246, 0.45)',
+            borderLeftColor: 'rgba(59, 130, 246, 0.72)',
+            relDateColor: '#1d4ed8'
+        };
+    }
+
+    if (urgency === 3) {
+        return {
+            background: 'rgba(20, 184, 166, 0.07)',
+            hoverBackground: 'rgba(20, 184, 166, 0.12)',
+            borderColor: 'rgba(20, 184, 166, 0.28)',
+            hoverBorderColor: 'rgba(20, 184, 166, 0.4)',
+            borderLeftColor: 'rgba(20, 184, 166, 0.62)',
+            relDateColor: '#0f766e'
+        };
+    }
+
+    return null;
+};
 
 const SeminarList: React.FC<SeminarListProps> = ({ meetings, selectedId, onSelect, usersMap, filterTimeframe, allExpanded }) => {
     const [expandedSeries, setExpandedSeries] = React.useState<Record<string, boolean>>({});
@@ -190,9 +228,28 @@ const SeminarList: React.FC<SeminarListProps> = ({ meetings, selectedId, onSelec
                                     const isSelected = meeting.seminarMeetingId === selectedId;
                                     const upcoming = isUpcoming(meeting.meetingDate);
                                     const relDate = getRelativeDate(meeting.meetingDate);
+                                    const nearUrgency = getUpcomingUrgencyLevel(meeting.meetingDate);
+                                    const nearTone = getNearMeetingTone(nearUrgency);
                                     const presenterName = usersMap[meeting.presenterId] || 'Unknown';
                                     const hasSlides = !!meeting.slideUrl;
                                     const missingSlides = upcoming && !hasSlides;
+                                    const baseBackground = isSelected
+                                        ? 'linear-gradient(135deg, rgba(232,114,12,0.06), rgba(255,150,67,0.04))'
+                                        : nearTone
+                                            ? nearTone.background
+                                            : upcoming ? '#fff' : '#fafafa';
+                                    const baseBorderColor = isSelected
+                                        ? 'var(--accent-color)'
+                                        : (nearTone?.borderColor || 'transparent');
+                                    const baseBorderLeft = isSelected
+                                        ? '3px solid var(--accent-color)'
+                                        : nearTone
+                                            ? `3px solid ${nearTone.borderLeftColor}`
+                                            : upcoming
+                                                ? '3px solid #bfdbfe'
+                                                : '3px solid #e2e8f0';
+                                    const hoverBackground = nearTone?.hoverBackground || 'var(--surface-hover)';
+                                    const hoverBorderColor = nearTone?.hoverBorderColor || 'var(--border-light)';
 
                                     return (
                                         <div
@@ -201,30 +258,24 @@ const SeminarList: React.FC<SeminarListProps> = ({ meetings, selectedId, onSelec
                                             style={{
                                                 padding: '10px 12px 10px 14px',
                                                 borderRadius: '9px',
-                                                background: isSelected
-                                                    ? 'linear-gradient(135deg, rgba(232,114,12,0.06), rgba(255,150,67,0.04))'
-                                                    : upcoming ? '#fff' : '#fafafa',
-                                                border: isSelected ? '1.5px solid var(--accent-color)' : '1px solid transparent',
-                                                borderLeft: isSelected
-                                                    ? '3px solid var(--accent-color)'
-                                                    : upcoming
-                                                    ? '3px solid #bfdbfe'
-                                                    : '3px solid #e2e8f0',
+                                                background: baseBackground,
+                                                border: isSelected ? '1.5px solid var(--accent-color)' : `1px solid ${baseBorderColor}`,
+                                                borderLeft: baseBorderLeft,
                                                 cursor: 'pointer', transition: 'all 0.15s',
                                                 display: 'flex', flexDirection: 'column', gap: '4px',
                                                 opacity: upcoming ? 1 : 0.7,
                                             }}
                                             onMouseEnter={e => {
                                                 if (!isSelected) {
-                                                    e.currentTarget.style.background = 'var(--surface-hover)';
-                                                    e.currentTarget.style.borderColor = 'var(--border-light)';
+                                                    e.currentTarget.style.background = hoverBackground;
+                                                    e.currentTarget.style.borderColor = hoverBorderColor;
                                                     e.currentTarget.style.opacity = '1';
                                                 }
                                             }}
                                             onMouseLeave={e => {
                                                 if (!isSelected) {
-                                                    e.currentTarget.style.background = upcoming ? '#fff' : '#fafafa';
-                                                    e.currentTarget.style.borderColor = 'transparent';
+                                                    e.currentTarget.style.background = baseBackground;
+                                                    e.currentTarget.style.borderColor = baseBorderColor;
                                                     e.currentTarget.style.opacity = upcoming ? '1' : '0.7';
                                                 }
                                             }}
@@ -263,7 +314,7 @@ const SeminarList: React.FC<SeminarListProps> = ({ meetings, selectedId, onSelec
                                                     <Calendar size={11} />
                                                     <span>{formatDateOnly(meeting.meetingDate)}</span>
                                                     {relDate && (
-                                                        <span style={{ color: 'var(--accent-color)', fontSize: '0.65rem', marginLeft: '2px' }}>
+                                                        <span style={{ color: nearTone?.relDateColor || 'var(--accent-color)', fontSize: '0.65rem', marginLeft: '2px' }}>
                                                             [{relDate}]
                                                         </span>
                                                     )}

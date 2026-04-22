@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Clock, Video, Presentation, X, Users, FileText } from 'lucide-react';
+import { getUpcomingUrgencyLevel, UpcomingUrgencyLevel } from '@/utils/helpers/dateFormatter';
 
 export interface TimetableEvent {
     id: string;
@@ -57,6 +58,52 @@ const EVENT_COLORS = [
     '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#6366f1',
     '#ec4899', '#14b8a6', '#f97316', '#8b5cf6', '#06b6d4'
 ];
+
+const getNearMeetingTone = (urgency: UpcomingUrgencyLevel | null) => {
+    if (urgency === 1) {
+        return {
+            background: 'rgba(245, 158, 11, 0.20)',
+            hoverBackground: 'rgba(245, 158, 11, 0.28)',
+            borderColor: 'rgba(245, 158, 11, 0.70)',
+            borderLeftColor: '#d97706',
+            shadow: '0 2px 4px rgba(180, 83, 9, 0.16)',
+            hoverShadow: '0 6px 14px rgba(180, 83, 9, 0.26)',
+            titleColor: '#92400e',
+            metaColor: 'rgba(146, 64, 14, 0.88)',
+            subMetaColor: 'rgba(146, 64, 14, 0.72)'
+        };
+    }
+
+    if (urgency === 2) {
+        return {
+            background: 'rgba(59, 130, 246, 0.18)',
+            hoverBackground: 'rgba(59, 130, 246, 0.27)',
+            borderColor: 'rgba(59, 130, 246, 0.62)',
+            borderLeftColor: '#2563eb',
+            shadow: '0 2px 4px rgba(29, 78, 216, 0.14)',
+            hoverShadow: '0 6px 14px rgba(29, 78, 216, 0.24)',
+            titleColor: '#1d4ed8',
+            metaColor: 'rgba(29, 78, 216, 0.84)',
+            subMetaColor: 'rgba(29, 78, 216, 0.68)'
+        };
+    }
+
+    if (urgency === 3) {
+        return {
+            background: 'rgba(20, 184, 166, 0.15)',
+            hoverBackground: 'rgba(20, 184, 166, 0.24)',
+            borderColor: 'rgba(20, 184, 166, 0.55)',
+            borderLeftColor: '#0f766e',
+            shadow: '0 1px 3px rgba(15, 118, 110, 0.11)',
+            hoverShadow: '0 5px 12px rgba(15, 118, 110, 0.19)',
+            titleColor: '#0f766e',
+            metaColor: 'rgba(15, 118, 110, 0.84)',
+            subMetaColor: 'rgba(15, 118, 110, 0.68)'
+        };
+    }
+
+    return null;
+};
 
 const WeeklyTimetable: React.FC<WeeklyTimetableProps> = ({
     events,
@@ -554,6 +601,17 @@ const WeeklyTimetable: React.FC<WeeklyTimetableProps> = ({
                                         const top = (startHour - HOURS[0]) * HOUR_HEIGHT;
                                         const height = Math.max((endHour - startHour) * HOUR_HEIGHT, 22);
                                         const color = evt.color || EVENT_COLORS[evtIdx % EVENT_COLORS.length];
+                                        const nearUrgency = getUpcomingUrgencyLevel(evt.startTime);
+                                        const nearTone = getNearMeetingTone(nearUrgency);
+                                        const baseBackground = nearTone ? nearTone.background : `${color}18`;
+                                        const hoverBackground = nearTone ? nearTone.hoverBackground : `${color}28`;
+                                        const borderColor = nearTone ? nearTone.borderColor : color;
+                                        const borderLeftColor = nearTone ? nearTone.borderLeftColor : color;
+                                        const baseShadow = nearTone ? nearTone.shadow : '0 1px 2px rgba(0,0,0,0.05)';
+                                        const hoverShadow = nearTone ? nearTone.hoverShadow : `0 4px 12px ${color}30`;
+                                        const titleColor = nearTone ? nearTone.titleColor : color;
+                                        const metaColor = nearTone ? nearTone.metaColor : `${color}cc`;
+                                        const subMetaColor = nearTone ? nearTone.subMetaColor : `${color}aa`;
 
                                         return (
                                             <div
@@ -576,27 +634,27 @@ const WeeklyTimetable: React.FC<WeeklyTimetableProps> = ({
                                                     left: `calc(${evt.colOffset}% + 2px)`,
                                                     width: `calc(${evt.colWidth}% - 4px)`,
                                                     height: `${height - 2}px`,
-                                                    background: `${color}18`,
-                                                    border: `1.5px solid ${color}`,
-                                                    borderLeft: `3px solid ${color}`,
+                                                    background: baseBackground,
+                                                    border: `1.5px solid ${borderColor}`,
+                                                    borderLeft: `3px solid ${borderLeftColor}`,
                                                     borderRadius: '6px',
                                                     padding: '4px 6px',
                                                     cursor: 'pointer',
                                                     overflow: 'hidden',
                                                     transition: 'all 0.15s',
                                                     zIndex: 2,
-                                                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                                                    boxShadow: baseShadow
                                                 }}
                                                 onMouseEnter={e => {
-                                                    e.currentTarget.style.background = `${color}28`;
+                                                    e.currentTarget.style.background = hoverBackground;
                                                     e.currentTarget.style.transform = 'scale(1.02)';
-                                                    e.currentTarget.style.boxShadow = `0 4px 12px ${color}30`;
+                                                    e.currentTarget.style.boxShadow = hoverShadow;
                                                     e.currentTarget.style.zIndex = '10';
                                                 }}
                                                 onMouseLeave={e => {
-                                                    e.currentTarget.style.background = `${color}18`;
+                                                    e.currentTarget.style.background = baseBackground;
                                                     e.currentTarget.style.transform = 'none';
-                                                    e.currentTarget.style.boxShadow = '0 1px 2px rgba(0,0,0,0.05)';
+                                                    e.currentTarget.style.boxShadow = baseShadow;
                                                     e.currentTarget.style.zIndex = '2';
                                                 }}
                                                 title={`${evt.title}\n${formatTime(start)} — ${formatTime(end)}${evt.presenter ? `\nPresenter: ${evt.presenter}` : ''}`}
@@ -604,7 +662,7 @@ const WeeklyTimetable: React.FC<WeeklyTimetableProps> = ({
                                                 <div style={{
                                                     fontSize: '0.68rem',
                                                     fontWeight: 700,
-                                                    color: color,
+                                                    color: titleColor,
                                                     lineHeight: 1.2,
                                                     overflow: 'hidden',
                                                     textOverflow: 'ellipsis',
@@ -616,7 +674,7 @@ const WeeklyTimetable: React.FC<WeeklyTimetableProps> = ({
                                                     <div style={{
                                                         fontSize: '0.62rem',
                                                         fontWeight: 600,
-                                                        color: `${color}cc`,
+                                                        color: metaColor,
                                                         display: 'flex',
                                                         alignItems: 'center',
                                                         gap: '3px',
@@ -630,7 +688,7 @@ const WeeklyTimetable: React.FC<WeeklyTimetableProps> = ({
                                                     <div style={{
                                                         fontSize: '0.6rem',
                                                         fontWeight: 600,
-                                                        color: `${color}aa`,
+                                                        color: subMetaColor,
                                                         display: 'flex',
                                                         alignItems: 'center',
                                                         gap: '3px',

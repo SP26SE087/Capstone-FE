@@ -12,6 +12,7 @@ import {
     Calendar,
     Sparkles
 } from 'lucide-react';
+import { getUpcomingUrgencyLevel, UpcomingUrgencyLevel } from '@/utils/helpers/dateFormatter';
 
 interface ScheduleListProps {
     meetings: MeetingResponse[];
@@ -82,6 +83,52 @@ const formatDuration = (startStr: string, endStr: string) => {
     return `${m}m`;
 };
 
+const getNearMeetingTone = (urgency: UpcomingUrgencyLevel | null) => {
+    if (urgency === 1) {
+        return {
+            background: 'rgba(245, 158, 11, 0.10)',
+            hoverBackground: 'rgba(245, 158, 11, 0.15)',
+            borderColor: 'rgba(245, 158, 11, 0.34)',
+            hoverBorderColor: 'rgba(245, 158, 11, 0.45)',
+            shadow: '0 4px 14px rgba(245, 158, 11, 0.12)',
+            hoverShadow: '0 8px 20px rgba(245, 158, 11, 0.18)',
+            orbBackground: 'radial-gradient(circle, rgba(245,158,11,0.22), rgba(245,158,11,0))',
+            badgeColor: '#b45309',
+            badgeBorder: 'rgba(245, 158, 11, 0.45)'
+        };
+    }
+
+    if (urgency === 2) {
+        return {
+            background: 'rgba(59, 130, 246, 0.08)',
+            hoverBackground: 'rgba(59, 130, 246, 0.13)',
+            borderColor: 'rgba(59, 130, 246, 0.30)',
+            hoverBorderColor: 'rgba(59, 130, 246, 0.42)',
+            shadow: '0 3px 12px rgba(59, 130, 246, 0.12)',
+            hoverShadow: '0 7px 18px rgba(59, 130, 246, 0.18)',
+            orbBackground: 'radial-gradient(circle, rgba(59,130,246,0.18), rgba(59,130,246,0))',
+            badgeColor: '#1d4ed8',
+            badgeBorder: 'rgba(59, 130, 246, 0.42)'
+        };
+    }
+
+    if (urgency === 3) {
+        return {
+            background: 'rgba(20, 184, 166, 0.065)',
+            hoverBackground: 'rgba(20, 184, 166, 0.11)',
+            borderColor: 'rgba(20, 184, 166, 0.27)',
+            hoverBorderColor: 'rgba(20, 184, 166, 0.38)',
+            shadow: '0 2px 10px rgba(20, 184, 166, 0.1)',
+            hoverShadow: '0 6px 16px rgba(20, 184, 166, 0.15)',
+            orbBackground: 'radial-gradient(circle, rgba(20,184,166,0.16), rgba(20,184,166,0))',
+            badgeColor: '#0f766e',
+            badgeBorder: 'rgba(20, 184, 166, 0.35)'
+        };
+    }
+
+    return null;
+};
+
 const ScheduleList: React.FC<ScheduleListProps> = (props) => {
     const { meetings, selectedId, onSelect, projectsMap, isSplit } = props;
     return (
@@ -90,9 +137,19 @@ const ScheduleList: React.FC<ScheduleListProps> = (props) => {
                 const statusInfo = getStatusInfo(meeting.status);
                 const isSelected = meeting.id === selectedId;
                 const relDate = getRelativeDate(meeting.startTime);
+                const nearUrgency = getUpcomingUrgencyLevel(meeting.startTime);
+                const nearTone = getNearMeetingTone(nearUrgency);
                 const durationLabel = formatDuration(meeting.startTime, meeting.endTime);
                 const acceptedCount = meeting.attendees?.filter(a => a.responseStatus === AttendeeResponseStatus.Accepted).length || 0;
                 const totalAttendees = meeting.attendees?.length || 0;
+                const baseBackground = isSelected ? '#fff' : (nearTone?.background || '#fff');
+                const baseBorderColor = isSelected ? 'rgba(232, 114, 12, 0.9)' : (nearTone?.borderColor || '#e4ebf3');
+                const hoverBackground = nearTone?.hoverBackground || '#fcfdff';
+                const hoverBorderColor = nearTone?.hoverBorderColor || '#d2dde9';
+                const baseShadow = isSelected
+                    ? '0 10px 24px rgba(232, 114, 12, 0.14)'
+                    : (nearTone?.shadow || '0 2px 10px rgba(15, 23, 42, 0.05)');
+                const hoverShadow = nearTone?.hoverShadow || '0 8px 18px rgba(15, 23, 42, 0.08)';
 
                 return (
                     <div
@@ -101,32 +158,30 @@ const ScheduleList: React.FC<ScheduleListProps> = (props) => {
                         style={{
                             padding: '12px 14px',
                             borderRadius: '14px',
-                            background: '#fff',
+                            background: baseBackground,
                             border: isSelected
                                 ? '1.5px solid rgba(232, 114, 12, 0.9)'
-                                : '1px solid #e4ebf3',
+                                : `1px solid ${baseBorderColor}`,
                             cursor: 'pointer',
                             transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
                             position: 'relative',
                             overflow: 'hidden',
-                            boxShadow: isSelected
-                                ? '0 10px 24px rgba(232, 114, 12, 0.14)'
-                                : '0 2px 10px rgba(15, 23, 42, 0.05)'
+                            boxShadow: baseShadow
                         }}
                         onMouseEnter={e => {
                             if (!isSelected) {
-                                e.currentTarget.style.borderColor = '#d2dde9';
-                                e.currentTarget.style.background = '#fcfdff';
+                                e.currentTarget.style.borderColor = hoverBorderColor;
+                                e.currentTarget.style.background = hoverBackground;
                                 e.currentTarget.style.transform = 'translateY(-1px)';
-                                e.currentTarget.style.boxShadow = '0 8px 18px rgba(15, 23, 42, 0.08)';
+                                e.currentTarget.style.boxShadow = hoverShadow;
                             }
                         }}
                         onMouseLeave={e => {
                             if (!isSelected) {
-                                e.currentTarget.style.borderColor = '#e4ebf3';
-                                e.currentTarget.style.background = '#fff';
+                                e.currentTarget.style.borderColor = baseBorderColor;
+                                e.currentTarget.style.background = baseBackground;
                                 e.currentTarget.style.transform = 'none';
-                                e.currentTarget.style.boxShadow = '0 2px 10px rgba(15, 23, 42, 0.05)';
+                                e.currentTarget.style.boxShadow = baseShadow;
                             }
                         }}
                     >
@@ -140,7 +195,7 @@ const ScheduleList: React.FC<ScheduleListProps> = (props) => {
                                 borderRadius: '50%',
                                 background: isSelected
                                     ? 'radial-gradient(circle, rgba(232,114,12,0.18), rgba(232,114,12,0))'
-                                    : 'radial-gradient(circle, rgba(148,163,184,0.14), rgba(148,163,184,0))',
+                                    : (nearTone?.orbBackground || 'radial-gradient(circle, rgba(148,163,184,0.14), rgba(148,163,184,0))'),
                                 pointerEvents: 'none'
                             }}
                         />
@@ -216,9 +271,11 @@ const ScheduleList: React.FC<ScheduleListProps> = (props) => {
                                             borderRadius: '999px',
                                             fontSize: '0.64rem',
                                             fontWeight: 700,
-                                            color: relDate === 'Today' ? '#b45309' : '#64748b',
-                                            background: '#f8fafc',
-                                            border: relDate === 'Today' ? '1px solid #fdba74' : '1px solid #dbe3ed',
+                                            color: relDate === 'Today' ? '#b45309' : (nearTone?.badgeColor || '#64748b'),
+                                            background: nearTone ? 'var(--warning-bg)' : '#f8fafc',
+                                            border: relDate === 'Today'
+                                                ? '1px solid #fdba74'
+                                                : `1px solid ${nearTone?.badgeBorder || '#dbe3ed'}`,
                                             whiteSpace: 'nowrap' as const,
                                             lineHeight: 1.2
                                         }}>
