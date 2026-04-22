@@ -271,7 +271,7 @@ const Header: React.FC = () => {
                         }}
                     >
                         <LogIn size={16} />
-                        Đăng nhập
+                        Sign In
                     </button>
                 )}
             </div>

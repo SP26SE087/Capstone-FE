@@ -355,16 +355,8 @@ const Members: React.FC = () => {
                                         type="button"
                                         disabled={currentPage === 1}
                                         onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                        style={{
-                                            padding: '0.35rem 0.75rem',
-                                            fontSize: '0.75rem',
-                                            borderRadius: '8px',
-                                            border: '1px solid #fdba74',
-                                            background: currentPage === 1 ? '#fff7ed' : '#f97316',
-                                            color: currentPage === 1 ? '#9a3412' : '#ffffff',
-                                            cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
-                                            fontWeight: 700
-                                        }}
+                                        className={currentPage === 1 ? 'btn btn-secondary' : 'btn btn-primary'}
+                                        style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', opacity: currentPage === 1 ? 0.45 : 1, cursor: currentPage === 1 ? 'not-allowed' : 'pointer' }}
                                     >
                                         Prev
                                     </button>
@@ -375,16 +367,8 @@ const Members: React.FC = () => {
                                         type="button"
                                         disabled={currentPage === totalPages}
                                         onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                                        style={{
-                                            padding: '0.35rem 0.75rem',
-                                            fontSize: '0.75rem',
-                                            borderRadius: '8px',
-                                            border: '1px solid #fdba74',
-                                            background: currentPage === totalPages ? '#fff7ed' : '#f97316',
-                                            color: currentPage === totalPages ? '#9a3412' : '#ffffff',
-                                            cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
-                                            fontWeight: 700
-                                        }}
+                                        className={currentPage === totalPages ? 'btn btn-secondary' : 'btn btn-primary'}
+                                        style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', opacity: currentPage === totalPages ? 0.45 : 1, cursor: currentPage === totalPages ? 'not-allowed' : 'pointer' }}
                                     >
                                         Next
                                     </button>

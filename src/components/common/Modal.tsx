@@ -32,15 +32,15 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, footer,
             <div
                 style={{
                     backgroundColor: 'white',
-                    borderRadius: '24px', // Rounder corners
+                    borderRadius: 'var(--radius-lg)',
                     width: '100%',
                     maxWidth: maxWidth,
-                    boxShadow: '0 32px 64px -12px rgba(0, 0, 0, 0.45), 0 16px 24px -8px rgba(0, 0, 0, 0.2)',
+                    boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
                     overflow: 'hidden',
                     display: 'flex',
                     flexDirection: 'column',
-                    animation: 'scaleIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
-                    border: '1px solid rgba(255, 255, 255, 0.3)'
+                    animation: 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+                    border: '1px solid var(--border-color)'
                 }}
                 onClick={e => e.stopPropagation()}
             >
@@ -105,9 +105,9 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, footer,
                     from { opacity: 0; }
                     to { opacity: 1; }
                 }
-                @keyframes scaleIn {
-                    from { transform: scale(0.9); opacity: 0; }
-                    to { transform: scale(1); opacity: 1; }
+                @keyframes slideUp {
+                    from { transform: translateY(20px) scale(0.98); opacity: 0; }
+                    to { transform: translateY(0) scale(1); opacity: 1; }
                 }
             `}</style>
         </div>,

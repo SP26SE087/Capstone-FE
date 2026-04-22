@@ -4,6 +4,21 @@ import { Resource, CreateResourceRequest, UpdateResourceRequest, PaginatedRespon
 // Re-export for backward compatibility
 export type { CreateResourceRequest, UpdateResourceRequest } from '@/types/booking';
 
+const PAGE_SIZE_MAX = 200;
+
+async function fetchAllPages<T>(
+  fetcher: (pageIndex: number, pageSize: number) => Promise<PaginatedResponse<T>>,
+): Promise<T[]> {
+  const first = await fetcher(1, PAGE_SIZE_MAX);
+  const items: T[] = [...(first.items ?? [])];
+  const totalPages = first.totalPages ?? Math.ceil((first.totalCount ?? items.length) / PAGE_SIZE_MAX);
+  for (let page = 2; page <= totalPages; page++) {
+    const next = await fetcher(page, PAGE_SIZE_MAX);
+    items.push(...(next.items ?? []));
+  }
+  return items;
+}
+
 /**
  * Normalize raw API response.
  * `ids` from the API is the array of all unit GUIDs for this resource group.
@@ -32,6 +47,11 @@ const normalize = (item: any): Resource => {
   const availableQuantity =
     Array.isArray(item.availableCount) ? item.availableCount.length :
     (typeof item.availableQuantity === 'number' ? item.availableQuantity : ids.length);
+
+  const availableIds: string[] | undefined =
+    Array.isArray(item.availableCount) && item.availableCount.length > 0 && typeof item.availableCount[0] === 'string'
+      ? item.availableCount
+      : undefined;
 
   const damagedQuantity =
     Array.isArray(item.damagedCount) ? item.damagedCount.length :
@@ -64,6 +84,7 @@ const normalize = (item: any): Resource => {
     isDamaged: item.isDamaged ?? false,
     isInUse: item.isInUse ?? false,
     serials: item.serials || [],
+    availableIds,
     managedBy: item.managedBy,
     managerName: item.managedByFullName || item.managerName,
     managerEmail: item.managedByEmail || item.managerEmail
@@ -142,5 +163,13 @@ export const resourceService = {
 
   assignManager: async (resourceId: string, managerId: string): Promise<void> => {
     await api.put(`/api/resources/${resourceId}/assign`, { managerId });
-  }
+  },
+
+  /** Fetch ALL resources across every page (auto-paginated, max 200/page). */
+  getAllPages: (): Promise<Resource[]> =>
+    fetchAllPages((p, s) => resourceService.getAll(p, s)),
+
+  /** Fetch ALL managed resources across every page (auto-paginated, max 200/page). */
+  getManagedAllPages: (): Promise<Resource[]> =>
+    fetchAllPages((p, s) => resourceService.getManaged(p, s)),
 };

@@ -158,7 +158,8 @@ input[type='number'].no-spinner {
 }
 
 .custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
+  width: 2px;
+  height: 2px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
@@ -167,7 +168,7 @@ input[type='number'].no-spinner {
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
   background: #e2e8f0;
-  border-radius: 10px;
+  border-radius: 99px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
@@ -1471,3 +1472,69 @@ a:hover {
   from { opacity: 0; transform: translateY(-6px) scale(0.98); }
   to   { opacity: 1; transform: translateY(0)   scale(1); }
 }
+
+/* =============================================
+   BOOKING VIEW — shared utility classes
+   (used by CalendarView, TimelineView, WorkspaceView)
+   ============================================= */
+
+/* Card */
+.bk-card {
+  background: #fff;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  box-shadow: var(--shadow-xs);
+}
+
+/* Scrollable container with styled scrollbar */
+.bk-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #e2e8f0 transparent;
+}
+.bk-scroll::-webkit-scrollbar { width: 2px; height: 2px; }
+.bk-scroll::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 99px; }
+.bk-scroll::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
+.bk-scroll::-webkit-scrollbar-track { background: transparent; }
+
+/* Fade-in animation for Kanban cards */
+@keyframes bk-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: none; }
+}
+.bk-fade-in { animation: bk-fade-in 0.2s ease-out both; }
+
+/* Pulse dot animation (used for "In use" indicators) */
+@keyframes bk-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(232, 114, 12, 0.35); }
+  50%       { box-shadow: 0 0 0 6px rgba(232, 114, 12, 0); }
+}
+.bk-pulse { animation: bk-pulse 1.8s ease-in-out infinite; }
+
+/* Kanban column — flex:1 1 220px so all 4 cols + right rail fit on 1366px screens */
+.bk-kanban-col {
+  flex: 1 1 220px;
+  min-width: 220px;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  background: #f8fafc;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+}
+
+/* Calendar cell hover */
+.bk-cal-cell { transition: background 0.12s; }
+.bk-cal-cell:hover { background: var(--surface-hover) !important; }
+.bk-cal-event:hover { filter: brightness(0.96); }
+
+/* Icon button (small circular/square control) */
+.icon-btn {
+  width: 34px; height: 34px; border-radius: 8px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border-color);
+  background: #fff; color: var(--text-secondary); cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.icon-btn:hover { background: var(--surface-hover); color: var(--text-primary); }
+

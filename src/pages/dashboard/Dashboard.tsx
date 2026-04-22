@@ -115,7 +115,6 @@ function Dashboard() {
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '1rem',
-                                borderLeft: `3px solid ${accent}`
                             }}
                         >
                             <div style={{

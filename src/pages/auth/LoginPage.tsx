@@ -63,7 +63,7 @@ const LoginPage: React.FC = () => {
             alignItems: 'center',
             justifyContent: 'center',
             background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)',
-            fontFamily: "'Inter', 'Segoe UI', sans-serif",
+            fontFamily: "'Be Vietnam Pro', system-ui, sans-serif",
             position: 'relative',
             overflow: 'hidden',
         }}>
@@ -100,7 +100,7 @@ const LoginPage: React.FC = () => {
                     gap: '12px', marginBottom: '0.75rem',
                 }}>
                     <div style={{
-                        background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                        background: 'linear-gradient(135deg, #E8720C, #FF9643)',
                         padding: '12px', borderRadius: '14px',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }}>
@@ -184,7 +184,7 @@ const LoginPage: React.FC = () => {
 
                 {loading && (
                     <p style={{
-                        color: '#818cf8', fontSize: '0.85rem',
+                        color: '#FF9643', fontSize: '0.85rem',
                         marginBottom: '1rem',
                         fontWeight: 600,
                         animation: 'pulse 1.5s infinite',

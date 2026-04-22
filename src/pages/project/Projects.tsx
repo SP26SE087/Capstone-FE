@@ -384,9 +384,9 @@ const Projects: React.FC = () => {
                                                 {/* Row 3: progress bar */}
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                                                     <div style={{ flex: 1, height: '5px', borderRadius: '3px', background: '#f1f5f9', overflow: 'hidden' }}>
-                                                        <div style={{ width: `${progress}%`, height: '100%', borderRadius: '3px', background: progress === 100 ? '#22c55e' : 'var(--primary-color)', transition: 'width 0.3s' }} />
+                                                        <div style={{ width: `${progress}%`, height: '100%', borderRadius: '3px', background: progress === 100 ? '#22c55e' : 'linear-gradient(90deg, var(--accent-color), var(--accent-light))', transition: 'width 0.3s' }} />
                                                     </div>
-                                                    <span style={{ fontSize: '0.68rem', fontWeight: 800, color: progress === 100 ? '#16a34a' : 'var(--primary-color)', minWidth: '30px', textAlign: 'right' }}>{progress}%</span>
+                                                    <span style={{ fontSize: '0.68rem', fontWeight: 800, color: progress === 100 ? '#16a34a' : 'var(--accent-color)', minWidth: '30px', textAlign: 'right' }}>{progress}%</span>
                                                 </div>
 
                                                 {/* Row 4: meta info */}
