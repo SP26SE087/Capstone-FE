@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Terminal as XTerm } from '@xterm/xterm';
+import { Terminal as XTerm, IDisposable } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
-import { AttachAddon } from '@xterm/addon-attach';
 import '@xterm/xterm/css/xterm.css';
 import { RefreshCw, AlertCircle, Wifi, WifiOff } from 'lucide-react';
 
@@ -24,14 +23,32 @@ const ServerTerminal: React.FC<ServerTerminalProps> = ({
   const xtermRef = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
-  const attachAddonRef = useRef<AttachAddon | null>(null);
+  const onDataDisposableRef = useRef<IDisposable | null>(null);
 
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
+  const reconnectAttemptsRef = useRef(0);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const MAX_RECONNECT_ATTEMPTS = 5;
+
+  const getCloseReason = (code: number, reason: string) => {
+    if (code === 1008 || code === 4401 || code === 4001) {
+      return 'Terminal token is invalid or expired.';
+    }
+    if (code === 4403 || code === 4003) {
+      return 'You are not authorized to access this terminal.';
+    }
+    if (code === 1006) {
+      return 'Connection was closed unexpectedly (network/proxy/server).';
+    }
+    if (reason) {
+      return `Connection closed: ${reason}`;
+    }
+    return `Connection closed (code ${code}).`;
+  };
 
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
@@ -42,40 +59,69 @@ const ServerTerminal: React.FC<ServerTerminalProps> = ({
     try {
       // Create WebSocket with token in URL or as subprotocol
       const url = new URL(wsUrl);
-      url.searchParams.set('token', token);
+      if (!url.searchParams.get('token') && token) {
+        url.searchParams.set('token', token);
+      }
       
       const ws = new WebSocket(url.toString());
+      ws.binaryType = 'arraybuffer';
       wsRef.current = ws;
 
       ws.onopen = () => {
         setConnected(true);
         setConnecting(false);
+        setError(null);
+        reconnectAttemptsRef.current = 0;
         setReconnectAttempts(0);
         onConnectionChange?.(true);
 
-        // Attach terminal to WebSocket
-        if (xtermRef.current && !attachAddonRef.current) {
-          const attachAddon = new AttachAddon(ws);
-          attachAddonRef.current = attachAddon;
-          xtermRef.current.loadAddon(attachAddon);
-        }
-
-        // Send initial terminal size
         if (xtermRef.current) {
-          const { cols, rows } = xtermRef.current;
-          ws.send(JSON.stringify({ type: 'resize', cols, rows }));
+          // Send input as text frames — SSH.NET ShellStream reads text frames
+          onDataDisposableRef.current = xtermRef.current.onData((data) => {
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(data);
+            }
+          });
+          xtermRef.current.focus();
+          const textarea = terminalRef.current?.querySelector('textarea') as HTMLTextAreaElement | null;
+          textarea?.focus();
+        }
+      };
+
+      ws.onmessage = (event) => {
+        if (!xtermRef.current) return;
+        if (typeof event.data === 'string') {
+          xtermRef.current.write(event.data);
+        } else {
+          xtermRef.current.write(new Uint8Array(event.data as ArrayBuffer));
         }
       };
 
       ws.onclose = (event) => {
         setConnected(false);
         onConnectionChange?.(false);
-        attachAddonRef.current = null;
+        if (onDataDisposableRef.current) {
+          onDataDisposableRef.current.dispose();
+          onDataDisposableRef.current = null;
+        }
+
+        const isAuthClose = event.code === 1008 || event.code === 4401 || event.code === 4403 || event.code === 4001 || event.code === 4003;
+        if (isAuthClose) {
+          setError(getCloseReason(event.code, event.reason));
+          setConnecting(false);
+          return;
+        }
 
         // Attempt reconnection if not intentional close
-        if (event.code !== 1000 && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-          setReconnectAttempts(prev => prev + 1);
-          setTimeout(() => connect(), Math.min(1000 * Math.pow(2, reconnectAttempts), 10000));
+        if (event.code !== 1000 && reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS) {
+          const attempt = reconnectAttemptsRef.current;
+          reconnectAttemptsRef.current += 1;
+          setReconnectAttempts(reconnectAttemptsRef.current);
+          const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
+          reconnectTimerRef.current = setTimeout(() => connect(), delay);
+        } else if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
+          setError(`Unable to connect after several attempts. ${getCloseReason(event.code, event.reason)}`);
+          setConnecting(false);
         }
       };
 
@@ -87,14 +133,22 @@ const ServerTerminal: React.FC<ServerTerminalProps> = ({
       setError('Invalid terminal URL');
       setConnecting(false);
     }
-  }, [wsUrl, token, onConnectionChange, reconnectAttempts]);
+  }, [wsUrl, token, onConnectionChange]);
 
   const disconnect = useCallback(() => {
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+    reconnectAttemptsRef.current = MAX_RECONNECT_ATTEMPTS; // prevent further auto-reconnects
+    if (onDataDisposableRef.current) {
+      onDataDisposableRef.current.dispose();
+      onDataDisposableRef.current = null;
+    }
     if (wsRef.current) {
       wsRef.current.close(1000);
       wsRef.current = null;
     }
-    attachAddonRef.current = null;
     setConnected(false);
   }, []);
 
@@ -132,6 +186,7 @@ const ServerTerminal: React.FC<ServerTerminalProps> = ({
       lineHeight: 1.4,
       cursorBlink: true,
       cursorStyle: 'bar',
+      disableStdin: false,
       scrollback: 5000,
       allowProposedApi: true
     });
@@ -141,6 +196,9 @@ const ServerTerminal: React.FC<ServerTerminalProps> = ({
 
     xterm.open(terminalRef.current);
     fitAddon.fit();
+    xterm.focus();
+    const textarea = terminalRef.current.querySelector('textarea') as HTMLTextAreaElement | null;
+    textarea?.focus();
 
     xtermRef.current = xterm;
     fitAddonRef.current = fitAddon;
@@ -161,8 +219,7 @@ const ServerTerminal: React.FC<ServerTerminalProps> = ({
       if (fitAddonRef.current) {
         fitAddonRef.current.fit();
         if (wsRef.current?.readyState === WebSocket.OPEN && xtermRef.current) {
-          const { cols, rows } = xtermRef.current;
-          wsRef.current.send(JSON.stringify({ type: 'resize', cols, rows }));
+          // Raw PTY stream: no JSON resize frames
         }
       }
     };
@@ -176,101 +233,6 @@ const ServerTerminal: React.FC<ServerTerminalProps> = ({
       xterm.dispose();
     };
   }, [connect, disconnect]);
-
-  // Demo mode - simulate terminal when no real connection
-  useEffect(() => {
-    if (!connected && xtermRef.current && !connecting && !error) {
-      const xterm = xtermRef.current;
-      
-      // Simulate connection after delay
-      const timer = setTimeout(() => {
-        xterm.writeln('\x1b[32m✓ Connected to compute instance\x1b[0m');
-        xterm.writeln('');
-        xterm.writeln('\x1b[90m──────────────────────────────────────────\x1b[0m');
-        xterm.writeln('');
-        xterm.writeln('\x1b[1;36mSystem Information:\x1b[0m');
-        xterm.writeln('  OS: Ubuntu 22.04.3 LTS');
-        xterm.writeln('  GPU: NVIDIA RTX 4090 (24GB)');
-        xterm.writeln('  CUDA: 12.2');
-        xterm.writeln('  Python: 3.11.5');
-        xterm.writeln('  PyTorch: 2.1.0');
-        xterm.writeln('');
-        xterm.writeln('\x1b[90m──────────────────────────────────────────\x1b[0m');
-        xterm.writeln('');
-        xterm.write('\x1b[1;32muser@compute-node\x1b[0m:\x1b[1;34m~\x1b[0m$ ');
-        
-        setConnected(true);
-        onConnectionChange?.(true);
-      }, 1500);
-
-      return () => clearTimeout(timer);
-    }
-  }, [connected, connecting, error, onConnectionChange]);
-
-  // Handle local input in demo mode
-  useEffect(() => {
-    if (!xtermRef.current || !connected) return;
-
-    let currentLine = '';
-
-    const disposable = xtermRef.current.onKey(({ key, domEvent }) => {
-      const xterm = xtermRef.current!;
-      
-      // If connected to real WebSocket, let AttachAddon handle it
-      if (wsRef.current?.readyState === WebSocket.OPEN) return;
-
-      // Demo mode input handling
-      if (domEvent.key === 'Enter') {
-        xterm.writeln('');
-        
-        if (currentLine.trim()) {
-          // Simulate command responses
-          const cmd = currentLine.trim().toLowerCase();
-          if (cmd === 'ls') {
-            xterm.writeln('datasets/  models/  notebooks/  scripts/  requirements.txt');
-          } else if (cmd === 'nvidia-smi') {
-            xterm.writeln('+-----------------------------------------------------------------------------+');
-            xterm.writeln('| NVIDIA-SMI 535.104.05   Driver Version: 535.104.05   CUDA Version: 12.2    |');
-            xterm.writeln('|-------------------------------+----------------------+----------------------+');
-            xterm.writeln('| GPU  Name        Persistence-M| Bus-Id        Disp.A | Volatile Uncorr. ECC |');
-            xterm.writeln('| Fan  Temp  Perf  Pwr:Usage/Cap|         Memory-Usage | GPU-Util  Compute M. |');
-            xterm.writeln('|===============================+======================+======================|');
-            xterm.writeln('|   0  NVIDIA RTX 4090     On   | 00000000:01:00.0 Off |                  Off |');
-            xterm.writeln('| 30%   42C    P8    19W / 450W |    512MiB / 24564MiB |      0%      Default |');
-            xterm.writeln('+-------------------------------+----------------------+----------------------+');
-          } else if (cmd === 'python --version') {
-            xterm.writeln('Python 3.11.5');
-          } else if (cmd === 'pwd') {
-            xterm.writeln('/home/user');
-          } else if (cmd === 'whoami') {
-            xterm.writeln('user');
-          } else if (cmd === 'clear') {
-            xterm.clear();
-          } else if (cmd === 'help') {
-            xterm.writeln('\x1b[1;36mAvailable commands:\x1b[0m');
-            xterm.writeln('  ls, pwd, whoami, nvidia-smi, python --version, clear, help');
-            xterm.writeln('');
-            xterm.writeln('\x1b[90mNote: This is a demo terminal. Connect to a real instance for full access.\x1b[0m');
-          } else {
-            xterm.writeln(`\x1b[90m${currentLine}: command simulated in demo mode\x1b[0m`);
-          }
-        }
-        
-        xterm.write('\x1b[1;32muser@compute-node\x1b[0m:\x1b[1;34m~\x1b[0m$ ');
-        currentLine = '';
-      } else if (domEvent.key === 'Backspace') {
-        if (currentLine.length > 0) {
-          currentLine = currentLine.slice(0, -1);
-          xterm.write('\b \b');
-        }
-      } else if (key.length === 1 && !domEvent.ctrlKey && !domEvent.altKey) {
-        currentLine += key;
-        xterm.write(key);
-      }
-    });
-
-    return () => disposable.dispose();
-  }, [connected]);
 
   return (
     <div 
@@ -349,7 +311,7 @@ const ServerTerminal: React.FC<ServerTerminalProps> = ({
       </div>
 
       {/* Error banner */}
-      {error && (
+      {error && !connected && (
         <div style={{
           display: 'flex',
           alignItems: 'center',
@@ -372,10 +334,23 @@ const ServerTerminal: React.FC<ServerTerminalProps> = ({
       {/* Terminal container */}
       <div
         ref={terminalRef}
+        tabIndex={0}
+        onClick={() => {
+          xtermRef.current?.focus();
+          const textarea = terminalRef.current?.querySelector('textarea') as HTMLTextAreaElement | null;
+          textarea?.focus();
+        }}
+        onFocus={() => {
+          xtermRef.current?.focus();
+          const textarea = terminalRef.current?.querySelector('textarea') as HTMLTextAreaElement | null;
+          textarea?.focus();
+        }}
         style={{
           flex: 1,
           padding: '0.75rem',
-          minHeight: '300px'
+          minHeight: '300px',
+          cursor: 'text',
+          outline: 'none'
         }}
       />
     </div>

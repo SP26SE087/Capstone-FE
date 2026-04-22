@@ -1,236 +1,123 @@
-import api from './api';
-import { ComputeTier, ComputeAccess, ComputeAccessStatus, ComputeBookingConfig } from '@/types/booking';
+import api, { API_BASE_URL } from './api';
+import { ComputeTier } from '@/types/booking';
 
-// Mock compute tiers for development - replace with actual API calls
+// Mock tiers — used by ComputeTierSelector until a real /api/resource-types endpoint is wired
 const MOCK_TIERS: ComputeTier[] = [
   {
-    id: 'tier-small',
-    name: 'Starter',
-    description: 'Perfect for small experiments and prototyping',
-    gpuCount: 1,
-    gpuModel: 'NVIDIA RTX 3080',
-    cpuCores: 8,
-    ramGB: 16,
-    storageGB: 100,
-    pricePerHour: 0.5,
-    available: true,
-    maxDurationHours: 24
+    id: 'tier-small', name: 'Starter', description: 'Perfect for small experiments',
+    gpuCount: 1, gpuModel: 'NVIDIA RTX 3080', cpuCores: 8, ramGB: 16,
+    storageGB: 100, pricePerHour: 0.5, available: true, maxDurationHours: 24
   },
   {
-    id: 'tier-medium',
-    name: 'Professional',
-    description: 'Ideal for medium-scale training and inference',
-    gpuCount: 2,
-    gpuModel: 'NVIDIA RTX 4090',
-    cpuCores: 16,
-    ramGB: 32,
-    storageGB: 250,
-    pricePerHour: 1.5,
-    available: true,
-    maxDurationHours: 72
+    id: 'tier-medium', name: 'Professional', description: 'Ideal for medium-scale training',
+    gpuCount: 2, gpuModel: 'NVIDIA RTX 4090', cpuCores: 16, ramGB: 32,
+    storageGB: 250, pricePerHour: 1.5, available: true, maxDurationHours: 72
   },
   {
-    id: 'tier-large',
-    name: 'Enterprise',
-    description: 'High-performance for large model training',
-    gpuCount: 4,
-    gpuModel: 'NVIDIA A100 40GB',
-    cpuCores: 32,
-    ramGB: 64,
-    storageGB: 500,
-    pricePerHour: 4.0,
-    available: true,
-    maxDurationHours: 168
+    id: 'tier-large', name: 'Enterprise', description: 'High-performance large model training',
+    gpuCount: 4, gpuModel: 'NVIDIA A100 40GB', cpuCores: 32, ramGB: 64,
+    storageGB: 500, pricePerHour: 4.0, available: true, maxDurationHours: 168
   },
-  {
-    id: 'tier-xlarge',
-    name: 'Research',
-    description: 'Maximum compute for cutting-edge research',
-    gpuCount: 8,
-    gpuModel: 'NVIDIA A100 80GB',
-    cpuCores: 64,
-    ramGB: 128,
-    storageGB: 1000,
-    pricePerHour: 10.0,
-    available: false,
-    maxDurationHours: 336
-  }
 ];
 
-// Mock compute access for development
-const mockComputeAccesses = new Map<string, ComputeAccess>();
+/** Status values returned by GET /api/server-access/bookings/{bookingId} */
+export type ServerAccessStatus = 'Pending' | 'Provisioned' | 'Revoked' | 'Expired';
+
+export interface ServerAccess {
+  bookingId: string;
+  status: ServerAccessStatus;
+  provisionedAt?: string;
+  expiresAt?: string;
+}
+
+/** Build a wss:// URL from the API base URL (or explicit terminal WS base) */
+function toWsUrl(path: string): string {
+  const explicitBase = (import.meta.env.VITE_TERMINAL_WS_URL || '').trim();
+  const base = (explicitBase || API_BASE_URL || '').replace(/\/$/, '');
+  const wsBase = base.replace(/^https:\/\//, 'wss://').replace(/^http:\/\//, 'ws://');
+  return `${wsBase}${path}`;
+}
 
 export const computeService = {
-  /**
-   * Get available compute tiers
-   */
+  /** Keep mock tiers for ComputeTierSelector */
   getTiers: async (): Promise<ComputeTier[]> => {
     try {
       const response = await api.get('/api/compute/tiers');
       return response.data.data || response.data;
     } catch {
-      // Return mock data for development
       return MOCK_TIERS;
     }
   },
 
-  /**
-   * Get a specific tier by ID
-   */
   getTierById: async (tierId: string): Promise<ComputeTier | null> => {
     try {
       const response = await api.get(`/api/compute/tiers/${tierId}`);
       return response.data.data || response.data;
     } catch {
-      return MOCK_TIERS.find(t => t.id === tierId) || null;
+      return MOCK_TIERS.find(t => t.id === tierId) ?? null;
     }
   },
 
   /**
-   * Get compute access status for a booking
+   * Submit access request — POST /api/server-access/bookings/{bookingId}
+   * Call when user wants to access a provisioned compute server booking.
    */
-  getAccessByBookingId: async (bookingId: string): Promise<ComputeAccess | null> => {
+  requestAccess: async (bookingId: string): Promise<ServerAccess> => {
     try {
-      const response = await api.get(`/api/compute/access/booking/${bookingId}`);
+      const response = await api.post(`/api/server-access/bookings/${bookingId}`, {});
       return response.data.data || response.data;
-    } catch {
-      // Return mock data for development
-      const mockAccess = mockComputeAccesses.get(bookingId);
-      if (mockAccess) return mockAccess;
-      
-      // Create a mock access for demo purposes
-      const newMockAccess: ComputeAccess = {
-        id: `access-${bookingId}`,
-        bookingId,
-        tierId: 'tier-medium',
-        tierName: 'Professional',
-        status: ComputeAccessStatus.Ready,
-        terminalUrl: `wss://terminal.example.com/ws/${bookingId}`,
-        containerIp: '10.0.1.42',
-        startedAt: new Date().toISOString(),
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-        gpuUtilization: 45,
-        memoryUsage: 62
-      };
-      mockComputeAccesses.set(bookingId, newMockAccess);
-      return newMockAccess;
+    } catch (err: any) {
+      const msg = err.response?.data?.message || err.response?.data?.title || err.message;
+      throw new Error(msg || 'Request failed');
     }
   },
 
   /**
-   * Request compute access for a booking
+   * Get access status — GET /api/server-access/bookings/{bookingId}
+   * Returns null when no access request exists (404).
    */
-  requestAccess: async (bookingId: string, config: ComputeBookingConfig): Promise<ComputeAccess> => {
+  getAccessStatus: async (bookingId: string): Promise<ServerAccess | null> => {
     try {
-      const response = await api.post(`/api/compute/access`, {
-        bookingId,
-        ...config
-      });
+      const response = await api.get(`/api/server-access/bookings/${bookingId}`);
       return response.data.data || response.data;
-    } catch {
-      // Mock response for development
-      const tier = MOCK_TIERS.find(t => t.id === config.tierId);
-      const mockAccess: ComputeAccess = {
-        id: `access-${bookingId}`,
-        bookingId,
-        tierId: config.tierId,
-        tierName: tier?.name || 'Unknown',
-        status: ComputeAccessStatus.Provisioning,
-        startedAt: new Date().toISOString(),
-        expiresAt: new Date(Date.now() + (tier?.maxDurationHours || 24) * 60 * 60 * 1000).toISOString()
-      };
-      mockComputeAccesses.set(bookingId, mockAccess);
-      return mockAccess;
+    } catch (err: any) {
+      if (err.response?.status === 404) return null;
+      throw err;
     }
   },
 
   /**
-   * Get terminal WebSocket token for secure connection
+   * Get terminal WebSocket token — GET /api/terminal/bookings/{bookingId}/token
+   * Response: { token, expiresAt } — wsUrl is constructed from API_BASE_URL.
+   * Requires booking to be in Approved status.
    */
-  getTerminalToken: async (accessId: string): Promise<{ token: string; wsUrl: string }> => {
+  getTerminalToken: async (bookingId: string): Promise<{ token: string; wsUrl: string; expiresAt?: string }> => {
     try {
-      const response = await api.post(`/api/compute/access/${accessId}/terminal-token`);
-      return response.data.data || response.data;
-    } catch {
-      // Mock response for development
-      return {
-        token: `mock-token-${accessId}-${Date.now()}`,
-        wsUrl: `wss://terminal.example.com/ws/${accessId}`
-      };
-    }
-  },
-
-  /**
-   * Start a stopped compute instance
-   */
-  startInstance: async (accessId: string): Promise<ComputeAccess> => {
-    try {
-      const response = await api.post(`/api/compute/access/${accessId}/start`);
-      return response.data.data || response.data;
-    } catch {
-      // Find and update mock access
-      for (const [bookingId, access] of mockComputeAccesses) {
-        if (access.id === accessId) {
-          access.status = ComputeAccessStatus.Running;
-          access.terminalUrl = `wss://terminal.example.com/ws/${bookingId}`;
-          return access;
-        }
+      const response = await api.get(`/api/terminal/bookings/${bookingId}/token`);
+      const data = response.data.data || response.data;
+      // Backend returns { token, expiresAt } — construct wsUrl from base URL
+      if (!data.wsUrl && data.token) {
+        data.wsUrl = toWsUrl(`/api/terminal/connect?token=${encodeURIComponent(data.token)}`);
       }
-      throw new Error('Access not found');
+      return data;
+    } catch (err: any) {
+      const msg = err.response?.data?.message || err.response?.data?.title || err.message;
+      throw new Error(msg || 'Failed to get terminal token');
     }
   },
 
   /**
-   * Stop a running compute instance
+   * Admin: provision SSH credentials — POST /api/server-access/bookings/{bookingId}/provision
+   * SSH credentials are encrypted server-side; the frontend never receives them.
    */
-  stopInstance: async (accessId: string): Promise<ComputeAccess> => {
-    try {
-      const response = await api.post(`/api/compute/access/${accessId}/stop`);
-      return response.data.data || response.data;
-    } catch {
-      // Find and update mock access
-      for (const [, access] of mockComputeAccesses) {
-        if (access.id === accessId) {
-          access.status = ComputeAccessStatus.Stopped;
-          access.terminalUrl = undefined;
-          return access;
-        }
-      }
-      throw new Error('Access not found');
-    }
+  provisionAccess: async (bookingId: string): Promise<void> => {
+    await api.post(`/api/server-access/bookings/${bookingId}/provision`, {});
   },
 
   /**
-   * Terminate and cleanup compute instance
+   * Admin: revoke access — POST /api/server-access/bookings/{bookingId}/revoke
    */
-  terminateInstance: async (accessId: string): Promise<void> => {
-    try {
-      await api.delete(`/api/compute/access/${accessId}`);
-    } catch {
-      // Remove from mock storage
-      for (const [bookingId, access] of mockComputeAccesses) {
-        if (access.id === accessId) {
-          mockComputeAccesses.delete(bookingId);
-          return;
-        }
-      }
-    }
+  revokeAccess: async (bookingId: string): Promise<void> => {
+    await api.post(`/api/server-access/bookings/${bookingId}/revoke`, {});
   },
-
-  /**
-   * Get real-time metrics for a compute instance
-   */
-  getMetrics: async (accessId: string): Promise<{ gpuUtilization: number; memoryUsage: number; cpuUsage: number }> => {
-    try {
-      const response = await api.get(`/api/compute/access/${accessId}/metrics`);
-      return response.data.data || response.data;
-    } catch {
-      // Return mock metrics
-      return {
-        gpuUtilization: Math.floor(Math.random() * 100),
-        memoryUsage: Math.floor(Math.random() * 100),
-        cpuUsage: Math.floor(Math.random() * 100)
-      };
-    }
-  }
 };
