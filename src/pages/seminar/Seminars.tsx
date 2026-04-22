@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useBlocker } from 'react-router-dom';
 import { useTranscriptionStore } from '@/store/slices/transcriptionStore';
 import MainLayout from '@/layout/MainLayout';
@@ -24,6 +24,7 @@ import {
     ChevronsDownUp
 } from 'lucide-react';
 import seminarService from '@/services/seminarService';
+import { transcriptionService } from '@/services/transcriptionService';
 import { SeminarMeetingResponse } from '@/types/seminar';
 import { projectService, userService } from '@/services';
 import { useToastStore } from '@/store/slices/toastSlice';
@@ -47,6 +48,41 @@ interface SeminarTab {
     panelNonce?: number;
 }
 
+const hasTranscriptionSummaryHint = (item: any): boolean => {
+    const summaryText = typeof item?.summary === 'string' ? item.summary.trim() : '';
+    return Boolean(
+        summaryText ||
+        item?.hasSummary === true ||
+        item?.isSummarized === true ||
+        item?.summarizedAt
+    );
+};
+
+const checkSeminarMeetingHasAiSummary = async (seminarMeetingId: string): Promise<boolean> => {
+    try {
+        const list = await transcriptionService.getByMeeting(seminarMeetingId);
+        if (!Array.isArray(list) || list.length === 0) return false;
+
+        if (list.some(item => hasTranscriptionSummaryHint(item as any))) {
+            return true;
+        }
+
+        const sorted = [...list].sort(
+            (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+
+        for (const item of sorted.slice(0, 2)) {
+            const detail = await transcriptionService.getById(item.id);
+            const summaryText = detail?.summary?.trim();
+            if (summaryText) return true;
+        }
+
+        return false;
+    } catch {
+        return false;
+    }
+};
+
 const Seminars: React.FC = () => {
     const { user } = useAuth();
 
@@ -66,6 +102,8 @@ const Seminars: React.FC = () => {
     );
     const [allExpanded, setAllExpanded] = useState<boolean | undefined>(undefined);
     const [refreshing, setRefreshing] = useState(false);
+    const [aiSummaryBySeminarMeetingId, setAiSummaryBySeminarMeetingId] = useState<Record<string, boolean>>({});
+    const aiSummaryCacheRef = useRef<Record<string, boolean>>({});
 
     // Panel system
     const [activePanel, setActivePanel] = useState<SeminarTab | null>(null);
@@ -93,7 +131,12 @@ const Seminars: React.FC = () => {
     // During processing the user can freely navigate away; state is preserved in the store
     // and polling will resume when they return.
     const shouldBlockNav = showTranscription && hasCompletedTranscription && !isTranscriptionProcessing;
-    const blocker = useBlocker(shouldBlockNav);
+    const blocker = useBlocker(({ nextLocation }) => {
+        if (!shouldBlockNav) return false;
+        const targetPath = (nextLocation.pathname || '').toLowerCase();
+        if (targetPath === '/seminars' || targetPath === '/schedules') return false;
+        return true;
+    });
 
     // On mount: restore the transcription panel if it was open when user navigated away
     useEffect(() => {
@@ -235,6 +278,13 @@ const Seminars: React.FC = () => {
     };
 
     const handleOpenViewTab = (meeting: SeminarMeetingResponse, opts?: { openSwapOnLoad?: boolean }) => {
+        const isSameSelectedMeeting = activePanel?.type === 'view' && activePanel.meetingId === meeting.seminarMeetingId;
+
+        if (isSameSelectedMeeting && !opts?.openSwapOnLoad) {
+            handleClosePanelAnimated();
+            return;
+        }
+
         setClosingPanelId(null);
         setActivePanel({
             id: `view-${meeting.seminarMeetingId}`,
@@ -299,6 +349,51 @@ const Seminars: React.FC = () => {
             return matchesQuery && matchesTimeframe && matchesSeries;
         }).sort((a, b) => new Date(b.meetingDate).getTime() - new Date(a.meetingDate).getTime());
     }, [meetings, searchQuery, filterTimeframe, filterSeminarId]);
+
+    useEffect(() => {
+        let isMounted = true;
+
+        const visibleSeminarMeetingIds = Array.from(
+            new Set(displayMeetings.map(m => m.seminarMeetingId).filter(Boolean))
+        );
+
+        if (visibleSeminarMeetingIds.length === 0) {
+            setAiSummaryBySeminarMeetingId({});
+            return;
+        }
+
+        const syncVisibleMap = () => {
+            const nextMap: Record<string, boolean> = {};
+            visibleSeminarMeetingIds.forEach(id => {
+                nextMap[id] = !!aiSummaryCacheRef.current[id];
+            });
+            setAiSummaryBySeminarMeetingId(nextMap);
+        };
+
+        const loadAiSummaryFlags = async () => {
+            const missingIds = visibleSeminarMeetingIds.filter(id => aiSummaryCacheRef.current[id] === undefined);
+            if (missingIds.length > 0) {
+                const results = await Promise.all(
+                    missingIds.map(async id => [id, await checkSeminarMeetingHasAiSummary(id)] as const)
+                );
+
+                if (!isMounted) return;
+
+                results.forEach(([id, hasSummary]) => {
+                    aiSummaryCacheRef.current[id] = hasSummary;
+                });
+            }
+
+            if (!isMounted) return;
+            syncVisibleMap();
+        };
+
+        loadAiSummaryFlags();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [displayMeetings]);
 
     const timetableEvents: TimetableEvent[] = useMemo(() => {
         return displayMeetings.map(m => {
@@ -627,6 +722,7 @@ const Seminars: React.FC = () => {
                                     onSelect={handleOpenViewTab}
                                     usersMap={usersMap}
                                     filterTimeframe={filterTimeframe}
+                                    aiSummaryMap={aiSummaryBySeminarMeetingId}
                                     allExpanded={allExpanded}
                                 />
                             ) : (

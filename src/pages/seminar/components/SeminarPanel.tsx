@@ -24,7 +24,6 @@ import {
     X,
     Pencil,
     Clock,
-    User,
     Video,
 } from 'lucide-react';
 
@@ -90,6 +89,64 @@ const formatTime = (dateStr: string) => {
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return '';
     return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+};
+
+type SeminarTimingStatus = 'upcoming' | 'in-progress' | 'completed';
+
+const combineSeminarDateAndTime = (meetingDate: string, timeValue: string) => {
+    const baseDate = new Date(meetingDate);
+    if (isNaN(baseDate.getTime())) return null;
+
+    if (!timeValue) {
+        return baseDate;
+    }
+
+    if (timeValue.includes('T')) {
+        const parsed = new Date(timeValue);
+        if (!isNaN(parsed.getTime())) {
+            return parsed;
+        }
+    }
+
+    const rawTime = timeValue.includes('T') ? timeValue.split('T')[1] : timeValue;
+    const sanitizedTime = rawTime
+        .replace('Z', '')
+        .replace(/([+-]\d{2}:?\d{2})$/, '')
+        .split('.')[0];
+    const timeMatch = sanitizedTime.match(/^(\d{1,2})(?::(\d{1,2}))?(?::(\d{1,2}))?$/);
+    if (!timeMatch) return null;
+
+    const [, hourPart, minutePart, secondPart] = timeMatch;
+
+    const nextDate = new Date(baseDate);
+    nextDate.setHours(
+        Number(hourPart || 0),
+        Number(minutePart || 0),
+        Number(secondPart || 0),
+        0
+    );
+
+    return isNaN(nextDate.getTime()) ? null : nextDate;
+};
+
+const getSeminarTimingStatus = (meeting: SeminarMeetingResponse | null): SeminarTimingStatus => {
+    if (!meeting) return 'upcoming';
+
+    const now = Date.now();
+    const startAt = combineSeminarDateAndTime(meeting.meetingDate, meeting.startTime);
+    const endAt = combineSeminarDateAndTime(meeting.meetingDate, meeting.endTime);
+
+    if (startAt && endAt) {
+        const startTime = startAt.getTime();
+        const endTime = endAt.getTime();
+
+        if (now < startTime) return 'upcoming';
+        if (now > endTime) return 'completed';
+        return 'in-progress';
+    }
+
+    const meetingDateTime = new Date(meeting.meetingDate).getTime();
+    return meetingDateTime > now ? 'upcoming' : 'completed';
 };
 
 const SeminarPanel: React.FC<SeminarPanelProps> = ({
@@ -267,7 +324,10 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
 
     // ---- derived (must be before any return) ----
     const presenterName = usersMap[meeting?.presenterId ?? ''] || 'Unknown Presenter';
-    const isUpcoming = meeting ? new Date(meeting.meetingDate).getTime() > Date.now() : false;
+    const seminarTimingStatus = getSeminarTimingStatus(meeting);
+    const isUpcoming = seminarTimingStatus === 'upcoming';
+    const isInProgress = seminarTimingStatus === 'in-progress';
+    const canOpenAiNote = !!onToggleAINote && (isInProgress || seminarTimingStatus === 'completed');
     const presenterEmail = meeting ? emailsMap[meeting.presenterId] : undefined;
     const canEdit = !!user?.email && !!presenterEmail && user.email.toLowerCase() === presenterEmail.toLowerCase();
 
@@ -331,14 +391,15 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
                         <div style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)' }}>Edit Seminar</div>
                         <div style={{ fontSize: '0.72rem', color: 'var(--accent-color)', fontWeight: 600 }}>Editing mode — changes are not saved yet</div>
                     </div>
-                    {onToggleAINote && (
+                    {canOpenAiNote && (
                         <button
-                            onClick={onToggleAINote}
+                            onClick={() => onToggleAINote?.()}
                             title={showAINote ? 'Close AI Notes' : 'Open AI Notes'}
                             style={{
                                 display: 'flex', alignItems: 'center', gap: '6px',
                                 padding: '6px 14px', borderRadius: '8px', cursor: 'pointer',
-                                fontSize: '0.75rem', fontWeight: 700, transition: 'all 0.2s', flexShrink: 0,
+                                fontSize: '0.75rem', fontWeight: 700, transition: 'all 0.2s',
+                                minWidth: '108px', whiteSpace: 'nowrap' as const, flexShrink: 0,
                                 ...(showAINote
                                     ? { border: 'none', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: '#fff', boxShadow: '0 4px 16px rgba(99,102,241,0.45)' }
                                     : { border: '1.5px solid #c4b5fd', background: '#faf5ff', color: '#7c3aed' })
@@ -489,6 +550,12 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
     }
 
     // ===================== VIEW MODE =====================
+    const seminarStatusInfo = isInProgress
+        ? { label: 'In Progress', color: '#b45309', bg: '#fffbeb', countdownColor: '#b45309' }
+        : isUpcoming
+            ? { label: 'Upcoming', color: '#3b82f6', bg: '#eff6ff', countdownColor: '#f59e0b' }
+            : { label: 'Completed', color: '#10b981', bg: '#ecfdf5', countdownColor: '#94a3b8' };
+
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             {/* View header */}
@@ -502,10 +569,10 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
                             {meeting.title || 'Seminar Details'}
                         </h3>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '3px' }}>
-                            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: isUpcoming ? '#3b82f6' : '#10b981', background: isUpcoming ? '#eff6ff' : '#ecfdf5', padding: '2px 8px', borderRadius: '12px' }}>
-                                {isUpcoming ? 'Upcoming' : 'Completed'}
+                            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: seminarStatusInfo.color, background: seminarStatusInfo.bg, padding: '2px 8px', borderRadius: '12px' }}>
+                                {seminarStatusInfo.label}
                             </span>
-                            <span style={{ fontSize: '0.65rem', fontWeight: 600, color: isUpcoming ? '#f59e0b' : '#94a3b8' }}>
+                            <span style={{ fontSize: '0.65rem', fontWeight: 600, color: seminarStatusInfo.countdownColor }}>
                                 {getCountdown()}
                             </span>
                             {hasSlides ? (
@@ -520,14 +587,15 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
                         </div>
                     </div>
                 </div>
-                {onToggleAINote && (
+                {canOpenAiNote && (
                     <button
-                        onClick={onToggleAINote}
+                        onClick={() => onToggleAINote?.()}
                         title={showAINote ? 'Close AI Notes' : 'Open AI Notes'}
                         style={{
                             display: 'flex', alignItems: 'center', gap: '6px',
                             padding: '6px 14px', borderRadius: '8px', cursor: 'pointer',
-                            fontSize: '0.75rem', fontWeight: 700, transition: 'all 0.2s', flexShrink: 0,
+                            fontSize: '0.75rem', fontWeight: 700, transition: 'all 0.2s',
+                            minWidth: '108px', whiteSpace: 'nowrap' as const, flexShrink: 0,
                             ...(showAINote
                                 ? { border: 'none', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: '#fff', boxShadow: '0 4px 16px rgba(99,102,241,0.45)' }
                                 : { border: '1.5px solid #c4b5fd', background: '#faf5ff', color: '#7c3aed' })

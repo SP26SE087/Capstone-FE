@@ -20,6 +20,7 @@ interface ScheduleListProps {
     onSelect: (meeting: MeetingResponse) => void;
     projectsMap: Record<string, string>;
     usersMap: Record<string, string>;
+    aiSummaryMap: Record<string, boolean>;
     isSplit: boolean;
 }
 
@@ -130,7 +131,7 @@ const getNearMeetingTone = (urgency: UpcomingUrgencyLevel | null) => {
 };
 
 const ScheduleList: React.FC<ScheduleListProps> = (props) => {
-    const { meetings, selectedId, onSelect, projectsMap, isSplit } = props;
+    const { meetings, selectedId, onSelect, projectsMap, aiSummaryMap, isSplit } = props;
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {meetings.map(meeting => {
@@ -142,6 +143,7 @@ const ScheduleList: React.FC<ScheduleListProps> = (props) => {
                 const durationLabel = formatDuration(meeting.startTime, meeting.endTime);
                 const acceptedCount = meeting.attendees?.filter(a => a.responseStatus === AttendeeResponseStatus.Accepted).length || 0;
                 const totalAttendees = meeting.attendees?.length || 0;
+                const hasAiSummary = !!aiSummaryMap[meeting.id];
                 const baseBackground = isSelected ? '#fff' : (nearTone?.background || '#fff');
                 const baseBorderColor = isSelected ? 'rgba(232, 114, 12, 0.9)' : (nearTone?.borderColor || '#e4ebf3');
                 const hoverBackground = nearTone?.hoverBackground || '#fcfdff';
@@ -261,6 +263,29 @@ const ScheduleList: React.FC<ScheduleListProps> = (props) => {
                                         <Sparkles size={10} />
                                         {meeting.hasEmbedding ? 'Semantic Ready' : 'No Semantic'}
                                     </span>
+
+                                    {hasAiSummary && (
+                                        <span
+                                            title="AI summary available"
+                                            style={{
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '4px',
+                                                fontSize: '0.63rem',
+                                                fontWeight: 700,
+                                                padding: '3px 8px',
+                                                borderRadius: '999px',
+                                                background: '#faf5ff',
+                                                color: '#7c3aed',
+                                                border: '1px solid #ddd6fe',
+                                                whiteSpace: 'nowrap' as const,
+                                                lineHeight: 1.2
+                                            }}
+                                        >
+                                            <Sparkles size={10} />
+                                            AI Summary
+                                        </span>
+                                    )}
 
                                     {relDate && (
                                         <span style={{

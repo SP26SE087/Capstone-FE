@@ -9,6 +9,7 @@ import {
     Search,
     FileText,
     AlertCircle,
+    Sparkles,
 } from 'lucide-react';
 import { getUpcomingUrgencyLevel, UpcomingUrgencyLevel } from '@/utils/helpers/dateFormatter';
 
@@ -18,6 +19,7 @@ interface SeminarListProps {
     onSelect: (meeting: SeminarMeetingResponse) => void;
     usersMap: Record<string, string>;
     filterTimeframe?: string;
+    aiSummaryMap: Record<string, boolean>;
     allExpanded?: boolean;
 }
 
@@ -80,7 +82,7 @@ const getNearMeetingTone = (urgency: UpcomingUrgencyLevel | null) => {
     return null;
 };
 
-const SeminarList: React.FC<SeminarListProps> = ({ meetings, selectedId, onSelect, usersMap, filterTimeframe, allExpanded }) => {
+const SeminarList: React.FC<SeminarListProps> = ({ meetings, selectedId, onSelect, usersMap, filterTimeframe, aiSummaryMap, allExpanded }) => {
     const [expandedSeries, setExpandedSeries] = React.useState<Record<string, boolean>>({});
 
     const grouped = React.useMemo(() => {
@@ -232,6 +234,7 @@ const SeminarList: React.FC<SeminarListProps> = ({ meetings, selectedId, onSelec
                                     const nearTone = getNearMeetingTone(nearUrgency);
                                     const presenterName = usersMap[meeting.presenterId] || 'Unknown';
                                     const hasSlides = !!meeting.slideUrl;
+                                    const hasAiSummary = !!aiSummaryMap[meeting.seminarMeetingId];
                                     const missingSlides = upcoming && !hasSlides;
                                     const baseBackground = isSelected
                                         ? 'linear-gradient(135deg, rgba(232,114,12,0.06), rgba(255,150,67,0.04))'
@@ -294,6 +297,11 @@ const SeminarList: React.FC<SeminarListProps> = ({ meetings, selectedId, onSelec
                                                     {hasSlides && (
                                                         <span title="Slides uploaded" style={{ display: 'flex', alignItems: 'center', color: '#2563eb' }}>
                                                             <FileText size={12} />
+                                                        </span>
+                                                    )}
+                                                    {hasAiSummary && (
+                                                        <span title="AI Summary available" style={{ display: 'flex', alignItems: 'center', color: '#7c3aed' }}>
+                                                            <Sparkles size={12} />
                                                         </span>
                                                     )}
                                                     {missingSlides && (

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import AppSelect from '@/components/common/AppSelect';
 import { useBlocker } from 'react-router-dom';
 import { useTranscriptionStore } from '@/store/slices/transcriptionStore';
@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import meetingService from '@/services/meetingService';
 import seminarService from '@/services/seminarService';
+import { transcriptionService } from '@/services/transcriptionService';
 import { MeetingResponse, MeetingStatus } from '@/types/meeting';
 import { SeminarMeetingResponse } from '@/types/seminar';
 import { projectService, userService } from '@/services';
@@ -48,6 +49,41 @@ interface ScheduleTab {
     title: string;
     initialData?: MeetingResponse;
 }
+
+const hasTranscriptionSummaryHint = (item: any): boolean => {
+    const summaryText = typeof item?.summary === 'string' ? item.summary.trim() : '';
+    return Boolean(
+        summaryText ||
+        item?.hasSummary === true ||
+        item?.isSummarized === true ||
+        item?.summarizedAt
+    );
+};
+
+const checkMeetingHasAiSummary = async (meetingId: string): Promise<boolean> => {
+    try {
+        const list = await transcriptionService.getByMeeting(meetingId);
+        if (!Array.isArray(list) || list.length === 0) return false;
+
+        if (list.some(item => hasTranscriptionSummaryHint(item as any))) {
+            return true;
+        }
+
+        const sorted = [...list].sort(
+            (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+
+        for (const item of sorted.slice(0, 2)) {
+            const detail = await transcriptionService.getById(item.id);
+            const summaryText = detail?.summary?.trim();
+            if (summaryText) return true;
+        }
+
+        return false;
+    } catch {
+        return false;
+    }
+};
 
 const Schedules: React.FC = () => {
     const { user } = useAuth();
@@ -71,6 +107,8 @@ const Schedules: React.FC = () => {
     const [semanticResults, setSemanticResults] = useState<MeetingResponse[] | null>(null);
     const [isSemanticLoading, setIsSemanticLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
+    const [aiSummaryByMeetingId, setAiSummaryByMeetingId] = useState<Record<string, boolean>>({});
+    const aiSummaryCacheRef = useRef<Record<string, boolean>>({});
 
     // Panel system
     const [activePanel, setActivePanel] = useState<ScheduleTab | null>(null);
@@ -100,7 +138,12 @@ const Schedules: React.FC = () => {
     // During processing the user can freely navigate away; state is preserved in the store
     // and polling will resume when they return.
     const shouldBlockNav = showTranscription && hasCompletedTranscription && !isTranscriptionProcessing;
-    const blocker = useBlocker(shouldBlockNav);
+    const blocker = useBlocker(({ nextLocation }) => {
+        if (!shouldBlockNav) return false;
+        const targetPath = (nextLocation.pathname || '').toLowerCase();
+        if (targetPath === '/seminars' || targetPath === '/schedules') return false;
+        return true;
+    });
 
     // On mount: restore the transcription panel if it was open when the user navigated away
     useEffect(() => {
@@ -237,6 +280,17 @@ const Schedules: React.FC = () => {
 
     const handleOpenViewTab = (meeting: MeetingResponse) => {
         const eventId = meeting.googleCalendarEventId || meeting.id;
+        const isSameSelectedMeeting =
+            activePanel?.type === 'view' &&
+            (activePanel.actualMeetingId === meeting.id || activePanel.meetingId === eventId);
+
+        if (isSameSelectedMeeting) {
+            setActivePanel(null);
+            setShowTranscription(false);
+            storeSetShowPanel(false);
+            return;
+        }
+
         const mappedSeminar = seminarMeetingByEventId[eventId] || null;
         setActivePanel({
             id: `view-${eventId}`,
@@ -302,6 +356,51 @@ const Schedules: React.FC = () => {
             return matchesQuery && matchesStatus && matchesProject;
         }).sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
     }, [meetings, semanticResults, searchQuery, filterStatus, filterProjectId]);
+
+    useEffect(() => {
+        let isMounted = true;
+
+        const visibleMeetingIds = Array.from(
+            new Set(displayMeetings.map(m => m.id).filter(Boolean))
+        );
+
+        if (visibleMeetingIds.length === 0) {
+            setAiSummaryByMeetingId({});
+            return;
+        }
+
+        const syncVisibleMap = () => {
+            const nextMap: Record<string, boolean> = {};
+            visibleMeetingIds.forEach(id => {
+                nextMap[id] = !!aiSummaryCacheRef.current[id];
+            });
+            setAiSummaryByMeetingId(nextMap);
+        };
+
+        const loadAiSummaryFlags = async () => {
+            const missingIds = visibleMeetingIds.filter(id => aiSummaryCacheRef.current[id] === undefined);
+            if (missingIds.length > 0) {
+                const results = await Promise.all(
+                    missingIds.map(async id => [id, await checkMeetingHasAiSummary(id)] as const)
+                );
+
+                if (!isMounted) return;
+
+                results.forEach(([id, hasSummary]) => {
+                    aiSummaryCacheRef.current[id] = hasSummary;
+                });
+            }
+
+            if (!isMounted) return;
+            syncVisibleMap();
+        };
+
+        loadAiSummaryFlags();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [displayMeetings]);
 
     const scheduledCount = meetings.filter(m => m.status === MeetingStatus.Scheduled).length;
     const completedCount = meetings.filter(m => m.status === MeetingStatus.Completed).length;
@@ -620,6 +719,7 @@ const Schedules: React.FC = () => {
                                             onSelect={handleOpenViewTab}
                                             projectsMap={projectsMap}
                                             usersMap={usersMap}
+                                            aiSummaryMap={aiSummaryByMeetingId}
                                             isSplit={!!activePanel}
                                         />
                                     ) : (
