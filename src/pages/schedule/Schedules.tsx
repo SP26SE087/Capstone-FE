@@ -112,6 +112,7 @@ const Schedules: React.FC = () => {
 
     // Panel system
     const [activePanel, setActivePanel] = useState<ScheduleTab | null>(null);
+    const [timetableModal, setTimetableModal] = useState<MeetingResponse | null>(null);
     const [showTranscription, setShowTranscription] = useState(false);
     const [isExitingTranscription, setIsExitingTranscription] = useState(false);
     const [isTranscriptionProcessing, setIsTranscriptionProcessing] = useState(false);
@@ -426,12 +427,16 @@ const Schedules: React.FC = () => {
             endTime: m.endTime,
             meetLink: m.googleMeetLink,
             presenter: m.currentPresenter?.name || m.currentPresenter?.email || null,
+            presenterTopic: m.currentPresenter?.topic || null,
             creator: usersMap[m.createdBy] || m.createdBy,
             description: m.description,
             guests: m.attendees?.map(a => a.displayName || a.email).filter(Boolean) || [],
-            type: 'meeting' as const
+            type: 'meeting' as const,
+            status: m.status !== undefined ? String(m.status) : null,
+            recordingUrl: m.recordingUrl || null,
+            projectName: m.projectId ? (projectsMap[m.projectId] || null) : null,
         }));
-    }, [displayMeetings, usersMap]);
+    }, [displayMeetings, usersMap, projectsMap]);
 
     const activeSeminarMeeting = useMemo(() => {
         if (!activePanel || activePanel.type !== 'view') return null;
@@ -704,7 +709,7 @@ const Schedules: React.FC = () => {
                             events={timetableEvents}
                             onEventClick={(evt) => {
                                 const m = meetings.find(mm => (mm.googleCalendarEventId || mm.id) === evt.id);
-                                if (m) handleOpenViewTab(m);
+                                if (m) setTimetableModal(m);
                             }}
                         />
                     </div>
@@ -938,6 +943,50 @@ const Schedules: React.FC = () => {
                             >
                                 Leave & Clear
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Timetable Detail Modal — full SchedulePanel in overlay */}
+            {timetableModal && (
+                <div
+                    onClick={() => setTimetableModal(null)}
+                    style={{
+                        position: 'fixed', inset: 0,
+                        background: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(8px)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        zIndex: 10000, padding: '20px',
+                        animation: 'fadeIn 0.18s ease'
+                    }}
+                >
+                    <div
+                        onClick={e => e.stopPropagation()}
+                        style={{
+                            background: '#fff', borderRadius: '20px',
+                            width: '100%', maxWidth: '860px', height: '88vh',
+                            display: 'flex', flexDirection: 'column',
+                            boxShadow: '0 40px 80px -12px rgba(0,0,0,0.3)',
+                            overflow: 'hidden',
+                            animation: 'slideUp 0.25s cubic-bezier(0.34,1.3,0.64,1)'
+                        }}
+                    >
+                        <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem' }} className="custom-scrollbar">
+                            <SchedulePanel
+                                key={timetableModal.id}
+                                meetingId={timetableModal.googleCalendarEventId || timetableModal.id}
+                                actualMeetingId={timetableModal.id}
+                                initialData={timetableModal}
+                                isCreating={false}
+                                onClose={() => setTimetableModal(null)}
+                                onSaved={(shouldClose, message) => {
+                                    fetchMeetings();
+                                    if (message) showToast(message, 'success');
+                                    if (shouldClose) setTimetableModal(null);
+                                }}
+                                onTitleChange={() => {}}
+                                projectsMap={projectsMap}
+                            />
                         </div>
                     </div>
                 </div>

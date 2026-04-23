@@ -1,20 +1,26 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { Clock, Video, Presentation, X, Users, FileText } from 'lucide-react';
-import { getUpcomingUrgencyLevel, UpcomingUrgencyLevel } from '@/utils/helpers/dateFormatter';
+import { Clock, Video, Presentation, Users, ChevronRight } from 'lucide-react';
+import { getDaysUntilDate } from '@/utils/helpers/dateFormatter';
 
 export interface TimetableEvent {
     id: string;
     title: string;
-    startTime: string; // ISO string
-    endTime: string;   // ISO string
+    startTime: string;
+    endTime: string;
     color?: string;
     meetLink?: string | null;
     presenter?: string | null;
+    presenterTopic?: string | null;
     creator?: string | null;
     description?: string | null;
     guests?: (string | null)[] | null;
     type?: 'meeting' | 'seminar';
     swapable?: boolean;
+    status?: string | null;
+    location?: string | null;
+    slideUrl?: string | null;
+    recordingUrl?: string | null;
+    projectName?: string | null;
 }
 
 interface PositionedEvent extends TimetableEvent {
@@ -59,57 +65,60 @@ const EVENT_COLORS = [
     '#ec4899', '#14b8a6', '#f97316', '#8b5cf6', '#06b6d4'
 ];
 
-const getNearMeetingTone = (urgency: UpcomingUrgencyLevel | null) => {
-    if (urgency === 1) {
+const getMeetingProximityTone = (dateString: string) => {
+    const daysUntil = getDaysUntilDate(dateString);
+    if (daysUntil == null || daysUntil < 0) {
+        return null;
+    }
+
+    if (daysUntil <= 1) {
         return {
-            background: 'rgba(245, 158, 11, 0.20)',
-            hoverBackground: 'rgba(245, 158, 11, 0.28)',
-            borderColor: 'rgba(245, 158, 11, 0.70)',
-            borderLeftColor: '#d97706',
-            shadow: '0 2px 4px rgba(180, 83, 9, 0.16)',
-            hoverShadow: '0 6px 14px rgba(180, 83, 9, 0.26)',
-            titleColor: '#92400e',
-            metaColor: 'rgba(146, 64, 14, 0.88)',
-            subMetaColor: 'rgba(146, 64, 14, 0.72)'
+            background: 'rgba(239, 68, 68, 0.16)',
+            hoverBackground: 'rgba(239, 68, 68, 0.24)',
+            borderColor: 'rgba(239, 68, 68, 0.60)',
+            borderLeftColor: '#dc2626',
+            shadow: '0 2px 4px rgba(185, 28, 28, 0.14)',
+            hoverShadow: '0 6px 14px rgba(185, 28, 28, 0.24)',
+            titleColor: '#b91c1c',
+            metaColor: 'rgba(185, 28, 28, 0.88)',
+            subMetaColor: 'rgba(185, 28, 28, 0.72)',
+            accentColor: '#dc2626'
         };
     }
 
-    if (urgency === 2) {
+    if (daysUntil === 2) {
         return {
-            background: 'rgba(59, 130, 246, 0.18)',
-            hoverBackground: 'rgba(59, 130, 246, 0.27)',
-            borderColor: 'rgba(59, 130, 246, 0.62)',
-            borderLeftColor: '#2563eb',
-            shadow: '0 2px 4px rgba(29, 78, 216, 0.14)',
-            hoverShadow: '0 6px 14px rgba(29, 78, 216, 0.24)',
-            titleColor: '#1d4ed8',
-            metaColor: 'rgba(29, 78, 216, 0.84)',
-            subMetaColor: 'rgba(29, 78, 216, 0.68)'
+            background: 'rgba(249, 115, 22, 0.16)',
+            hoverBackground: 'rgba(249, 115, 22, 0.24)',
+            borderColor: 'rgba(249, 115, 22, 0.60)',
+            borderLeftColor: '#ea580c',
+            shadow: '0 2px 4px rgba(194, 65, 12, 0.13)',
+            hoverShadow: '0 6px 14px rgba(194, 65, 12, 0.23)',
+            titleColor: '#c2410c',
+            metaColor: 'rgba(194, 65, 12, 0.84)',
+            subMetaColor: 'rgba(194, 65, 12, 0.68)',
+            accentColor: '#ea580c'
         };
     }
 
-    if (urgency === 3) {
-        return {
-            background: 'rgba(20, 184, 166, 0.15)',
-            hoverBackground: 'rgba(20, 184, 166, 0.24)',
-            borderColor: 'rgba(20, 184, 166, 0.55)',
-            borderLeftColor: '#0f766e',
-            shadow: '0 1px 3px rgba(15, 118, 110, 0.11)',
-            hoverShadow: '0 5px 12px rgba(15, 118, 110, 0.19)',
-            titleColor: '#0f766e',
-            metaColor: 'rgba(15, 118, 110, 0.84)',
-            subMetaColor: 'rgba(15, 118, 110, 0.68)'
-        };
-    }
-
-    return null;
+    return {
+        background: 'rgba(37, 99, 235, 0.15)',
+        hoverBackground: 'rgba(37, 99, 235, 0.23)',
+        borderColor: 'rgba(37, 99, 235, 0.58)',
+        borderLeftColor: '#2563eb',
+        shadow: '0 1px 3px rgba(30, 64, 175, 0.11)',
+        hoverShadow: '0 5px 12px rgba(30, 64, 175, 0.19)',
+        titleColor: '#1d4ed8',
+        metaColor: 'rgba(29, 78, 216, 0.84)',
+        subMetaColor: 'rgba(29, 78, 216, 0.68)',
+        accentColor: '#2563eb'
+    };
 };
 
 const WeeklyTimetable: React.FC<WeeklyTimetableProps> = ({
     events,
     onEventClick,
     onSwapRequestClick,
-    deferDetailToPopover = false,
 }) => {
     const [currentMonday, setCurrentMonday] = useState<Date>(() => getMonday(new Date()));
     const [activePopover, setActivePopover] = useState<{ event: TimetableEvent, x: number, y: number } | null>(null);
@@ -601,17 +610,16 @@ const WeeklyTimetable: React.FC<WeeklyTimetableProps> = ({
                                         const top = (startHour - HOURS[0]) * HOUR_HEIGHT;
                                         const height = Math.max((endHour - startHour) * HOUR_HEIGHT, 22);
                                         const color = evt.color || EVENT_COLORS[evtIdx % EVENT_COLORS.length];
-                                        const nearUrgency = getUpcomingUrgencyLevel(evt.startTime);
-                                        const nearTone = getNearMeetingTone(nearUrgency);
-                                        const baseBackground = nearTone ? nearTone.background : `${color}18`;
-                                        const hoverBackground = nearTone ? nearTone.hoverBackground : `${color}28`;
-                                        const borderColor = nearTone ? nearTone.borderColor : color;
-                                        const borderLeftColor = nearTone ? nearTone.borderLeftColor : color;
-                                        const baseShadow = nearTone ? nearTone.shadow : '0 1px 2px rgba(0,0,0,0.05)';
-                                        const hoverShadow = nearTone ? nearTone.hoverShadow : `0 4px 12px ${color}30`;
-                                        const titleColor = nearTone ? nearTone.titleColor : color;
-                                        const metaColor = nearTone ? nearTone.metaColor : `${color}cc`;
-                                        const subMetaColor = nearTone ? nearTone.subMetaColor : `${color}aa`;
+                                        const proximityTone = getMeetingProximityTone(evt.startTime);
+                                        const baseBackground = proximityTone ? proximityTone.background : `${color}18`;
+                                        const hoverBackground = proximityTone ? proximityTone.hoverBackground : `${color}28`;
+                                        const borderColor = proximityTone ? proximityTone.borderColor : color;
+                                        const borderLeftColor = proximityTone ? proximityTone.borderLeftColor : color;
+                                        const baseShadow = proximityTone ? proximityTone.shadow : '0 1px 2px rgba(0,0,0,0.05)';
+                                        const hoverShadow = proximityTone ? proximityTone.hoverShadow : `0 4px 12px ${color}30`;
+                                        const titleColor = proximityTone ? proximityTone.titleColor : color;
+                                        const metaColor = proximityTone ? proximityTone.metaColor : `${color}cc`;
+                                        const subMetaColor = proximityTone ? proximityTone.subMetaColor : `${color}aa`;
 
                                         return (
                                             <div
@@ -624,9 +632,6 @@ const WeeklyTimetable: React.FC<WeeklyTimetableProps> = ({
                                                         x: rect.right + 10,
                                                         y: rect.top
                                                     });
-                                                    if (!deferDetailToPopover) {
-                                                        onEventClick?.(evt);
-                                                    }
                                                 }}
                                                 style={{
                                                     position: 'absolute',
@@ -746,183 +751,158 @@ const WeeklyTimetable: React.FC<WeeklyTimetableProps> = ({
                 </div>
             </div>
 
-            {/* Event Popover */}
-            {activePopover && (
+            {/* Quick-info Popover — click outside to dismiss, no close button */}
+            {activePopover && (() => {
+                const evt = activePopover.event;
+                const proximityTone = getMeetingProximityTone(evt.startTime);
+                const accentColor = proximityTone?.accentColor || evt.color || '#e8720c';
+                const start = new Date(evt.startTime);
+                const end = new Date(evt.endTime);
+                return (
                 <div
                     id="timetable-popover"
                     onMouseDown={(e) => e.stopPropagation()}
                     style={{
                         position: 'fixed',
-                        top: Math.min(activePopover.y, window.innerHeight - 450),
+                        top: Math.min(activePopover.y, window.innerHeight - 320),
                         left: Math.min(activePopover.x, window.innerWidth - 300),
-                        width: '300px',
-                        maxHeight: '400px',
-                        overflowY: 'auto',
+                        width: '290px',
                         background: '#fff',
-                        borderRadius: '12px',
-                        border: '1px solid var(--border-color)',
-                        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+                        borderRadius: '14px',
+                        border: proximityTone ? `1px solid ${proximityTone.borderColor}` : '1px solid #e2e8f0',
+                        borderTop: `3px solid ${accentColor}`,
+                        boxShadow: '0 24px 40px -8px rgba(0,0,0,0.14), 0 0 0 1px rgba(0,0,0,0.03)',
                         zIndex: 9999,
-                        animation: 'popoverIn 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
+                        animation: 'popoverIn 0.18s cubic-bezier(0.16,1,0.3,1)',
+                        overflow: 'hidden'
                     }}
                 >
-                    <div style={{ padding: '16px', position: 'relative' }}>
-                        <button
-                            onClick={() => setActivePopover(null)}
-                            style={{ position: 'absolute', top: '12px', right: '12px', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}
-                        >
-                            <X size={16} />
-                        </button>
-
-                        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '12px' }}>
-                            <div style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', paddingRight: '20px', lineHeight: 1.3 }}>
-                                {activePopover.event.title}
-                            </div>
+                    {/* Colored header strip */}
+                    <div style={{
+                        background: `linear-gradient(135deg, ${accentColor}22, ${accentColor}0a)`,
+                        borderBottom: `2px solid ${accentColor}40`,
+                        padding: '13px 15px 10px'
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '6px' }}>
+                            <div style={{
+                                width: '8px', height: '8px', borderRadius: '50%',
+                                background: accentColor, flexShrink: 0
+                            }} />
+                            <span style={{
+                                fontSize: '0.6rem', fontWeight: 800, color: accentColor,
+                                textTransform: 'uppercase', letterSpacing: '0.7px'
+                            }}>
+                                {evt.type === 'seminar' ? 'Seminar' : 'Meeting'}
+                            </span>
                         </div>
-
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary)', fontSize: '0.82rem', fontWeight: 600 }}>
-                                <Clock size={14} color="var(--text-muted)" />
-                                {formatTime(new Date(activePopover.event.startTime))} - {formatTime(new Date(activePopover.event.endTime))}
-                            </div>
-
-                            {activePopover.event.presenter && (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary)', fontSize: '0.82rem', fontWeight: 600 }}>
-                                    <Presentation size={14} color="var(--text-muted)" />
-                                    {activePopover.event.presenter}
-                                </div>
-                            )}
-
-                            {activePopover.event.description && (
-                                <div style={{ display: 'flex', gap: '8px', color: 'var(--text-secondary)', fontSize: '0.82rem', fontWeight: 500, lineHeight: 1.4 }}>
-                                    <FileText size={14} color="var(--text-muted)" style={{ flexShrink: 0, marginTop: '2px' }} />
-                                    <div style={{ maxHeight: '80px', overflowY: 'auto' }} className="custom-scrollbar">
-                                        {activePopover.event.description}
-                                    </div>
-                                </div>
-                            )}
-
-                            {activePopover.event.guests && activePopover.event.guests.length > 0 && (
-                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', color: 'var(--text-secondary)', fontSize: '0.82rem', fontWeight: 600, marginTop: '4px' }}>
-                                    <Users size={14} color="var(--text-muted)" style={{ flexShrink: 0, marginTop: '2px' }} />
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                                        {activePopover.event.guests.slice(0, 4).map((g, i) => (
-                                            <span key={i} style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontSize: '0.75rem', color: '#475569' }}>
-                                                {g && g.length > 20 ? g.slice(0, 20) + '...' : g}
-                                            </span>
-                                        ))}
-                                        {activePopover.event.guests.length > 4 && (
-                                            <span style={{ background: '#e2e8f0', padding: '2px 6px', borderRadius: '4px', fontSize: '0.75rem', color: '#334155' }}>
-                                                +{activePopover.event.guests.length - 4}
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-
-                            {(deferDetailToPopover || !!onSwapRequestClick) && (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
-                                    {/* Action buttons row */}
-                                    <div style={{
-                                        display: 'grid',
-                                        gridTemplateColumns: activePopover.event.swapable && onSwapRequestClick ? '1fr 1fr' : '1fr',
-                                        gap: '8px',
-                                    }}>
-                                        {activePopover.event.swapable && onSwapRequestClick && (
-                                            <button
-                                                type="button"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    onSwapRequestClick(activePopover.event);
-                                                    setActivePopover(null);
-                                                }}
-                                                style={{
-                                                    border: '1px solid #e9d5ff',
-                                                    background: '#faf5ff',
-                                                    color: '#7c3aed',
-                                                    borderRadius: '8px',
-                                                    height: '34px',
-                                                    fontSize: '0.78rem',
-                                                    fontWeight: 700,
-                                                    cursor: 'pointer',
-                                                    transition: 'all 0.2s'
-                                                }}
-                                            >
-                                                Request Swap
-                                            </button>
-                                        )}
-                                        <button
-                                            type="button"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                onEventClick?.(activePopover.event);
-                                                setActivePopover(null);
-                                            }}
-                                            style={{
-                                                border: 'none',
-                                                background: 'var(--accent-color, #e8720c)',
-                                                color: '#fff',
-                                                borderRadius: '8px',
-                                                height: '34px',
-                                                fontSize: '0.78rem',
-                                                fontWeight: 700,
-                                                cursor: 'pointer',
-                                                boxShadow: '0 4px 12px rgba(232,114,12,0.28)',
-                                                transition: 'all 0.2s'
-                                            }}
-                                        >
-                                            View Detail
-                                        </button>
-                                    </div>
-
-                                    {/* Meet link below buttons */}
-                                    {activePopover.event.meetLink ? (
-                                        <a
-                                            href={activePopover.event.meetLink}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            onClick={e => e.stopPropagation()}
-                                            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', color: '#10b981', fontSize: '0.78rem', fontWeight: 700, textDecoration: 'none', padding: '6px 0', borderTop: '1px solid #f1f5f9' }}
-                                        >
-                                            <Video size={13} /> Join Google Meet
-                                        </a>
-                                    ) : (
-                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', color: '#cbd5e1', fontSize: '0.75rem', fontWeight: 600, fontStyle: 'italic', paddingTop: '4px', borderTop: '1px solid #f1f5f9' }}>
-                                            <Video size={12} /> No meeting link
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-
-                            {/* Meet link when no buttons */}
-                            {!deferDetailToPopover && !onSwapRequestClick && (
-                                activePopover.event.meetLink ? (
-                                    <a
-                                        href={activePopover.event.meetLink}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        onClick={e => e.stopPropagation()}
-                                        style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#10b981', fontSize: '0.82rem', fontWeight: 700, textDecoration: 'none' }}
-                                    >
-                                        <Video size={14} /> Join Google Meet
-                                    </a>
-                                ) : (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-muted)', fontSize: '0.82rem', fontWeight: 600, fontStyle: 'italic' }}>
-                                        <Video size={14} /> No meeting link
-                                    </div>
-                                )
-                            )}
+                        <div style={{
+                            fontSize: '0.92rem', fontWeight: 800, color: '#0f172a',
+                            lineHeight: 1.3, wordBreak: 'break-word'
+                        }}>
+                            {evt.title}
                         </div>
                     </div>
 
+                    {/* Details */}
+                    <div style={{ padding: '12px 15px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
+                            <Clock size={13} color={accentColor} strokeWidth={2.5} />
+                            <div>
+                                <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1e293b' }}>
+                                    {formatTime(start)} – {formatTime(end)}
+                                </span>
+                                <span style={{ fontSize: '0.75rem', color: '#94a3b8', marginLeft: '6px' }}>
+                                    {start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                                </span>
+                            </div>
+                        </div>
 
+                        {evt.presenter && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
+                                <Presentation size={13} color="#8b5cf6" strokeWidth={2.5} />
+                                <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#475569' }}>{evt.presenter}</span>
+                            </div>
+                        )}
+
+                        {evt.creator && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
+                                <Users size={13} color="#f59e0b" strokeWidth={2.5} />
+                                <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#475569' }}>{evt.creator}</span>
+                            </div>
+                        )}
+
+                        {evt.description && (
+                            <p style={{
+                                margin: 0, fontSize: '0.77rem', color: '#64748b', lineHeight: 1.55,
+                                display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const,
+                                overflow: 'hidden', paddingLeft: '22px'
+                            }}>
+                                {evt.description}
+                            </p>
+                        )}
+                    </div>
+
+                    {/* Footer actions */}
+                    <div style={{
+                        padding: '10px 15px 13px',
+                        borderTop: '1px solid #f1f5f9',
+                        display: 'flex', gap: '7px'
+                    }}>
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onEventClick?.(evt);
+                                setActivePopover(null);
+                            }}
+                            style={{
+                                flex: 1, height: '34px', borderRadius: '9px', border: 'none',
+                                background: '#e8720c', color: '#fff',
+                                fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
+                                boxShadow: '0 3px 10px rgba(232, 114, 12, 0.34)', transition: 'opacity 0.15s'
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.opacity = '0.88'; }}
+                            onMouseLeave={e => { e.currentTarget.style.opacity = '1'; }}
+                        >
+                            View Detail <ChevronRight size={13} />
+                        </button>
+
+                        {evt.swapable && onSwapRequestClick && (
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onSwapRequestClick(evt);
+                                    setActivePopover(null);
+                                }}
+                                style={{
+                                    height: '34px', padding: '0 13px', borderRadius: '9px',
+                                    border: '1.5px solid #ddd6fe', background: '#faf5ff', color: '#7c3aed',
+                                    fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer'
+                                }}
+                            >
+                                Swap
+                            </button>
+                        )}
+                    </div>
                 </div>
-            )}
+                );
+            })()}
+
 
             <style>{`
                 @keyframes popoverIn {
-                    from { opacity: 0; transform: scale(0.95); }
-                    to { opacity: 1; transform: scale(1); }
+                    from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+                    to { opacity: 1; transform: translateY(0) scale(1); }
+                }
+                @keyframes fadeInOverlay {
+                    from { opacity: 0; }
+                    to { opacity: 1; }
+                }
+                @keyframes modalSlideUp {
+                    from { opacity: 0; transform: translateY(24px) scale(0.97); }
+                    to { opacity: 1; transform: translateY(0) scale(1); }
                 }
                 @keyframes slideLeft {
                     from { opacity: 0.35; transform: translateX(26px); }

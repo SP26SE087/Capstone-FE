@@ -85,45 +85,48 @@ const formatDuration = (startStr: string, endStr: string) => {
 };
 
 const getNearMeetingTone = (urgency: UpcomingUrgencyLevel | null) => {
+    // Level 1 = 1 day  → Red   (critical)
+    // Level 2 = 2 days → Orange (warning)
+    // Level 3 = 3 days → Amber  (heads up)
     if (urgency === 1) {
         return {
-            background: 'rgba(245, 158, 11, 0.10)',
-            hoverBackground: 'rgba(245, 158, 11, 0.15)',
-            borderColor: 'rgba(245, 158, 11, 0.34)',
-            hoverBorderColor: 'rgba(245, 158, 11, 0.45)',
-            shadow: '0 4px 14px rgba(245, 158, 11, 0.12)',
-            hoverShadow: '0 8px 20px rgba(245, 158, 11, 0.18)',
-            orbBackground: 'radial-gradient(circle, rgba(245,158,11,0.22), rgba(245,158,11,0))',
-            badgeColor: '#b45309',
-            badgeBorder: 'rgba(245, 158, 11, 0.45)'
+            background: 'rgba(239, 68, 68, 0.07)',
+            hoverBackground: 'rgba(239, 68, 68, 0.12)',
+            borderColor: 'rgba(239, 68, 68, 0.30)',
+            hoverBorderColor: 'rgba(239, 68, 68, 0.45)',
+            shadow: '0 4px 14px rgba(239, 68, 68, 0.10)',
+            hoverShadow: '0 8px 20px rgba(239, 68, 68, 0.18)',
+            orbBackground: 'radial-gradient(circle, rgba(239,68,68,0.20), rgba(239,68,68,0))',
+            badgeColor: '#dc2626',
+            badgeBorder: 'rgba(239, 68, 68, 0.40)'
         };
     }
 
     if (urgency === 2) {
         return {
-            background: 'rgba(59, 130, 246, 0.08)',
-            hoverBackground: 'rgba(59, 130, 246, 0.13)',
-            borderColor: 'rgba(59, 130, 246, 0.30)',
-            hoverBorderColor: 'rgba(59, 130, 246, 0.42)',
-            shadow: '0 3px 12px rgba(59, 130, 246, 0.12)',
-            hoverShadow: '0 7px 18px rgba(59, 130, 246, 0.18)',
-            orbBackground: 'radial-gradient(circle, rgba(59,130,246,0.18), rgba(59,130,246,0))',
-            badgeColor: '#1d4ed8',
-            badgeBorder: 'rgba(59, 130, 246, 0.42)'
+            background: 'rgba(249, 115, 22, 0.07)',
+            hoverBackground: 'rgba(249, 115, 22, 0.12)',
+            borderColor: 'rgba(249, 115, 22, 0.28)',
+            hoverBorderColor: 'rgba(249, 115, 22, 0.42)',
+            shadow: '0 3px 12px rgba(249, 115, 22, 0.10)',
+            hoverShadow: '0 7px 18px rgba(249, 115, 22, 0.17)',
+            orbBackground: 'radial-gradient(circle, rgba(249,115,22,0.18), rgba(249,115,22,0))',
+            badgeColor: '#ea580c',
+            badgeBorder: 'rgba(249, 115, 22, 0.38)'
         };
     }
 
     if (urgency === 3) {
         return {
-            background: 'rgba(20, 184, 166, 0.065)',
-            hoverBackground: 'rgba(20, 184, 166, 0.11)',
-            borderColor: 'rgba(20, 184, 166, 0.27)',
-            hoverBorderColor: 'rgba(20, 184, 166, 0.38)',
-            shadow: '0 2px 10px rgba(20, 184, 166, 0.1)',
-            hoverShadow: '0 6px 16px rgba(20, 184, 166, 0.15)',
-            orbBackground: 'radial-gradient(circle, rgba(20,184,166,0.16), rgba(20,184,166,0))',
-            badgeColor: '#0f766e',
-            badgeBorder: 'rgba(20, 184, 166, 0.35)'
+            background: 'rgba(245, 158, 11, 0.07)',
+            hoverBackground: 'rgba(245, 158, 11, 0.12)',
+            borderColor: 'rgba(245, 158, 11, 0.28)',
+            hoverBorderColor: 'rgba(245, 158, 11, 0.40)',
+            shadow: '0 2px 10px rgba(245, 158, 11, 0.09)',
+            hoverShadow: '0 6px 16px rgba(245, 158, 11, 0.15)',
+            orbBackground: 'radial-gradient(circle, rgba(245,158,11,0.18), rgba(245,158,11,0))',
+            badgeColor: '#b45309',
+            badgeBorder: 'rgba(245, 158, 11, 0.36)'
         };
     }
 

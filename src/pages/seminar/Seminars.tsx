@@ -107,11 +107,23 @@ const Seminars: React.FC = () => {
 
     // Panel system
     const [activePanel, setActivePanel] = useState<SeminarTab | null>(null);
+    const [timetableModal, setTimetableModal] = useState<SeminarMeetingResponse | null>(null);
+    const [openSwapInTimetableModal, setOpenSwapInTimetableModal] = useState(false);
     const [closingPanelId, setClosingPanelId] = useState<string | null>(null);
     const [showTranscription, setShowTranscription] = useState(false);
     const [isTranscriptionProcessing, setIsTranscriptionProcessing] = useState(false);
     const [showConfirmSwitch, setShowConfirmSwitch] = useState(false);
     const [pendingTab, setPendingTab] = useState<TabType | null>(null);
+
+    const openTimetableModal = (meeting: SeminarMeetingResponse, openSwap: boolean = false) => {
+        setOpenSwapInTimetableModal(openSwap);
+        setTimetableModal(meeting);
+    };
+
+    const closeTimetableModal = () => {
+        setTimetableModal(null);
+        setOpenSwapInTimetableModal(false);
+    };
 
     // Transcription store – persists panel state across route navigation
     const {
@@ -434,6 +446,10 @@ const Seminars: React.FC = () => {
                 type: 'seminar' as const,
                 color: '#e8720c',
                 swapable: isOwnedByCurrentUser && isUpcoming,
+                location: m.location || null,
+                slideUrl: m.slideUrl || null,
+                recordingUrl: m.recordingLink || null,
+                status: isUpcoming ? 'upcoming' : 'past',
             };
         });
     }, [displayMeetings, usersMap, emailsMap, user?.email]);
@@ -702,14 +718,13 @@ const Seminars: React.FC = () => {
                             {activeTab !== 'swap_requests' && viewMode === 'timetable' ? (
                                 <WeeklyTimetable
                                     events={timetableEvents}
-                                    deferDetailToPopover
                                     onEventClick={(evt) => {
                                         const m = displayMeetings.find(mm => mm.seminarMeetingId === evt.id);
-                                        if (m) handleOpenViewTab(m);
+                                        if (m) openTimetableModal(m, false);
                                     }}
                                     onSwapRequestClick={(evt) => {
                                         const m = displayMeetings.find(mm => mm.seminarMeetingId === evt.id);
-                                        if (m) handleOpenViewTab(m, { openSwapOnLoad: true });
+                                        if (m) openTimetableModal(m, true);
                                     }}
                                 />
                             ) : activeTab === 'swap_requests' ? (
@@ -966,6 +981,52 @@ const Seminars: React.FC = () => {
                             >
                                 Leave & Clear
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Timetable Detail Modal — full SeminarPanel in overlay */}
+            {timetableModal && (
+                <div
+                    onClick={closeTimetableModal}
+                    style={{
+                        position: 'fixed', inset: 0,
+                        background: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(8px)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        zIndex: 10000, padding: '20px',
+                        animation: 'fadeIn 0.18s ease'
+                    }}
+                >
+                    <div
+                        onClick={e => e.stopPropagation()}
+                        style={{
+                            background: '#fff', borderRadius: '20px',
+                            width: '100%', maxWidth: '860px', height: '88vh',
+                            display: 'flex', flexDirection: 'column',
+                            boxShadow: '0 40px 80px -12px rgba(0,0,0,0.3)',
+                            overflow: 'hidden',
+                            animation: 'slideUp 0.25s cubic-bezier(0.34,1.3,0.64,1)'
+                        }}
+                    >
+                        <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem' }} className="custom-scrollbar">
+                            <SeminarPanel
+                                key={`${timetableModal.seminarMeetingId}-${openSwapInTimetableModal ? 'swap' : 'detail'}`}
+                                meetingId={timetableModal.seminarMeetingId}
+                                initialData={timetableModal}
+                                openSwapOnLoad={openSwapInTimetableModal}
+                                isCreating={false}
+                                onClose={closeTimetableModal}
+                                onSaved={(shouldClose, message) => {
+                                    fetchSeminars();
+                                    if (message) showToast(message, 'success');
+                                    if (shouldClose) closeTimetableModal();
+                                }}
+                                onTitleChange={() => {}}
+                                usersMap={usersMap}
+                                emailsMap={emailsMap}
+                                projectsMap={projectsMap}
+                            />
                         </div>
                     </div>
                 </div>

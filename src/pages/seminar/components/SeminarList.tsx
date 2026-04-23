@@ -46,36 +46,39 @@ const getRelativeDate = (dateStr: string) => {
 const isUpcoming = (dateStr: string) => new Date(dateStr).getTime() > Date.now();
 
 const getNearMeetingTone = (urgency: UpcomingUrgencyLevel | null) => {
+    // Level 1 = 1 day  → Red   (critical)
+    // Level 2 = 2 days → Orange (warning)
+    // Level 3 = 3 days → Amber  (heads up)
     if (urgency === 1) {
         return {
-            background: 'rgba(245, 158, 11, 0.11)',
-            hoverBackground: 'rgba(245, 158, 11, 0.16)',
-            borderColor: 'rgba(245, 158, 11, 0.35)',
-            hoverBorderColor: 'rgba(245, 158, 11, 0.46)',
-            borderLeftColor: 'rgba(245, 158, 11, 0.78)',
-            relDateColor: '#b45309'
+            background: 'rgba(239, 68, 68, 0.07)',
+            hoverBackground: 'rgba(239, 68, 68, 0.12)',
+            borderColor: 'rgba(239, 68, 68, 0.30)',
+            hoverBorderColor: 'rgba(239, 68, 68, 0.45)',
+            borderLeftColor: 'rgba(239, 68, 68, 0.75)',
+            relDateColor: '#dc2626'
         };
     }
 
     if (urgency === 2) {
         return {
-            background: 'rgba(59, 130, 246, 0.085)',
-            hoverBackground: 'rgba(59, 130, 246, 0.14)',
-            borderColor: 'rgba(59, 130, 246, 0.32)',
-            hoverBorderColor: 'rgba(59, 130, 246, 0.45)',
-            borderLeftColor: 'rgba(59, 130, 246, 0.72)',
-            relDateColor: '#1d4ed8'
+            background: 'rgba(249, 115, 22, 0.07)',
+            hoverBackground: 'rgba(249, 115, 22, 0.12)',
+            borderColor: 'rgba(249, 115, 22, 0.28)',
+            hoverBorderColor: 'rgba(249, 115, 22, 0.42)',
+            borderLeftColor: 'rgba(249, 115, 22, 0.72)',
+            relDateColor: '#ea580c'
         };
     }
 
     if (urgency === 3) {
         return {
-            background: 'rgba(20, 184, 166, 0.07)',
-            hoverBackground: 'rgba(20, 184, 166, 0.12)',
-            borderColor: 'rgba(20, 184, 166, 0.28)',
-            hoverBorderColor: 'rgba(20, 184, 166, 0.4)',
-            borderLeftColor: 'rgba(20, 184, 166, 0.62)',
-            relDateColor: '#0f766e'
+            background: 'rgba(245, 158, 11, 0.07)',
+            hoverBackground: 'rgba(245, 158, 11, 0.12)',
+            borderColor: 'rgba(245, 158, 11, 0.28)',
+            hoverBorderColor: 'rgba(245, 158, 11, 0.40)',
+            borderLeftColor: 'rgba(245, 158, 11, 0.65)',
+            relDateColor: '#b45309'
         };
     }
 

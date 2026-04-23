@@ -91,6 +91,8 @@ const formatTime = (dateStr: string) => {
     return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
 };
 
+const DESCRIPTION_COLLAPSED_MAX_HEIGHT = 80;
+
 type SeminarTimingStatus = 'upcoming' | 'in-progress' | 'completed';
 
 const combineSeminarDateAndTime = (meetingDate: string, timeValue: string) => {
@@ -167,6 +169,7 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
     const [saving, setSaving] = useState(false);
     const [isEditMode, setIsEditMode] = useState(false);
     const [descExpanded, setDescExpanded] = useState(false);
+    const [isDescriptionOverflowing, setIsDescriptionOverflowing] = useState(false);
     const [swapAccordionOpen, setSwapAccordionOpen] = useState(false);
     const { addToast } = useToastStore();
 
@@ -185,6 +188,7 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
     const [submittingSwap, setSubmittingSwap] = useState(false);
     const [showSwapConfirm, setShowSwapConfirm] = useState(false);
     const swapOnLoadHandledRef = useRef<string | null>(null);
+    const descriptionRef = useRef<HTMLDivElement | null>(null);
 
     useEffect(() => {
         if (meetingId) {
@@ -242,26 +246,36 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
     };
 
     const handleOpenSwapForm = async () => {
-        if (allMeetings.length === 0) {
-            try {
-                const data = await seminarService.getAllSeminarMeetings();
-                const threeDaysFromNow = Date.now() + 3 * 24 * 60 * 60 * 1000;
-                const filtered = Array.isArray(data) ? data.filter(m =>
-                    m.seminarMeetingId !== meetingId &&
-                    m.seminarId === meeting?.seminarId &&
-                    m.presenterId !== meeting?.presenterId &&
-                    new Date(m.meetingDate).getTime() > threeDaysFromNow
-                ) : [];
-                filtered.sort((a, b) => new Date(a.meetingDate).getTime() - new Date(b.meetingDate).getTime());
-                setAllMeetings(filtered);
-            } catch (err) {
-                console.error('Failed to load meetings for swap:', err);
-            }
+        if (!meetingId || !meeting) return;
+
+        try {
+            const data = await seminarService.getAllSeminarMeetings();
+            const nowTs = Date.now();
+            const filtered = Array.isArray(data) ? data.filter(m => {
+                if (m.seminarMeetingId === meetingId) return false;
+                if (m.seminarId !== meeting.seminarId) return false;
+                if (m.presenterId === meeting.presenterId) return false;
+
+                const targetTime = new Date(m.meetingDate).getTime();
+                return !Number.isNaN(targetTime) && targetTime > nowTs;
+            }) : [];
+
+            filtered.sort((a, b) => new Date(a.meetingDate).getTime() - new Date(b.meetingDate).getTime());
+            setAllMeetings(filtered);
+        } catch (err) {
+            console.error('Failed to load meetings for swap:', err);
         }
     };
 
     const handleSubmitSwap = async () => {
-        if (!meetingId || !swapTargetId) return;
+        if (!meetingId) {
+            addToast('Cannot submit swap request for this seminar.', 'error');
+            return;
+        }
+        if (!swapTargetId) {
+            addToast('Please select a target session before submitting.', 'warning');
+            return;
+        }
         if (swapExpiry && new Date(swapExpiry) <= new Date()) {
             addToast('Expiry date must be in the future.', 'error');
             return;
@@ -275,6 +289,7 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
                 expiresAtUtc: swapExpiry ? new Date(swapExpiry).toISOString() : null
             };
             await seminarService.createSwapRequest(req);
+            setShowSwapConfirm(false);
             setSwapAccordionOpen(false);
             setSwapTargetId('');
             setSwapReason('');
@@ -338,6 +353,36 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
         setSwapAccordionOpen(true);
         handleOpenSwapForm();
     }, [openSwapOnLoad, canEdit, meetingId]);
+
+    useEffect(() => {
+        if (!meeting?.description) {
+            setIsDescriptionOverflowing(false);
+            return;
+        }
+
+        const el = descriptionRef.current;
+        if (!el) return;
+
+        const updateOverflow = () => {
+            const isOverflowing = el.scrollHeight > DESCRIPTION_COLLAPSED_MAX_HEIGHT + 1;
+            setIsDescriptionOverflowing(isOverflowing);
+        };
+
+        updateOverflow();
+
+        let observer: ResizeObserver | null = null;
+        if (typeof ResizeObserver !== 'undefined') {
+            observer = new ResizeObserver(updateOverflow);
+            observer.observe(el);
+        } else {
+            window.addEventListener('resize', updateOverflow);
+        }
+
+        return () => {
+            observer?.disconnect();
+            window.removeEventListener('resize', updateOverflow);
+        };
+    }, [meeting?.description]);
 
     // ---- early returns ----
     if (loading) {
@@ -699,20 +744,25 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
                             <FileText size={11} /> Description
                         </div>
                         <div style={{ position: 'relative' }}>
-                            <div style={{
+                            <div
+                                ref={descriptionRef}
+                                style={{
                                 fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.65,
-                                maxHeight: descExpanded ? 'none' : '80px', overflow: 'hidden',
+                                maxHeight: descExpanded ? 'none' : `${DESCRIPTION_COLLAPSED_MAX_HEIGHT}px`, overflow: 'hidden',
                                 whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-                            }}>
+                                }}
+                            >
                                 {meeting.description}
                             </div>
-                            {!descExpanded && (
+                            {!descExpanded && isDescriptionOverflowing && (
                                 <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '30px', background: 'linear-gradient(transparent, #fff)', pointerEvents: 'none' }} />
                             )}
                         </div>
-                        <button onClick={() => setDescExpanded(p => !p)} style={{ marginTop: '4px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700, color: 'var(--accent-color)', display: 'flex', alignItems: 'center', gap: '3px', padding: 0 }}>
-                            {descExpanded ? <><ChevronUp size={12} /> Show less</> : <><ChevronDown size={12} /> Show more</>}
-                        </button>
+                        {isDescriptionOverflowing && (
+                            <button onClick={() => setDescExpanded(p => !p)} style={{ marginTop: '4px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700, color: 'var(--accent-color)', display: 'flex', alignItems: 'center', gap: '3px', padding: 0 }}>
+                                {descExpanded ? <><ChevronUp size={12} /> Show less</> : <><ChevronDown size={12} /> Show more</>}
+                            </button>
+                        )}
                     </div>
                 )}
 
@@ -772,7 +822,14 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
                 <div>
                     {canEdit && isUpcoming && (
                         <button
-                            onClick={() => { setSwapAccordionOpen(p => !p); if (!swapAccordionOpen) handleOpenSwapForm(); }}
+                            onClick={() => {
+                                setShowSwapConfirm(false);
+                                setSwapAccordionOpen(p => !p);
+                                if (!swapAccordionOpen) {
+                                    setSwapTargetId('');
+                                    handleOpenSwapForm();
+                                }
+                            }}
                             style={{ padding: '8px 16px', borderRadius: '10px', border: swapAccordionOpen ? '1.5px solid #7c3aed' : '1px solid #e9d5ff', background: swapAccordionOpen ? '#f5f3ff' : '#faf5ff', color: '#7c3aed', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}
                         >
                             <ArrowLeftRight size={14} /> Request Swap
@@ -853,8 +910,30 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
                             <button onClick={() => setSwapAccordionOpen(false)} style={{ padding: '8px 14px', borderRadius: '10px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>
                                 Cancel
                             </button>
-                            <button onClick={() => setShowSwapConfirm(true)} disabled={!swapTargetId}
-                                style={{ padding: '8px 14px', borderRadius: '10px', border: 'none', background: !swapTargetId ? '#e2e8f0' : '#7c3aed', color: '#fff', cursor: !swapTargetId ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: !swapTargetId ? 'none' : '0 4px 12px rgba(124,58,237,0.3)' }}>
+                            <button
+                                onClick={() => {
+                                    if (!swapTargetId) {
+                                        addToast('Please select a target session before submitting.', 'warning');
+                                        return;
+                                    }
+                                    setShowSwapConfirm(true);
+                                }}
+                                disabled={submittingSwap}
+                                style={{
+                                    padding: '8px 14px',
+                                    borderRadius: '10px',
+                                    border: 'none',
+                                    background: !swapTargetId ? '#c4b5fd' : '#7c3aed',
+                                    color: '#fff',
+                                    cursor: submittingSwap ? 'not-allowed' : 'pointer',
+                                    fontWeight: 700,
+                                    fontSize: '0.8rem',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    boxShadow: !swapTargetId ? 'none' : '0 4px 12px rgba(124,58,237,0.3)'
+                                }}
+                            >
                                 <ArrowLeftRight size={13} /> Submit Swap Request
                             </button>
                         </div>
@@ -865,7 +944,10 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
             <ConfirmModal
                 isOpen={showSwapConfirm}
                 onClose={() => setShowSwapConfirm(false)}
-                onConfirm={() => { setShowSwapConfirm(false); handleSubmitSwap(); }}
+                onConfirm={() => {
+                    if (submittingSwap) return;
+                    handleSubmitSwap();
+                }}
                 title="Confirm Swap Request"
                 message={<span>Are you sure you want to submit this swap request?<br />The other presenter will be notified and must accept before the swap takes effect.</span>}
                 confirmText={submittingSwap ? 'Submitting...' : 'Submit Swap'}
