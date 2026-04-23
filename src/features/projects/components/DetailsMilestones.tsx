@@ -199,15 +199,10 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                 isSaving: false,
                 isExpanded: false,
             }));
-            setDraftTasks(prev => {
-                const slots = 5 - prev.length;
-                return slots <= 0 ? prev : [...prev, ...newDrafts.slice(0, slots)];
-            });
-            const slots = Math.max(0, 5 - draftTasks.length);
-            const added = Math.min(list.length, slots);
+            setDraftTasks(prev => [...prev, ...newDrafts]);
             setTaskTab('draft');
             showToast(
-                `AI suggested ${added} task${added !== 1 ? 's' : ''}${list.length > added ? ` (${list.length - added} skipped — draft limit)` : ''} — review in Draft tab.`,
+                `AI suggested ${list.length} task${list.length !== 1 ? 's' : ''} — review in Draft tab.`,
                 'info',
             );
         } catch (error: any) {
@@ -869,7 +864,6 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
     const mDueDateMinus1 = activeMilestone?.dueDate ? (() => { const plain = activeMilestone.dueDate.split('T')[0]; const [y, mo, d] = plain.split('-').map(Number); return new Date(Date.UTC(y, mo - 1, d - 1)).toISOString().split('T')[0]; })() : '';
 
     const addDraftSlot = () => {
-        if (draftTasks.length >= 5) return;
         const newDraft: TaskDraft = {
             id: `draft-${Date.now()}`,
             name: '',
@@ -1480,11 +1474,9 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                     <React.Fragment>
                                         <button
                                             onClick={addDraftSlot}
-                                            disabled={draftTasks.length >= 5}
-                                            title={draftTasks.length >= 5 ? 'Maximum 5 drafts allowed' : undefined}
-                                            style={{ ...btnPrimary, padding: '7px 15px', fontSize: '0.75rem', borderRadius: '10px', opacity: draftTasks.length >= 5 ? 0.45 : 1, cursor: draftTasks.length >= 5 ? 'not-allowed' : 'pointer' }}
+                                            style={{ ...btnPrimary, padding: '7px 15px', fontSize: '0.75rem', borderRadius: '10px' }}
                                         >
-                                            <Plus size={14} /> New Task {draftTasks.length >= 5 ? '(5/5)' : `(${draftTasks.length}/5)`}
+                                            <Plus size={14} /> New Task ({draftTasks.length})
                                         </button>
                                     </React.Fragment>
                                 )}
