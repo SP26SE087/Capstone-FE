@@ -25,7 +25,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, footer,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 3000,
+            zIndex: 15000,
             padding: '1.5rem',
             animation: 'fadeIn 0.3s ease-out'
         }} onClick={disableBackdropClose ? undefined : onClose}>

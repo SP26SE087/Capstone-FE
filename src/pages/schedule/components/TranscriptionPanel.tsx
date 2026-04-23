@@ -69,6 +69,12 @@ const LANGUAGES = [
     { value: 'en', label: 'English' },
 ];
 
+const normalizeSummaryText = (value: string | null | undefined): string | null => {
+    if (typeof value !== 'string') return null;
+    const trimmed = value.trim();
+    return trimmed ? value : null;
+};
+
 interface SuggestedTask extends TaskSuggestion {
     _expanded: boolean;
     _assigneeId: string;
@@ -255,8 +261,10 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
         const s = useTranscriptionStore.getState();
         return (s.transcription && (meetingId ?? null) === s.meetingId) ? s.activeTab : 'transcript';
     });
+    const previousActiveTabRef = useRef<'transcript' | 'summary' | 'tasks'>(activeTab);
     const [showConfirmClose, setShowConfirmClose] = useState(false);
     const [showTranscriptPopover, setShowTranscriptPopover] = useState(false);
+    const autoSummarizeRef = useRef<string | null>(null);
     const [popoverRect, setPopoverRect] = useState<{ top: number; bottom: number; right: number; left: number } | null>(null);
     const transcriptWrapperRef = useRef<HTMLDivElement>(null);
     const popoverPortalRef = useRef<HTMLDivElement>(null);
@@ -357,7 +365,10 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
             const result = await transcriptionService.getById(id);
             if (result) {
                 setTranscription(result);
-                if (result.summary) setSummary(prev => prev || result.summary);
+                const nextSummary = normalizeSummaryText(result.summary);
+                if (nextSummary) {
+                    setSummary(prev => normalizeSummaryText(prev) || nextSummary);
+                }
                 if (result.status === 'Completed' || result.status === 'Failed' || !!result.transcribedText) {
                     if (pollingRef.current) clearInterval(pollingRef.current);
                     pollingRef.current = null;
@@ -426,8 +437,12 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
             const full = await transcriptionService.getById(t.id);
             if (full) {
                 setTranscription(full);
-                if (full.summary) setSummary(full.summary);
+                const computedSummary = normalizeSummaryText(full.summary);
+                setSummary(computedSummary);
                 addToast('Transcription loaded.', 'success');
+                if (full.transcribedText && !computedSummary) {
+                    autoSummarizeRef.current = full.id;
+                }
             }
         } catch {
             addToast('Failed to load transcription details.', 'error');
@@ -435,6 +450,13 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
             setReloading(false);
         }
     };
+
+    useEffect(() => {
+        if (autoSummarizeRef.current && transcription?.id === autoSummarizeRef.current && !summarizing) {
+            autoSummarizeRef.current = null;
+            handleSummarize(true);
+        }
+    }, [transcription?.id]);
 
     useEffect(() => {
         if (!selectedProjectId) {
@@ -481,7 +503,7 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
             const result = await transcriptionService.transcribe(file, meetingId, selectedModel || undefined, language || undefined);
             setTranscription(result);
             if (result.transcribedText || result.status === 'Completed') {
-                if (result.summary) setSummary(result.summary);
+                setSummary(normalizeSummaryText(result.summary));
                 addToast('Transcription completed successfully!', 'success');
             } else {
                 addToast('Transcription submitted. Will auto-refresh when ready.', 'info');
@@ -502,9 +524,7 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
             const result = await transcriptionService.getById(transcription.id);
             if (result) {
                 setTranscription(result);
-                if (result.summary) {
-                    setSummary(result.summary);
-                }
+                setSummary(normalizeSummaryText(result.summary));
                 if (result.transcribedText) {
                     addToast('Transcription loaded successfully!', 'success');
                 } else {
@@ -520,10 +540,15 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
     };
 
     // ── Summarize ────────────────────────────────────────────────────────────
-    const handleSummarize = async () => {
-        if (!transcription?.id) return;
+    const handleSummarize = async (autoTrigger = false) => {
+        if (!transcription?.id) {
+            if (!autoTrigger) addToast('Please select or generate a transcript first.', 'warning');
+            return;
+        }
         setSummarizing(true);
-        setActiveTab('summary');
+        if (!autoTrigger) {
+            setActiveTab('summary');
+        }
         try {
             const result = await transcriptionService.summarize(transcription.id, {
                 language: summaryLanguage,
@@ -532,8 +557,8 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                 customPrompt: customPrompt.trim() || undefined
             });
             if (result.success) {
-                setSummary(result.summary);
-                addToast('Summary generated successfully!', 'success');
+                setSummary(normalizeSummaryText(result.summary));
+                if (!autoTrigger) addToast('Summary generated successfully!', 'success');
             } else {
                 addToast(result.errorMessage || 'Failed to generate summary.', 'error');
             }
@@ -544,6 +569,23 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
             setSummarizing(false);
         }
     };
+
+    const hasTranscript = !!transcription?.transcribedText;
+    const hasSummary = !!normalizeSummaryText(summary);
+
+    useEffect(() => {
+        const previousTab = previousActiveTabRef.current;
+        const enteredSummaryTab = activeTab === 'summary' && previousTab !== 'summary';
+        previousActiveTabRef.current = activeTab;
+
+        if (!enteredSummaryTab) return;
+        if (!transcription?.id) return;
+        if (!hasTranscript) return;
+        if (normalizeSummaryText(summary)) return;
+        if (summarizing) return;
+
+        handleSummarize(true);
+    }, [activeTab, transcription?.id, hasTranscript, summary, summarizing, handleSummarize]);
 
     // ── Suggest tasks ─────────────────────────────────────────────────────────
     const handleSuggest = async () => {
@@ -624,9 +666,6 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
             setSuggestedTasks(prev => prev.map((t, i) => i === idx ? { ...t, _saving: false } : t));
         }
     };
-
-    const hasTranscript = !!transcription?.transcribedText;
-    const hasSummary = !!summary;
 
     const handleStartEditSummary = () => {
         setEditSummaryText(summary || '');
@@ -766,21 +805,6 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                         >
                             <ChevronRight size={13} />
                         </button>
-                        <button
-                            onClick={handleClose}
-                            title="Close"
-                            style={{
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                width: '28px', height: '28px', borderRadius: '6px',
-                                border: '1px solid #e2e8f0', background: '#fff',
-                                color: '#94a3b8', cursor: 'pointer',
-                                transition: 'all 0.2s'
-                            }}
-                            onMouseEnter={e => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.color = '#475569'; }}
-                            onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = '#94a3b8'; }}
-                        >
-                            <X size={13} />
-                        </button>
                     </div>
                 </div>}
 
@@ -913,6 +937,30 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                         >
                             {transcribing ? <><Loader2 size={13} className="animate-spin" /> Transcribing...</> : <><Mic size={13} /> Transcribe</>}
                         </button>
+
+                        <button
+                            onClick={handleClose}
+                            disabled={transcribing || reloading || summarizing || suggesting}
+                            style={{
+                                width: '100%',
+                                marginTop: '6px',
+                                padding: '7px 8px',
+                                borderRadius: '10px',
+                                border: '1px solid #e2e8f0',
+                                background: '#fff',
+                                color: '#64748b',
+                                cursor: transcribing || reloading || summarizing || suggesting ? 'not-allowed' : 'pointer',
+                                fontWeight: 700,
+                                fontSize: '0.75rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '5px',
+                                opacity: transcribing || reloading || summarizing || suggesting ? 0.6 : 1
+                            }}
+                        >
+                            <X size={13} /> Close AI Note
+                        </button>
                     </div>
 
                     {/* Reload button when pending */}
@@ -944,65 +992,94 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                     )}
 
                     {/* Summarize controls */}
-                    {hasTranscript && (
-                        <div style={{ ...sectionStyle, borderLeft: '3px solid #10b981' }}>
-                            <div style={{ ...labelStyle, color: '#10b981' }}><Sparkles size={12} /> Generate Summary</div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '8px' }}>
-                                <div style={{ display: 'flex', gap: '6px' }}>
-                                    <div style={{ flex: 1 }}>
-                                        <label style={{ ...labelStyle, fontSize: '0.6rem', marginBottom: '3px' }}>Language</label>
-                                        <CustomSelect value={summaryLanguage} onChange={setSummaryLanguage} options={LANGUAGES} color="#10b981" />
-                                    </div>
-                                    <div style={{ flex: 1 }}>
-                                        <label style={{ ...labelStyle, fontSize: '0.6rem', marginBottom: '3px' }}>Length</label>
-                                        <CustomSelect value={summaryLength} onChange={setSummaryLength} color="#10b981" options={[
-                                            { value: 'short', label: 'Short' },
-                                            { value: 'medium', label: 'Medium' },
-                                            { value: 'long', label: 'Long' },
-                                        ]} />
-                                    </div>
+                    <div style={{ ...sectionStyle, borderLeft: '3px solid #10b981' }}>
+                        <div style={{ ...labelStyle, color: '#10b981' }}><Sparkles size={12} /> Generate Summary</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '8px' }}>
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                                <div style={{ flex: 1 }}>
+                                    <label style={{ ...labelStyle, fontSize: '0.6rem', marginBottom: '3px' }}>Language</label>
+                                    <CustomSelect value={summaryLanguage} onChange={setSummaryLanguage} options={LANGUAGES} color="#10b981" />
                                 </div>
-                                <div>
-                                    <label style={{ ...labelStyle, fontSize: '0.6rem', marginBottom: '3px' }}>Format</label>
-                                    <CustomSelect value={summaryStyle} onChange={setSummaryStyle} color="#10b981" options={[
-                                        { value: 'paragraph', label: 'Paragraph' },
-                                        { value: 'bullet_points', label: 'Bullet Points' },
-                                        { value: 'key_points', label: 'Key Points' },
+                                <div style={{ flex: 1 }}>
+                                    <label style={{ ...labelStyle, fontSize: '0.6rem', marginBottom: '3px' }}>Length</label>
+                                    <CustomSelect value={summaryLength} onChange={setSummaryLength} color="#10b981" options={[
+                                        { value: 'short', label: 'Short' },
+                                        { value: 'medium', label: 'Medium' },
+                                        { value: 'long', label: 'Long' },
                                     ]} />
                                 </div>
-                                <div>
-                                    <label style={{ ...labelStyle, fontSize: '0.6rem', marginBottom: '3px' }}>Custom Prompt (optional)</label>
-                                    <textarea
-                                        value={customPrompt}
-                                        onChange={e => setCustomPrompt(e.target.value)}
-                                        placeholder="e.g. Focus on action items and deadlines..."
-                                        style={{
-                                            ...inputStyle, minHeight: '48px', resize: 'vertical',
-                                            fontSize: '0.76rem', fontFamily: 'inherit'
-                                        }}
-                                    />
-                                </div>
                             </div>
-                            <button
-                                onClick={handleSummarize}
-                                disabled={summarizing}
-                                style={{
-                                    width: '100%', padding: '8px', borderRadius: '10px', border: 'none',
-                                    background: summarizing ? '#e2e8f0' : 'linear-gradient(135deg,#10b981,#059669)',
-                                    color: summarizing ? '#94a3b8' : '#fff',
-                                    cursor: summarizing ? 'not-allowed' : 'pointer',
-                                    fontWeight: 700, fontSize: '0.78rem',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
-                                    boxShadow: summarizing ? 'none' : '0 4px 12px rgba(16,185,129,0.25)'
-                                }}
-                            >
-                                {summarizing
-                                    ? <><Loader2 size={13} className="animate-spin" /> Generating...</>
-                                    : <><Sparkles size={13} /> Generate Summary</>
-                                }
-                            </button>
+                            <div>
+                                <label style={{ ...labelStyle, fontSize: '0.6rem', marginBottom: '3px' }}>Format</label>
+                                <CustomSelect value={summaryStyle} onChange={setSummaryStyle} color="#10b981" options={[
+                                    { value: 'paragraph', label: 'Paragraph' },
+                                    { value: 'bullet_points', label: 'Bullet Points' },
+                                    { value: 'key_points', label: 'Key Points' },
+                                ]} />
+                            </div>
+                            <div>
+                                <label style={{ ...labelStyle, fontSize: '0.6rem', marginBottom: '3px' }}>Custom Prompt (optional)</label>
+                                <textarea
+                                    value={customPrompt}
+                                    onChange={e => setCustomPrompt(e.target.value)}
+                                    placeholder="e.g. Focus on action items and deadlines..."
+                                    style={{
+                                        ...inputStyle, minHeight: '48px', resize: 'vertical',
+                                        fontSize: '0.76rem', fontFamily: 'inherit'
+                                    }}
+                                />
+                            </div>
+                            {!hasTranscript && (
+                                <div style={{
+                                    fontSize: '0.66rem',
+                                    color: '#64748b',
+                                    background: '#f8fafc',
+                                    border: '1px solid #e2e8f0',
+                                    borderRadius: '8px',
+                                    padding: '6px 8px'
+                                }}>
+                                    Select a completed transcript to generate summary.
+                                </div>
+                            )}
                         </div>
-                    )}
+                        <button
+                            onClick={() => handleSummarize(false)}
+                            disabled={summarizing || !transcription?.id || !hasTranscript}
+                            style={{
+                                width: '100%', padding: '8px', borderRadius: '10px', border: 'none',
+                                background: summarizing || !transcription?.id || !hasTranscript ? '#e2e8f0' : 'linear-gradient(135deg,#10b981,#059669)',
+                                color: summarizing || !transcription?.id || !hasTranscript ? '#94a3b8' : '#fff',
+                                cursor: summarizing || !transcription?.id || !hasTranscript ? 'not-allowed' : 'pointer',
+                                fontWeight: 700, fontSize: '0.78rem',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
+                                boxShadow: summarizing || !transcription?.id || !hasTranscript ? 'none' : '0 4px 12px rgba(16,185,129,0.25)'
+                            }}
+                        >
+                            {summarizing
+                                ? <><Loader2 size={13} className="animate-spin" /> Generating...</>
+                                : <><Sparkles size={13} /> Generate Summary</>
+                            }
+                        </button>
+                    </div>
+
+                    {/* Close AI Notes button — always visible at bottom of controls */}
+                    <div style={{ marginTop: '4px' }}>
+                        <button
+                            onClick={handleClose}
+                            style={{
+                                width: '100%', padding: '8px', borderRadius: '10px',
+                                border: '1.5px solid #e2e8f0', background: '#fff',
+                                color: '#64748b', cursor: 'pointer',
+                                fontWeight: 700, fontSize: '0.78rem',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
+                                transition: 'all 0.2s'
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.borderColor = '#cbd5e1'; e.currentTarget.style.color = '#475569'; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.color = '#64748b'; }}
+                        >
+                            <X size={13} /> Close AI Notes
+                        </button>
+                    </div>
 
                     {/* Suggest Tasks controls */}
                     {!hideTasks && (hasTranscript || hasSummary) && (
@@ -1566,7 +1643,7 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                                 <p style={{ fontSize: '0.78rem', margin: 0 }}>No transcriptions found.</p>
                                 <p style={{ fontSize: '0.7rem', color: '#cbd5e1', marginTop: '4px' }}>Click refresh to load</p>
                             </div>
-                        ) : meetingTranscriptions.map(t => {
+                        ) : [...meetingTranscriptions].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).map(t => {
                             const isSelected = transcription?.id === t.id;
                             const isFailed = t.status === 'Failed';
                             return (
@@ -1594,9 +1671,20 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                                             {t.status}
                                         </span>
                                     </div>
-                                    <div style={{ fontSize: '0.62rem', color: '#94a3b8', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                                        {t.language && <span>{t.language.toUpperCase()}</span>}
-                                        <span>{new Date(t.createdAt).toLocaleString()}</span>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '4px' }}>
+                                        {t.language && (
+                                            <span style={{
+                                                fontSize: '0.6rem', fontWeight: 800, padding: '1px 6px',
+                                                borderRadius: '4px', background: '#ede9fe', color: '#6366f1',
+                                                letterSpacing: '0.5px', flexShrink: 0
+                                            }}>{t.language.toUpperCase()}</span>
+                                        )}
+                                        <span style={{ fontSize: '0.62rem', color: '#64748b', fontWeight: 600 }}>
+                                            {new Date(t.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                                        </span>
+                                        <span style={{ fontSize: '0.62rem', color: '#94a3b8' }}>
+                                            {new Date(t.createdAt).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                                        </span>
                                     </div>
                                     {isFailed && (
                                         <div style={{ marginTop: '4px', fontSize: '0.65rem', color: '#dc2626', display: 'flex', alignItems: 'flex-start', gap: '3px' }}>

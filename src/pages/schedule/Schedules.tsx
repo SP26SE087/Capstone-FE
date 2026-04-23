@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import AppSelect from '@/components/common/AppSelect';
 import { useBlocker } from 'react-router-dom';
 import { useTranscriptionStore } from '@/store/slices/transcriptionStore';
@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import meetingService from '@/services/meetingService';
 import seminarService from '@/services/seminarService';
+import { transcriptionService } from '@/services/transcriptionService';
 import { MeetingResponse, MeetingStatus } from '@/types/meeting';
 import { SeminarMeetingResponse } from '@/types/seminar';
 import { projectService, userService } from '@/services';
@@ -48,6 +49,41 @@ interface ScheduleTab {
     title: string;
     initialData?: MeetingResponse;
 }
+
+const hasTranscriptionSummaryHint = (item: any): boolean => {
+    const summaryText = typeof item?.summary === 'string' ? item.summary.trim() : '';
+    return Boolean(
+        summaryText ||
+        item?.hasSummary === true ||
+        item?.isSummarized === true ||
+        item?.summarizedAt
+    );
+};
+
+const checkMeetingHasAiSummary = async (meetingId: string): Promise<boolean> => {
+    try {
+        const list = await transcriptionService.getByMeeting(meetingId);
+        if (!Array.isArray(list) || list.length === 0) return false;
+
+        if (list.some(item => hasTranscriptionSummaryHint(item as any))) {
+            return true;
+        }
+
+        const sorted = [...list].sort(
+            (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+
+        for (const item of sorted.slice(0, 2)) {
+            const detail = await transcriptionService.getById(item.id);
+            const summaryText = detail?.summary?.trim();
+            if (summaryText) return true;
+        }
+
+        return false;
+    } catch {
+        return false;
+    }
+};
 
 const Schedules: React.FC = () => {
     const { user } = useAuth();
@@ -71,9 +107,12 @@ const Schedules: React.FC = () => {
     const [semanticResults, setSemanticResults] = useState<MeetingResponse[] | null>(null);
     const [isSemanticLoading, setIsSemanticLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
+    const [aiSummaryByMeetingId, setAiSummaryByMeetingId] = useState<Record<string, boolean>>({});
+    const aiSummaryCacheRef = useRef<Record<string, boolean>>({});
 
     // Panel system
     const [activePanel, setActivePanel] = useState<ScheduleTab | null>(null);
+    const [timetableModal, setTimetableModal] = useState<MeetingResponse | null>(null);
     const [showTranscription, setShowTranscription] = useState(false);
     const [isExitingTranscription, setIsExitingTranscription] = useState(false);
     const [isTranscriptionProcessing, setIsTranscriptionProcessing] = useState(false);
@@ -100,7 +139,12 @@ const Schedules: React.FC = () => {
     // During processing the user can freely navigate away; state is preserved in the store
     // and polling will resume when they return.
     const shouldBlockNav = showTranscription && hasCompletedTranscription && !isTranscriptionProcessing;
-    const blocker = useBlocker(shouldBlockNav);
+    const blocker = useBlocker(({ nextLocation }) => {
+        if (!shouldBlockNav) return false;
+        const targetPath = (nextLocation.pathname || '').toLowerCase();
+        if (targetPath === '/seminars' || targetPath === '/schedules') return false;
+        return true;
+    });
 
     // On mount: restore the transcription panel if it was open when the user navigated away
     useEffect(() => {
@@ -109,6 +153,16 @@ const Schedules: React.FC = () => {
             setShowTranscription(true);
         }
     }, []); // eslint-disable-line
+
+    // Close AI Note when user clicks Schedules/Seminars in the sidebar
+    useEffect(() => {
+        const handler = () => {
+            setShowTranscription(false);
+            storeSetShowPanel(false);
+        };
+        window.addEventListener('closeAINote', handler);
+        return () => window.removeEventListener('closeAINote', handler);
+    }, []);
 
     // ── Panel open/close helpers that also sync the store ──────────────────────
     const handleOpenAINote = () => {
@@ -237,6 +291,17 @@ const Schedules: React.FC = () => {
 
     const handleOpenViewTab = (meeting: MeetingResponse) => {
         const eventId = meeting.googleCalendarEventId || meeting.id;
+        const isSameSelectedMeeting =
+            activePanel?.type === 'view' &&
+            (activePanel.actualMeetingId === meeting.id || activePanel.meetingId === eventId);
+
+        if (isSameSelectedMeeting) {
+            setActivePanel(null);
+            setShowTranscription(false);
+            storeSetShowPanel(false);
+            return;
+        }
+
         const mappedSeminar = seminarMeetingByEventId[eventId] || null;
         setActivePanel({
             id: `view-${eventId}`,
@@ -303,6 +368,51 @@ const Schedules: React.FC = () => {
         }).sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
     }, [meetings, semanticResults, searchQuery, filterStatus, filterProjectId]);
 
+    useEffect(() => {
+        let isMounted = true;
+
+        const visibleMeetingIds = Array.from(
+            new Set(displayMeetings.map(m => m.id).filter(Boolean))
+        );
+
+        if (visibleMeetingIds.length === 0) {
+            setAiSummaryByMeetingId({});
+            return;
+        }
+
+        const syncVisibleMap = () => {
+            const nextMap: Record<string, boolean> = {};
+            visibleMeetingIds.forEach(id => {
+                nextMap[id] = !!aiSummaryCacheRef.current[id];
+            });
+            setAiSummaryByMeetingId(nextMap);
+        };
+
+        const loadAiSummaryFlags = async () => {
+            const missingIds = visibleMeetingIds.filter(id => aiSummaryCacheRef.current[id] === undefined);
+            if (missingIds.length > 0) {
+                const results = await Promise.all(
+                    missingIds.map(async id => [id, await checkMeetingHasAiSummary(id)] as const)
+                );
+
+                if (!isMounted) return;
+
+                results.forEach(([id, hasSummary]) => {
+                    aiSummaryCacheRef.current[id] = hasSummary;
+                });
+            }
+
+            if (!isMounted) return;
+            syncVisibleMap();
+        };
+
+        loadAiSummaryFlags();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [displayMeetings]);
+
     const scheduledCount = meetings.filter(m => m.status === MeetingStatus.Scheduled).length;
     const completedCount = meetings.filter(m => m.status === MeetingStatus.Completed).length;
     const inProgressCount = meetings.filter(m => m.status === MeetingStatus.InProgress).length;
@@ -317,12 +427,16 @@ const Schedules: React.FC = () => {
             endTime: m.endTime,
             meetLink: m.googleMeetLink,
             presenter: m.currentPresenter?.name || m.currentPresenter?.email || null,
+            presenterTopic: m.currentPresenter?.topic || null,
             creator: usersMap[m.createdBy] || m.createdBy,
             description: m.description,
             guests: m.attendees?.map(a => a.displayName || a.email).filter(Boolean) || [],
-            type: 'meeting' as const
+            type: 'meeting' as const,
+            status: m.status !== undefined ? String(m.status) : null,
+            recordingUrl: m.recordingUrl || null,
+            projectName: m.projectId ? (projectsMap[m.projectId] || null) : null,
         }));
-    }, [displayMeetings, usersMap]);
+    }, [displayMeetings, usersMap, projectsMap]);
 
     const activeSeminarMeeting = useMemo(() => {
         if (!activePanel || activePanel.type !== 'view') return null;
@@ -489,7 +603,8 @@ const Schedules: React.FC = () => {
                     </div>
                 </div>
 
-                {/* View Toggle */}
+                {/* View Toggle, Breadcrumb, Tabs — hidden when AI Note is open */}
+                {!showTranscription && <>
                 <div style={{ display: 'flex', gap: '4px', marginBottom: '1.5rem' }}>
                     <button
                         onClick={() => { setViewMode('list'); localStorage.setItem('schedule_viewMode', 'list'); }}
@@ -585,6 +700,7 @@ const Schedules: React.FC = () => {
                         </button>
                     </div>
                 </div>
+                </>}
 
                 {/* Main Content */}
                 {viewMode === 'timetable' ? (
@@ -593,7 +709,7 @@ const Schedules: React.FC = () => {
                             events={timetableEvents}
                             onEventClick={(evt) => {
                                 const m = meetings.find(mm => (mm.googleCalendarEventId || mm.id) === evt.id);
-                                if (m) handleOpenViewTab(m);
+                                if (m) setTimetableModal(m);
                             }}
                         />
                     </div>
@@ -620,6 +736,7 @@ const Schedules: React.FC = () => {
                                             onSelect={handleOpenViewTab}
                                             projectsMap={projectsMap}
                                             usersMap={usersMap}
+                                            aiSummaryMap={aiSummaryByMeetingId}
                                             isSplit={!!activePanel}
                                         />
                                     ) : (
@@ -826,6 +943,50 @@ const Schedules: React.FC = () => {
                             >
                                 Leave & Clear
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Timetable Detail Modal — full SchedulePanel in overlay */}
+            {timetableModal && (
+                <div
+                    onClick={() => setTimetableModal(null)}
+                    style={{
+                        position: 'fixed', inset: 0,
+                        background: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(8px)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        zIndex: 10000, padding: '20px',
+                        animation: 'fadeIn 0.18s ease'
+                    }}
+                >
+                    <div
+                        onClick={e => e.stopPropagation()}
+                        style={{
+                            background: '#fff', borderRadius: '20px',
+                            width: '100%', maxWidth: '860px', height: '88vh',
+                            display: 'flex', flexDirection: 'column',
+                            boxShadow: '0 40px 80px -12px rgba(0,0,0,0.3)',
+                            overflow: 'hidden',
+                            animation: 'slideUp 0.25s cubic-bezier(0.34,1.3,0.64,1)'
+                        }}
+                    >
+                        <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem' }} className="custom-scrollbar">
+                            <SchedulePanel
+                                key={timetableModal.id}
+                                meetingId={timetableModal.googleCalendarEventId || timetableModal.id}
+                                actualMeetingId={timetableModal.id}
+                                initialData={timetableModal}
+                                isCreating={false}
+                                onClose={() => setTimetableModal(null)}
+                                onSaved={(shouldClose, message) => {
+                                    fetchMeetings();
+                                    if (message) showToast(message, 'success');
+                                    if (shouldClose) setTimetableModal(null);
+                                }}
+                                onTitleChange={() => {}}
+                                projectsMap={projectsMap}
+                            />
                         </div>
                     </div>
                 </div>
