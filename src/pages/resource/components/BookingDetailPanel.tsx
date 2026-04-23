@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Booking, BookingStatus, BasicResourceResponse } from '@/types/booking';
+import { Booking, BookingStatus, BasicResourceResponse, ResourceType, ComputeAccess } from '@/types/booking';
 import { bookingService } from '@/services/bookingService';
+import ComputeAccessPanel from './ComputeAccessPanel';
+import ServerTerminalModal from './ServerTerminalModal';
 import { useAuth } from '@/hooks/useAuth';
 import { useToastStore } from '@/store/slices/toastSlice';
 import {
@@ -20,7 +22,8 @@ import {
     Minus,
     Plus,
     LogIn,
-    LogOut
+    LogOut,
+    Server
 } from 'lucide-react';
 
 interface BookingDetailPanelProps {
@@ -133,6 +136,10 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
     const [showCheckInForm, setShowCheckInForm] = useState(false);
     const [checkOutNote, setCheckOutNote] = useState('');
     const [checkInNote, setCheckInNote] = useState('');
+    
+    // Compute access state
+    const [showTerminalModal, setShowTerminalModal] = useState(false);
+    const [selectedComputeAccess, setSelectedComputeAccess] = useState<ComputeAccess | null>(null);
 
     useEffect(() => {
         if (bookingId) loadBooking();
@@ -264,11 +271,25 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
         }
     };
 
+    const handleOpenTerminal = (access: ComputeAccess) => {
+        setSelectedComputeAccess(access);
+        setShowTerminalModal(true);
+    };
+
 
     // Hooks must come before any early returns
     const bookingResources = booking?.resources ?? [];
     const bookingResourceIds = booking?.resourceIds ?? bookingResources.map(r => r.id);
     const resourceGroups = useMemo(() => groupResources(bookingResources), [bookingResources]);
+    
+    // Check if booking has compute resources (for terminal access)
+    const hasComputeResources = useMemo(() => {
+        return bookingResources.some(r => 
+            r.resourceTypeName?.toLowerCase().includes('compute') ||
+            r.resourceTypeName?.toLowerCase().includes('server') ||
+            r.resourceTypeName?.toLowerCase().includes('gpu rental')
+        );
+    }, [bookingResources]);
 
     const totalKept = groupKeptQtys
         ? resourceGroups.reduce((sum, g) => sum + (groupKeptQtys[g.key] ?? g.ids.length), 0)
@@ -300,6 +321,12 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
     const canCancel = isRequester && booking.status === BookingStatus.Pending;
     const canCheckOut = isManagedView && booking.status === BookingStatus.Approved;
     const canCheckIn = isManagedView && booking.status === BookingStatus.InUse;
+    
+    // Show compute access panel for approved/in-use bookings with compute resources
+    const showComputeAccess = hasComputeResources && (
+        booking.status === BookingStatus.Approved || 
+        booking.status === BookingStatus.InUse
+    );
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -499,6 +526,19 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                     <div style={{ ...sectionStyle, background: '#ecfdf5', border: '1px solid #a7f3d0' }}>
                         <div style={{ ...labelStyle, color: '#059669' }}><MessageSquare size={12} /> Approval Note</div>
                         <div style={{ fontSize: '0.85rem', color: '#065f46', lineHeight: '1.5' }}>{booking.note}</div>
+                    </div>
+                )}
+
+                {/* Compute Access Panel - for compute resource bookings */}
+                {showComputeAccess && (
+                    <div style={sectionStyle}>
+                        <div style={{ ...labelStyle, color: 'var(--accent-color)', marginBottom: '10px' }}>
+                            <Server size={12} /> Compute Instance
+                        </div>
+                        <ComputeAccessPanel
+                            bookingId={bookingId}
+                            onOpenTerminal={handleOpenTerminal}
+                        />
                     </div>
                 )}
 
@@ -917,6 +957,18 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                     Close
                 </button>
             </div>
+
+            {/* Server Terminal Modal */}
+            {showTerminalModal && selectedComputeAccess && (
+                <ServerTerminalModal
+                    isOpen={showTerminalModal}
+                    onClose={() => {
+                        setShowTerminalModal(false);
+                        setSelectedComputeAccess(null);
+                    }}
+                    access={selectedComputeAccess}
+                />
+            )}
         </div>
     );
 };

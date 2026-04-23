@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { resourceTypeService, ResourceTypeItem } from '@/services/resourceTypeService';
-import { Save, Loader2, Layers, Tag } from 'lucide-react';
+import { resourceTypeService, ResourceTypeItem, ResourceTypeCategory } from '@/services/resourceTypeService';
+import { Save, Loader2, Layers, Tag, Box, Server } from 'lucide-react';
 
 interface ResourceTypePanelProps {
     editing?: ResourceTypeItem | null;
@@ -37,6 +37,7 @@ const ResourceTypePanel: React.FC<ResourceTypePanelProps> = ({ editing, onClose,
     const [name, setName] = useState(editing?.name || '');
     const [description, setDescription] = useState(editing?.description || '');
     const [isActive, setIsActive] = useState(editing?.isActive ?? true);
+    const [category, setCategory] = useState<ResourceTypeCategory>(editing?.category ?? ResourceTypeCategory.Physical);
     const [saving, setSaving] = useState(false);
     const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -44,6 +45,7 @@ const ResourceTypePanel: React.FC<ResourceTypePanelProps> = ({ editing, onClose,
         setName(editing?.name || '');
         setDescription(editing?.description || '');
         setIsActive(editing?.isActive ?? true);
+        setCategory(editing?.category ?? ResourceTypeCategory.Physical);
         setErrors({});
     }, [editing]);
 
@@ -73,11 +75,12 @@ const ResourceTypePanel: React.FC<ResourceTypePanelProps> = ({ editing, onClose,
                 await resourceTypeService.update(editing.id, {
                     name: name.trim(),
                     description: description.trim() || undefined,
-                    isActive
+                    isActive,
+                    category,
                 });
                 onSaved('Resource type updated successfully.');
             } else {
-                await resourceTypeService.create(name.trim(), description.trim() || undefined);
+                await resourceTypeService.create(name.trim(), description.trim() || undefined, category);
                 onSaved('Resource type created successfully.');
             }
         } catch (err: any) {
@@ -125,6 +128,38 @@ const ResourceTypePanel: React.FC<ResourceTypePanelProps> = ({ editing, onClose,
                             onBlur={handleBlur}
                         />
                         {errors.name && <span style={{ fontSize: '0.72rem', color: '#ef4444', marginTop: '4px', display: 'block' }}>{errors.name}</span>}
+                    </div>
+
+                    <div style={{ marginBottom: '14px' }}>
+                        <label style={{ ...labelStyle, fontSize: '0.68rem' }}>Category *</label>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                            {[
+                                { value: ResourceTypeCategory.Physical, label: 'Physical', desc: 'Lab equipment, hardware', icon: <Box size={14} /> },
+                                { value: ResourceTypeCategory.ServerCompute, label: 'Server / Compute', desc: 'GPU nodes, compute instances', icon: <Server size={14} /> },
+                            ].map(opt => (
+                                <button
+                                    key={opt.value}
+                                    type="button"
+                                    onClick={() => setCategory(opt.value)}
+                                    style={{
+                                        flex: 1,
+                                        padding: '10px 12px',
+                                        borderRadius: '10px',
+                                        border: category === opt.value ? '2px solid var(--accent-color)' : '1.5px solid var(--border-color)',
+                                        background: category === opt.value ? 'rgba(232,114,12,0.06)' : '#fff',
+                                        color: category === opt.value ? 'var(--accent-color)' : 'var(--text-secondary)',
+                                        cursor: 'pointer',
+                                        textAlign: 'left' as const,
+                                        transition: 'all 0.2s',
+                                    }}
+                                >
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, fontSize: '0.8rem', marginBottom: '2px' }}>
+                                        {opt.icon} {opt.label}
+                                    </div>
+                                    <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 500 }}>{opt.desc}</div>
+                                </button>
+                            ))}
+                        </div>
                     </div>
 
                     <div style={{ marginBottom: '14px' }}>

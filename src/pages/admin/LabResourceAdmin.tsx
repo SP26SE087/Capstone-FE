@@ -10,15 +10,17 @@ import { resourceService } from '@/services/resourceService';
 import { equipmentLogService } from '@/services/equipmentLogService';
 import { userService } from '@/services/userService';
 import { bookingService, BookingResponse } from '@/services/bookingService';
-import { Package, Activity, Loader2, CalendarRange, Search, Plus, ShieldCheck, AlertCircle } from 'lucide-react';
+import { Package, Activity, Loader2, CalendarRange, Search, Plus, ShieldCheck, AlertCircle, Server } from 'lucide-react';
 import { useToastStore } from '@/store/slices/toastSlice';
+import { resourceTypeService, ResourceTypeItem, ResourceTypeCategory } from '@/services/resourceTypeService';
 
 // New Panel Components
 import AdminResourcePanel from './components/AdminResourcePanel';
 import AdminBookingPanel from './components/AdminBookingPanel';
 import AdminLogPanel from './components/AdminLogPanel';
+import AdminServerPanel from './components/AdminServerPanel';
 
-type TabType = 'inventory' | 'bookings' | 'logs';
+type TabType = 'inventory' | 'bookings' | 'logs' | 'servers';
 
 interface LabResourceAdminProps {
   initialTab?: TabType;
@@ -26,7 +28,7 @@ interface LabResourceAdminProps {
 
 interface ActivePanel {
   id: string;
-  type: 'resource' | 'booking' | 'log';
+  type: 'resource' | 'booking' | 'log' | 'server';
   data?: any;
   title: string;
 }
@@ -40,6 +42,7 @@ const LabResourceAdmin: React.FC<LabResourceAdminProps> = ({ initialTab }) => {
   const [resources, setResources] = useState<Resource[]>([]);
   const [logs, setLogs] = useState<EquipmentLog[]>([]);
   const [allBookings, setAllBookings] = useState<BookingResponse[]>([]);
+  const [resourceTypes, setResourceTypes] = useState<ResourceTypeItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [activePanel, setActivePanel] = useState<ActivePanel | null>(null);
@@ -60,12 +63,14 @@ const LabResourceAdmin: React.FC<LabResourceAdminProps> = ({ initialTab }) => {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [resData, logsData, bookingsData, usersRes] = await Promise.all([
+      const [resData, logsData, bookingsData, usersRes, typesData] = await Promise.all([
         resourceService.getAll(),
         equipmentLogService.getAll(),
         bookingService.getAllPages(),
-        userService.getAll()
+        userService.getAll(),
+        resourceTypeService.getAll(),
       ]);
+      setResourceTypes(Array.isArray(typesData) ? typesData : []);
 
       const usersArray = Array.isArray(usersRes) ? usersRes : (usersRes as any).items || [];
       const userMap = new Map<string, string>(usersArray.map((u: any) => [String(u.id), String(u.fullName || u.userName)]));
@@ -128,14 +133,29 @@ const LabResourceAdmin: React.FC<LabResourceAdminProps> = ({ initialTab }) => {
     });
   };
 
+  const handleOpenServer = () => {
+    setActivePanel({ id: `new-server-${Date.now()}`, type: 'server', title: 'Register Compute Server' });
+  };
+
   const handleSaved = (reload: boolean, message?: string) => {
     if (reload) fetchData();
     if (message) addToast(message, 'success');
     setActivePanel(null);
   };
 
-  const filteredResources = resources.filter(r => 
-    !searchQuery || r.name.toLowerCase().includes(searchQuery.toLowerCase()) || (r.location || '').toLowerCase().includes(searchQuery.toLowerCase())
+  const serverTypeIds = useMemo(
+    () => new Set(resourceTypes.filter(t => t.category === ResourceTypeCategory.ServerCompute).map(t => t.id)),
+    [resourceTypes]
+  );
+
+  const filteredResources = resources.filter(r =>
+    !serverTypeIds.has(r.resourceTypeId ?? '__') &&
+    (!searchQuery || r.name.toLowerCase().includes(searchQuery.toLowerCase()) || (r.location || '').toLowerCase().includes(searchQuery.toLowerCase()))
+  );
+
+  const filteredServerResources = resources.filter(r =>
+    serverTypeIds.has(r.resourceTypeId ?? '__') &&
+    (!searchQuery || r.name.toLowerCase().includes(searchQuery.toLowerCase()) || (r.location || '').toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   const filteredBookings = allBookings.filter(b => 
@@ -196,7 +216,8 @@ const LabResourceAdmin: React.FC<LabResourceAdminProps> = ({ initialTab }) => {
             {[
               { id: 'inventory', label: 'Resource List', icon: <Package size={14} /> },
               { id: 'bookings', label: 'Global Bookings', icon: <CalendarRange size={14} /> },
-              { id: 'logs', label: 'Operational Logs', icon: <Activity size={14} /> }
+              { id: 'logs', label: 'Operational Logs', icon: <Activity size={14} /> },
+              { id: 'servers', label: 'Compute Servers', icon: <Server size={14} /> },
             ].map(tab => (
               <button
                 key={tab.id}
@@ -242,6 +263,14 @@ const LabResourceAdmin: React.FC<LabResourceAdminProps> = ({ initialTab }) => {
                   fontSize: '0.8rem', fontWeight: 600, padding: '8px 16px', borderRadius: '10px', border: 'none', cursor: 'pointer', boxShadow: '0 4px 12px rgba(245, 158, 11, 0.2)'
                 }}>
                   <Plus size={14} /> Create Log Record
+                </button>
+             )}
+             {activeTab === 'servers' && (
+                <button onClick={handleOpenServer} style={{ 
+                  background: 'linear-gradient(135deg, #0ea5e9, #2563eb)', color: 'white', display: 'flex', alignItems: 'center', gap: '6px',
+                  fontSize: '0.8rem', fontWeight: 600, padding: '8px 16px', borderRadius: '10px', border: 'none', cursor: 'pointer', boxShadow: '0 4px 12px rgba(14, 165, 233, 0.25)'
+                }}>
+                  <Plus size={14} /> Register Server
                 </button>
              )}
           </div>
@@ -290,6 +319,36 @@ const LabResourceAdmin: React.FC<LabResourceAdminProps> = ({ initialTab }) => {
                       isSplit={!!activePanel}
                     />
                   )}
+                  {activeTab === 'servers' && (
+                    filteredServerResources.length === 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '60%', gap: '12px', color: '#94a3b8' }}>
+                        <Server size={40} style={{ opacity: 0.35 }} />
+                        <p style={{ margin: 0, fontWeight: 600, fontSize: '0.9rem' }}>No compute servers registered yet.</p>
+                        <button onClick={handleOpenServer} style={{ padding: '8px 20px', borderRadius: '9px', border: 'none', background: 'linear-gradient(135deg, #0ea5e9, #2563eb)', color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>
+                          Register First Server
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {filteredServerResources.map(r => (
+                          <div key={r.id} style={{ padding: '12px 16px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '14px' }}>
+                            <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'linear-gradient(135deg, #0ea5e9, #2563eb)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                              <Server size={18} />
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#0f172a' }}>{r.name}</div>
+                              <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '2px' }}>{r.resourceTypeName || 'Compute Server'}{r.location ? ` · ${r.location}` : ''}</div>
+                            </div>
+                            {r.modelSeries && (
+                              <span style={{ fontSize: '0.72rem', fontWeight: 600, padding: '3px 10px', borderRadius: '20px', background: '#eff6ff', color: '#2563eb', whiteSpace: 'nowrap' as const }}>
+                                {r.modelSeries}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  )}
                 </>
               )}
             </div>
@@ -329,6 +388,12 @@ const LabResourceAdmin: React.FC<LabResourceAdminProps> = ({ initialTab }) => {
                     editingLog={activePanel.data} 
                     onClose={() => setActivePanel(null)} 
                     onSaved={handleSaved} 
+                  />
+                )}
+                {activePanel.type === 'server' && (
+                  <AdminServerPanel
+                    onClose={() => setActivePanel(null)}
+                    onSaved={handleSaved}
                   />
                 )}
               </div>
