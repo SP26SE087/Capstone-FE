@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useBlocker } from 'react-router-dom';
 import { useTranscriptionStore } from '@/store/slices/transcriptionStore';
 import MainLayout from '@/layout/MainLayout';
@@ -24,6 +24,7 @@ import {
     ChevronsDownUp
 } from 'lucide-react';
 import seminarService from '@/services/seminarService';
+import { transcriptionService } from '@/services/transcriptionService';
 import { SeminarMeetingResponse } from '@/types/seminar';
 import { projectService, userService } from '@/services';
 import { useToastStore } from '@/store/slices/toastSlice';
@@ -47,6 +48,41 @@ interface SeminarTab {
     panelNonce?: number;
 }
 
+const hasTranscriptionSummaryHint = (item: any): boolean => {
+    const summaryText = typeof item?.summary === 'string' ? item.summary.trim() : '';
+    return Boolean(
+        summaryText ||
+        item?.hasSummary === true ||
+        item?.isSummarized === true ||
+        item?.summarizedAt
+    );
+};
+
+const checkSeminarMeetingHasAiSummary = async (seminarMeetingId: string): Promise<boolean> => {
+    try {
+        const list = await transcriptionService.getByMeeting(seminarMeetingId);
+        if (!Array.isArray(list) || list.length === 0) return false;
+
+        if (list.some(item => hasTranscriptionSummaryHint(item as any))) {
+            return true;
+        }
+
+        const sorted = [...list].sort(
+            (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+
+        for (const item of sorted.slice(0, 2)) {
+            const detail = await transcriptionService.getById(item.id);
+            const summaryText = detail?.summary?.trim();
+            if (summaryText) return true;
+        }
+
+        return false;
+    } catch {
+        return false;
+    }
+};
+
 const Seminars: React.FC = () => {
     const { user } = useAuth();
 
@@ -66,14 +102,28 @@ const Seminars: React.FC = () => {
     );
     const [allExpanded, setAllExpanded] = useState<boolean | undefined>(undefined);
     const [refreshing, setRefreshing] = useState(false);
+    const [aiSummaryBySeminarMeetingId, setAiSummaryBySeminarMeetingId] = useState<Record<string, boolean>>({});
+    const aiSummaryCacheRef = useRef<Record<string, boolean>>({});
 
     // Panel system
     const [activePanel, setActivePanel] = useState<SeminarTab | null>(null);
+    const [timetableModal, setTimetableModal] = useState<SeminarMeetingResponse | null>(null);
+    const [openSwapInTimetableModal, setOpenSwapInTimetableModal] = useState(false);
     const [closingPanelId, setClosingPanelId] = useState<string | null>(null);
     const [showTranscription, setShowTranscription] = useState(false);
     const [isTranscriptionProcessing, setIsTranscriptionProcessing] = useState(false);
     const [showConfirmSwitch, setShowConfirmSwitch] = useState(false);
     const [pendingTab, setPendingTab] = useState<TabType | null>(null);
+
+    const openTimetableModal = (meeting: SeminarMeetingResponse, openSwap: boolean = false) => {
+        setOpenSwapInTimetableModal(openSwap);
+        setTimetableModal(meeting);
+    };
+
+    const closeTimetableModal = () => {
+        setTimetableModal(null);
+        setOpenSwapInTimetableModal(false);
+    };
 
     // Transcription store – persists panel state across route navigation
     const {
@@ -93,7 +143,12 @@ const Seminars: React.FC = () => {
     // During processing the user can freely navigate away; state is preserved in the store
     // and polling will resume when they return.
     const shouldBlockNav = showTranscription && hasCompletedTranscription && !isTranscriptionProcessing;
-    const blocker = useBlocker(shouldBlockNav);
+    const blocker = useBlocker(({ nextLocation }) => {
+        if (!shouldBlockNav) return false;
+        const targetPath = (nextLocation.pathname || '').toLowerCase();
+        if (targetPath === '/seminars' || targetPath === '/schedules') return false;
+        return true;
+    });
 
     // On mount: restore the transcription panel if it was open when user navigated away
     useEffect(() => {
@@ -102,6 +157,16 @@ const Seminars: React.FC = () => {
             setShowTranscription(true);
         }
     }, []); // eslint-disable-line
+
+    // Close AI Note when user clicks Schedules/Seminars in the sidebar
+    useEffect(() => {
+        const handler = () => {
+            setShowTranscription(false);
+            storeSetShowPanel(false);
+        };
+        window.addEventListener('closeAINote', handler);
+        return () => window.removeEventListener('closeAINote', handler);
+    }, []);
 
     // ── Panel open/close helpers that also sync the store ──────────────────────
     const handleOpenAINote = () => {
@@ -235,6 +300,13 @@ const Seminars: React.FC = () => {
     };
 
     const handleOpenViewTab = (meeting: SeminarMeetingResponse, opts?: { openSwapOnLoad?: boolean }) => {
+        const isSameSelectedMeeting = activePanel?.type === 'view' && activePanel.meetingId === meeting.seminarMeetingId;
+
+        if (isSameSelectedMeeting && !opts?.openSwapOnLoad) {
+            handleClosePanelAnimated();
+            return;
+        }
+
         setClosingPanelId(null);
         setActivePanel({
             id: `view-${meeting.seminarMeetingId}`,
@@ -300,6 +372,51 @@ const Seminars: React.FC = () => {
         }).sort((a, b) => new Date(b.meetingDate).getTime() - new Date(a.meetingDate).getTime());
     }, [meetings, searchQuery, filterTimeframe, filterSeminarId]);
 
+    useEffect(() => {
+        let isMounted = true;
+
+        const visibleSeminarMeetingIds = Array.from(
+            new Set(displayMeetings.map(m => m.seminarMeetingId).filter(Boolean))
+        );
+
+        if (visibleSeminarMeetingIds.length === 0) {
+            setAiSummaryBySeminarMeetingId({});
+            return;
+        }
+
+        const syncVisibleMap = () => {
+            const nextMap: Record<string, boolean> = {};
+            visibleSeminarMeetingIds.forEach(id => {
+                nextMap[id] = !!aiSummaryCacheRef.current[id];
+            });
+            setAiSummaryBySeminarMeetingId(nextMap);
+        };
+
+        const loadAiSummaryFlags = async () => {
+            const missingIds = visibleSeminarMeetingIds.filter(id => aiSummaryCacheRef.current[id] === undefined);
+            if (missingIds.length > 0) {
+                const results = await Promise.all(
+                    missingIds.map(async id => [id, await checkSeminarMeetingHasAiSummary(id)] as const)
+                );
+
+                if (!isMounted) return;
+
+                results.forEach(([id, hasSummary]) => {
+                    aiSummaryCacheRef.current[id] = hasSummary;
+                });
+            }
+
+            if (!isMounted) return;
+            syncVisibleMap();
+        };
+
+        loadAiSummaryFlags();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [displayMeetings]);
+
     const timetableEvents: TimetableEvent[] = useMemo(() => {
         return displayMeetings.map(m => {
             const startDayStr = m.meetingDate.split('T')[0];
@@ -329,6 +446,10 @@ const Seminars: React.FC = () => {
                 type: 'seminar' as const,
                 color: '#e8720c',
                 swapable: isOwnedByCurrentUser && isUpcoming,
+                location: m.location || null,
+                slideUrl: m.slideUrl || null,
+                recordingUrl: m.recordingLink || null,
+                status: isUpcoming ? 'upcoming' : 'past',
             };
         });
     }, [displayMeetings, usersMap, emailsMap, user?.email]);
@@ -480,8 +601,8 @@ const Seminars: React.FC = () => {
                     </div>
                 </div>
 
-                {/* View Toggle */}
-                {activeTab !== 'swap_requests' && (
+                {/* View Toggle + Tabs — hidden when AI Note is open */}
+                {!showTranscription && activeTab !== 'swap_requests' && (
                     <div style={{ display: 'flex', gap: '4px', marginBottom: '1.5rem' }}>
                         <button
                             onClick={() => { setViewMode('list'); localStorage.setItem('seminar_viewMode', 'list'); }}
@@ -511,7 +632,7 @@ const Seminars: React.FC = () => {
                 )}
 
                 {/* Tabs */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1.5rem' }}>
+                {!showTranscription && <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1.5rem' }}>
                     <div style={{ flex: 1, borderBottom: '1px solid #e2e8f0', overflowX: 'auto', whiteSpace: 'nowrap' as const }} className="custom-scrollbar">
                         <div style={{ display: 'flex', gap: '1rem' }}>
                             {[
@@ -568,7 +689,7 @@ const Seminars: React.FC = () => {
                             <Plus size={18} /> New Seminar Series
                         </button>
                     )}
-                </div>
+                </div>}
 
                 {/* Main Content */}
                 <div
@@ -597,14 +718,13 @@ const Seminars: React.FC = () => {
                             {activeTab !== 'swap_requests' && viewMode === 'timetable' ? (
                                 <WeeklyTimetable
                                     events={timetableEvents}
-                                    deferDetailToPopover
                                     onEventClick={(evt) => {
                                         const m = displayMeetings.find(mm => mm.seminarMeetingId === evt.id);
-                                        if (m) handleOpenViewTab(m);
+                                        if (m) openTimetableModal(m, false);
                                     }}
                                     onSwapRequestClick={(evt) => {
                                         const m = displayMeetings.find(mm => mm.seminarMeetingId === evt.id);
-                                        if (m) handleOpenViewTab(m, { openSwapOnLoad: true });
+                                        if (m) openTimetableModal(m, true);
                                     }}
                                 />
                             ) : activeTab === 'swap_requests' ? (
@@ -627,6 +747,7 @@ const Seminars: React.FC = () => {
                                     onSelect={handleOpenViewTab}
                                     usersMap={usersMap}
                                     filterTimeframe={filterTimeframe}
+                                    aiSummaryMap={aiSummaryBySeminarMeetingId}
                                     allExpanded={allExpanded}
                                 />
                             ) : (
@@ -860,6 +981,52 @@ const Seminars: React.FC = () => {
                             >
                                 Leave & Clear
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Timetable Detail Modal — full SeminarPanel in overlay */}
+            {timetableModal && (
+                <div
+                    onClick={closeTimetableModal}
+                    style={{
+                        position: 'fixed', inset: 0,
+                        background: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(8px)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        zIndex: 10000, padding: '20px',
+                        animation: 'fadeIn 0.18s ease'
+                    }}
+                >
+                    <div
+                        onClick={e => e.stopPropagation()}
+                        style={{
+                            background: '#fff', borderRadius: '20px',
+                            width: '100%', maxWidth: '860px', height: '88vh',
+                            display: 'flex', flexDirection: 'column',
+                            boxShadow: '0 40px 80px -12px rgba(0,0,0,0.3)',
+                            overflow: 'hidden',
+                            animation: 'slideUp 0.25s cubic-bezier(0.34,1.3,0.64,1)'
+                        }}
+                    >
+                        <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem' }} className="custom-scrollbar">
+                            <SeminarPanel
+                                key={`${timetableModal.seminarMeetingId}-${openSwapInTimetableModal ? 'swap' : 'detail'}`}
+                                meetingId={timetableModal.seminarMeetingId}
+                                initialData={timetableModal}
+                                openSwapOnLoad={openSwapInTimetableModal}
+                                isCreating={false}
+                                onClose={closeTimetableModal}
+                                onSaved={(shouldClose, message) => {
+                                    fetchSeminars();
+                                    if (message) showToast(message, 'success');
+                                    if (shouldClose) closeTimetableModal();
+                                }}
+                                onTitleChange={() => {}}
+                                usersMap={usersMap}
+                                emailsMap={emailsMap}
+                                projectsMap={projectsMap}
+                            />
                         </div>
                     </div>
                 </div>

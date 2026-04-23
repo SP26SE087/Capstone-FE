@@ -485,6 +485,9 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
     // Business Rules
     const canDelete = !isCreating && isOwner && meeting?.status === MeetingStatus.Scheduled;
     const canCancel = !isCreating && isOwner && (meeting?.status === MeetingStatus.Scheduled || meeting?.status === MeetingStatus.InProgress);
+    const canOpenAiNote = !isCreating
+        && !!onToggleAINote
+        && (meeting?.status === MeetingStatus.InProgress || meeting?.status === MeetingStatus.Completed);
     
     // Can edit: only before or on the meeting day
     const canEdit = isCreating || (isOwner && (() => {
@@ -528,8 +531,8 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
         <>
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             {/* Panel Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '12px', borderBottom: '1px solid var(--border-light)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', paddingBottom: '12px', borderBottom: '1px solid var(--border-light)', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
                     <div style={{
                         width: '32px',
                         height: '32px',
@@ -542,7 +545,7 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                     }}>
                         {isCreating ? <Plus size={16} /> : <Calendar size={16} />}
                     </div>
-                    <div>
+                    <div style={{ minWidth: 0 }}>
                         <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
                             {isCreating ? 'New Schedule' : (meeting?.title || 'Schedule Details')}
                         </h3>
@@ -573,15 +576,18 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                         )}
                     </div>
                 </div>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    {!isCreating && onToggleAINote && (
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap', flexShrink: 0 }}>
+                    {canOpenAiNote && (
                         <button
-                            onClick={onToggleAINote}
+                            onClick={() => onToggleAINote?.()}
                             title={showAINote ? 'Close AI Notes' : 'Open AI Notes'}
                             style={{
                                 display: 'flex', alignItems: 'center', gap: '6px',
                                 padding: '7px 16px', borderRadius: '10px', cursor: 'pointer',
                                 fontSize: '0.8rem', fontWeight: 800,
+                                minWidth: '112px',
+                                whiteSpace: 'nowrap' as const,
+                                flexShrink: 0,
                                 border: showAINote ? 'none' : '1.5px solid #c4b5fd',
                                 background: showAINote
                                     ? 'linear-gradient(135deg, #6366f1, #8b5cf6)'
