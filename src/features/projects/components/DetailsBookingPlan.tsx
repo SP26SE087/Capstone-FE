@@ -19,6 +19,7 @@ import {
   PlanStatus,
   PlanItemStatus,
   ManualPlanItemRequest,
+  PlanWarning,
 } from '@/services/projectBookingPlanService';
 import { resourceService } from '@/services/resourceService';
 import { bookingService } from '@/services/bookingService';
@@ -879,14 +880,38 @@ interface PlanItemCardProps {
 
 const PlanItemCard: React.FC<PlanItemCardProps> = ({ item, planId, isPlanActive, canManage, onUpdate, showToast }) => {
   const [loading, setLoading] = useState<'confirm' | 'skip' | null>(null);
+  const [showConfirmForm, setShowConfirmForm] = useState(false);
+  const [confirmStart, setConfirmStart] = useState('');
+  const [confirmEnd, setConfirmEnd]     = useState('');
+
   const meta = ITEM_STATUS_META[item.status as PlanItemStatus];
+  const isAutoBooking = item.bookingId !== null;
+
+  const openConfirmForm = () => {
+    // Pre-fill with suggested dates
+    setConfirmStart(fmtDatetimeLocal(item.suggestedStartDate));
+    setConfirmEnd(fmtDatetimeLocal(item.suggestedEndDate));
+    setShowConfirmForm(true);
+  };
 
   const handleConfirm = async () => {
+    if (!confirmStart || !confirmEnd) {
+      showToast('Both start and end date are required.', 'warning');
+      return;
+    }
+    if (new Date(confirmEnd) <= new Date(confirmStart)) {
+      showToast('End date must be after start date.', 'warning');
+      return;
+    }
     setLoading('confirm');
     try {
-      const updated = await projectBookingPlanService.confirmItem(planId, item.id);
+      const updated = await projectBookingPlanService.confirmItem(planId, item.id, {
+        startDate: new Date(confirmStart).toISOString(),
+        endDate: new Date(confirmEnd).toISOString(),
+      });
       onUpdate(updated);
-      showToast('Booking confirmed and created!', 'success');
+      setShowConfirmForm(false);
+      showToast('Booking confirmed and created! Check the booking for approval.', 'success');
     } catch (err: any) {
       showToast(err?.response?.data?.message || err?.message || 'Failed to confirm.', 'error');
     } finally { setLoading(null); }
@@ -903,43 +928,63 @@ const PlanItemCard: React.FC<PlanItemCardProps> = ({ item, planId, isPlanActive,
     } finally { setLoading(null); }
   };
 
+  const confirmDuration = confirmStart && confirmEnd ? fmtDuration(new Date(confirmStart).toISOString(), new Date(confirmEnd).toISOString()) : '';
+
   return (
-    <div style={{ display: 'flex', background: '#fff', borderRadius: 10, border: '1px solid #e2e8f0', marginBottom: 8, overflow: 'hidden', opacity: item.status === PlanItemStatus.Skipped ? 0.6 : 1 }}>
+    <div style={{ display: 'flex', background: '#fff', borderRadius: 10, border: `1px solid ${showConfirmForm ? 'var(--primary-color,#e8720c)' : '#e2e8f0'}`, marginBottom: 8, overflow: 'hidden', opacity: item.status === PlanItemStatus.Skipped ? 0.6 : 1, transition: 'border-color 0.2s' }}>
       <div style={{ width: 4, flexShrink: 0, background: meta.bar }} />
       <div style={{ flex: 1, padding: '13px 15px' }}>
+        {/* Overlap warning */}
         {item.hasManualBookingOverlap && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '6px 11px', marginBottom: 10, background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 7, fontSize: '0.78rem', color: '#92400e', fontWeight: 500 }}>
             <AlertTriangle size={13} style={{ flexShrink: 0 }} />
             Another booking overlaps this window — you can still confirm or skip.
           </div>
         )}
+
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
+            {/* Header row: name + qty + status badges */}
             <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 7, marginBottom: 6 }}>
               <span style={{ fontWeight: 700, fontSize: '0.93rem', color: '#0f172a' }}>{item.resourceName}</span>
               <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#fff', background: '#64748b', borderRadius: 99, padding: '1px 7px' }}>x{item.suggestedQuantity}</span>
               <span style={{ fontSize: '0.71rem', fontWeight: 700, padding: '2px 8px', borderRadius: 99, color: meta.color, background: meta.bg, border: `1px solid ${meta.bar}33` }}>
                 {meta.label}{item.status === PlanItemStatus.Booked ? ' ✓' : ''}
               </span>
+              {isAutoBooking && (
+                <span style={{ fontSize: '0.65rem', fontWeight: 800, padding: '2px 7px', borderRadius: 6, background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', letterSpacing: '0.04em' }}>AUTO</span>
+              )}
             </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px 14px', fontSize: '0.8rem', color: '#64748b' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><CalendarRange size={12} />{fmtDate(item.suggestedStartDate)} — {fmtDate(item.suggestedEndDate)}</span>
-              {item.relatedTask && <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><CheckCircle2 size={12} />{item.relatedTask}</span>}
+            {/* Suggested dates + related task */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px 14px', fontSize: '0.8rem', color: '#64748b', marginBottom: item.note || item.relatedTask ? 6 : 0 }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <CalendarRange size={12} />
+                {fmtDate(item.suggestedStartDate)} — {fmtDate(item.suggestedEndDate)}
+              </span>
+              {item.relatedTask && (
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#7c3aed', fontWeight: 600 }}>
+                  <CheckCircle2 size={12} />
+                  {item.relatedTask}
+                </span>
+              )}
             </div>
-            {item.note && <p style={{ margin: '6px 0 0', fontSize: '0.8rem', color: '#94a3b8', fontStyle: 'italic' }}>"{item.note}"</p>}
+            {item.note && <p style={{ margin: '0 0 6px', fontSize: '0.8rem', color: '#94a3b8', fontStyle: 'italic' }}>"{item.note}"</p>}
+
+            {/* Booking link (Booked state) */}
             {item.status === PlanItemStatus.Booked && item.bookingId && (
               <a href={`/resources/bookings/${item.bookingId}`} target="_blank" rel="noreferrer"
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 7, fontSize: '0.78rem', color: 'var(--primary-color,#e8720c)', textDecoration: 'none', fontWeight: 600 }}>
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 4, fontSize: '0.78rem', color: 'var(--primary-color,#e8720c)', textDecoration: 'none', fontWeight: 700, padding: '3px 10px', borderRadius: 7, background: '#fff7ed', border: '1px solid #fed7aa' }}>
                 View Booking <ExternalLink size={11} />
               </a>
             )}
           </div>
-          {canManage && isPlanActive && item.status === PlanItemStatus.Pending && (
+
+          {/* Action buttons — only for Pending + active plan */}
+          {canManage && isPlanActive && item.status === PlanItemStatus.Pending && !showConfirmForm && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5, flexShrink: 0 }}>
-              <button onClick={handleConfirm} disabled={loading !== null}
+              <button onClick={openConfirmForm} disabled={loading !== null}
                 style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 13px', borderRadius: 7, border: 'none', background: '#16a34a', color: '#fff', fontSize: '0.79rem', fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.65 : 1, whiteSpace: 'nowrap' }}>
-                {loading === 'confirm' ? <Loader2 size={12} style={spinStyle} /> : <Check size={12} />}
-                Confirm
+                <Check size={12} /> Confirm
               </button>
               <button onClick={handleSkip} disabled={loading !== null}
                 style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 13px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f8fafc', color: '#64748b', fontSize: '0.79rem', fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.65 : 1, whiteSpace: 'nowrap' }}>
@@ -949,6 +994,48 @@ const PlanItemCard: React.FC<PlanItemCardProps> = ({ item, planId, isPlanActive,
             </div>
           )}
         </div>
+
+        {/* ── Inline Confirm Form ──────────────────────────────────── */}
+        {showConfirmForm && (
+          <div style={{ marginTop: 12, padding: '12px 14px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
+            <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#15803d', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Check size={12} /> Set Booking Dates
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 8 }}>
+              <div>
+                <label style={fieldLbl}>Start *</label>
+                <input type="datetime-local" value={confirmStart}
+                  onChange={e => setConfirmStart(e.target.value)}
+                  style={baseInput} />
+              </div>
+              <div>
+                <label style={fieldLbl}>End *</label>
+                <input type="datetime-local" value={confirmEnd}
+                  onChange={e => setConfirmEnd(e.target.value)}
+                  style={baseInput} />
+              </div>
+            </div>
+            {confirmDuration && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', background: '#eff6ff', borderRadius: 7, border: '1px solid #bfdbfe', fontSize: '0.72rem', color: '#1d4ed8', fontWeight: 700, marginBottom: 10 }}>
+                <Clock size={11} /> {confirmDuration} — {confirmStart ? new Date(confirmStart).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : '?'} → {confirmEnd ? new Date(confirmEnd).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '?'}
+              </div>
+            )}
+            <div style={{ fontSize: '0.72rem', color: '#64748b', marginBottom: 10, padding: '6px 10px', background: '#fffbeb', borderRadius: 7, border: '1px solid #fde68a' }}>
+              A <strong>Pending</strong> booking will be created. The Lab Director or Senior Researcher will need to approve it.
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={() => setShowConfirmForm(false)} disabled={loading !== null}
+                style={{ ...btnSecondary, fontSize: '0.78rem', padding: '6px 14px', opacity: loading ? 0.5 : 1 }}>
+                Cancel
+              </button>
+              <button onClick={handleConfirm} disabled={loading !== null}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', borderRadius: 8, border: 'none', background: '#16a34a', color: '#fff', fontSize: '0.78rem', fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.65 : 1 }}>
+                {loading === 'confirm' ? <Loader2 size={12} style={spinStyle} /> : <Check size={12} />}
+                Create Booking
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1008,9 +1095,56 @@ const ItemGroup: React.FC<ItemGroupProps> = ({ label, count, meta, collapsed, on
   </div>
 );
 
+// ─── WarningSection ────────────────────────────────────────────────────────────
+const WARNING_META: Record<string, { color: string; bg: string; border: string; icon: React.ReactNode }> = {
+  RESOURCE_TYPE_NOT_IN_SYSTEM: { color: '#991b1b', bg: '#fef2f2', border: '#fca5a5', icon: <AlertTriangle size={14} /> },
+  ALL_RESOURCES_UNAVAILABLE:   { color: '#92400e', bg: '#fffbeb', border: '#fde68a', icon: <AlertTriangle size={14} /> },
+  NO_EQUIPMENT_NEEDED:         { color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe', icon: <CheckCircle2 size={14} /> },
+};
+const defaultWarningMeta = { color: '#374151', bg: '#f9fafb', border: '#e5e7eb', icon: <AlertTriangle size={14} /> };
+
+const WarningsSection: React.FC<{ warnings: PlanWarning[] }> = ({ warnings }) => {
+  if (warnings.length === 0) return null;
+  return (
+    <div style={{ marginTop: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
+        <AlertTriangle size={13} style={{ color: '#f59e0b' }} />
+        <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          AI Notes &amp; Warnings ({warnings.length})
+        </span>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {warnings.map((w, i) => {
+          const m = WARNING_META[w.code] ?? defaultWarningMeta;
+          return (
+            <div key={i} style={{ display: 'flex', gap: 10, padding: '10px 13px', borderRadius: 9, background: m.bg, border: `1px solid ${m.border}` }}>
+              <div style={{ color: m.color, flexShrink: 0, marginTop: 1 }}>{m.icon}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: '0.78rem', fontWeight: 700, color: m.color, marginBottom: 2 }}>
+                  {w.resourceTypeName
+                    ? <span style={{ marginRight: 6, fontWeight: 800 }}>{w.resourceTypeName}</span>
+                    : null}
+                  {w.code.replace(/_/g, ' ')}
+                </div>
+                <div style={{ fontSize: '0.75rem', color: '#374151', lineHeight: 1.5 }}>{w.message}</div>
+                {w.relatedTask && (
+                  <div style={{ marginTop: 4, fontSize: '0.68rem', color: '#7c3aed', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <CheckCircle2 size={10} /> Related: {w.relatedTask}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 // ─── PlanReviewPanel — right panel in review mode ─────────────────────────────
 interface PlanReviewPanelProps {
   plan: ProjectBookingPlanResponse;
+  warnings: PlanWarning[];
   canManage: boolean;
   actionLoading: 'generate' | 'manual' | null;
   showToast: (msg: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
@@ -1020,7 +1154,7 @@ interface PlanReviewPanelProps {
 }
 
 const PlanReviewPanel: React.FC<PlanReviewPanelProps> = ({
-  plan, canManage, actionLoading, showToast, onUpdate, onGenerate, onStartManual,
+  plan, warnings, canManage, actionLoading, showToast, onUpdate, onGenerate, onStartManual,
 }) => {
   const isPlanActive = plan.status !== PlanStatus.Expired && plan.status !== PlanStatus.FullyBooked;
   const [collapsed, setCollapsed] = useState<Record<PlanItemStatus, boolean>>({
@@ -1064,6 +1198,8 @@ const PlanReviewPanel: React.FC<PlanReviewPanelProps> = ({
         {plan.items.length === 0 && (
           <div style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8', fontSize: '0.88rem' }}>This plan has no items.</div>
         )}
+        {/* Warnings from last generate */}
+        <WarningsSection warnings={warnings} />
       </div>
 
       {/* Footer actions */}
@@ -1087,6 +1223,7 @@ const PlanReviewPanel: React.FC<PlanReviewPanelProps> = ({
 // ─── Main Component ───────────────────────────────────────────────────────────
 const DetailsBookingPlan: React.FC<DetailsBookingPlanProps> = ({ projectId, canManage, showToast }) => {
   const [plan, setPlan]                   = useState<ProjectBookingPlanResponse | null>(null);
+  const [lastWarnings, setLastWarnings]   = useState<PlanWarning[]>([]);
   const [loadingPlan, setLoadingPlan]     = useState(true);
   const [actionLoading, setActionLoading] = useState<'generate' | 'manual' | null>(null);
   const [resources, setResources]         = useState<Resource[]>([]);
@@ -1098,6 +1235,8 @@ const DetailsBookingPlan: React.FC<DetailsBookingPlanProps> = ({ projectId, canM
 
   const loadPlan = useCallback(async () => {
     setLoadingPlan(true);
+    // Warnings only come from generate — clear them on manual refresh
+    setLastWarnings([]);
     try {
       const p = await projectBookingPlanService.getByProject(projectId);
       setPlan(p);
@@ -1143,7 +1282,13 @@ const DetailsBookingPlan: React.FC<DetailsBookingPlanProps> = ({ projectId, canM
     try {
       const newPlan = await projectBookingPlanService.generate(projectId);
       setPlan(newPlan);
-      showToast('AI booking plan generated!', 'success');
+      setLastWarnings(newPlan.warnings ?? []);
+      const count = newPlan.items.length;
+      const warnCount = (newPlan.warnings ?? []).length;
+      showToast(
+        `AI plan generated with ${count} suggestion${count !== 1 ? 's' : ''}${warnCount ? ` and ${warnCount} warning${warnCount !== 1 ? 's' : ''}` : ''}.`,
+        warnCount > 0 ? 'warning' : 'success',
+      );
     } catch (err: any) {
       showToast(err?.response?.data?.message || err?.message || 'Failed to generate plan.', 'error');
     } finally { setActionLoading(null); }
@@ -1309,6 +1454,7 @@ const DetailsBookingPlan: React.FC<DetailsBookingPlanProps> = ({ projectId, canM
           />
           <PlanReviewPanel
             plan={plan}
+            warnings={lastWarnings}
             canManage={canManage}
             actionLoading={actionLoading}
             showToast={showToast}

@@ -17,8 +17,22 @@ export enum PlanItemStatus {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+export type PlanWarningCode =
+  | 'RESOURCE_TYPE_NOT_IN_SYSTEM'
+  | 'ALL_RESOURCES_UNAVAILABLE'
+  | 'NO_EQUIPMENT_NEEDED'
+  | string;
+
+export interface PlanWarning {
+  code: PlanWarningCode;
+  message: string;
+  relatedTask: string | null;
+  resourceTypeName: string | null;
+}
+
 export interface ProjectBookingPlanItemResponse {
   id: string;
+  resourceId: string;
   resourceName: string;
   suggestedQuantity: number;
   suggestedStartDate: string;
@@ -37,6 +51,8 @@ export interface ProjectBookingPlanResponse {
   generatedAt: string;
   status: PlanStatus;
   items: ProjectBookingPlanItemResponse[];
+  /** Only populated immediately after POST /generate — always [] from GET */
+  warnings: PlanWarning[];
 }
 
 export interface ManualPlanItemRequest {
@@ -86,8 +102,9 @@ export const projectBookingPlanService = {
   confirmItem: async (
     planId: string,
     itemId: string,
+    body: { startDate: string; endDate: string },
   ): Promise<ProjectBookingPlanResponse> => {
-    const res = await api.post(`${BASE}/${planId}/items/${itemId}/confirm`);
+    const res = await api.post(`${BASE}/${planId}/items/${itemId}/confirm`, body);
     return res.data;
   },
 

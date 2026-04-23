@@ -2,7 +2,8 @@ import React from 'react';
 import {
     Plus, Search, Calendar, Target, Edit3, X,
     Clock, Activity, CheckCircle2, User, Users, Info,
-    Save, Trash2, ChevronRight, ChevronDown, CheckCircle, Timer, AlertTriangle, RotateCcw
+    Save, Trash2, ChevronRight, ChevronDown, CheckCircle, Timer, AlertTriangle, RotateCcw,
+    Sparkles
 } from 'lucide-react';
 import { Milestone, MilestoneStatus, Task } from '@/types';
 import MilestoneItem from '@/components/milestone/MilestoneItem';
@@ -23,6 +24,23 @@ interface TaskDraft {
     collaboratorIds: string[];
     isSaving: boolean;
     isExpanded: boolean;
+}
+
+interface AIMilestoneDraft {
+    _key: string;
+    // original AI values (raw UTC ISO strings)
+    name: string;
+    description: string;
+    startDate: string;
+    dueDate: string;
+    // editable local copies
+    _name: string;
+    _description: string;
+    _startDate: string; // YYYY-MM-DD for <input type="date">
+    _dueDate: string;
+    _editing: boolean;
+    _saving: boolean;
+    _saved: boolean;
 }
 
 interface DetailsMilestonesProps {
@@ -89,6 +107,116 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
     isMilestoneSaving = false,
     allTasks = []
 }) => {
+    // ─── AI Planning State ───────────────────────────────────────────────────
+    const [aiMilestonePanelOpen, setAiMilestonePanelOpen] = React.useState(false);
+    const [aiDuration, setAiDuration] = React.useState(3);
+    const [generatingAIMilestones, setGeneratingAIMilestones] = React.useState(false);
+    const [generatingAITasks, setGeneratingAITasks] = React.useState(false);
+    const [aiMilestoneDrafts, setAiMilestoneDrafts] = React.useState<AIMilestoneDraft[]>([]);
+
+    // Helper: extract YYYY-MM-DD from UTC ISO string without timezone shift
+    const utcIsoToDateInput = (iso: string | null | undefined): string => {
+        if (!iso) return '';
+        return iso.split('T')[0];
+    };
+
+    const handleGenerateAIMilestones = async () => {
+        if (!projectId || generatingAIMilestones) return;
+        setGeneratingAIMilestones(true);
+        try {
+            const results = await milestoneService.generateAIMilestones(projectId, aiDuration);
+            const list = Array.isArray(results) ? results : [];
+            if (list.length === 0) {
+                showToast('AI found no suggestions for this project.', 'warning');
+                return;
+            }
+            setAiMilestoneDrafts(list.map((m: any, i: number) => ({
+                _key: `aim-${Date.now()}-${i}`,
+                name: m.name || '',
+                description: m.description || '',
+                startDate: m.startDate || '',
+                dueDate: m.dueDate || '',
+                _name: m.name || '',
+                _description: m.description || '',
+                _startDate: utcIsoToDateInput(m.startDate),
+                _dueDate: utcIsoToDateInput(m.dueDate),
+                _editing: false,
+                _saving: false,
+                _saved: false,
+            })));
+            showToast(`AI suggested ${list.length} milestone${list.length !== 1 ? 's' : ''}. Review below.`, 'info');
+        } catch (error: any) {
+            showToast(error?.response?.data?.message || error?.message || 'AI generation failed. Please try again.', 'error');
+        } finally {
+            setGeneratingAIMilestones(false);
+        }
+    };
+
+    const handleAcceptAIMilestone = async (draft: AIMilestoneDraft) => {
+        if (!projectId) return;
+        setAiMilestoneDrafts(prev => prev.map(d => d._key === draft._key ? { ...d, _saving: true } : d));
+        try {
+            const name = draft._editing ? draft._name : draft.name;
+            const description = draft._editing ? draft._description : draft.description;
+            // Send the date as received from AI (UTC ISO) or the edited YYYY-MM-DD value
+            const startDate = draft._editing ? draft._startDate : draft.startDate;
+            const dueDate = draft._editing ? draft._dueDate : draft.dueDate;
+            await milestoneService.create({ projectId, name, description, startDate, dueDate, status: 0 });
+            setAiMilestoneDrafts(prev => prev.map(d => d._key === draft._key ? { ...d, _saving: false, _saved: true } : d));
+            if (refreshMilestones) refreshMilestones();
+            showToast(`Milestone "${name}" created!`, 'success');
+        } catch (e: any) {
+            setAiMilestoneDrafts(prev => prev.map(d => d._key === draft._key ? { ...d, _saving: false } : d));
+            showToast(e?.response?.data?.message || e?.message || 'Failed to create milestone.', 'error');
+        }
+    };
+
+    const handleDismissAIMilestone = (key: string) => {
+        setAiMilestoneDrafts(prev => prev.filter(d => d._key !== key));
+    };
+
+    const handleGenerateAITasks = async () => {
+        const mId = activeMilestone?.milestoneId || (activeMilestone as any)?.id || editingMilestoneId;
+        if (!mId || generatingAITasks) return;
+        setGeneratingAITasks(true);
+        try {
+            const results = await milestoneService.generateAITasks(mId);
+            const list = Array.isArray(results) ? results : [];
+            if (list.length === 0) {
+                showToast('AI found no task suggestions for this milestone.', 'warning');
+                return;
+            }
+            const newDrafts: TaskDraft[] = list.map((t: any) => ({
+                id: `ai-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                name: t.name || '',
+                description: t.description || '',
+                priority: t.priority ?? 2,
+                status: t.status ?? 1,
+                startDate: utcIsoToDateInput(t.startDate) || today,
+                dueDate: utcIsoToDateInput(t.dueDate) || '',
+                assigneeId: '',
+                collaboratorIds: [],
+                isSaving: false,
+                isExpanded: false,
+            }));
+            setDraftTasks(prev => {
+                const slots = 5 - prev.length;
+                return slots <= 0 ? prev : [...prev, ...newDrafts.slice(0, slots)];
+            });
+            const slots = Math.max(0, 5 - draftTasks.length);
+            const added = Math.min(list.length, slots);
+            setTaskTab('draft');
+            showToast(
+                `AI suggested ${added} task${added !== 1 ? 's' : ''}${list.length > added ? ` (${list.length - added} skipped — draft limit)` : ''} — review in Draft tab.`,
+                'info',
+            );
+        } catch (error: any) {
+            showToast(error?.response?.data?.message || error?.message || 'AI task generation failed.', 'error');
+        } finally {
+            setGeneratingAITasks(false);
+        }
+    };
+
     const milestoneIdsWithTasks = React.useMemo(() => {
         const s = new Set<string>();
         allTasks.forEach((t: any) => {
@@ -890,7 +1018,212 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                             <Target size={18} style={{ color: '#1e293b' }} />
                             <h4 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 800, color: '#1e293b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Milestone List</h4>
                         </div>
+                        {canManageMilestones && !isArchived && (
+                            <button
+                                onClick={() => setAiMilestonePanelOpen(prev => !prev)}
+                                title="Let AI generate milestones for this project"
+                                style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: '6px',
+                                    padding: '5px 12px', borderRadius: '8px',
+                                    border: `1.5px solid ${aiMilestonePanelOpen ? '#7c3aed' : '#c4b5fd'}`,
+                                    background: aiMilestonePanelOpen ? '#7c3aed' : '#faf5ff',
+                                    color: aiMilestonePanelOpen ? 'white' : '#7c3aed',
+                                    fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer',
+                                    transition: 'all 0.2s ease'
+                                }}
+                            >
+                                <Sparkles size={12} />
+                                AI Generate
+                            </button>
+                        )}
                     </div>
+                    {/* ─── AI Milestone Generator Panel ─────────────────────────────── */}
+                    {aiMilestonePanelOpen && canManageMilestones && !isArchived && (
+                        <div style={{
+                            background: 'linear-gradient(135deg, #fdf4ff 0%, #eff6ff 100%)',
+                            border: '1.5px solid #c4b5fd', borderRadius: '16px',
+                            padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.85rem',
+                            boxShadow: '0 4px 20px rgba(124, 58, 237, 0.08)'
+                        }}>
+                            {/* Header */}
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                                <div style={{ width: 32, height: 32, borderRadius: 10, background: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                    <Sparkles size={15} color="white" />
+                                </div>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#4c1d95', marginBottom: '2px' }}>AI Milestone Generator</div>
+                                    <div style={{ fontSize: '0.72rem', color: '#6b21a8', lineHeight: 1.5 }}>
+                                        {aiMilestoneDrafts.length > 0
+                                            ? `${aiMilestoneDrafts.filter(d => !d._saved).length} suggestion${aiMilestoneDrafts.filter(d => !d._saved).length !== 1 ? 's' : ''} remaining — accept or dismiss each one.`
+                                            : 'AI analyses your project and suggests milestones. Review before saving.'}
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => { setAiMilestonePanelOpen(false); setAiMilestoneDrafts([]); }}
+                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#a78bfa', padding: '2px', flexShrink: 0, display: 'flex', alignItems: 'center' }}
+                                    title="Close and discard suggestions"
+                                >
+                                    <X size={14} />
+                                </button>
+                            </div>
+
+                            {/* Draft review list */}
+                            {aiMilestoneDrafts.length > 0 ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '340px', overflowY: 'auto' }} className="custom-scrollbar">
+                                    {aiMilestoneDrafts.map(draft => (
+                                        <div key={draft._key} style={{
+                                            background: draft._saved ? '#f0fdf4' : 'white',
+                                            border: `1.5px solid ${draft._saved ? '#bbf7d0' : '#e9d5ff'}`,
+                                            borderRadius: '12px', padding: '10px 12px',
+                                            display: 'flex', flexDirection: 'column', gap: '6px',
+                                            opacity: draft._saved ? 0.6 : 1,
+                                            transition: 'opacity 0.2s'
+                                        }}>
+                                            {/* Name row */}
+                                            {draft._editing ? (
+                                                <input
+                                                    type="text" value={draft._name}
+                                                    onChange={e => setAiMilestoneDrafts(prev => prev.map(d => d._key === draft._key ? { ...d, _name: e.target.value } : d))}
+                                                    style={{ width: '100%', padding: '4px 8px', borderRadius: '6px', border: '1px solid #c4b5fd', fontSize: '0.78rem', fontWeight: 700, outline: 'none', boxSizing: 'border-box' }}
+                                                />
+                                            ) : (
+                                                <div style={{ fontSize: '0.78rem', fontWeight: 700, color: draft._saved ? '#15803d' : '#4c1d95', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                    {draft._saved && <CheckCircle2 size={12} style={{ color: '#16a34a', flexShrink: 0 }} />}
+                                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{draft.name}</span>
+                                                </div>
+                                            )}
+                                            {/* Description row */}
+                                            {draft._editing ? (
+                                                <textarea
+                                                    value={draft._description}
+                                                    onChange={e => setAiMilestoneDrafts(prev => prev.map(d => d._key === draft._key ? { ...d, _description: e.target.value } : d))}
+                                                    style={{ width: '100%', padding: '4px 8px', borderRadius: '6px', border: '1px solid #c4b5fd', fontSize: '0.72rem', minHeight: '44px', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }}
+                                                />
+                                            ) : (
+                                                draft.description && (
+                                                    <div style={{ fontSize: '0.68rem', color: '#64748b', lineHeight: 1.4, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any }}>
+                                                        {draft.description}
+                                                    </div>
+                                                )
+                                            )}
+                                            {/* Date row */}
+                                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                                {draft._editing ? (
+                                                    <>
+                                                        <input type="date" value={draft._startDate}
+                                                            onChange={e => setAiMilestoneDrafts(prev => prev.map(d => d._key === draft._key ? { ...d, _startDate: e.target.value } : d))}
+                                                            style={{ flex: 1, padding: '3px 6px', borderRadius: '6px', border: '1px solid #c4b5fd', fontSize: '0.65rem', outline: 'none' }}
+                                                        />
+                                                        <span style={{ color: '#a78bfa', fontSize: '0.65rem' }}>→</span>
+                                                        <input type="date" value={draft._dueDate}
+                                                            onChange={e => setAiMilestoneDrafts(prev => prev.map(d => d._key === draft._key ? { ...d, _dueDate: e.target.value } : d))}
+                                                            style={{ flex: 1, padding: '3px 6px', borderRadius: '6px', border: '1px solid #c4b5fd', fontSize: '0.65rem', outline: 'none' }}
+                                                        />
+                                                    </>
+                                                ) : (
+                                                    <div style={{ fontSize: '0.65rem', color: '#7c3aed', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                        <Calendar size={10} />
+                                                        {draft._startDate} → {draft._dueDate}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            {/* Action buttons */}
+                                            {!draft._saved && (
+                                                <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', marginTop: '2px' }}>
+                                                    <button
+                                                        onClick={() => setAiMilestoneDrafts(prev => prev.map(d => d._key === draft._key ? { ...d, _editing: !d._editing } : d))}
+                                                        disabled={draft._saving}
+                                                        style={{ padding: '4px 10px', borderRadius: '7px', border: '1px solid #c4b5fd', background: draft._editing ? '#7c3aed' : 'white', color: draft._editing ? 'white' : '#7c3aed', fontSize: '0.65rem', fontWeight: 700, cursor: 'pointer' }}
+                                                    >
+                                                        {draft._editing ? 'Done' : 'Edit'}
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDismissAIMilestone(draft._key)}
+                                                        disabled={draft._saving}
+                                                        style={{ padding: '4px 10px', borderRadius: '7px', border: '1px solid #fca5a5', background: '#fff1f1', color: '#ef4444', fontSize: '0.65rem', fontWeight: 700, cursor: 'pointer' }}
+                                                    >
+                                                        Skip
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleAcceptAIMilestone(draft)}
+                                                        disabled={draft._saving}
+                                                        style={{ padding: '4px 12px', borderRadius: '7px', border: 'none', background: draft._saving ? '#a78bfa' : '#7c3aed', color: 'white', fontSize: '0.65rem', fontWeight: 700, cursor: draft._saving ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                                    >
+                                                        {draft._saving ? <Clock size={11} className="animate-spin-slow" /> : <CheckCircle2 size={11} />}
+                                                        {draft._saving ? 'Saving...' : 'Accept'}
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                /* Duration slider — shown only when no drafts yet */
+                                <div>
+                                    <label style={{ fontSize: '0.62rem', fontWeight: 800, color: '#7c3aed', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: '8px' }}>
+                                        Planning horizon: <span style={{ fontSize: '0.85rem', color: '#4c1d95' }}>{aiDuration} month{aiDuration !== 1 ? 's' : ''}</span>
+                                    </label>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                        <span style={{ fontSize: '0.65rem', color: '#a78bfa', fontWeight: 700 }}>1</span>
+                                        <input
+                                            type="range" min={1} max={6} value={aiDuration}
+                                            onChange={e => setAiDuration(Number(e.target.value))}
+                                            disabled={generatingAIMilestones}
+                                            style={{ flex: 1, accentColor: '#7c3aed', cursor: generatingAIMilestones ? 'not-allowed' : 'pointer' }}
+                                        />
+                                        <span style={{ fontSize: '0.65rem', color: '#a78bfa', fontWeight: 700 }}>6</span>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
+                                        {[1,2,3,4,5,6].map(n => (
+                                            <button
+                                                key={n}
+                                                onClick={() => !generatingAIMilestones && setAiDuration(n)}
+                                                style={{
+                                                    width: 24, height: 24, borderRadius: '6px',
+                                                    border: `1.5px solid ${aiDuration === n ? '#7c3aed' : '#ddd6fe'}`,
+                                                    background: aiDuration === n ? '#7c3aed' : 'white',
+                                                    color: aiDuration === n ? 'white' : '#7c3aed',
+                                                    fontSize: '0.65rem', fontWeight: 800, cursor: generatingAIMilestones ? 'not-allowed' : 'pointer',
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                    transition: 'all 0.15s'
+                                                }}
+                                            >{n}</button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Footer buttons — only when no drafts */}
+                            {aiMilestoneDrafts.length === 0 && (
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                    <button
+                                        onClick={() => setAiMilestonePanelOpen(false)}
+                                        disabled={generatingAIMilestones}
+                                        style={{ flex: 1, padding: '8px', borderRadius: '10px', border: '1.5px solid #ddd6fe', background: 'white', color: '#7c3aed', fontSize: '0.78rem', fontWeight: 700, cursor: generatingAIMilestones ? 'not-allowed' : 'pointer', opacity: generatingAIMilestones ? 0.5 : 1 }}
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleGenerateAIMilestones}
+                                        disabled={generatingAIMilestones}
+                                        style={{
+                                            flex: 2, padding: '8px 14px', borderRadius: '10px', border: 'none',
+                                            background: generatingAIMilestones ? '#a78bfa' : '#7c3aed',
+                                            color: 'white', fontSize: '0.78rem', fontWeight: 700,
+                                            cursor: generatingAIMilestones ? 'not-allowed' : 'pointer',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px',
+                                            transition: 'background 0.2s'
+                                        }}
+                                    >
+                                        {generatingAIMilestones
+                                            ? <><Clock size={13} className="animate-spin-slow" />Generating...</>
+                                            : <><Sparkles size={13} />Suggest Milestones</>
+                                        }
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
                     <div style={{ display: 'flex', gap: '10px', background: 'white', padding: '1rem', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
                         <div style={{ position: 'relative', flex: 1 }}>
                             <Search size={16} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
@@ -1121,6 +1454,28 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                 <Calendar size={14} /><span style={{ fontSize: '0.72rem', fontWeight: 750 }}>{header.startDate ? `${formatDate(header.startDate)} - ${formatDate(header.dueDate)}` : "TBD"}</span>
                             </div>
                             <div style={{ display: 'flex', gap: '8px' }}>
+                                {canManageProject && !isArchived && activeMilestone?.status !== MilestoneStatus.Completed && activeMilestone?.status !== MilestoneStatus.Cancelled && (
+                                    <button
+                                        onClick={handleGenerateAITasks}
+                                        disabled={generatingAITasks}
+                                        title="Let AI generate tasks for this milestone"
+                                        style={{
+                                            display: 'inline-flex', alignItems: 'center', gap: '6px',
+                                            padding: '7px 13px', borderRadius: '10px',
+                                            border: '1.5px solid #c4b5fd',
+                                            background: generatingAITasks ? '#a78bfa' : '#faf5ff',
+                                            color: generatingAITasks ? 'white' : '#7c3aed',
+                                            fontSize: '0.75rem', fontWeight: 700,
+                                            cursor: generatingAITasks ? 'not-allowed' : 'pointer',
+                                            transition: 'all 0.2s ease', opacity: generatingAITasks ? 0.8 : 1
+                                        }}
+                                    >
+                                        {generatingAITasks
+                                            ? <><Clock size={13} className="animate-spin-slow" />Generating...</>
+                                            : <><Sparkles size={13} />AI Tasks</>
+                                        }
+                                    </button>
+                                )}
                                 {canManageProject && !isArchived && taskTab === 'draft' && activeMilestone?.status !== MilestoneStatus.Completed && activeMilestone?.status !== MilestoneStatus.Cancelled && (
                                     <React.Fragment>
                                         <button
@@ -1409,7 +1764,7 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                         <div style={{ textAlign: 'center', padding: '4rem 2rem', color: '#94a3b8' }}>
                                             <Plus size={32} style={{ color: '#cbd5e1', marginBottom: '1.5rem' }} />
                                             <h5 style={{ color: '#1e293b', fontSize: '1rem', fontWeight: 800 }}>Drafting Workspace</h5>
-                                            <p style={{ fontSize: '0.8rem' }}>Plan your new tasks here. Use the "New Task" button above to start.</p>
+                                            <p style={{ fontSize: '0.8rem' }}>Plan tasks manually with "New Task", or use the <strong style={{ color: '#7c3aed' }}>AI Tasks</strong> button to get AI suggestions here.</p>
                                         </div>
                                     )}
                                 </div>

@@ -111,5 +111,15 @@ export const milestoneService = {
             console.error(`Error fetching milestone tasks for project ${projectId}:`, error);
             return [];
         }
+    },
+
+    generateAIMilestones: async (projectId: string, durationMonths: number): Promise<any[]> => {
+        const response = await api.post(`/api/projects/${projectId}/ai/milestones`, { durationMonths });
+        return response.data.data || response.data || [];
+    },
+
+    generateAITasks: async (milestoneId: string): Promise<any[]> => {
+        const response = await api.post(`/api/projects/milestones/${milestoneId}/ai/tasks`);
+        return response.data.data || response.data || [];
     }
 };
