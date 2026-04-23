@@ -13,6 +13,7 @@ import {
     UserCog,
     FileText,
     FolderKanban,
+    Server,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -40,6 +41,7 @@ const Sidebar: React.FC = () => {
 
     const adminItems = [
         { icon: <UserCog size={20} />, label: 'User Management', path: '/user-management' },
+        { icon: <Server size={20} />, label: 'Compute Servers', path: '/admin/compute' },
     ];
 
     const mainItems = workspaceItems;

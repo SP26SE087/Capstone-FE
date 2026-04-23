@@ -100,12 +100,14 @@ const RT_ICON: Record<number, React.ReactNode> = {
     [ResourceType.Equipment]: <HardDrive size={13} />,
     [ResourceType.Dataset]:   <Box size={13} />,
     [ResourceType.LabStation]:<Monitor size={13} />,
+    [ResourceType.Compute]:   <Zap size={13} />,
 };
 const RT_LABEL: Record<number, string> = {
     [ResourceType.GPU]:       'GPU',
     [ResourceType.Equipment]: 'Equipment',
     [ResourceType.Dataset]:   'Dataset',
     [ResourceType.LabStation]:'Lab Station',
+    [ResourceType.Compute]:   'Compute',
 };
 
 // ─── Style constants ──────────────────────────────────────────────────────────
