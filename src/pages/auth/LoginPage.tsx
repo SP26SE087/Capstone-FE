@@ -128,13 +128,13 @@ const LoginPage: React.FC = () => {
                     marginBottom: '2rem',
                 }} />
 
-                <p style={{
+                {/* <p style={{
                     color: '#cbd5e1', fontSize: '0.9rem',
                     marginBottom: '1.5rem',
                     fontWeight: 500,
                 }}>
                     Sign in with your institutional account
-                </p>
+                </p> */}
 
                 {/* Google Login Button */}
                 <div style={{

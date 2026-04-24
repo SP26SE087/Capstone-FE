@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import AppSelect from '@/components/common/AppSelect';
 import MainLayout from '@/layout/MainLayout';
 import { useAuth } from '@/hooks/useAuth';
-import { Resource, Booking, BookingStatus, EquipmentLog, EquipmentLogAction } from '@/types/booking';
+import { Resource, Booking, BookingStatus, BasicBookingResponse, EquipmentLog, EquipmentLogAction } from '@/types/booking';
 import { bookingService } from '@/services/bookingService';
 import { resourceService } from '@/services/resourceService';
 import { equipmentLogService } from '@/services/equipmentLogService';
@@ -23,6 +23,7 @@ import {
     LogIn,
     LogOut,
     ChevronRight,
+    ChevronLeft,
     Layers,
     Pencil,
     Trash2,
@@ -100,6 +101,9 @@ const ResourceBooking: React.FC = () => {
 
     const [resources, setResources] = useState<Resource[]>([]);
     const [myBookings, setMyBookings] = useState<Booking[]>([]);
+    const [myBookingsPage, setMyBookingsPage] = useState(1);
+    const [myBookingsPageSize] = useState(10);
+    const [myBookingsTotalCount, setMyBookingsTotalCount] = useState(0);
     const [allBookings, setAllBookings] = useState<Booking[]>([]);
     const [managedBookings, setManagedBookings] = useState<Booking[]>([]);
     const [bulkSelectedIds, setBulkSelectedIds] = useState<string[]>([]);
@@ -281,14 +285,23 @@ const ResourceBooking: React.FC = () => {
                     break;
                 }
                 case 'my_bookings': {
-                    const [upcoming, history] = await Promise.all([
-                        bookingService.getMyUpcoming(),
-                        bookingService.getMyHistoryAllPages(),
-                    ]);
-                    const all = [...upcoming, ...history];
-                    const unique = Array.from(new Map(all.map(b => [b.id, b])).values());
-                    unique.sort((a, b) => new Date(b.createdAt || b.startTime).getTime() - new Date(a.createdAt || a.startTime).getTime());
-                    setMyBookings(unique);
+                    const result = await bookingService.getByUser(undefined, myBookingsPage, myBookingsPageSize);
+                    const normalized: Booking[] = result.items.map((item: BasicBookingResponse) => ({
+                        id: item.bookingId,
+                        bookingId: item.bookingId,
+                        title: item.resourceName || 'Booking',
+                        resourceName: item.resourceName,
+                        status: item.status,
+                        startTime: item.startTime,
+                        endTime: item.endTime,
+                        createdAt: item.startTime,
+                        userId: item.userId,
+                        managerId: item.managerId,
+                        managerFullName: item.managerFullName,
+                        managerEmail: item.managerEmail,
+                    }));
+                    setMyBookings(normalized);
+                    setMyBookingsTotalCount(result.totalCount || 0);
                     break;
                 }
                 case 'all_bookings': {
@@ -323,7 +336,7 @@ const ResourceBooking: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    }, [activeTab]);
+    }, [activeTab, myBookingsPage, myBookingsPageSize]);
 
     useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -419,6 +432,7 @@ const ResourceBooking: React.FC = () => {
         setSearchQuery('');
         setFilterStatus('');
         setBulkSelectedIds([]);
+        if (sub === 'my') setMyBookingsPage(1);
     };
 
     const toggleBulkSelect = (id: string) =>
@@ -538,7 +552,7 @@ const ResourceBooking: React.FC = () => {
 
     const displayLogs = useMemo(() => equipmentLogs.filter(l => {
         const q = searchQuery.toLowerCase();
-        return !q || (l.resourceName || '').toLowerCase().includes(q) || (l.userName || '').toLowerCase().includes(q);
+        return !q || (l.resourceName || '').toLowerCase().includes(q) || (l.borrowerFullName || l.userName || '').toLowerCase().includes(q);
     }), [equipmentLogs, searchQuery]);
 
     const pendingCount = useMemo(() =>
@@ -912,7 +926,7 @@ const ResourceBooking: React.FC = () => {
                             </div>
                         ))}
                         {isBookingTab && [
-                            { label: 'Total', value: bookingListForTab.length, color: '#8b5cf6', icon: <Clock size={13} /> },
+                            { label: 'Total', value: activeTab === 'my_bookings' ? myBookingsTotalCount : bookingListForTab.length, color: '#8b5cf6', icon: <Clock size={13} /> },
                             { label: 'Pending', value: pendingCount, color: '#f59e0b', icon: <AlertTriangle size={13} /> },
                         ].map(s => (
                             <div key={s.label} style={{
@@ -1149,6 +1163,31 @@ const ResourceBooking: React.FC = () => {
                                         onQuickReject={bookingSubTab === 'managed' ? handleQuickReject : undefined}
                                         onLoadDetail={bookingService.getById}
                                     />
+                                    {/* Pagination controls for My Bookings */}
+                                    {bookingSubTab === 'my' && myBookingsTotalCount > myBookingsPageSize && (() => {
+                                        const totalPages = Math.ceil(myBookingsTotalCount / myBookingsPageSize);
+                                        return (
+                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '12px 0 4px', borderTop: '1px solid #f1f5f9', marginTop: '8px' }}>
+                                                <button
+                                                    disabled={myBookingsPage <= 1}
+                                                    onClick={() => setMyBookingsPage(p => Math.max(1, p - 1))}
+                                                    style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 12px', borderRadius: '7px', border: '1px solid #e2e8f0', background: myBookingsPage <= 1 ? '#f8fafc' : '#fff', color: myBookingsPage <= 1 ? '#cbd5e1' : '#475569', fontSize: '0.78rem', fontWeight: 600, cursor: myBookingsPage <= 1 ? 'not-allowed' : 'pointer' }}
+                                                >
+                                                    <ChevronLeft size={13} /> Prev
+                                                </button>
+                                                <span style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: 600 }}>
+                                                    Page {myBookingsPage} / {totalPages}
+                                                </span>
+                                                <button
+                                                    disabled={myBookingsPage >= totalPages}
+                                                    onClick={() => setMyBookingsPage(p => Math.min(totalPages, p + 1))}
+                                                    style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 12px', borderRadius: '7px', border: '1px solid #e2e8f0', background: myBookingsPage >= totalPages ? '#f8fafc' : '#fff', color: myBookingsPage >= totalPages ? '#cbd5e1' : '#475569', fontSize: '0.78rem', fontWeight: 600, cursor: myBookingsPage >= totalPages ? 'not-allowed' : 'pointer' }}
+                                                >
+                                                    Next <ChevronRight size={13} />
+                                                </button>
+                                            </div>
+                                        );
+                                    })()}
                                 </>
                             ) : isLogTab ? (
                                 <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
@@ -1177,7 +1216,7 @@ const ResourceBooking: React.FC = () => {
                                                 <div style={{ flex: 1, minWidth: 0 }}>
                                                     <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{log.resourceName || 'Unknown Resource'}</div>
                                                     <div style={{ fontSize: '0.72rem', color: '#64748b' }}>
-                                                        <span style={{ fontWeight: 700, color: '#2563eb' }}>Borrower:</span> {log.userFullName || log.userName}
+                                                        <span style={{ fontWeight: 700, color: '#2563eb' }}>Borrower:</span> {log.borrowerFullName || log.userFullName || log.userName}
                                                     </div>
                                                 </div>
                                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '3px', flexShrink: 0 }}>
@@ -1317,11 +1356,24 @@ const ResourceBooking: React.FC = () => {
                                             </div>
                                         </div>
 
-                                        {/* User */}
+                                        {/* Borrower */}
                                         <div style={cardStyle}>
                                             <div style={labelSt}>Borrower</div>
-                                            <div style={valueSt}>{log.userFullName || log.userName}</div>
-                                            {log.userEmail && <div style={subValueSt}>{log.userEmail}</div>}
+                                            <div style={valueSt}>{log.borrowerFullName || log.userFullName || log.userName}</div>
+                                            {(log.borrowerEmail || log.userEmail) && <div style={subValueSt}>{log.borrowerEmail || log.userEmail}</div>}
+                                        </div>
+
+                                        {/* Handler */}
+                                        <div style={cardStyle}>
+                                            <div style={labelSt}>Handled By</div>
+                                            {log.borrowerId && log.checkedOutById && log.borrowerId === log.checkedOutById ? (
+                                                <div style={{ ...valueSt, color: '#94a3b8', fontStyle: 'italic' }}>(Self-handled)</div>
+                                            ) : (
+                                                <>
+                                                    <div style={valueSt}>{log.checkedOutByFullName || log.userFullName || log.userName}</div>
+                                                    {log.checkedOutByEmail && <div style={subValueSt}>{log.checkedOutByEmail}</div>}
+                                                </>
+                                            )}
                                         </div>
 
                                         {/* Resource */}

@@ -14,6 +14,7 @@ import { validateSpecialChars } from '@/utils/validation';
 
 interface TaskDraft {
     id: string; // Internal temporary ID
+    milestoneId: string; // milestone this draft belongs to
     name: string;
     description: string;
     priority: number; // Low=1, Medium=2, High=3
@@ -188,6 +189,7 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
             }
             const newDrafts: TaskDraft[] = list.map((t: any) => ({
                 id: `ai-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                milestoneId: mId,
                 name: t.name || '',
                 description: t.description || '',
                 priority: t.priority ?? 2,
@@ -252,6 +254,7 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
     const [openAssigneeDropdownId, setOpenAssigneeDropdownId] = React.useState<string | null>(null);
     const [openCollabDropdownId, setOpenCollabDropdownId] = React.useState<string | null>(null);
     const [memberSearchQuery, setMemberSearchQuery] = React.useState('');
+    const [selectedDraftIds, setSelectedDraftIds] = React.useState<Set<string>>(new Set());
 
     const closeAllMemberDropdowns = () => {
         setOpenAssigneeDropdownId(null);
@@ -508,7 +511,6 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
     React.useEffect(() => {
         if (activeMilestone && (editingMilestoneId || activeMilestone.milestoneId)) {
             setFormTab('view');
-            setDraftTasks([]);
             if (activeMilestone.status === MilestoneStatus.Completed || activeMilestone.status === MilestoneStatus.Cancelled) {
                 setTaskTab('current');
             }
@@ -862,10 +864,15 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
     const mStartDate = activeMilestone?.startDate ? activeMilestone.startDate.split('T')[0] : '';
     const mDueDate = activeMilestone?.dueDate ? activeMilestone.dueDate.split('T')[0] : '';
     const mDueDateMinus1 = activeMilestone?.dueDate ? (() => { const plain = activeMilestone.dueDate.split('T')[0]; const [y, mo, d] = plain.split('-').map(Number); return new Date(Date.UTC(y, mo - 1, d - 1)).toISOString().split('T')[0]; })() : '';
+    const currentMilestoneId = activeMilestone?.milestoneId || (activeMilestone as any)?.id || editingMilestoneId || '';
+    const currentDrafts = draftTasks.filter(d => d.milestoneId === currentMilestoneId);
+    const selectedCurrentCount = currentDrafts.filter(d => selectedDraftIds.has(d.id)).length;
+    const allCurrentSelected = currentDrafts.length > 0 && selectedCurrentCount === currentDrafts.length;
 
     const addDraftSlot = () => {
         const newDraft: TaskDraft = {
             id: `draft-${Date.now()}`,
+            milestoneId: currentMilestoneId,
             name: '',
             description: '',
             priority: 2,
@@ -883,6 +890,15 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
 
     const toggleDraftExpand = (id: string) => {
         setDraftTasks(prev => prev.map(d => d.id === id ? { ...d, isExpanded: !d.isExpanded } : d));
+    };
+
+    const toggleDraftSelection = (id: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        setSelectedDraftIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id); else next.add(id);
+            return next;
+        });
     };
 
     const updateDraft = (id: string, field: string, value: any) => {
@@ -1437,7 +1453,7 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                 onClick={() => setTaskTab('draft')}
                                 style={{ ...tabStyle, flex: 1, height: '100%', fontSize: '0.7rem', borderRadius: '8px', ...(taskTab === 'draft' ? activeTabStyle : inactiveTabStyle) }}
                             >
-                                Draft ({draftTasks.length})
+                                Draft ({currentDrafts.length})
                             </button>
                         )}
                     </div>
@@ -1472,11 +1488,39 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                 )}
                                 {canManageProject && !isArchived && taskTab === 'draft' && activeMilestone?.status !== MilestoneStatus.Completed && activeMilestone?.status !== MilestoneStatus.Cancelled && (
                                     <React.Fragment>
+                                        {currentDrafts.length > 0 && (
+                                            <>
+                                                <button
+                                                    onClick={() => {
+                                                        if (allCurrentSelected) {
+                                                            setSelectedDraftIds(prev => { const next = new Set(prev); currentDrafts.forEach(d => next.delete(d.id)); return next; });
+                                                        } else {
+                                                            setSelectedDraftIds(prev => { const next = new Set(prev); currentDrafts.forEach(d => next.add(d.id)); return next; });
+                                                        }
+                                                    }}
+                                                    style={{ padding: '7px 13px', borderRadius: '10px', border: '1.5px solid #e2e8f0', background: allCurrentSelected ? '#f1f5f9' : 'white', color: '#475569', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
+                                                >
+                                                    <CheckCircle size={13} style={{ color: allCurrentSelected ? 'var(--primary-color)' : '#94a3b8' }} />
+                                                    {allCurrentSelected ? 'Deselect All' : 'Select All'}
+                                                </button>
+                                                {selectedCurrentCount > 0 && (
+                                                    <button
+                                                        onClick={() => {
+                                                            setDraftTasks(prev => prev.filter(d => !selectedDraftIds.has(d.id)));
+                                                            setSelectedDraftIds(prev => { const next = new Set(prev); currentDrafts.forEach(d => next.delete(d.id)); return next; });
+                                                        }}
+                                                        style={{ padding: '7px 13px', borderRadius: '10px', border: '1.5px solid #fca5a5', background: '#fff1f1', color: '#ef4444', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}
+                                                    >
+                                                        <Trash2 size={13} /> Delete ({selectedCurrentCount})
+                                                    </button>
+                                                )}
+                                            </>
+                                        )}
                                         <button
                                             onClick={addDraftSlot}
                                             style={{ ...btnPrimary, padding: '7px 15px', fontSize: '0.75rem', borderRadius: '10px' }}
                                         >
-                                            <Plus size={14} /> New Task ({draftTasks.length})
+                                            <Plus size={14} /> New Task ({currentDrafts.length})
                                         </button>
                                     </React.Fragment>
                                 )}
@@ -1489,19 +1533,19 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                         >
                             {taskTab === 'draft' ? (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                    {draftTasks.length > 0 ? (
+                                    {currentDrafts.length > 0 ? (
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                                             <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#1e293b', textTransform: 'uppercase', marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                <Edit3 size={12} style={{ color: '#1e293b' }} /> Planning Mode ({draftTasks.length} draft tasks)
+                                                <Edit3 size={12} style={{ color: '#1e293b' }} /> Planning Mode ({currentDrafts.length} draft tasks)
                                             </div>
-                                            {draftTasks.map((draft) => (
+                                            {currentDrafts.map((draft) => (
                                                 <div
                                                     key={draft.id}
                                                     style={{
                                                         background: 'white',
                                                         padding: '12px 16px',
                                                         borderRadius: 'var(--radius-lg)',
-                                                        border: '1px solid var(--border-color)',
+                                                        border: selectedDraftIds.has(draft.id) ? '1.5px solid #ef4444' : '1px solid var(--border-color)',
                                                         display: 'flex',
                                                         flexDirection: 'column',
                                                         gap: draft.isExpanded ? '1rem' : '0',
@@ -1515,8 +1559,7 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                                     onClick={() => toggleDraftExpand(draft.id)}
                                                     className="task-draft-card"
                                                 >
-                                                    {draft.isExpanded && <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--primary-color)' }} />}
-                                                    <div style={{ display: 'grid', gridTemplateColumns: '24px minmax(0, 1fr) auto auto', gap: '12px', alignItems: 'center' }}>
+                                                                                                        <div style={{ display: 'grid', gridTemplateColumns: '24px minmax(0, 1fr) auto auto auto', gap: '12px', alignItems: 'center' }}>
                                                         <div style={{ color: draft.isExpanded ? 'var(--primary-color)' : 'var(--text-muted)', display: 'flex', alignItems: 'center' }}>
                                                             {draft.isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
                                                         </div>
@@ -1565,6 +1608,14 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                                                     </div>
                                                                 </>
                                                             )}
+                                                        </div>
+                                                        <div onClick={e => toggleDraftSelection(draft.id, e)}>
+                                                            <div
+                                                                title={selectedDraftIds.has(draft.id) ? 'Deselect' : 'Select to delete'}
+                                                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '22px', height: '22px', borderRadius: '50%', border: selectedDraftIds.has(draft.id) ? '1.5px solid #ef4444' : '1.5px solid #fca5a5', background: selectedDraftIds.has(draft.id) ? '#ef4444' : '#fff1f1', color: selectedDraftIds.has(draft.id) ? 'white' : '#ef4444', cursor: 'pointer', padding: 0, transition: 'all 0.15s ease', flexShrink: 0 }}
+                                                            >
+                                                                <X size={12} strokeWidth={3} />
+                                                            </div>
                                                         </div>
                                                     </div>
                                                     {draft.isExpanded && (
@@ -1731,7 +1782,7 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                                             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '12px', borderTop: '1px solid #f1f5f9' }} onClick={e => e.stopPropagation()}>
                                                                 <button
                                                                     type="button"
-                                                                    onClick={() => setConfirmState({ isOpen: true, title: 'Remove Draft', message: 'Discard this draft task?', confirmLabel: 'Remove', cancelLabel: 'Keep', variant: 'danger', onConfirm: () => setDraftTasks(prev => prev.filter(d => d.id !== draft.id)) })}
+                                                                    onClick={e => { e.stopPropagation(); setDraftTasks(prev => prev.filter(d => d.id !== draft.id)); }}
                                                                     disabled={draft.isSaving}
                                                                     style={{ padding: '7px 16px', borderRadius: '8px', border: '1.5px solid #fee2e2', background: '#fff1f1', color: '#ef4444', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
                                                                 >
@@ -1764,9 +1815,6 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                     {milestoneTasks.length > 0 ? (
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                            <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                <CheckCircle size={12} /> Current Task ({milestoneTasks.length})
-                                            </div>
                                             {milestoneTasks.map((task) => {
                                                 const isEx = expandedTasks.includes(task.taskId);
                                                 const sColors = getStatusColor(task.status);
@@ -1801,7 +1849,6 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                                         onClick={() => toggleTaskExpand(task.taskId)}
                                                         className="task-item-card"
                                                     >
-                                                        {isEx && <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', background: 'var(--primary-color)' }} />}
                                                         <div style={{ display: 'grid', gridTemplateColumns: '24px minmax(0, 1fr) auto auto auto 70px', gap: '12px', alignItems: 'center' }}>
                                                             <div style={{ color: isEx ? 'var(--primary-color)' : 'var(--text-muted)' }}>
                                                                 {isEx ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
@@ -1888,6 +1935,28 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                                                     <Edit3 size={10} /> Editable
                                                                 </div>
                                                             )}
+                                                            {task.status === 2 && canManageProject && !isArchived && (
+                                                                <div style={{
+                                                                    position: 'absolute',
+                                                                    top: '0',
+                                                                    right: '0',
+                                                                    fontSize: '0.55rem',
+                                                                    fontWeight: 800,
+                                                                    padding: '3px 10px',
+                                                                    background: '#eef2ff',
+                                                                    color: '#6366f1',
+                                                                    borderBottomLeftRadius: '10px',
+                                                                    borderLeft: '1px solid #6366f120',
+                                                                    borderBottom: '1px solid #6366f120',
+                                                                    textTransform: 'uppercase',
+                                                                    display: 'flex',
+                                                                    alignItems: 'center',
+                                                                    gap: '3px',
+                                                                    zIndex: 1
+                                                                }}>
+                                                                    <Users size={10} /> Collab only
+                                                                </div>
+                                                            )}
 
                                                             <div style={{ width: '70px' }}></div>
                                                         </div>
@@ -1897,7 +1966,7 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                                                 <React.Fragment>
                                                                     {(() => {
                                                                         const canEditFull = canManageProject && !isArchived && task.status === 1 && activeMilestone?.status !== MilestoneStatus.Completed && activeMilestone?.status !== MilestoneStatus.Cancelled;
-                                                                        const canEditCollab = canManageProject && !isArchived && activeMilestone?.status !== MilestoneStatus.Completed && activeMilestone?.status !== MilestoneStatus.Cancelled;
+                                                                        const canEditCollab = canManageProject && !isArchived && (task.status === 1 || task.status === 2) && activeMilestone?.status !== MilestoneStatus.Completed && activeMilestone?.status !== MilestoneStatus.Cancelled;
 
                                                                         return (
                                                                             <React.Fragment>
@@ -2099,7 +2168,7 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                                                                     );
                                                                                 })()}
                                                                             </div>
-                                                                            {(canManageProject && !isArchived && activeMilestone?.status !== MilestoneStatus.Completed && activeMilestone?.status !== MilestoneStatus.Cancelled) && (
+                                                                            {(canManageProject && !isArchived && (task.status === 1 || task.status === 2) && activeMilestone?.status !== MilestoneStatus.Completed && activeMilestone?.status !== MilestoneStatus.Cancelled) && (
                                                                                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', paddingTop: '12px', borderTop: '1px solid var(--border-color)' }} onClick={e => e.stopPropagation()}>
                                                                                     {task.status === 1 && (
                                                                                         <button

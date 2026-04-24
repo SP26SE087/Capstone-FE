@@ -4,7 +4,8 @@
 //   PlanBuilderPanel (right 40%) in planning mode
 //   PlanReviewPanel  (right 40%) in review mode
 // =============================================================================
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import BookingDetailPanel from '@/pages/resource/components/BookingDetailPanel';
 import {
   Sparkles, ClipboardList, RefreshCw, Plus, Check, SkipForward, Minus,
   AlertTriangle, CheckCircle2, ExternalLink, Loader2, ChevronDown,
@@ -22,6 +23,7 @@ import {
   PlanWarning,
 } from '@/services/projectBookingPlanService';
 import { resourceService } from '@/services/resourceService';
+import type { ProjectResource } from '@/services/resourceService';
 import { bookingService } from '@/services/bookingService';
 import { Resource, Booking, BookingStatus } from '@/types/booking';
 
@@ -160,12 +162,67 @@ const btnGhost: React.CSSProperties = {
 };
 const spinStyle: React.CSSProperties = { animation: 'spin 0.9s linear infinite' };
 
-// ─── Booking status colors ────────────────────────────────────────────────────
-const BKST: Record<number, { bg: string; border: string; color: string; dashed?: boolean }> = {
-  [BookingStatus.Pending]:   { bg: '#FEF3C7', border: '#F59E0B', color: '#92400E', dashed: true },
-  [BookingStatus.Approved]:  { bg: '#DCFCE7', border: '#22C55E', color: '#14532D' },
-  [BookingStatus.InUse]:     { bg: '#EDE9FE', border: '#8B5CF6', color: '#4C1D95' },
-  [BookingStatus.Completed]: { bg: '#F1F5F9', border: '#94A3B8', color: '#475569' },
+// ─── Confirm-form helpers ─────────────────────────────────────────────────────
+const CONFIRM_MONTHS     = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const CONFIRM_DAYS_SHORT = ['Mo','Tu','We','Th','Fr','Sa','Su'];
+const CONFIRM_SESSIONS   = [
+  { label: 'Morning',   mins: 480  },
+  { label: 'Noon',      mins: 720  },
+  { label: 'Afternoon', mins: 1020 },
+];
+const CONFIRM_SESSION_MINS = CONFIRM_SESSIONS.map(s => s.mins);
+const CONFIRM_TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
+  const h = Math.floor(i / 2), m = i % 2 === 0 ? '00' : '30';
+  return { value: h * 60 + (i % 2) * 30, label: `${String(h).padStart(2,'0')}:${m}` };
+});
+const CONFIRM_DURATIONS = [
+  { label: '1 day',   days: 1  },
+  { label: '2 days',  days: 2  },
+  { label: '3 days',  days: 3  },
+  { label: '1 week',  days: 7  },
+  { label: '2 weeks', days: 14 },
+];
+function fmtConfirmMins(m: number): string {
+  return `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
+}
+const ConfirmTimeDropdown: React.FC<{ value: number; onChange: (m: number) => void; accent: string }> = ({ value, onChange, accent }) => {
+  const [open, setOpen] = useState(false);
+  const ref     = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, [open]);
+  useEffect(() => {
+    if (!open || !listRef.current) return;
+    const el = listRef.current.querySelector('[data-selected="true"]') as HTMLElement | null;
+    if (el) el.scrollIntoView({ block: 'center' });
+  }, [open]);
+  const isPreset = CONFIRM_SESSION_MINS.includes(value);
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button type="button" onClick={() => setOpen(v => !v)} style={{ padding: '3px 8px', borderRadius: 6, border: '1.5px solid', fontSize: 10, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.12s', borderColor: !isPreset ? accent : '#e2e8f0', background: !isPreset ? `${accent}18` : '#f8fafc', color: !isPreset ? accent : '#64748b' }}>
+        {isPreset ? 'Other…' : fmtConfirmMins(value)}
+      </button>
+      {open && (
+        <div ref={listRef} style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, zIndex: 9999, background: '#fff', border: '1.5px solid #e2e8f0', borderRadius: 10, boxShadow: '0 8px 24px -4px rgba(0,0,0,0.14)', maxHeight: 180, overflowY: 'auto', minWidth: 88, padding: '4px 3px' }}>
+          {CONFIRM_TIME_OPTIONS.filter(t => !CONFIRM_SESSION_MINS.includes(t.value)).map(t => {
+            const sel = t.value === value;
+            return (
+              <div key={t.value} data-selected={sel} onClick={() => { onChange(t.value); setOpen(false); }}
+                style={{ padding: '5px 10px', borderRadius: 7, fontSize: 11, fontWeight: sel ? 800 : 600, color: sel ? accent : '#334155', background: sel ? `${accent}18` : 'transparent', cursor: 'pointer', transition: 'background 0.1s' }}
+                onMouseEnter={e => { if (!sel) (e.currentTarget as HTMLElement).style.background = '#f1f5f9'; }}
+                onMouseLeave={e => { if (!sel) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
+                {t.label}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 };
 
 // ─── ResourcePickerCard ───────────────────────────────────────────────────────
@@ -258,10 +315,13 @@ interface SchedulePanelProps {
   onSlotClick: (resource: Resource, date: Date) => void;
   mode: 'planning' | 'review';
   plan?: ProjectBookingPlanResponse | null;
+  highlightRange?: { start: Date; end: Date } | null;
+  navigateTo?: Date | null;
 }
 
 const SchedulePanel: React.FC<SchedulePanelProps> = ({
   resources, allBookings, manualItems, activeItemKey, onSlotClick, mode, plan,
+  highlightRange, navigateTo,
 }) => {
   const todayMidnight = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }, []);
   const weekStart = useMemo(() => {
@@ -275,9 +335,9 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
   const [rangeDays, setRangeDays]   = useState<7 | 14>(14);
   const [filterQ, setFilterQ]       = useState('');
 
-  const DAY_W   = rangeDays <= 7 ? 100 : 65;
-  const ROW_H   = 52;
-  const LABEL_W = 180;
+  const DAY_W   = rangeDays <= 7 ? 76 : 52;
+  const ROW_H   = 56;
+  const LABEL_W = 150;
 
   const days = useMemo(() => {
     const arr: Date[] = [];
@@ -288,52 +348,19 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
     return arr;
   }, [rangeStart, rangeDays]);
 
-  const rangeEnd = useMemo(() => { const e = new Date(rangeStart); e.setDate(rangeStart.getDate() + rangeDays); return e; }, [rangeStart, rangeDays]);
   const totalW   = DAY_W * rangeDays;
 
   const visibleResources = useMemo(() => {
+    let base = resources;
+    if (mode === 'review' && plan) {
+      const planNames = new Set(plan.items.map(i => i.resourceName));
+      base = resources.filter(r => planNames.has(r.name));
+    }
     const q = filterQ.toLowerCase().trim();
-    if (!q) return resources;
-    return resources.filter(r => r.name.toLowerCase().includes(q) || (r.resourceTypeName ?? '').toLowerCase().includes(q));
-  }, [resources, filterQ]);
+    if (!q) return base;
+    return base.filter(r => r.name.toLowerCase().includes(q) || (r.resourceTypeName ?? '').toLowerCase().includes(q));
+  }, [resources, filterQ, mode, plan]);
 
-  const bookingsByResource = useMemo(() => {
-    const map: Record<string, Booking[]> = {};
-    resources.forEach(r => { map[r.id] = []; });
-    allBookings.forEach(b => {
-      if (b.status === BookingStatus.Rejected || b.status === BookingStatus.Cancelled) return;
-      const ids = b.resourceIds ?? (b.resourceId ? [b.resourceId] : []);
-      ids.forEach(id => {
-        const r = resources.find(x => x.id === id || x.ids?.includes(id));
-        if (r && map[r.id]) map[r.id].push(b);
-      });
-    });
-    return map;
-  }, [allBookings, resources]);
-
-  const posFor = (b: Booking) => {
-    const s = new Date(b.startTime), e = new Date(b.endTime);
-    if (e <= rangeStart || s >= rangeEnd) return null;
-    const clS = s < rangeStart ? rangeStart : s;
-    const clE = e > rangeEnd ? rangeEnd : e;
-    const left  = ((clS.getTime() - rangeStart.getTime()) / 86400000) * DAY_W;
-    const width = Math.max(((clE.getTime() - clS.getTime()) / 86400000) * DAY_W, 20);
-    return { left, width };
-  };
-
-  const winFor = (start: string, end: string) => {
-    if (!start || !end) return null;
-    const s = new Date(start), e = new Date(end);
-    if (e <= rangeStart || s >= rangeEnd) return null;
-    const clS = s < rangeStart ? rangeStart : s;
-    const clE = e > rangeEnd ? rangeEnd : e;
-    const left  = ((clS.getTime() - rangeStart.getTime()) / 86400000) * DAY_W;
-    const width = Math.max(((clE.getTime() - clS.getTime()) / 86400000) * DAY_W, 8);
-    return { left, width };
-  };
-
-  const nowLeft    = ((Date.now() - rangeStart.getTime()) / 86400000) * DAY_W;
-  const nowVisible = nowLeft >= 0 && nowLeft <= totalW;
   const rangeLabel = `${rangeStart.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} – ${days[days.length - 1].toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`;
 
   const prev    = () => { const d = new Date(rangeStart); d.setDate(d.getDate() - rangeDays); setRangeStart(d); };
@@ -353,16 +380,27 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
     onSlotClick(resource, clicked);
   };
 
-  // Plan item overlays for review mode (matched by resourceName)
-  const planItemsByResourceName = useMemo(() => {
-    if (mode !== 'review' || !plan) return {} as Record<string, ProjectBookingPlanItemResponse[]>;
-    const map: Record<string, ProjectBookingPlanItemResponse[]> = {};
-    for (const item of plan.items) {
-      if (!map[item.resourceName]) map[item.resourceName] = [];
-      map[item.resourceName].push(item);
-    }
-    return map;
-  }, [plan, mode]);
+  // Auto-navigate to show selected date
+  useEffect(() => {
+    if (!navigateTo) return;
+    const d = new Date(navigateTo);
+    const dow = (d.getDay() + 6) % 7;
+    d.setDate(d.getDate() - dow);
+    d.setHours(0, 0, 0, 0);
+    setRangeStart(d);
+  }, [navigateTo]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Pre-compute highlighted midnight timestamp set
+  const hlMidSet = useMemo(() => {
+    if (!highlightRange) return null;
+    const set = new Set<number>();
+    const cur = new Date(highlightRange.start);
+    cur.setHours(0, 0, 0, 0);
+    const endMid = new Date(highlightRange.end);
+    endMid.setHours(0, 0, 0, 0);
+    while (cur <= endMid) { set.add(cur.getTime()); cur.setDate(cur.getDate() + 1); }
+    return set;
+  }, [highlightRange]);
 
   return (
     <div style={{ border: '1.5px solid #e2e8f0', borderRadius: 12, overflow: 'hidden', background: '#fff' }}>
@@ -382,13 +420,12 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
         <div style={{ flex: 1 }} />
         <div style={{ display: 'flex', gap: 8, fontSize: '0.62rem', color: '#94a3b8', alignItems: 'center', flexWrap: 'wrap' }}>
           {[
-            { bg: '#DCFCE7', border: '#22C55E', label: 'Approved' },
-            { bg: '#EDE9FE', border: '#8B5CF6', label: 'In Use' },
-            { bg: '#FEF3C7', border: '#F59E0B', label: 'Pending', dashed: true },
-            { bg: 'rgba(232,114,12,0.12)', border: '#e8720c', label: mode === 'planning' ? 'Your plan' : 'Plan item' },
+            { color: '#10b981', label: 'All available' },
+            { color: '#f59e0b', label: 'Partially booked' },
+            { color: '#ef4444', label: 'Fully booked' },
           ].map(l => (
             <span key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-              <span style={{ width: 9, height: 9, borderRadius: 2, background: l.bg, border: `1px ${l.dashed ? 'dashed' : 'solid'} ${l.border}`, display: 'inline-block', flexShrink: 0 }} />
+              <span style={{ width: 9, height: 9, borderRadius: 2, background: l.color, display: 'inline-block', flexShrink: 0 }} />
               {l.label}
             </span>
           ))}
@@ -410,8 +447,9 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
               {days.map((d, i) => {
                 const isToday = d.getTime() === todayMidnight.getTime();
                 const isWe    = d.getDay() === 0 || d.getDay() === 6;
+                const isHl    = hlMidSet?.has(d.getTime()) ?? false;
                 return (
-                  <div key={i} style={{ width: DAY_W, flexShrink: 0, padding: '5px 3px', textAlign: 'center', borderRight: '1px solid #f1f5f9', background: isToday ? '#fff7ed' : isWe ? '#f8fafc' : '#fff' }}>
+                  <div key={i} style={{ width: DAY_W, flexShrink: 0, padding: '5px 3px', textAlign: 'center', borderRight: '1px solid #f1f5f9', background: isHl ? 'rgba(14,165,233,0.14)' : isToday ? '#fff7ed' : isWe ? '#f8fafc' : '#fff' }}>
                     <div style={{ fontSize: 9, fontWeight: 700, color: isToday ? '#e8720c' : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{d.toLocaleDateString('en-US', { weekday: 'short' })}</div>
                     <div style={{ fontSize: 13, fontWeight: isToday ? 800 : 600, color: isToday ? '#e8720c' : '#1e293b' }}>
                       {d.getDate()}
@@ -425,56 +463,19 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
 
           {/* Resource rows */}
           <div style={{ position: 'relative' }}>
-            {nowVisible && (
-              <div style={{ position: 'absolute', top: 0, bottom: 0, left: LABEL_W + nowLeft, width: 2, background: '#e8720c', zIndex: 4, boxShadow: '0 0 0 2px rgba(232,114,12,0.15)', pointerEvents: 'none' }}>
-                <div style={{ position: 'absolute', top: -4, left: -4, width: 10, height: 10, borderRadius: 99, background: '#e8720c', border: '2px solid #fff' }} />
-              </div>
-            )}
 
             {visibleResources.length === 0 && (
               <div style={{ padding: '20px', textAlign: 'center', fontSize: '0.78rem', color: '#94a3b8' }}>{resources.length === 0 ? 'Loading…' : 'No matching resources.'}</div>
             )}
 
             {visibleResources.map((r, ridx) => {
-              const meta      = getRtMeta(r);
-              const rBookings = (bookingsByResource[r.id] ?? []).filter(b => BKST[b.status]);
-
-              const laned: { b: Booking; lane: number }[] = [];
-              rBookings
-                .slice().sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
-                .forEach(b => {
-                  let lane = 0;
-                  while (laned.some(x => x.lane === lane && new Date(x.b.endTime) > new Date(b.startTime) && new Date(x.b.startTime) < new Date(b.endTime))) lane++;
-                  laned.push({ b, lane });
-                });
-              const maxLane   = Math.max(0, ...laned.map(x => x.lane));
-              const rowHeight = ROW_H + maxLane * 26;
-
-              // Planning mode: orange overlays from manualItems with this resourceId
-              const planningWins = mode === 'planning'
-                ? manualItems
-                    .filter(i => i.resourceId === r.id && i.suggestedStartDate && i.suggestedEndDate)
-                    .map((i, idx) => ({ start: i.suggestedStartDate, end: i.suggestedEndDate, label: `#${idx + 1}`, isActive: i._key === activeItemKey }))
-                : [];
-
-              // Review mode: plan item overlays by resourceName match
-              const reviewWins = mode === 'review'
-                ? (planItemsByResourceName[r.name] ?? [])
-                    .filter(i => i.status !== PlanItemStatus.Skipped)
-                    .map(i => ({ start: i.suggestedStartDate, end: i.suggestedEndDate, label: i.resourceName, isActive: false }))
-                : [];
-
-              const allWins = [...planningWins, ...reviewWins];
-
-              // Active resource highlight (any manualItem with this resourceId is the active item)
               const isActiveResource = mode === 'planning' && activeItemKey !== null &&
                 manualItems.some(i => i._key === activeItemKey && i.resourceId === r.id);
 
               return (
-                <div key={r.id} style={{ display: 'flex', borderBottom: ridx < visibleResources.length - 1 ? '1px solid #f1f5f9' : 'none', height: rowHeight, position: 'relative', background: isActiveResource ? 'rgba(232,114,12,0.03)' : undefined }}>
+                <div key={r.id} style={{ display: 'flex', borderBottom: ridx < visibleResources.length - 1 ? '1px solid #f1f5f9' : 'none', height: ROW_H, position: 'relative', background: isActiveResource ? 'rgba(232,114,12,0.03)' : undefined }}>
                   {/* Label */}
                   <div style={{ width: LABEL_W, flexShrink: 0, padding: '6px 12px', borderRight: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: 7, position: 'sticky', left: 0, zIndex: 3, background: isActiveResource ? 'rgba(232,114,12,0.05)' : '#fff' }}>
-                    <div style={{ width: 24, height: 24, borderRadius: 6, background: meta.bg, color: meta.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{meta.icon}</div>
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div style={{ fontSize: 11, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#0f172a' }}>{r.name}</div>
                       <div style={{ fontSize: 9, color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.location ?? r.resourceTypeName}</div>
@@ -488,32 +489,29 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                     {/* Day grid lines */}
                     {days.map((d, i) => {
                       const isWe = d.getDay() === 0 || d.getDay() === 6;
-                      return <div key={i} style={{ position: 'absolute', left: i * DAY_W, top: 0, bottom: 0, width: DAY_W, borderRight: '1px solid #f1f5f9', background: isWe ? 'rgba(241,245,249,0.4)' : 'transparent', pointerEvents: 'none' }} />;
+                      const isHl = hlMidSet?.has(d.getTime()) ?? false;
+                      return <div key={i} style={{ position: 'absolute', left: i * DAY_W, top: 0, bottom: 0, width: DAY_W, borderRight: `1px solid ${isHl ? 'rgba(14,165,233,0.3)' : '#f1f5f9'}`, background: isHl ? 'rgba(14,165,233,0.1)' : isWe ? 'rgba(241,245,249,0.4)' : 'transparent', pointerEvents: 'none' }} />;
                     })}
 
-                    {/* Overlays (planning: manualItems; review: plan items) */}
-                    {allWins.map((w, wi) => {
-                      const p = winFor(w.start, w.end);
-                      if (!p) return null;
+                    {/* Availability strip — full-height cell per day */}
+                    {days.map((day, i) => {
+                      const av  = getDayAvailableCount(r, day, allBookings);
+                      const tot = r.totalQuantity ?? r.ids?.length ?? 1;
+                      const col = av >= tot ? '#10b981' : av === 0 ? '#ef4444' : '#f59e0b';
+                      const fillPct = tot > 0 ? (av / tot) * 100 : 0;
                       return (
-                        <div key={wi} style={{ position: 'absolute', left: p.left, width: p.width, top: 0, bottom: 0, background: w.isActive ? 'rgba(232,114,12,0.18)' : 'rgba(232,114,12,0.10)', borderLeft: `2.5px solid ${w.isActive ? '#e8720c' : 'rgba(232,114,12,0.5)'}`, borderRight: `2.5px solid ${w.isActive ? '#e8720c' : 'rgba(232,114,12,0.5)'}`, zIndex: 1, pointerEvents: 'none' }}>
-                          <div style={{ position: 'absolute', bottom: 2, left: 4, fontSize: 8, fontWeight: 800, color: '#e8720c', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: p.width - 8, textTransform: 'uppercase', letterSpacing: '0.03em' }}>{w.label}</div>
-                        </div>
-                      );
-                    })}
-
-                    {/* Booking blocks */}
-                    {laned.map(({ b, lane }, i) => {
-                      const p = posFor(b);
-                      if (!p) return null;
-                      const s = BKST[b.status];
-                      if (!s) return null;
-                      return (
-                        <div key={b.id + '-' + i}
-                          title={`${(b as any).title ?? 'Booking'}\n${(b as any).userFullName ?? (b as any).userName ?? ''}\n${new Date(b.startTime).toLocaleDateString('en-GB')} ${new Date(b.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} – ${new Date(b.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
-                          style={{ position: 'absolute', left: p.left + 1, width: p.width - 2, top: 5 + lane * 26, height: 30, background: s.bg, color: s.color, border: `1.5px ${s.dashed ? 'dashed' : 'solid'} ${s.border}`, borderLeft: !s.dashed ? `3px solid ${s.border}` : undefined, borderRadius: 5, padding: '2px 5px', overflow: 'hidden', zIndex: 2, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                          <div style={{ fontSize: 10, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{(b as any).title ?? 'Booking'}</div>
-                          {p.width > 70 && <div style={{ fontSize: 9, opacity: 0.75, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{new Date(b.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} – {new Date(b.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>}
+                        <div key={`strip-${i}`}
+                          title={`${day.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' })}: ${av}/${tot} available`}
+                          style={{ position: 'absolute', left: i * DAY_W + 1, top: 4, bottom: 0, width: DAY_W - 2, pointerEvents: 'none', zIndex: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', gap: 2, padding: '0 0 4px' }}
+                        >
+                          {/* 'avail' label */}
+                          <span style={{ fontSize: 7, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em', lineHeight: 1 }}>avail</span>
+                          {/* fraction */}
+                          <span style={{ fontSize: 10, fontWeight: 800, color: col, lineHeight: 1, letterSpacing: '-0.02em' }}>{av}/{tot}</span>
+                          {/* fill bar */}
+                          <div style={{ width: '82%', height: 4, borderRadius: 3, background: `${col}30` }}>
+                            <div style={{ height: '100%', width: `${fillPct}%`, borderRadius: 3, background: col, transition: 'width .3s' }} />
+                          </div>
                         </div>
                       );
                     })}
@@ -879,43 +877,10 @@ interface PlanItemCardProps {
 }
 
 const PlanItemCard: React.FC<PlanItemCardProps> = ({ item, planId, isPlanActive, canManage, onUpdate, showToast }) => {
-  const [loading, setLoading] = useState<'confirm' | 'skip' | null>(null);
-  const [showConfirmForm, setShowConfirmForm] = useState(false);
-  const [confirmStart, setConfirmStart] = useState('');
-  const [confirmEnd, setConfirmEnd]     = useState('');
+  const [loading, setLoading] = useState<'skip' | null>(null);
 
   const meta = ITEM_STATUS_META[item.status as PlanItemStatus];
   const isAutoBooking = item.bookingId !== null;
-
-  const openConfirmForm = () => {
-    // Pre-fill with suggested dates
-    setConfirmStart(fmtDatetimeLocal(item.suggestedStartDate));
-    setConfirmEnd(fmtDatetimeLocal(item.suggestedEndDate));
-    setShowConfirmForm(true);
-  };
-
-  const handleConfirm = async () => {
-    if (!confirmStart || !confirmEnd) {
-      showToast('Both start and end date are required.', 'warning');
-      return;
-    }
-    if (new Date(confirmEnd) <= new Date(confirmStart)) {
-      showToast('End date must be after start date.', 'warning');
-      return;
-    }
-    setLoading('confirm');
-    try {
-      const updated = await projectBookingPlanService.confirmItem(planId, item.id, {
-        startDate: new Date(confirmStart).toISOString(),
-        endDate: new Date(confirmEnd).toISOString(),
-      });
-      onUpdate(updated);
-      setShowConfirmForm(false);
-      showToast('Booking confirmed and created! Check the booking for approval.', 'success');
-    } catch (err: any) {
-      showToast(err?.response?.data?.message || err?.message || 'Failed to confirm.', 'error');
-    } finally { setLoading(null); }
-  };
 
   const handleSkip = async () => {
     setLoading('skip');
@@ -928,11 +893,9 @@ const PlanItemCard: React.FC<PlanItemCardProps> = ({ item, planId, isPlanActive,
     } finally { setLoading(null); }
   };
 
-  const confirmDuration = confirmStart && confirmEnd ? fmtDuration(new Date(confirmStart).toISOString(), new Date(confirmEnd).toISOString()) : '';
-
+  const isBooked = item.status === PlanItemStatus.Booked;
   return (
-    <div style={{ display: 'flex', background: '#fff', borderRadius: 10, border: `1px solid ${showConfirmForm ? 'var(--primary-color,#e8720c)' : '#e2e8f0'}`, marginBottom: 8, overflow: 'hidden', opacity: item.status === PlanItemStatus.Skipped ? 0.6 : 1, transition: 'border-color 0.2s' }}>
-      <div style={{ width: 4, flexShrink: 0, background: meta.bar }} />
+    <div style={{ background: isBooked ? '#f0fdf4' : '#fff', borderRadius: 10, border: `1.5px solid ${isBooked ? '#22c55e' : '#e2e8f0'}`, marginBottom: 8, overflow: 'hidden', opacity: item.status === PlanItemStatus.Skipped ? 0.6 : 1, transition: 'border-color 0.2s' }}>
       <div style={{ flex: 1, padding: '13px 15px' }}>
         {/* Overlap warning */}
         {item.hasManualBookingOverlap && (
@@ -979,64 +942,155 @@ const PlanItemCard: React.FC<PlanItemCardProps> = ({ item, planId, isPlanActive,
             )}
           </div>
 
-          {/* Action buttons — only for Pending + active plan */}
-          {canManage && isPlanActive && item.status === PlanItemStatus.Pending && !showConfirmForm && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 5, flexShrink: 0 }}>
-              <button onClick={openConfirmForm} disabled={loading !== null}
-                style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 13px', borderRadius: 7, border: 'none', background: '#16a34a', color: '#fff', fontSize: '0.79rem', fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.65 : 1, whiteSpace: 'nowrap' }}>
-                <Check size={12} /> Confirm
-              </button>
-              <button onClick={handleSkip} disabled={loading !== null}
-                style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 13px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f8fafc', color: '#64748b', fontSize: '0.79rem', fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.65 : 1, whiteSpace: 'nowrap' }}>
-                {loading === 'skip' ? <Loader2 size={12} style={spinStyle} /> : <SkipForward size={12} />}
-                Skip
-              </button>
-            </div>
+          {/* Skip button — only for Pending + active plan */}
+          {canManage && isPlanActive && item.status === PlanItemStatus.Pending && (
+            <button onClick={handleSkip} disabled={loading !== null}
+              style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 13px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f8fafc', color: '#64748b', fontSize: '0.79rem', fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.65 : 1, whiteSpace: 'nowrap', flexShrink: 0 }}>
+              {loading === 'skip' ? <Loader2 size={12} style={spinStyle} /> : <SkipForward size={12} />}
+              Skip
+            </button>
           )}
         </div>
 
-        {/* ── Inline Confirm Form ──────────────────────────────────── */}
-        {showConfirmForm && (
-          <div style={{ marginTop: 12, padding: '12px 14px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
-            <div style={{ fontSize: '0.72rem', fontWeight: 800, color: '#15803d', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Check size={12} /> Set Booking Dates
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 8 }}>
-              <div>
-                <label style={fieldLbl}>Start *</label>
-                <input type="datetime-local" value={confirmStart}
-                  onChange={e => setConfirmStart(e.target.value)}
-                  style={baseInput} />
-              </div>
-              <div>
-                <label style={fieldLbl}>End *</label>
-                <input type="datetime-local" value={confirmEnd}
-                  onChange={e => setConfirmEnd(e.target.value)}
-                  style={baseInput} />
-              </div>
-            </div>
-            {confirmDuration && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', background: '#eff6ff', borderRadius: 7, border: '1px solid #bfdbfe', fontSize: '0.72rem', color: '#1d4ed8', fontWeight: 700, marginBottom: 10 }}>
-                <Clock size={11} /> {confirmDuration} — {confirmStart ? new Date(confirmStart).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : '?'} → {confirmEnd ? new Date(confirmEnd).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '?'}
-              </div>
-            )}
-            <div style={{ fontSize: '0.72rem', color: '#64748b', marginBottom: 10, padding: '6px 10px', background: '#fffbeb', borderRadius: 7, border: '1px solid #fde68a' }}>
-              A <strong>Pending</strong> booking will be created. The Lab Director or Senior Researcher will need to approve it.
-            </div>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button onClick={() => setShowConfirmForm(false)} disabled={loading !== null}
-                style={{ ...btnSecondary, fontSize: '0.78rem', padding: '6px 14px', opacity: loading ? 0.5 : 1 }}>
-                Cancel
-              </button>
-              <button onClick={handleConfirm} disabled={loading !== null}
-                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', borderRadius: 8, border: 'none', background: '#16a34a', color: '#fff', fontSize: '0.78rem', fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.65 : 1 }}>
-                {loading === 'confirm' ? <Loader2 size={12} style={spinStyle} /> : <Check size={12} />}
-                Create Booking
-              </button>
-            </div>
-          </div>
-        )}
+        {/* Inline confirm form removed — use Confirm Bookings modal instead */}
       </div>
+    </div>
+  );
+};
+
+// ─── ProjectResourcesPanel ───────────────────────────────────────────────────
+const BOOKING_STATUS_STYLE: Record<string, { label: string; bg: string; color: string; border: string }> = {
+  // string keys (API returns label)
+  Pending:   { label: 'Pending',   bg: '#fffbeb', color: '#b45309', border: '#fde68a' },
+  Approved:  { label: 'Approved',  bg: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe' },
+  Rejected:  { label: 'Rejected',  bg: '#fff1f2', color: '#be123c', border: '#fecdd3' },
+  InUse:     { label: 'In Use',    bg: '#f0fdf4', color: '#15803d', border: '#bbf7d0' },
+  Completed: { label: 'Completed', bg: '#f8fafc', color: '#475569', border: '#e2e8f0' },
+  Cancelled: { label: 'Cancelled', bg: '#fff1f2', color: '#be123c', border: '#fecdd3' },
+  // numeric keys (API returns BookingStatus enum value)
+  '1': { label: 'Pending',   bg: '#fffbeb', color: '#b45309', border: '#fde68a' },
+  '2': { label: 'Approved',  bg: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe' },
+  '3': { label: 'Rejected',  bg: '#fff1f2', color: '#be123c', border: '#fecdd3' },
+  '4': { label: 'Cancelled', bg: '#fff1f2', color: '#6b7280', border: '#e5e7eb' },
+  '5': { label: 'Completed', bg: '#f8fafc', color: '#475569', border: '#e2e8f0' },
+  '6': { label: 'In Use',    bg: '#f0fdf4', color: '#15803d', border: '#bbf7d0' },
+};
+
+const ProjectResourcesPanel: React.FC<{ projectId: string; onNavigateBooking?: (bookingId: string) => void }> = ({ projectId, onNavigateBooking }) => {
+  const [resources, setResources] = useState<ProjectResource[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    resourceService.getByProject(projectId)
+      .then(data => { if (alive) setResources(data); })
+      .catch(() => { if (alive) setResources([]); })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [projectId]);
+
+  return (
+    <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '13px 18px', borderBottom: '1px solid #e2e8f0' }}>
+        <div style={{ width: 34, height: 34, borderRadius: 9, background: '#f0f9ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <Package size={16} style={{ color: '#0ea5e9' }} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a' }}>Project Equipment</div>
+          <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: 1 }}>
+            {loading ? 'Loading…' : resources.length === 0 ? 'No equipment booked yet' : `${resources.length} resource${resources.length !== 1 ? 's' : ''} across all bookings`}
+          </div>
+        </div>
+      </div>
+
+      {loading ? (
+        <div style={{ padding: '28px', textAlign: 'center', color: '#94a3b8', fontSize: '0.82rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+          <Loader2 size={15} style={spinStyle} /> Loading equipment…
+        </div>
+      ) : resources.length === 0 ? (
+        <div style={{ padding: '32px 20px', textAlign: 'center' }}>
+          <Package size={28} style={{ color: '#cbd5e1', marginBottom: 8 }} />
+          <div style={{ fontSize: '0.82rem', color: '#94a3b8', fontWeight: 500 }}>No equipment has been booked for this project yet.</div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+          {resources.map((r, idx) => {
+            const statusStyle = r.bookingStatus != null ? (BOOKING_STATUS_STYLE[String(r.bookingStatus)] ?? null) : null;
+            const meta = getRtMeta({ resourceTypeName: r.resourceTypeName } as Resource);
+            const modelLocation = [r.modelSeries, r.location].filter(Boolean).join(' · ');
+            return (
+              <div
+                key={r.resourceId + (r.bookingId ?? idx)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px',
+                  borderTop: idx === 0 ? 'none' : '1px solid #f1f5f9',
+                  transition: 'background 0.12s',
+                }}
+                onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.background = '#f8fafc'}
+                onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.background = 'transparent'}
+              >
+                {/* Icon */}
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: meta.bg, color: meta.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  {meta.icon}
+                </div>
+
+                {/* Main info */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                    {r.isDamaged && (
+                      <span title="Damaged" style={{ fontSize: '0.6rem', fontWeight: 800, background: '#fff1f2', color: '#ef4444', border: '1px solid #fecdd3', borderRadius: 4, padding: '1px 5px', flexShrink: 0 }}>DMG</span>
+                    )}
+                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0f172a', wordBreak: 'break-word' }}>{r.name}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    {r.resourceTypeName && (
+                      <span style={{ fontSize: '0.65rem', fontWeight: 700, color: meta.color, background: meta.bg, padding: '1px 7px', borderRadius: 99, whiteSpace: 'nowrap' }}>
+                        {r.resourceTypeName}
+                      </span>
+                    )}
+                    {modelLocation && (
+                      <span style={{ fontSize: '0.68rem', color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200 }}>
+                        {modelLocation}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Status + Period */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
+                  {statusStyle && (
+                    <span style={{ fontSize: '0.68rem', fontWeight: 700, padding: '2px 9px', borderRadius: 99, background: statusStyle.bg, color: statusStyle.color, border: `1px solid ${statusStyle.border}`, whiteSpace: 'nowrap' }}>
+                      {statusStyle.label}
+                    </span>
+                  )}
+                  {r.startTime && r.endTime && (
+                    <span style={{ fontSize: '0.67rem', color: '#64748b', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <CalendarRange size={10} style={{ color: '#94a3b8' }} />
+                      {new Date(r.startTime).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })}
+                      {' → '}
+                      {new Date(r.endTime).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })}
+                    </span>
+                  )}
+                </div>
+
+                {/* View button */}
+                {r.bookingId && onNavigateBooking && (
+                  <button
+                    onClick={() => onNavigateBooking(r.bookingId!)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px', borderRadius: 7, border: '1px solid #e2e8f0', background: '#f8fafc', color: '#475569', fontSize: '0.72rem', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0, transition: 'all 0.12s' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#fff'; (e.currentTarget as HTMLButtonElement).style.borderColor = '#cbd5e1'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = '#f8fafc'; (e.currentTarget as HTMLButtonElement).style.borderColor = '#e2e8f0'; }}
+                  >
+                    <ExternalLink size={10} /> View
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };
@@ -1141,6 +1195,275 @@ const WarningsSection: React.FC<{ warnings: PlanWarning[] }> = ({ warnings }) =>
   );
 };
 
+// ─── BulkConfirmModal ─────────────────────────────────────────────────────────
+interface BulkConfirmModalProps {
+  plan: ProjectBookingPlanResponse;
+  resources: Resource[];
+  allBookings: Booking[];
+  onClose: () => void;
+  onUpdate: (plan: ProjectBookingPlanResponse) => void;
+  showToast: (msg: string, type?: 'success' | 'error' | 'warning' | 'info') => void;
+}
+
+const BulkConfirmModal: React.FC<BulkConfirmModalProps> = ({
+  plan, resources, allBookings, onClose, onUpdate, showToast,
+}) => {
+  const pendingItems = useMemo(
+    () => plan.items.filter(i => i.status === PlanItemStatus.Pending),
+    [plan.items],
+  );
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(
+    () => new Set(pendingItems.map(i => i.id)),
+  );
+  const [date, setDate]               = useState<Date | null>(null);
+  const [startMins, setStartMins]     = useState(480);
+  const [returnMins, setReturnMins]   = useState(1020);
+  const [durDays, setDurDays]         = useState(1);
+  const [calMonth, setCalMonth]       = useState(new Date().getMonth());
+  const [calYear, setCalYear]         = useState(new Date().getFullYear());
+  const [submitting, setSubmitting]   = useState(false);
+
+  const today = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d; }, []);
+  const calDays = useMemo(() => {
+    const first    = new Date(calYear, calMonth, 1);
+    const startDay = (first.getDay() + 6) % 7;
+    const total    = new Date(calYear, calMonth + 1, 0).getDate();
+    const cells: (Date | null)[] = [];
+    for (let i = 0; i < startDay; i++) cells.push(null);
+    for (let d = 1; d <= total; d++) cells.push(new Date(calYear, calMonth, d));
+    return cells;
+  }, [calMonth, calYear]);
+
+  const startObj = useMemo(() => {
+    if (!date) return null;
+    const s = new Date(date); s.setHours(Math.floor(startMins/60), startMins%60, 0, 0); return s;
+  }, [date, startMins]);
+  const endDate = useMemo(() => {
+    if (!date) return null;
+    const e = new Date(date); e.setDate(e.getDate() + durDays); e.setHours(Math.floor(returnMins/60), returnMins%60, 0, 0); return e;
+  }, [date, durDays, returnMins]);
+  const highlightRange = useMemo(
+    () => startObj && endDate ? { start: startObj, end: endDate } : null,
+    [startObj, endDate],
+  );
+  const durLabel = useMemo(() => {
+    if (!startObj || !endDate || endDate <= startObj) return '';
+    const ms = endDate.getTime() - startObj.getTime();
+    const dv = Math.floor(ms / 86400000), hv = Math.floor((ms % 86400000) / 3600000);
+    return [dv ? `${dv}d` : '', hv ? `${hv}h` : ''].filter(Boolean).join(' ') || '<1h';
+  }, [startObj, endDate]);
+
+  const toggleItem = (id: string) => setSelectedIds(prev => {
+    const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next;
+  });
+
+  const handleSubmit = async () => {
+    if (selectedIds.size === 0) { showToast('Select at least one item.', 'warning'); return; }
+    if (!startObj || !endDate || endDate <= startObj) { showToast('Select a valid date and time range.', 'warning'); return; }
+    setSubmitting(true);
+    let latest = plan;
+    for (const item of pendingItems.filter(i => selectedIds.has(i.id))) {
+      try {
+        latest = await projectBookingPlanService.confirmItem(plan.id, item.id, {
+          startDate: startObj.toISOString(), endDate: endDate.toISOString(),
+          quantity: item.suggestedQuantity,
+        });
+      } catch (err: any) {
+        showToast(`Failed "${item.resourceName}": ${err?.response?.data?.message || err?.message}`, 'error');
+        setSubmitting(false); onUpdate(latest); return;
+      }
+    }
+    setSubmitting(false); onUpdate(latest); onClose();
+    showToast(`${selectedIds.size} booking${selectedIds.size !== 1 ? 's' : ''} created! Awaiting approval.`, 'success');
+  };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', background: 'rgba(15,23,42,0.45)', padding: '24px 16px', overflowY: 'auto' }}>
+      <div style={{ width: '100%', maxWidth: 1080, background: '#fff', borderRadius: 18, boxShadow: '0 24px 60px -12px rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 22px', borderBottom: '1px solid #e2e8f0', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: '#f0fdf4', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <CalendarRange size={17} style={{ color: '#16a34a' }} />
+            </div>
+            <div>
+              <div style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a' }}>Confirm Bookings</div>
+              <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Select items and set a shared booking window</div>
+            </div>
+          </div>
+          <button onClick={onClose} disabled={submitting} style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>
+            <X size={14} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', minHeight: 0 }}>
+          {/* Left — item list */}
+          <div style={{ width: 300, flexShrink: 0, borderRight: '1px solid #f1f5f9', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ padding: '10px 14px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+              <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Pending ({pendingItems.length})</span>
+              <button onClick={() => setSelectedIds(selectedIds.size === pendingItems.length ? new Set() : new Set(pendingItems.map(i => i.id)))}
+                style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--primary-color,#e8720c)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                {selectedIds.size === pendingItems.length ? 'Deselect all' : 'Select all'}
+              </button>
+            </div>
+            {pendingItems.length === 0
+              ? <div style={{ padding: '2rem', textAlign: 'center', fontSize: '0.82rem', color: '#94a3b8' }}>No pending items.</div>
+              : <div style={{ flex: 1, overflowY: 'auto', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  {pendingItems.map(item => {
+                    const sel = selectedIds.has(item.id);
+                    return (
+                      <div key={item.id} onClick={() => toggleItem(item.id)}
+                        style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '9px 11px', borderRadius: 10, border: `1.5px solid ${sel ? 'var(--primary-color,#e8720c)' : '#e2e8f0'}`, background: sel ? 'rgba(232,114,12,0.04)' : '#fff', cursor: 'pointer', transition: 'all 0.12s' }}>
+                        <div style={{ width: 17, height: 17, borderRadius: 5, border: `2px solid ${sel ? 'var(--primary-color,#e8720c)' : '#cbd5e1'}`, background: sel ? 'var(--primary-color,#e8720c)' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 2 }}>
+                          {sel && <Check size={9} color="#fff" strokeWidth={3} />}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 700, fontSize: '0.82rem', color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.resourceName}</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 2, flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '0.63rem', color: '#64748b', fontWeight: 600 }}>x{item.suggestedQuantity}</span>
+                            {item.relatedTask && <span style={{ fontSize: '0.63rem', color: '#7c3aed', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 2 }}><CheckCircle2 size={9} />{item.relatedTask}</span>}
+                          </div>
+                          <div style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: 2, display: 'flex', alignItems: 'center', gap: 3 }}>
+                            <CalendarRange size={9} />{fmtDate(item.suggestedStartDate)} — {fmtDate(item.suggestedEndDate)}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+            }
+          </div>
+
+          {/* Right — schedule + date picker */}
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            {/* Schedule (fills available height) */}
+            <div style={{ flex: 1, overflow: 'hidden', minHeight: 200 }}>
+              <SchedulePanel
+                resources={resources}
+                allBookings={allBookings}
+                manualItems={[]}
+                activeItemKey={null}
+                onSlotClick={() => {}}
+                mode="review"
+                plan={plan}
+                highlightRange={highlightRange}
+                navigateTo={date}
+              />
+            </div>
+
+            {/* Compact date/time picker */}
+            <div style={{ borderTop: '1px solid #f1f5f9', padding: '14px 18px', background: '#fafafa', display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'flex-start', flexShrink: 0 }}>
+              {/* Mini calendar */}
+              <div style={{ flexShrink: 0 }}>
+                <div style={{ fontSize: '0.58rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Pickup Date</div>
+                <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <button type="button" onClick={() => { if (calMonth === 0) { setCalMonth(11); setCalYear(y => y-1); } else setCalMonth(m => m-1); }} style={{ width: 22, height: 22, borderRadius: 5, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><ChevronLeft size={10} /></button>
+                    <span style={{ fontSize: '0.73rem', fontWeight: 800, color: '#1e293b' }}>{CONFIRM_MONTHS[calMonth]} {calYear}</span>
+                    <button type="button" onClick={() => { if (calMonth === 11) { setCalMonth(0); setCalYear(y => y+1); } else setCalMonth(m => m+1); }} style={{ width: 22, height: 22, borderRadius: 5, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><ChevronRight size={10} /></button>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 30px)', gap: 1, marginBottom: 3, textAlign: 'center' }}>
+                    {CONFIRM_DAYS_SHORT.map(d => <span key={d} style={{ fontSize: 8, fontWeight: 800, color: '#94a3b8' }}>{d}</span>)}
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 30px)', gap: 1, justifyItems: 'center' }}>
+                    {calDays.map((day, i) => {
+                      if (!day) return <div key={`e${i}`} style={{ width: 30, height: 28 }} />;
+                      const isPast = day < today;
+                      const selMid = date ? new Date(date.getFullYear(), date.getMonth(), date.getDate()) : null;
+                      const dayMid = new Date(day.getFullYear(), day.getMonth(), day.getDate());
+                      const isSel  = selMid ? dayMid.getTime() === selMid.getTime() : false;
+                      const endMid = endDate ? new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate()) : null;
+                      const isInRange = !!(selMid && endMid && dayMid > selMid && dayMid <= endMid);
+                      return (
+                        <div key={i} onClick={() => !isPast && setDate(new Date(day))}
+                          style={{ width: 30, height: 28, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: isPast ? 'not-allowed' : 'pointer', background: isSel ? 'var(--primary-color,#e8720c)' : isInRange ? 'rgba(14,165,233,0.15)' : 'transparent', color: isSel ? '#fff' : isPast ? '#cbd5e1' : isInRange ? '#0369a1' : '#1e293b', fontSize: 11, fontWeight: isSel ? 800 : 500, transition: 'background 0.1s' }}
+                          onMouseEnter={e => { if (!isPast && !isSel) (e.currentTarget as HTMLDivElement).style.background = isInRange ? 'rgba(14,165,233,0.25)' : '#f1f5f9'; }}
+                          onMouseLeave={e => { if (!isSel) (e.currentTarget as HTMLDivElement).style.background = isInRange ? 'rgba(14,165,233,0.15)' : 'transparent'; }}>
+                          {day.getDate()}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Time + duration + summary */}
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10, minWidth: 240 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div>
+                    <div style={{ fontSize: '0.58rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Pickup Time</div>
+                    <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', alignItems: 'center' }}>
+                      {CONFIRM_SESSIONS.map(s => (
+                        <button key={s.mins} type="button" onClick={() => setStartMins(s.mins)}
+                          style={{ padding: '3px 7px', borderRadius: 6, border: '1.5px solid', fontSize: 10, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.12s', borderColor: startMins === s.mins ? 'var(--primary-color,#e8720c)' : '#e2e8f0', background: startMins === s.mins ? 'var(--primary-color,#e8720c)' : '#fff', color: startMins === s.mins ? '#fff' : '#64748b' }}>
+                          {s.label}
+                        </button>
+                      ))}
+                      <ConfirmTimeDropdown value={startMins} onChange={setStartMins} accent="var(--primary-color,#e8720c)" />
+                    </div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--primary-color,#e8720c)', marginTop: 2 }}>{fmtConfirmMins(startMins)}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.58rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Return Time</div>
+                    <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap', alignItems: 'center' }}>
+                      {CONFIRM_SESSIONS.map(s => (
+                        <button key={s.mins} type="button" onClick={() => setReturnMins(s.mins)}
+                          style={{ padding: '3px 7px', borderRadius: 6, border: '1.5px solid', fontSize: 10, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.12s', borderColor: returnMins === s.mins ? '#0ea5e9' : '#e2e8f0', background: returnMins === s.mins ? '#0ea5e9' : '#fff', color: returnMins === s.mins ? '#fff' : '#64748b' }}>
+                          {s.label}
+                        </button>
+                      ))}
+                      <ConfirmTimeDropdown value={returnMins} onChange={setReturnMins} accent="#0ea5e9" />
+                    </div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: '#0ea5e9', marginTop: 2 }}>{fmtConfirmMins(returnMins)}</div>
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.58rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Duration</div>
+                  <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+                    {CONFIRM_DURATIONS.map(p => (
+                      <button key={p.label} type="button" onClick={() => setDurDays(p.days)}
+                        style={{ padding: '3px 9px', borderRadius: 6, border: '1.5px solid', fontSize: 10, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.12s', borderColor: durDays === p.days ? 'var(--primary-color,#e8720c)' : '#e2e8f0', background: durDays === p.days ? 'rgba(232,114,12,0.08)' : '#fff', color: durDays === p.days ? 'var(--primary-color,#e8720c)' : '#64748b' }}>
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {startObj && endDate && endDate > startObj && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8 }}>
+                    <Clock size={12} style={{ color: '#1d4ed8', flexShrink: 0 }} />
+                    <span style={{ flex: 1, fontSize: '0.72rem', fontWeight: 700, color: '#1d4ed8' }}>
+                      {startObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} {fmtConfirmMins(startMins)}
+                      {' → '}
+                      {endDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} {fmtConfirmMins(returnMins)}
+                    </span>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#1d4ed8', background: '#fff', border: '1px solid #bfdbfe', padding: '2px 8px', borderRadius: 99, whiteSpace: 'nowrap' }}>{durLabel}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div style={{ borderTop: '1px solid #e2e8f0', padding: '12px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, background: '#fafafa', flexShrink: 0 }}>
+          <div style={{ fontSize: '0.72rem', color: '#64748b', padding: '5px 10px', background: '#fffbeb', borderRadius: 7, border: '1px solid #fde68a' }}>
+            <strong>{selectedIds.size}</strong> item{selectedIds.size !== 1 ? 's' : ''} selected — <strong>Pending</strong> bookings will be created and require approval.
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={onClose} disabled={submitting} style={{ ...btnSecondary, fontSize: '0.78rem', padding: '7px 16px', opacity: submitting ? 0.5 : 1 }}>Cancel</button>
+            <button onClick={handleSubmit} disabled={submitting || selectedIds.size === 0}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 18px', borderRadius: 9, border: 'none', background: selectedIds.size === 0 ? '#e2e8f0' : '#16a34a', color: selectedIds.size === 0 ? '#94a3b8' : '#fff', fontSize: '0.78rem', fontWeight: 700, cursor: submitting || selectedIds.size === 0 ? 'not-allowed' : 'pointer', opacity: submitting ? 0.65 : 1 }}>
+              {submitting ? <Loader2 size={13} style={spinStyle} /> : <Check size={13} />}
+              Create {selectedIds.size} Booking{selectedIds.size !== 1 ? 's' : ''}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ─── PlanReviewPanel — right panel in review mode ─────────────────────────────
 interface PlanReviewPanelProps {
   plan: ProjectBookingPlanResponse;
@@ -1151,10 +1474,11 @@ interface PlanReviewPanelProps {
   onUpdate: (plan: ProjectBookingPlanResponse) => void;
   onGenerate: () => void;
   onStartManual: () => void;
+  onOpenBulkConfirm: () => void;
 }
 
 const PlanReviewPanel: React.FC<PlanReviewPanelProps> = ({
-  plan, warnings, canManage, actionLoading, showToast, onUpdate, onGenerate, onStartManual,
+  plan, warnings, canManage, actionLoading, showToast, onUpdate, onGenerate, onStartManual, onOpenBulkConfirm,
 }) => {
   const isPlanActive = plan.status !== PlanStatus.Expired && plan.status !== PlanStatus.FullyBooked;
   const [collapsed, setCollapsed] = useState<Record<PlanItemStatus, boolean>>({
@@ -1175,6 +1499,12 @@ const PlanReviewPanel: React.FC<PlanReviewPanelProps> = ({
       <div style={{ padding: '12px 16px', background: '#fafafa', borderBottom: '1px solid #f1f5f9', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
           <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Generated {new Date(plan.generatedAt).toLocaleString()}</span>
+          {canManage && isPlanActive && plan.items.some(i => i.status === PlanItemStatus.Pending) && (
+            <button onClick={onOpenBulkConfirm}
+              style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 7, border: 'none', background: '#16a34a', color: '#fff', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+              <Check size={11} /> Confirm Bookings
+            </button>
+          )}
         </div>
         <ProgressBar plan={plan} />
       </div>
@@ -1222,6 +1552,7 @@ const PlanReviewPanel: React.FC<PlanReviewPanelProps> = ({
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 const DetailsBookingPlan: React.FC<DetailsBookingPlanProps> = ({ projectId, canManage, showToast }) => {
+  const [viewBookingId, setViewBookingId] = useState<string | null>(null);
   const [plan, setPlan]                   = useState<ProjectBookingPlanResponse | null>(null);
   const [lastWarnings, setLastWarnings]   = useState<PlanWarning[]>([]);
   const [loadingPlan, setLoadingPlan]     = useState(true);
@@ -1230,6 +1561,7 @@ const DetailsBookingPlan: React.FC<DetailsBookingPlanProps> = ({ projectId, canM
   const [allBookings, setAllBookings]     = useState<Booking[]>([]);
   const [loadingData, setLoadingData]     = useState(false);
   const [showManualForm, setShowManualForm] = useState(false);
+  const [showBulkConfirm, setShowBulkConfirm] = useState(false);
   const [manualItems, setManualItems]     = useState<(ManualPlanItemRequest & { _key: string })[]>([]);
   const [activeItemKey, setActiveItemKey] = useState<string | null>(null);
 
@@ -1285,6 +1617,10 @@ const DetailsBookingPlan: React.FC<DetailsBookingPlanProps> = ({ projectId, canM
       setLastWarnings(newPlan.warnings ?? []);
       const count = newPlan.items.length;
       const warnCount = (newPlan.warnings ?? []).length;
+      const retainedCount = newPlan.items.filter(i => i.status === PlanItemStatus.Booked).length;
+      if (retainedCount > 0) {
+        showToast(`${retainedCount} previously booked item${retainedCount !== 1 ? 's were' : ' was'} retained in the new plan.`, 'info');
+      }
       showToast(
         `AI plan generated with ${count} suggestion${count !== 1 ? 's' : ''}${warnCount ? ` and ${warnCount} warning${warnCount !== 1 ? 's' : ''}` : ''}.`,
         warnCount > 0 ? 'warning' : 'success',
@@ -1413,7 +1749,7 @@ const DetailsBookingPlan: React.FC<DetailsBookingPlanProps> = ({ projectId, canM
 
       {/* ── Planning mode: split panel (Schedule + Builder) ──────────── */}
       {showManualForm && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 20, alignItems: 'start' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, alignItems: 'start' }}>
           <SchedulePanel
             resources={resources}
             allBookings={allBookings}
@@ -1440,17 +1776,12 @@ const DetailsBookingPlan: React.FC<DetailsBookingPlanProps> = ({ projectId, canM
         </div>
       )}
 
-      {/* ── Review mode: split panel (Schedule + Review) ─────────────── */}
+      {/* ── Review mode: Equipment list + Plan Review ─────────────────── */}
       {plan && !showManualForm && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: 20, alignItems: 'start' }}>
-          <SchedulePanel
-            resources={resources}
-            allBookings={allBookings}
-            manualItems={[]}
-            activeItemKey={null}
-            onSlotClick={() => {}}
-            mode="review"
-            plan={plan}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, alignItems: 'start' }}>
+          <ProjectResourcesPanel
+            projectId={projectId}
+            onNavigateBooking={(bookingId) => setViewBookingId(bookingId)}
           />
           <PlanReviewPanel
             plan={plan}
@@ -1461,7 +1792,64 @@ const DetailsBookingPlan: React.FC<DetailsBookingPlanProps> = ({ projectId, canM
             onUpdate={setPlan}
             onGenerate={handleGenerate}
             onStartManual={openManualForm}
+            onOpenBulkConfirm={() => setShowBulkConfirm(true)}
           />
+        </div>
+      )}
+
+      {/* Bulk Confirm Modal */}
+      {showBulkConfirm && plan && (
+        <BulkConfirmModal
+          plan={plan}
+          resources={resources}
+          allBookings={allBookings}
+          onClose={() => setShowBulkConfirm(false)}
+          onUpdate={(p) => { setPlan(p); setShowBulkConfirm(false); }}
+          showToast={showToast}
+        />
+      )}
+
+      {/* Booking Detail Modal */}
+      {viewBookingId && (
+        <div
+          onClick={() => setViewBookingId(null)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 9100,
+            background: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(4px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              width: '100%', maxWidth: 600, maxHeight: '90vh',
+              background: '#fff', borderRadius: 16,
+              boxShadow: '0 24px 48px rgba(0,0,0,0.24)',
+              display: 'flex', flexDirection: 'column', overflow: 'auto',
+            }}
+          >
+            <div style={{ padding: '16px 20px 0', display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setViewBookingId(null)}
+                style={{ width: 30, height: 30, borderRadius: 8, border: '1px solid #e2e8f0', background: '#f8fafc', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div style={{ padding: '0 20px 20px', flex: 1, minHeight: 0 }}>
+              <BookingDetailPanel
+                key={viewBookingId}
+                bookingId={viewBookingId}
+                onClose={() => setViewBookingId(null)}
+                onSaved={(shouldClose, message) => {
+                  if (message) showToast(message, 'success');
+                  if (shouldClose) setViewBookingId(null);
+                }}
+                isLabDirector={false}
+                isManagedView={false}
+              />
+            </div>
+          </div>
         </div>
       )}
     </div>
