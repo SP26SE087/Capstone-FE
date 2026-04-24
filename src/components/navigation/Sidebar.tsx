@@ -14,6 +14,7 @@ import {
     FileText,
     FolderKanban,
     Server,
+    UserCheck,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -28,15 +29,16 @@ const Sidebar: React.FC = () => {
 
     const workspaceItems = [
         { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/dashboard', onNavClick: undefined as (() => void) | undefined },
-        { icon: <Briefcase size={20} />, label: 'My Projects', path: '/projects', onNavClick: undefined },
         { icon: <FolderKanban size={20} />, label: "Lab's Projects", path: '/lab-projects', onNavClick: undefined },
+        { icon: <Briefcase size={20} />, label: 'My Projects', path: '/projects', onNavClick: undefined },
         { icon: <CheckSquare size={20} />, label: 'Tasks', path: '/tasks', onNavClick: undefined },
-        { icon: <FileText size={20} />, label: 'Paper Submission', path: '/papers', onNavClick: undefined },
         { icon: <Users size={20} />, label: 'Members', path: '/members', onNavClick: undefined },
         { icon: <BarChart2 size={20} />, label: 'Reports', path: '/reports', onNavClick: undefined },
-        { icon: <Box size={20} />, label: 'Booking Resource', path: '/bookings', onNavClick: undefined },
+        { icon: <FileText size={20} />, label: 'Paper Submission', path: '/papers', onNavClick: undefined },
         { icon: <Calendar size={20} />, label: 'Schedules', path: '/schedules', onNavClick: closeAINote },
+        { icon: <UserCheck size={20} />, label: 'Register Visitors', path: '/visitor-registrations', onNavClick: undefined },
         { icon: <Presentation size={20} />, label: 'Seminars', path: '/seminars', onNavClick: closeAINote },
+        { icon: <Box size={20} />, label: 'Booking Resource', path: '/bookings', onNavClick: undefined },
     ];
 
     const adminItems = [
