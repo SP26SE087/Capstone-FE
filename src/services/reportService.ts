@@ -225,6 +225,17 @@ const reportService = {
             console.error(`Error updating assignee for report ${id}:`, error);
             throw error;
         }
+    },
+
+    // Get reports by project
+    getByProject: async (projectId: string) => {
+        try {
+            const response = await api.get(`/api/reports/project/${projectId}`);
+            return response.data as Report[];
+        } catch (error) {
+            console.error(`Error fetching reports for project ${projectId}:`, error);
+            throw error;
+        }
     }
 };
 

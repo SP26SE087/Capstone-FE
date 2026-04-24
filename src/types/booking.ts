@@ -66,6 +66,10 @@ export interface Booking {
   userName?: string;
   userFullName?: string;
   userEmail?: string;
+  // Manager fields (new)
+  managerId?: string | null;
+  managerFullName?: string;
+  managerEmail?: string;
   title: string;
   purpose?: string;
   startTime: string;
@@ -77,6 +81,7 @@ export interface Booking {
   adjustReason?: string | null;
   approvedBy?: string | null;
   approvedByName?: string | null;
+  approvedByEmail?: string | null;
   approvedAt?: string | null;
   createdAt: string;
   updatedAt?: string;
@@ -89,8 +94,8 @@ export enum BookingStatus {
   Approved = 2,
   Rejected = 3,
   Cancelled = 4,
-  InUse = 5,
-  Completed = 6
+  Completed = 5,
+  InUse = 6
 }
 
 export interface CreateBookingItem {
@@ -160,8 +165,16 @@ export interface EquipmentLog {
   bookingId?: string;
   bookingTitle?: string;
   bookingDescription?: string;
-  userId: string;
-  userName: string;
+  // New fields (API v2)
+  borrowerId?: string;
+  borrowerFullName?: string;
+  borrowerEmail?: string;
+  checkedOutById?: string;
+  checkedOutByFullName?: string;
+  checkedOutByEmail?: string;
+  // Legacy fields (kept for backward compat)
+  userId?: string;
+  userName?: string;
   userFullName?: string;
   userEmail?: string;
   action: EquipmentLogAction;
@@ -194,6 +207,18 @@ export interface PaginatedResponse<T> {
   pageIndex: number;
   pageSize: number;
   totalPages: number;
+}
+
+export interface BasicBookingResponse {
+  bookingId: string;
+  resourceName?: string;
+  status: BookingStatus;
+  startTime: string;
+  endTime: string;
+  userId?: string;
+  managerId?: string | null;
+  managerFullName?: string;
+  managerEmail?: string;
 }
 
 // Compute/Server Resource Types

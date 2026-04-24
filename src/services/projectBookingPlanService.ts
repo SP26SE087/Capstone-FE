@@ -102,7 +102,7 @@ export const projectBookingPlanService = {
   confirmItem: async (
     planId: string,
     itemId: string,
-    body: { startDate: string; endDate: string },
+    body: { startDate: string; endDate: string; quantity?: number },
   ): Promise<ProjectBookingPlanResponse> => {
     const res = await api.post(`${BASE}/${planId}/items/${itemId}/confirm`, body);
     return res.data;

@@ -52,7 +52,8 @@ const EquipmentLogList: React.FC<EquipmentLogListProps> = ({ logs, loading, onEd
             <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
               <th style={{ padding: '1rem 1.5rem', fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', background: '#f8fafc' }}>Event</th>
               <th style={{ padding: '1rem', fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', background: '#f8fafc' }}>Subject</th>
-              {!isSplit && <th style={{ padding: '1rem', fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', background: '#f8fafc' }}>User</th>}
+              {!isSplit && <th style={{ padding: '1rem', fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', background: '#f8fafc' }}>Borrower</th>}
+              {!isSplit && <th style={{ padding: '1rem', fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', background: '#f8fafc' }}>Handled By</th>}
               <th style={{ padding: '1rem', fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', background: '#f8fafc', textAlign: 'center' }}>Time</th>
               <th style={{ padding: '1rem 1.5rem', fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', background: '#f8fafc', textAlign: 'right' }}>Actions</th>
             </tr>
@@ -60,7 +61,7 @@ const EquipmentLogList: React.FC<EquipmentLogListProps> = ({ logs, loading, onEd
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={5} style={{ textAlign: 'center', padding: '4rem' }}>
+                <td colSpan={6} style={{ textAlign: 'center', padding: '4rem' }}>
                   <Loader2 size={32} className="animate-spin" style={{ color: '#3b82f6', margin: '0 auto 12px' }} />
                   <p style={{ color: '#64748b', fontSize: '0.9rem' }}>Syncing journals...</p>
                 </td>
@@ -71,7 +72,7 @@ const EquipmentLogList: React.FC<EquipmentLogListProps> = ({ logs, loading, onEd
                    <td style={{ padding: '1rem 1.5rem' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         {getEventBadge(String(log.action))}
-                        {isSplit && <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>{log.userFullName || log.userName}</div>}
+                        {isSplit && <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>{log.borrowerFullName || log.userFullName || log.userName}</div>}
                     </div>
                   </td>
                   <td style={{ padding: '1rem' }}>
@@ -80,8 +81,20 @@ const EquipmentLogList: React.FC<EquipmentLogListProps> = ({ logs, loading, onEd
                   </td>
                   {!isSplit && (
                     <td style={{ padding: '1rem' }}>
-                      <div style={{ fontSize: '0.85rem', color: '#1e293b', fontWeight: 600 }}>{log.userFullName || log.userName}</div>
-                      {log.userEmail && <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '2px' }}>{log.userEmail}</div>}
+                      <div style={{ fontSize: '0.85rem', color: '#1e293b', fontWeight: 600 }}>{log.borrowerFullName || log.userFullName || log.userName}</div>
+                      {log.borrowerEmail && <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '2px' }}>{log.borrowerEmail}</div>}
+                    </td>
+                  )}
+                  {!isSplit && (
+                    <td style={{ padding: '1rem' }}>
+                      {log.borrowerId === log.checkedOutById ? (
+                        <div style={{ fontSize: '0.78rem', color: '#94a3b8', fontStyle: 'italic' }}>(Self-handled)</div>
+                      ) : (
+                        <>
+                          <div style={{ fontSize: '0.85rem', color: '#1e293b', fontWeight: 600 }}>{log.checkedOutByFullName}</div>
+                          {log.checkedOutByEmail && <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '2px' }}>{log.checkedOutByEmail}</div>}
+                        </>
+                      )}
                     </td>
                   )}
                   <td style={{ padding: '1rem', textAlign: 'center' }}>
@@ -121,7 +134,7 @@ const EquipmentLogList: React.FC<EquipmentLogListProps> = ({ logs, loading, onEd
               ))
             ) : (
               <tr>
-                <td colSpan={5} style={{ textAlign: 'center', padding: '4rem', color: '#94a3b8' }}>
+                <td colSpan={6} style={{ textAlign: 'center', padding: '4rem', color: '#94a3b8' }}>
                   <Info size={24} style={{ opacity: 0.3, marginBottom: '8px' }} />
                   <p style={{ fontSize: '0.9rem' }}>No activity logs founded.</p>
                 </td>

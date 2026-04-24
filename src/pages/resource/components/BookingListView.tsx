@@ -49,7 +49,7 @@ const fmtTime = (s: string) => {
 
 interface BookingGroup {
     key: string; title: string; startTime: string; endTime: string;
-    userFullName?: string; approvedByName?: string | null; anyUrgent: boolean; bookings: Booking[];
+    userFullName?: string; managerFullName?: string | null; anyUrgent: boolean; bookings: Booking[];
 }
 
 function groupBookings(bookings: Booking[]): BookingGroup[] {
@@ -57,11 +57,11 @@ function groupBookings(bookings: Booking[]): BookingGroup[] {
     for (const b of bookings) {
         const key = `${b.title}||${b.startTime}||${b.endTime}`;
         if (!map.has(key))
-            map.set(key, { key, title: b.title, startTime: b.startTime, endTime: b.endTime, userFullName: b.userFullName, approvedByName: b.approvedByName, anyUrgent: false, bookings: [] });
+            map.set(key, { key, title: b.title, startTime: b.startTime, endTime: b.endTime, userFullName: b.userFullName, managerFullName: b.managerFullName ?? null, anyUrgent: false, bookings: [] });
         const g = map.get(key)!;
         g.bookings.push(b);
         if (b.isUrgent) g.anyUrgent = true;
-        if (!g.approvedByName && b.approvedByName) g.approvedByName = b.approvedByName;
+        if (!g.managerFullName && b.managerFullName) g.managerFullName = b.managerFullName;
     }
     return [...map.values()];
 }
@@ -253,9 +253,9 @@ const BookingListView: React.FC<BookingListViewProps> = ({
                                     <User size={9} /> Borrower: {group.userFullName}
                                 </span>
                             )}
-                            {group.approvedByName && (
+                            {group.managerFullName && (
                                 <span style={{ display: 'flex', alignItems: 'center', gap: '2px', fontWeight: 600, color: '#059669', background: '#f0fdf4', padding: '1px 5px', borderRadius: '4px' }}>
-                                    <User size={9} /> Manager: {group.approvedByName}
+                                    <User size={9} /> Manager: {group.managerFullName}
                                 </span>
                             )}
                         </div>
