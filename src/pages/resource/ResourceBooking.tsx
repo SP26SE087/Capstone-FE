@@ -236,7 +236,7 @@ const ResourceBooking: React.FC = () => {
     const handleViewCheckIn = async (bookingId: string) => {
         // "Check in" = user trả lại thiết bị (InUse → Completed)
         // API: bookingService.checkOut = action=1 (equipment returned)
-        const booking = viewBookings.find(b => b.id === bookingId);
+        const booking = viewBookings.find(b => b.id === bookingId || b.bookingId === bookingId);
         const resourceId = booking?.resourceIds?.[0] ?? booking?.resourceId ?? '';
         try {
             await bookingService.checkOut(bookingId, resourceId);
@@ -248,7 +248,12 @@ const ResourceBooking: React.FC = () => {
     };
 
     const handleViewOpenBooking = (booking: Booking) => {
-        setViewModalBookingId(booking.id);
+        const resolvedBookingId = booking.bookingId || booking.id;
+        if (!resolvedBookingId) {
+            showToast('Cannot open booking detail for this item.', 'warning');
+            return;
+        }
+        setViewModalBookingId(resolvedBookingId);
     };
 
     const handleViewNewBooking = (resource?: Resource, _date?: Date) => {
@@ -700,7 +705,7 @@ const ResourceBooking: React.FC = () => {
                                 background: '#fff', borderRadius: 16,
                                 boxShadow: '0 24px 48px rgba(0,0,0,0.24)',
                                 display: 'flex', flexDirection: 'column',
-                                overflow: 'auto', zoom: 0.8,
+                                overflow: 'auto', zoom: 0.9,
                             }}
                             className="bk-scroll"
                         >
@@ -733,7 +738,7 @@ const ResourceBooking: React.FC = () => {
 
                 {/* ── Calendar / Timeline / Workspace Views ── */}
                 {bookingVariant !== 'management' && (
-                    <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', padding: '16px 16px 12px', height: (isLabDirector && bookingVariant === 'calendar' && viewBookings.some(b => b.status === BookingStatus.Pending)) ? 'calc(115vh / 0.8)' : 'calc((115vh - 120px) / 0.8)', overflow: 'hidden', display: 'flex', flexDirection: 'column', zoom: 0.8 }}>
+                    <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', padding: '16px 16px 12px', height: (isLabDirector && bookingVariant === 'calendar' && viewBookings.some(b => b.status === BookingStatus.Pending)) ? 'calc(115vh / 0.9)' : 'calc((115vh - 120px) / 0.9)', overflow: 'hidden', display: 'flex', flexDirection: 'column', zoom: 0.9 }}>
                         {viewLoading ? (
                             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '6rem' }}>
                                 <Loader2 className="animate-spin" size={36} style={{ color: '#E8720C' }} />
