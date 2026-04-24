@@ -617,27 +617,6 @@ const ResourceBooking: React.FC = () => {
             <div style={{ padding: '0.5rem 0', maxWidth: '1600px', margin: '0 auto' }}>
 
                 {/* ── Page Header ── */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginBottom: '0.5rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <div style={{
-                            width: '44px', height: '44px', borderRadius: '14px', flexShrink: 0,
-                            background: 'linear-gradient(135deg, #f59e0b, #f97316)',
-                            color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            boxShadow: '0 8px 16px rgba(245,158,11,0.25)'
-                        }}>
-                            <Package size={22} />
-                        </div>
-                        <div>
-                            <h1 style={{ fontSize: '1.5rem', fontWeight: 900, color: '#1e293b', margin: 0, letterSpacing: '-0.02em' }}>
-                                Resource Booking
-                            </h1>
-                            <p style={{ color: '#64748b', fontSize: '0.82rem', margin: 0 }}>
-                                See who's using what, when — and find open slots.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
                 {/* ── Variant Tab Strip ── */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: '0.5rem', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: 5, boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
                     {([
@@ -715,24 +694,14 @@ const ResourceBooking: React.FC = () => {
                         <div
                             onClick={e => e.stopPropagation()}
                             style={{
-                                width: '100%', maxWidth: 600, maxHeight: '90vh',
+                                width: '100%', maxWidth: 860, maxHeight: '88vh',
                                 background: '#fff', borderRadius: 16,
-                                boxShadow: '0 24px 48px rgba(0,0,0,0.24)',
+                                boxShadow: '0 24px 48px rgba(0,0,0,0.2), 0 0 0 1px rgba(0,0,0,0.06)',
                                 display: 'flex', flexDirection: 'column',
-                                overflow: 'auto', zoom: 0.9,
+                                overflow: 'hidden',
                             }}
-                            className="bk-scroll"
                         >
-                            <div style={{ padding: '16px 20px 0', display: 'flex', justifyContent: 'flex-end' }}>
-                                <button
-                                    onClick={() => setViewModalBookingId(null)}
-                                    className="icon-btn"
-                                    style={{ width: 30, height: 30 }}
-                                >
-                                    <X size={16} />
-                                </button>
-                            </div>
-                            <div style={{ padding: '0 20px 20px', flex: 1, minHeight: 0 }}>
+                            <div className="custom-scrollbar" style={{ padding: '16px 20px', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
                                 <BookingDetailPanel
                                     key={viewModalBookingId}
                                     bookingId={viewModalBookingId}
