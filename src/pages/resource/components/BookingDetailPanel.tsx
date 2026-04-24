@@ -23,7 +23,12 @@ import {
     Plus,
     LogIn,
     LogOut,
-    Server
+    Server,
+    Tag,
+    UserCheck,
+    UserX,
+    Timer,
+    Shield,
 } from 'lucide-react';
 
 interface BookingDetailPanelProps {
@@ -78,6 +83,35 @@ const formatDisplayDate = (dateStr: string) => {
     return `${day}/${month}/${year} ${hours}:${minutes}`;
 };
 
+const formatDateShort = (dateStr: string) => {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return 'N/A';
+    return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+};
+
+const formatTimeOnly = (dateStr: string) => {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '';
+    return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+};
+
+const calcDuration = (start: string, end: string) => {
+    const ms = new Date(end).getTime() - new Date(start).getTime();
+    if (ms <= 0) return null;
+    const days = Math.floor(ms / 86400000);
+    const hours = Math.floor((ms % 86400000) / 3600000);
+    if (days > 0 && hours > 0) return `${days}d ${hours}h`;
+    if (days > 0) return `${days} day${days > 1 ? 's' : ''}`;
+    return `${hours}h`;
+};
+
+const getInitials = (name: string) => {
+    if (!name) return '?';
+    const parts = name.trim().split(/\s+/);
+    if (parts.length === 1) return parts[0][0].toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+};
+
 // ─── Resource grouping ───────────────────────────────────────────────────────
 interface ResourceGroup {
     key: string;
@@ -109,6 +143,110 @@ function groupResources(resources: BasicResourceResponse[]): ResourceGroup[] {
     return [...map.values()];
 }
 
+// ─── FooterBtn helper ────────────────────────────────────────────────────────
+type FooterBtnProps = {
+    onClick: () => void;
+    icon: React.ReactNode;
+    label: string;
+    disabled?: boolean;
+} & (
+    | { variant: 'primary'; color: string; shadow: string; borderColor?: never }
+    | { variant: 'outline'; color: string; borderColor: string; shadow?: never }
+    | { variant: 'ghost'; color?: never; borderColor?: never; shadow?: never }
+);
+
+function FooterBtn({ onClick, icon, label, disabled, ...rest }: FooterBtnProps) {
+    const base: React.CSSProperties = {
+        display: 'inline-flex', alignItems: 'center', gap: 7,
+        padding: '8px 18px', borderRadius: 10, cursor: disabled ? 'not-allowed' : 'pointer',
+        fontSize: '0.82rem', fontWeight: 700, border: 'none',
+        transition: 'opacity 0.15s, box-shadow 0.15s',
+        opacity: disabled ? 0.55 : 1, flexShrink: 0,
+    };
+    if (rest.variant === 'primary') {
+        return (
+            <button onClick={onClick} disabled={disabled} style={{
+                ...base, background: rest.color, color: '#fff',
+                boxShadow: `0 3px 10px ${rest.shadow}`,
+            }}>
+                {icon} {label}
+            </button>
+        );
+    }
+    if (rest.variant === 'outline') {
+        return (
+            <button onClick={onClick} disabled={disabled} style={{
+                ...base, background: '#fff',
+                border: `1.5px solid ${rest.borderColor}`,
+                color: rest.color,
+            }}>
+                {icon} {label}
+            </button>
+        );
+    }
+    return (
+        <button onClick={onClick} disabled={disabled} style={{
+            ...base, background: 'transparent',
+            border: '1px solid #e2e8f0',
+            color: '#64748b',
+        }}>
+            {icon} {label}
+        </button>
+    );
+}
+
+// ─── PersonCard helper ───────────────────────────────────────────────────────
+function PersonCard({ label, icon, name, email, sub, accentColor, accentBg, accentBorder, placeholder }: {
+    label: string; icon: React.ReactNode;
+    name: string | null; email: string | null; sub?: string;
+    accentColor: string; accentBg: string; accentBorder: string;
+    placeholder?: string;
+}) {
+    const hasData = !!name;
+    return (
+        <div style={{
+            padding: '12px 14px',
+            background: hasData ? accentBg : '#fafafa',
+            border: `1px solid ${hasData ? accentBorder : '#e2e8f0'}`,
+            borderRadius: 12,
+            display: 'flex', flexDirection: 'column', gap: 8,
+        }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '0.6rem', fontWeight: 800, color: hasData ? accentColor : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                {icon} {label}
+            </div>
+            {hasData ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                    <div style={{
+                        width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
+                        background: accentColor + '1a', border: `1.5px solid ${accentBorder}`,
+                        color: accentColor, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '0.72rem', fontWeight: 800, letterSpacing: '-0.01em',
+                    }}>
+                        {getInitials(name)}
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</div>
+                        {email && <div style={{ fontSize: '0.65rem', color: accentColor, marginTop: 1, wordBreak: 'break-all' }}>{email}</div>}
+                        {sub && <div style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: 2 }}>{sub}</div>}
+                    </div>
+                </div>
+            ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{
+                        width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
+                        background: '#f1f5f9', border: '1.5px dashed #cbd5e1',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        color: '#cbd5e1',
+                    }}>
+                        <User size={14} />
+                    </div>
+                    <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic' }}>{placeholder ?? 'Not assigned'}</span>
+                </div>
+            )}
+        </div>
+    );
+}
+
 const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
     bookingId,
     onClose,
@@ -136,6 +274,9 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
     const [showCheckInForm, setShowCheckInForm] = useState(false);
     const [checkOutNote, setCheckOutNote] = useState('');
     const [checkInNote, setCheckInNote] = useState('');
+    const [showAdjustForm, setShowAdjustForm] = useState(false);
+    const [adjustReason, setAdjustReason] = useState('');
+    const [adjustKeptQtys, setAdjustKeptQtys] = useState<Record<string, number>>({});
     
     // Compute access state
     const [showTerminalModal, setShowTerminalModal] = useState(false);
@@ -271,6 +412,41 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
         }
     };
 
+    const openAdjustForm = (groups: ResourceGroup[]) => {
+        const init: Record<string, number> = {};
+        groups.forEach(g => { init[g.key] = g.ids.length; });
+        setAdjustKeptQtys(init);
+        setAdjustReason('');
+        setShowAdjustForm(true);
+    };
+
+    const handleAdjust = async (groups: ResourceGroup[]) => {
+        if (!adjustReason.trim()) { addToast('Adjustment reason is required.', 'warning'); return; }
+        const totalKeptAdj = groups.reduce((s, g) => s + (adjustKeptQtys[g.key] ?? g.ids.length), 0);
+        const newResourceIds = groups.flatMap(g => g.ids.slice(0, adjustKeptQtys[g.key] ?? g.ids.length));
+        setActionLoading(true);
+        try {
+            if (totalKeptAdj === 0) {
+                await bookingService.reject(bookingId, adjustReason.trim());
+                onSaved(false, 'Booking rejected (all resources removed).');
+            } else {
+                await bookingService.approve(bookingId, {
+                    note: null,
+                    newResourceIds,
+                    adjustReason: adjustReason.trim(),
+                });
+                onSaved(false, 'Resources adjusted and booking approved.');
+            }
+            setShowAdjustForm(false);
+            setAdjustReason('');
+            loadBooking();
+        } catch (err: any) {
+            addToast(err?.response?.data?.message || 'Adjust failed.', 'error');
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
     const handleOpenTerminal = (access: ComputeAccess) => {
         setSelectedComputeAccess(access);
         setShowTerminalModal(true);
@@ -328,691 +504,550 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
         booking.status === BookingStatus.InUse
     );
 
+    const duration = calcDuration(booking.startTime, booking.endTime);
+    const anyFormOpen = showApproveForm || showRejectForm || showCancelForm || showCheckOutForm || showCheckInForm || showAdjustForm;
+
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-            {/* Sticky Panel Header */}
-            <div style={{ flexShrink: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', paddingBottom: '8px', borderBottom: '1px solid var(--border-light)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <div style={{
-                        width: '28px', height: '28px', borderRadius: '8px',
-                        background: statusConfig.bg, border: `1px solid ${statusConfig.border}`,
-                        color: statusConfig.color, display: 'flex', alignItems: 'center', justifyContent: 'center'
-                    }}>
-                        <Calendar size={13} />
-                    </div>
-                    <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                            <h3 style={{ margin: 0, fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                                {booking.title}
-                            </h3>
-                            {booking.isUrgent && (
-                                <span style={{
-                                    fontSize: '0.6rem', fontWeight: 700, color: '#dc2626',
-                                    background: '#fef2f2', border: '1px solid #fecaca',
-                                    padding: '1px 6px', borderRadius: '8px',
-                                    display: 'inline-flex', alignItems: 'center', gap: '3px'
-                                }}>
-                                    <Zap size={9} /> Urgent
-                                </span>
-                            )}
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                            <span style={{
-                                fontSize: '0.62rem', fontWeight: 700, color: statusConfig.color,
-                                background: statusConfig.bg, border: `1px solid ${statusConfig.border}`,
-                                padding: '1px 7px', borderRadius: '10px',
-                                display: 'inline-flex', alignItems: 'center', gap: '3px'
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 0 }}>
+            {/* ── Body: left info + right resource sidebar ── */}
+            <div style={{ display: 'flex', flex: 1, minHeight: 0, gap: 0 }}>
+
+            {/* ── LEFT: main info scrollable ── */}
+            <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, paddingRight: 4 }} className="custom-scrollbar">
+
+                {/* ═══════════════════════════════════════════
+                    HERO HEADER
+                ═══════════════════════════════════════════ */}
+                <div style={{
+                    borderRadius: 16, marginBottom: 16, overflow: 'hidden',
+                    border: `1.5px solid ${statusConfig.border}`,
+                    boxShadow: `0 4px 20px ${statusConfig.color}14`,
+                }}>
+                    {/* Colour bar */}
+                    <div style={{ height: 5, background: `linear-gradient(90deg, ${statusConfig.color}, ${statusConfig.color}88)` }} />
+                    <div style={{ padding: '16px 18px', background: `linear-gradient(135deg, ${statusConfig.bg} 0%, #fff 70%)` }}>
+                        {/* Top row: title + badges */}
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
+                            <div style={{
+                                width: 44, height: 44, borderRadius: 12, flexShrink: 0,
+                                background: statusConfig.color + '1a',
+                                border: `1.5px solid ${statusConfig.color}33`,
+                                color: statusConfig.color,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
                             }}>
-                                {statusConfig.icon} {statusConfig.label}
-                            </span>
-                            {booking.approvedByName && (
-                                <span style={{
-                                    fontSize: '0.62rem', color: '#64748b',
-                                    display: 'inline-flex', alignItems: 'center', gap: '3px'
-                                }}>
-                                    · <span style={{ fontWeight: 700, color: '#059669' }}>Approved by:</span> <span style={{ fontWeight: 700, color: '#334155' }}>{booking.approvedByName}</span>
-                                    {booking.approvedByEmail && (
-                                        <span style={{ color: '#2563eb' }}> ({booking.approvedByEmail})</span>
-                                    )}
-                                    {booking.approvedAt && (
-                                        <span style={{ color: '#94a3b8' }}>· {formatDisplayDate(booking.approvedAt)}</span>
-                                    )}
-                                </span>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Scrollable Content */}
-            <div style={{ flex: 1, overflowY: 'auto', paddingRight: '4px', minHeight: 0 }} className="custom-scrollbar">
-
-                {/* ── 2-column grid: left = metadata, right = content ── */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
-
-                    {/* ── LEFT column ── */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-
-                        {/* Schedule */}
-                        <div style={sectionStyle}>
-                            <div style={labelStyle}><Clock size={11} /> Schedule</div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                <div style={{ padding: '6px 10px', background: '#fff', borderRadius: '6px', border: '1px solid var(--border-light)' }}>
-                                    <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '1px' }}>Pickup</div>
-                                    <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                                        {formatDisplayDate(booking.startTime)}
-                                    </div>
-                                </div>
-                                <div style={{ padding: '6px 10px', background: '#fff', borderRadius: '6px', border: '1px solid var(--border-light)' }}>
-                                    <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '1px' }}>Return</div>
-                                    <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                                        {formatDisplayDate(booking.endTime)}
-                                    </div>
-                                </div>
+                                <Calendar size={20} />
                             </div>
-                        </div>
-
-                        {/* Borrower */}
-                        {(booking.userFullName || booking.userEmail) && (
-                            <div style={sectionStyle}>
-                                <div style={labelStyle}><User size={11} /> Borrower</div>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                                    {booking.userFullName && (
-                                        <div>
-                                            <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '1px' }}>Name</div>
-                                            <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-primary)' }}>{booking.userFullName}</div>
-                                        </div>
-                                    )}
-                                    {booking.userEmail && (
-                                        <div>
-                                            <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '1px' }}>Email</div>
-                                            <div style={{ fontSize: '0.75rem', fontWeight: 500, color: '#2563eb', wordBreak: 'break-all' }}>{booking.userEmail}</div>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Resource Manager */}
-                        {(booking.managerFullName || booking.managerEmail) && (
-                            <div style={sectionStyle}>
-                                <div style={labelStyle}><User size={11} /> Resource Manager</div>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                                    {booking.managerFullName && (
-                                        <div>
-                                            <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '1px' }}>Name</div>
-                                            <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-primary)' }}>{booking.managerFullName}</div>
-                                        </div>
-                                    )}
-                                    {booking.managerEmail && (
-                                        <div>
-                                            <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '1px' }}>Email</div>
-                                            <div style={{ fontSize: '0.75rem', fontWeight: 500, color: '#2563eb', wordBreak: 'break-all' }}>{booking.managerEmail}</div>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Approved By */}
-                        {booking.approvedByName && (
-                            <div style={sectionStyle}>
-                                <div style={labelStyle}><CheckCircle2 size={11} /> Approved By</div>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                                    <div>
-                                        <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '1px' }}>Name</div>
-                                        <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-primary)' }}>{booking.approvedByName}</div>
-                                    </div>
-                                    {booking.approvedByEmail && (
-                                        <div>
-                                            <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '1px' }}>Email</div>
-                                            <div style={{ fontSize: '0.75rem', fontWeight: 500, color: '#2563eb', wordBreak: 'break-all' }}>{booking.approvedByEmail}</div>
-                                        </div>
-                                    )}
-                                    {booking.approvedAt && (
-                                        <div>
-                                            <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '1px' }}>At</div>
-                                            <div style={{ fontSize: '0.75rem', fontWeight: 500, color: 'var(--text-primary)' }}>{formatDisplayDate(booking.approvedAt)}</div>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* ── RIGHT column ── */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-
-                        {/* Purpose */}
-                        <div style={sectionStyle}>
-                            <div style={labelStyle}><FileText size={11} /> Purpose</div>
-                            <div style={{ fontSize: '0.78rem', color: '#1e293b', lineHeight: '1.6' }}>
-                                {booking.purpose || 'No purpose specified.'}
-                            </div>
-                        </div>
-
-                        {/* Booked Resources */}
-                        {resourceGroups.length > 0 && (
-                            <div style={sectionStyle}>
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                                    <div style={labelStyle}><Package size={12} /> Resources</div>
-                                    <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#64748b' }}>
-                                        {bookingResources.length} unit{bookingResources.length !== 1 ? 's' : ''}
-                                        {booking.adjustReason && booking.status !== BookingStatus.Rejected && (
-                                            <span style={{ marginLeft: '6px', color: '#92400e', background: '#fef3c7', border: '1px solid #fde68a', padding: '1px 5px', borderRadius: '4px' }}>Adjusted</span>
-                                        )}
-                                    </span>
-                                </div>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                                    {resourceGroups.map((g) => (
-                                        <div key={g.key} style={{
-                                            padding: '7px 9px', background: '#fff', borderRadius: '7px',
-                                            border: '1px solid var(--border-light)',
-                                            display: 'flex', alignItems: 'center', gap: '7px'
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 5 }}>
+                                    <h2 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em', lineHeight: 1.3 }}>
+                                        {booking.title}
+                                    </h2>
+                                    {booking.isUrgent && (
+                                        <span style={{
+                                            fontSize: '0.6rem', fontWeight: 800, color: '#b91c1c',
+                                            background: '#fef2f2', border: '1px solid #fca5a5',
+                                            padding: '2px 7px', borderRadius: 20,
+                                            display: 'inline-flex', alignItems: 'center', gap: 3, letterSpacing: '0.04em',
                                         }}>
-                                            <Package size={13} style={{ color: '#64748b', flexShrink: 0 }} />
-                                            <div style={{ flex: 1, minWidth: 0 }}>
-                                                <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#1e293b', wordBreak: 'break-word' }}>{g.name}</div>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '3px', flexWrap: 'wrap' as const }}>
-                                                    {g.resourceTypeName && (
-                                                        <span style={{ fontSize: '0.58rem', fontWeight: 700, color: '#7c3aed', background: '#f5f3ff', border: '1px solid #e9d5ff', padding: '0px 5px', borderRadius: '4px' }}>
-                                                            {g.resourceTypeName}
-                                                        </span>
-                                                    )}
-                                                    {g.location && (
-                                                        <span style={{ fontSize: '0.6rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '2px' }}>
-                                                            <MapPin size={9} /> {g.location}
-                                                        </span>
-                                                    )}
-                                                    {g.hasDamaged && (
-                                                        <span style={{ fontSize: '0.58rem', fontWeight: 700, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', padding: '0px 5px', borderRadius: '4px' }}>Damaged</span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#fff', background: '#334155', padding: '2px 7px', borderRadius: '6px', flexShrink: 0 }}>
-                                                ×{g.ids.length}
-                                            </span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Fallback resource */}
-                        {bookingResources.length === 0 && (booking.resourceName || (booking.quantity && booking.quantity > 0)) && (
-                            <div style={sectionStyle}>
-                                <div style={labelStyle}><Package size={12} /> Resource</div>
-                                <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#1e293b' }}>
-                                    {booking.resourceName || '—'}
-                                    {booking.quantity && booking.quantity > 1 && (
-                                        <span style={{ marginLeft: '8px', fontSize: '0.72rem', color: '#64748b' }}>× {booking.quantity} units</span>
+                                            <Zap size={9} /> URGENT
+                                        </span>
+                                    )}
+                                    {booking.adjustReason && booking.status !== BookingStatus.Rejected && (
+                                        <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#92400e', background: '#fef3c7', border: '1px solid #fde68a', padding: '2px 7px', borderRadius: 20 }}>
+                                            Adjusted
+                                        </span>
                                     )}
                                 </div>
+                                <span style={{
+                                    fontSize: '0.72rem', fontWeight: 700, color: statusConfig.color,
+                                    background: statusConfig.bg, border: `1px solid ${statusConfig.border}`,
+                                    padding: '3px 11px', borderRadius: 20,
+                                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                                }}>
+                                    {statusConfig.icon} {statusConfig.label}
+                                </span>
                             </div>
-                        )}
+                        </div>
 
-                        {/* Rejection reason */}
-                        {booking.status === BookingStatus.Rejected && booking.rejectReason && (
-                            <div style={{ ...sectionStyle, background: '#fef2f2', border: '1px solid #fecaca' }}>
-                                <div style={{ ...labelStyle, color: '#dc2626' }}><XCircle size={12} /> Rejection Reason</div>
-                                <div style={{ fontSize: '0.82rem', color: '#7f1d1d', lineHeight: '1.5' }}>{booking.rejectReason}</div>
+                        {/* Schedule timeline */}
+                        <div style={{
+                            display: 'flex', alignItems: 'center', gap: 0,
+                            background: '#fff', border: '1px solid #e2e8f0',
+                            borderRadius: 12, overflow: 'hidden',
+                        }}>
+                            <div style={{ flex: 1, padding: '10px 14px' }}>
+                                <div style={{ fontSize: '0.6rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>
+                                    Pickup
+                                </div>
+                                <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.01em' }}>
+                                    {formatTimeOnly(booking.startTime)}
+                                </div>
+                                <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: 1 }}>
+                                    {formatDateShort(booking.startTime)}
+                                </div>
                             </div>
-                        )}
-
-                        {/* Cancel reason */}
-                        {booking.cancelReason && (
-                            <div style={{ ...sectionStyle, background: '#f3f4f6', border: '1px solid #e5e7eb' }}>
-                                <div style={{ ...labelStyle, color: '#6b7280' }}><XCircle size={12} /> Cancellation Reason</div>
-                                <div style={{ fontSize: '0.82rem', color: '#374151', lineHeight: '1.5' }}>{booking.cancelReason}</div>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0 8px', flexShrink: 0 }}>
+                                <div style={{ width: 1, height: 10, background: '#e2e8f0' }} />
+                                <div style={{
+                                    display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px',
+                                    background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 20,
+                                    fontSize: '0.65rem', fontWeight: 700, color: '#64748b',
+                                    whiteSpace: 'nowrap',
+                                }}>
+                                    <Timer size={10} /> {duration ?? '—'}
+                                </div>
+                                <div style={{ width: 1, height: 10, background: '#e2e8f0' }} />
                             </div>
-                        )}
-
-                        {/* Adjustment reason */}
-                        {booking.adjustReason && booking.status !== BookingStatus.Rejected && (
-                            <div style={{ ...sectionStyle, background: '#fffbeb', border: '1px solid #fde68a' }}>
-                                <div style={{ ...labelStyle, color: '#92400e' }}><Info size={12} /> Adjustment Reason</div>
-                                <div style={{ fontSize: '0.82rem', color: '#78350f', lineHeight: '1.5' }}>{booking.adjustReason}</div>
+                            <div style={{ flex: 1, padding: '10px 14px', borderLeft: '1px solid #f1f5f9' }}>
+                                <div style={{ fontSize: '0.6rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>
+                                    Return
+                                </div>
+                                <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.01em' }}>
+                                    {formatTimeOnly(booking.endTime)}
+                                </div>
+                                <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: 1 }}>
+                                    {formatDateShort(booking.endTime)}
+                                </div>
                             </div>
-                        )}
-
-                        {/* Approval note */}
-                        {booking.note && (
-                            <div style={{ ...sectionStyle, background: '#ecfdf5', border: '1px solid #a7f3d0' }}>
-                                <div style={{ ...labelStyle, color: '#059669' }}><MessageSquare size={12} /> Approval Note</div>
-                                <div style={{ fontSize: '0.82rem', color: '#065f46', lineHeight: '1.5' }}>{booking.note}</div>
-                            </div>
-                        )}
+                        </div>
                     </div>
                 </div>
 
-                {/* ── Full-width: Compute Access ── */}
-                {/* Compute Access Panel - for compute resource bookings */}
+                {/* ═══════════════════════════════════════════
+                    PEOPLE ROW — Borrower | Manager | Approved By
+                ═══════════════════════════════════════════ */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 14 }}>
+                    {/* Borrower */}
+                    <PersonCard
+                        label="Borrower"
+                        icon={<User size={11} />}
+                        name={booking.userFullName}
+                        email={booking.userEmail}
+                        accentColor="#2563eb"
+                        accentBg="#eff6ff"
+                        accentBorder="#bfdbfe"
+                    />
+                    {/* Resource Manager */}
+                    <PersonCard
+                        label="Resource Manager"
+                        icon={<Shield size={11} />}
+                        name={booking.managerFullName}
+                        email={booking.managerEmail}
+                        accentColor="#7c3aed"
+                        accentBg="#f5f3ff"
+                        accentBorder="#e9d5ff"
+                    />
+                    {/* Approved By — always shown */}
+                    <PersonCard
+                        label="Approved By"
+                        icon={booking.approvedByName ? <UserCheck size={11} /> : <UserX size={11} />}
+                        name={booking.approvedByName ?? null}
+                        email={booking.approvedByEmail ?? null}
+                        sub={booking.approvedAt ? formatDisplayDate(booking.approvedAt) : undefined}
+                        accentColor={booking.approvedByName ? '#059669' : '#94a3b8'}
+                        accentBg={booking.approvedByName ? '#ecfdf5' : '#f8fafc'}
+                        accentBorder={booking.approvedByName ? '#a7f3d0' : '#e2e8f0'}
+                        placeholder="Not approved yet"
+                    />
+                </div>
+
+                {/* ═══════════════════════════════════════════
+                    PURPOSE
+                ═══════════════════════════════════════════ */}
+                <div style={{ ...sectionStyle, marginBottom: 14 }}>
+                    <div style={labelStyle}><FileText size={11} /> Purpose</div>
+                    <p style={{ margin: 0, fontSize: '0.83rem', color: '#334155', lineHeight: 1.7 }}>
+                        {booking.purpose || <span style={{ color: '#94a3b8', fontStyle: 'italic' }}>No purpose specified.</span>}
+                    </p>
+                </div>
+
+                {/* Notes / Reason banners */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+                    {booking.status === BookingStatus.Rejected && booking.rejectReason && (
+                        <div style={{ padding: '12px 16px', background: '#fef2f2', border: '1px solid #fecaca', borderLeft: '4px solid #ef4444', borderRadius: 12 }}>
+                            <div style={{ ...labelStyle, color: '#dc2626', marginBottom: 5 }}><XCircle size={12} /> Rejection Reason</div>
+                            <div style={{ fontSize: '0.83rem', color: '#7f1d1d', lineHeight: 1.6 }}>{booking.rejectReason}</div>
+                        </div>
+                    )}
+                    {booking.cancelReason && (
+                        <div style={{ padding: '12px 16px', background: '#f3f4f6', border: '1px solid #e5e7eb', borderLeft: '4px solid #9ca3af', borderRadius: 12 }}>
+                            <div style={{ ...labelStyle, color: '#6b7280', marginBottom: 5 }}><XCircle size={12} /> Cancellation Reason</div>
+                            <div style={{ fontSize: '0.83rem', color: '#374151', lineHeight: 1.6 }}>{booking.cancelReason}</div>
+                        </div>
+                    )}
+                    {booking.adjustReason && booking.status !== BookingStatus.Rejected && (
+                        <div style={{ padding: '12px 16px', background: '#fffbeb', border: '1px solid #fde68a', borderLeft: '4px solid #f59e0b', borderRadius: 12 }}>
+                            <div style={{ ...labelStyle, color: '#92400e', marginBottom: 5 }}><Info size={12} /> Adjustment Reason</div>
+                            <div style={{ fontSize: '0.83rem', color: '#78350f', lineHeight: 1.6 }}>{booking.adjustReason}</div>
+                        </div>
+                    )}
+                    {booking.note && (
+                        <div style={{ padding: '12px 16px', background: '#ecfdf5', border: '1px solid #a7f3d0', borderLeft: '4px solid #10b981', borderRadius: 12 }}>
+                            <div style={{ ...labelStyle, color: '#059669', marginBottom: 5 }}><MessageSquare size={12} /> Approval Note</div>
+                            <div style={{ fontSize: '0.83rem', color: '#065f46', lineHeight: 1.6 }}>{booking.note}</div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Compute Access */}
                 {showComputeAccess && (
-                    <div style={sectionStyle}>
-                        <div style={{ ...labelStyle, color: 'var(--accent-color)', marginBottom: '10px' }}>
+                    <div style={{ ...sectionStyle, marginBottom: 14 }}>
+                        <div style={{ ...labelStyle, color: 'var(--accent-color)', marginBottom: 10 }}>
                             <Server size={12} /> Compute Instance
                         </div>
-                        <ComputeAccessPanel
-                            bookingId={bookingId}
-                            onOpenTerminal={handleOpenTerminal}
-                        />
+                        <ComputeAccessPanel bookingId={bookingId} onOpenTerminal={handleOpenTerminal} />
+                    </div>
+                )}
+            </div>{/* end left column */}
+
+            {/* ── RIGHT: resource sidebar ── */}
+            <div style={{
+                width: 260, flexShrink: 0,
+                borderLeft: '1px solid #f1f5f9',
+                display: 'flex', flexDirection: 'column',
+                background: '#fafafa',
+            }}>
+                {/* Sidebar header */}
+                <div style={{ padding: '16px 14px 10px', flexShrink: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 2 }}>
+                        <div style={labelStyle}><Package size={12} /> Resources</div>
+                        <span style={{
+                            fontSize: '0.62rem', fontWeight: 800, color: '#475569',
+                            background: '#e2e8f0', padding: '1px 8px', borderRadius: 20,
+                        }}>
+                            {bookingResources.length} unit{bookingResources.length !== 1 ? 's' : ''}
+                        </span>
+                    </div>
+                </div>
+
+                {/* Scrollable resource list */}
+                <div className="custom-scrollbar" style={{ flex: 1, overflowY: 'auto', padding: '0 10px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {bookingResources.length === 0 ? (
+                        <div style={{ padding: '24px 0', textAlign: 'center', color: '#94a3b8', fontSize: '0.78rem' }}>
+                            No resources.
+                        </div>
+                    ) : bookingResources.map((r, idx) => (
+                        <div key={r.id ?? idx} style={{
+                            background: '#fff',
+                            border: `1px solid ${r.isDamaged ? '#fecaca' : '#e8edf3'}`,
+                            borderTop: `3px solid ${r.isDamaged ? '#ef4444' : '#818cf8'}`,
+                            borderRadius: 10, padding: '10px 11px',
+                            display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0,
+                            boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                        }}>
+                            {/* Index + name row */}
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 7 }}>
+                                <span style={{
+                                    width: 20, height: 20, borderRadius: 6, flexShrink: 0, marginTop: 1,
+                                    background: '#f1f5f9', border: '1px solid #e2e8f0',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    fontSize: '0.62rem', fontWeight: 800, color: '#64748b',
+                                }}>{idx + 1}</span>
+                                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0f172a', lineHeight: 1.35, wordBreak: 'break-word' as const }}>
+                                    {r.name}
+                                </div>
+                            </div>
+                            {/* Badges */}
+                            <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 4 }}>
+                                {r.resourceTypeName && (
+                                    <span style={{ fontSize: '0.58rem', fontWeight: 700, color: '#7c3aed', background: '#f5f3ff', border: '1px solid #e9d5ff', padding: '1px 6px', borderRadius: 20 }}>
+                                        {r.resourceTypeName}
+                                    </span>
+                                )}
+                                {r.location && (
+                                    <span style={{ fontSize: '0.58rem', fontWeight: 600, color: '#475569', display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+                                        <MapPin size={8} /> {r.location}
+                                    </span>
+                                )}
+                                {r.isDamaged && (
+                                    <span style={{ fontSize: '0.58rem', fontWeight: 700, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', padding: '1px 6px', borderRadius: 20 }}>
+                                        ⚠ Damaged
+                                    </span>
+                                )}
+                            </div>
+                            {/* Serial */}
+                            {(r as any).modelSeries && (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4, paddingTop: 4, borderTop: '1px solid #f1f5f9' }}>
+                                    <span style={{ fontSize: '0.55rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Serial</span>
+                                    <code style={{ fontSize: '0.62rem', fontWeight: 700, color: '#334155', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '1px 6px', borderRadius: 5, letterSpacing: '0.02em' }}>
+                                        {(r as any).modelSeries}
+                                    </code>
+                                </div>
+                            )}
+                        </div>
+                    ))}
+
+                    {/* Fallback resource */}
+                    {bookingResources.length === 0 && (booking.resourceName || (booking.quantity && booking.quantity > 0)) && (
+                        <div style={{ padding: '10px 11px', background: '#fff', border: '1px solid #e8edf3', borderRadius: 10 }}>
+                            <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#1e293b' }}>
+                                {booking.resourceName || '—'}
+                                {booking.quantity && booking.quantity > 1 && (
+                                    <span style={{ marginLeft: 6, fontSize: '0.7rem', color: '#64748b' }}>× {booking.quantity}</span>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>{/* end right sidebar */}
+
+            </div>{/* end body row */}
+
+            {/* ══════════════════════════════════════════════
+                FIXED ACTION AREA — never scrolls away
+            ══════════════════════════════════════════════ */}
+            <div style={{
+                flexShrink: 0,
+                borderTop: '1px solid #f1f5f9',
+                background: '#fff',
+            }}>
+                {/* ── Adjust form ── */}
+                {showAdjustForm && canApproveReject && (
+                    <div style={{ padding: '14px 16px', background: '#fff7ed', borderBottom: '1px solid #fed7aa' }}>
+                        <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#c2410c', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 5 }}>
+                            <Info size={11} /> Adjust Resources
+                        </div>
+                        {/* Stepper per group */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
+                            {resourceGroups.length === 0 ? (
+                                <div style={{ fontSize: '0.75rem', color: '#92400e' }}>No resource details available.</div>
+                            ) : resourceGroups.map(g => {
+                                const kept = adjustKeptQtys[g.key] ?? g.ids.length;
+                                const isZero = kept === 0;
+                                const isChanged = kept !== g.ids.length;
+                                return (
+                                    <div key={g.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 11px', background: '#fff', border: `1.5px solid ${isZero ? '#fecaca' : isChanged ? '#fdba74' : '#fed7aa'}`, borderRadius: 9 }}>
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{g.name}</div>
+                                            <div style={{ fontSize: '0.62rem', color: '#92400e', marginTop: 1 }}>
+                                                Requested: {g.ids.length}
+                                                {isChanged && !isZero && <span style={{ color: '#ea580c', fontWeight: 700 }}> → {kept}</span>}
+                                                {isZero && <span style={{ color: '#dc2626', fontWeight: 700 }}> → removed</span>}
+                                            </div>
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+                                            <button type="button" onClick={() => setAdjustKeptQtys(p => ({ ...p, [g.key]: Math.max(0, (p[g.key] ?? g.ids.length) - 1) }))} disabled={kept <= 0}
+                                                style={{ width: 26, height: 26, borderRadius: 7, border: '1.5px solid #fed7aa', background: kept <= 0 ? '#f8fafc' : '#fff', cursor: kept <= 0 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: kept <= 0 ? '#cbd5e1' : '#ea580c' }}>
+                                                <Minus size={11} />
+                                            </button>
+                                            <span style={{ fontSize: '0.9rem', fontWeight: 800, minWidth: 22, textAlign: 'center' as const, color: isZero ? '#dc2626' : isChanged ? '#ea580c' : '#1e293b' }}>{kept}</span>
+                                            <button type="button" onClick={() => setAdjustKeptQtys(p => ({ ...p, [g.key]: Math.min(g.ids.length, (p[g.key] ?? g.ids.length) + 1) }))} disabled={kept >= g.ids.length}
+                                                style={{ width: 26, height: 26, borderRadius: 7, border: '1.5px solid #fed7aa', background: kept >= g.ids.length ? '#f8fafc' : '#fff', cursor: kept >= g.ids.length ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: kept >= g.ids.length ? '#cbd5e1' : '#ea580c' }}>
+                                                <Plus size={11} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        {/* total = 0 warning */}
+                        {resourceGroups.reduce((s, g) => s + (adjustKeptQtys[g.key] ?? g.ids.length), 0) === 0 && (
+                            <div style={{ padding: '6px 10px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, fontSize: '0.72rem', fontWeight: 700, color: '#dc2626', marginBottom: 8 }}>
+                                ⚠ All removed — this will reject the booking
+                            </div>
+                        )}
+                        <textarea autoFocus value={adjustReason} onChange={e => setAdjustReason(e.target.value)}
+                            placeholder="Reason for adjustment (required)..."
+                            style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid #fed7aa', fontSize: '0.8rem', fontFamily: 'inherit', outline: 'none', minHeight: 52, resize: 'none', background: '#fff', boxSizing: 'border-box', marginBottom: 8 }} />
+                        <div style={{ display: 'flex', gap: 8 }}>
+                            <button onClick={() => handleAdjust(resourceGroups)} disabled={actionLoading || !adjustReason.trim()}
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 16px', borderRadius: 9, border: 'none', background: !adjustReason.trim() ? '#e2e8f0' : '#ea580c', color: '#fff', fontSize: '0.8rem', fontWeight: 700, cursor: actionLoading || !adjustReason.trim() ? 'not-allowed' : 'pointer', opacity: actionLoading ? 0.7 : 1 }}>
+                                {actionLoading ? <Loader2 size={12} className="animate-spin" /> : <Info size={12} />} Confirm Adjust
+                            </button>
+                            <button onClick={() => { setShowAdjustForm(false); setAdjustReason(''); }}
+                                style={{ padding: '7px 14px', borderRadius: 9, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
+                                Cancel
+                            </button>
+                        </div>
                     </div>
                 )}
 
-                {/* Approve Form */}
+                {/* ── Approve form ── */}
                 {showApproveForm && canApproveReject && (
-                    <div style={{ ...sectionStyle, background: '#ecfdf5', border: '1px solid #a7f3d0' }}>
-                        <div style={{ ...labelStyle, color: '#059669' }}><CheckCircle2 size={11} /> Approve Booking</div>
+                    <div style={{ padding: '14px 16px', background: '#f0fdf4', borderBottom: '1px solid #a7f3d0' }}>
+                        <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#059669', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>
+                            <CheckCircle2 size={11} /> Approve Booking
+                        </div>
                         <textarea
-                            style={{
-                                width: '100%', padding: '7px 10px', borderRadius: '7px',
-                                border: '1.5px solid #a7f3d0', fontSize: '0.78rem', fontFamily: 'inherit',
-                                outline: 'none', minHeight: '48px', resize: 'vertical' as const,
-                                background: '#fff', marginBottom: '8px', boxSizing: 'border-box' as const
-                            }}
-                            value={approveNote}
-                            onChange={e => setApproveNote(e.target.value)}
-                            placeholder="Optional approval note..."
+                            autoFocus
+                            value={approveNote} onChange={e => setApproveNote(e.target.value)}
+                            placeholder="Approval note (optional)..."
+                            style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid #a7f3d0', fontSize: '0.8rem', fontFamily: 'inherit', outline: 'none', minHeight: 52, resize: 'none', background: '#fff', boxSizing: 'border-box', marginBottom: 8 }}
                         />
-
-                        {/* Adjustment toggle — only if booking has resources to adjust */}
                         {bookingResourceIds.length > 0 && (
-                            <div style={{ marginBottom: '10px' }}>
-                                <button
-                                    type="button"
-                                    onClick={() => handleToggleAdjustments(resourceGroups)}
-                                    style={{
-                                        fontSize: '0.75rem', fontWeight: 700,
-                                        color: showAdjustments ? '#059669' : '#64748b',
-                                        background: showAdjustments ? '#dcfce7' : '#f1f5f9',
-                                        border: `1px solid ${showAdjustments ? '#a7f3d0' : '#e2e8f0'}`,
-                                        borderRadius: '8px', padding: '5px 12px', cursor: 'pointer'
-                                    }}
-                                >
-                                    {showAdjustments ? '− Hide Adjustments' : '+ Adjust Resource Quantities'}
+                            <div style={{ marginBottom: 8 }}>
+                                <button type="button" onClick={() => handleToggleAdjustments(resourceGroups)}
+                                    style={{ fontSize: '0.75rem', fontWeight: 700, color: showAdjustments ? '#059669' : '#64748b', background: showAdjustments ? '#dcfce7' : '#f1f5f9', border: `1px solid ${showAdjustments ? '#a7f3d0' : '#e2e8f0'}`, borderRadius: 8, padding: '4px 12px', cursor: 'pointer' }}>
+                                    {showAdjustments ? '− Hide Adjustments' : '+ Adjust Quantities'}
                                 </button>
-
                                 {showAdjustments && groupKeptQtys && (
-                                    <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                        {allRemoved && (
-                                            <div style={{ padding: '8px 12px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 700, color: '#dc2626' }}>
-                                                ⚠ All resources removed — this will auto-reject the booking
-                                            </div>
-                                        )}
-
-                                        {/* One stepper row per group */}
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                                            {resourceGroups.length > 0 ? resourceGroups.map(g => {
-                                                const kept = groupKeptQtys[g.key] ?? g.ids.length;
-                                                const isChanged = kept !== g.ids.length;
-                                                const isZero = kept === 0;
-                                                return (
-                                                    <div key={g.key} style={{
-                                                        padding: '9px 11px', borderRadius: '8px', background: '#fff',
-                                                        border: `1.5px solid ${isZero ? '#fecaca' : isChanged ? '#fdba74' : '#fde68a'}`,
-                                                        display: 'flex', alignItems: 'center', gap: '10px'
-                                                    }}>
-                                                        <div style={{ flex: 1, minWidth: 0 }}>
-                                                            <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{g.name}</div>
-                                                            <div style={{ fontSize: '0.62rem', color: '#92400e', marginTop: '1px' }}>
-                                                                Requested: {g.ids.length}
-                                                                {isChanged && !isZero && <span style={{ color: '#f97316', fontWeight: 700 }}> → {kept}</span>}
-                                                                {isZero && <span style={{ color: '#dc2626', fontWeight: 700 }}> → removed</span>}
-                                                            </div>
-                                                            {g.location && (
-                                                                <div style={{ fontSize: '0.6rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '2px', marginTop: '1px' }}>
-                                                                    <MapPin size={8} /> {g.location}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                                                            <button type="button"
-                                                                onClick={() => setGroupKeptQtys(prev => ({ ...prev!, [g.key]: Math.max(0, (prev![g.key] ?? g.ids.length) - 1) }))}
-                                                                disabled={kept <= 0}
-                                                                style={{ width: '26px', height: '26px', borderRadius: '7px', border: '1.5px solid #e2e8f0', background: kept <= 0 ? '#f8fafc' : '#fff', cursor: kept <= 0 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: kept <= 0 ? '#cbd5e1' : '#475569' }}>
-                                                                <Minus size={11} />
-                                                            </button>
-                                                            <span style={{ fontSize: '1rem', fontWeight: 800, minWidth: '22px', textAlign: 'center' as const, color: isZero ? '#dc2626' : isChanged ? '#f97316' : '#1e293b' }}>{kept}</span>
-                                                            <button type="button"
-                                                                onClick={() => setGroupKeptQtys(prev => ({ ...prev!, [g.key]: Math.min(g.ids.length, (prev![g.key] ?? g.ids.length) + 1) }))}
-                                                                disabled={kept >= g.ids.length}
-                                                                style={{ width: '26px', height: '26px', borderRadius: '7px', border: '1.5px solid #e2e8f0', background: kept >= g.ids.length ? '#f8fafc' : '#fff', cursor: kept >= g.ids.length ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: kept >= g.ids.length ? '#cbd5e1' : '#475569' }}>
-                                                                <Plus size={11} />
-                                                            </button>
-                                                        </div>
+                                    <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                        {allRemoved && <div style={{ padding: '6px 10px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 7, fontSize: '0.75rem', fontWeight: 700, color: '#dc2626' }}>⚠ All removed — will auto-reject</div>}
+                                        {resourceGroups.map(g => {
+                                            const kept = groupKeptQtys[g.key] ?? g.ids.length;
+                                            const isZero = kept === 0; const isChanged = kept !== g.ids.length;
+                                            return (
+                                                <div key={g.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', background: '#fff', border: `1.5px solid ${isZero ? '#fecaca' : isChanged ? '#fdba74' : '#fde68a'}`, borderRadius: 8 }}>
+                                                    <div style={{ flex: 1, fontSize: '0.78rem', fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{g.name}</div>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+                                                        <button type="button" onClick={() => setGroupKeptQtys(p => ({ ...p!, [g.key]: Math.max(0, (p![g.key] ?? g.ids.length) - 1) }))} disabled={kept <= 0}
+                                                            style={{ width: 24, height: 24, borderRadius: 6, border: '1.5px solid #e2e8f0', background: kept <= 0 ? '#f8fafc' : '#fff', cursor: kept <= 0 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: kept <= 0 ? '#cbd5e1' : '#475569' }}>
+                                                            <Minus size={10} />
+                                                        </button>
+                                                        <span style={{ fontSize: '0.85rem', fontWeight: 800, minWidth: 20, textAlign: 'center' as const, color: isZero ? '#dc2626' : isChanged ? '#f97316' : '#1e293b' }}>{kept}</span>
+                                                        <button type="button" onClick={() => setGroupKeptQtys(p => ({ ...p!, [g.key]: Math.min(g.ids.length, (p![g.key] ?? g.ids.length) + 1) }))} disabled={kept >= g.ids.length}
+                                                            style={{ width: 24, height: 24, borderRadius: 6, border: '1.5px solid #e2e8f0', background: kept >= g.ids.length ? '#f8fafc' : '#fff', cursor: kept >= g.ids.length ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: kept >= g.ids.length ? '#cbd5e1' : '#475569' }}>
+                                                            <Plus size={10} />
+                                                        </button>
                                                     </div>
-                                                );
-                                            }) : (
-                                                <div style={{ fontSize: '0.75rem', color: '#92400e' }}>
-                                                    {bookingResourceIds.length} resource ID{bookingResourceIds.length !== 1 ? 's' : ''} in this booking.
-                                                    Detailed resource info not available — approve without adjustment.
                                                 </div>
-                                            )}
-                                        </div>
-
-                                        <div>
-                                            <label style={{ ...labelStyle, fontSize: '0.68rem', color: '#92400e' }}>
-                                                Adjust Reason * {allRemoved ? '(becomes reject reason)' : ''}
-                                            </label>
-                                            <textarea
-                                                style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1.5px solid #fde68a', fontSize: '0.83rem', fontFamily: 'inherit', outline: 'none', minHeight: '50px', resize: 'vertical' as const, background: '#fffbeb', boxSizing: 'border-box' as const }}
-                                                value={approveAdjustReason}
-                                                onChange={e => setApproveAdjustReason(e.target.value)}
-                                                placeholder="Reason for adjusting quantities (required)..."
-                                            />
-                                        </div>
-
-                                        {hasChangedQty && (
-                                            <div style={{ fontSize: '0.72rem', color: '#92400e', fontWeight: 600 }}>
-                                                Keeping {totalKept} of {bookingResourceIds.length} unit{bookingResourceIds.length !== 1 ? 's' : ''}
-                                            </div>
-                                        )}
+                                            );
+                                        })}
+                                        <textarea value={approveAdjustReason} onChange={e => setApproveAdjustReason(e.target.value)}
+                                            placeholder={`Adjustment reason${allRemoved ? ' (reject reason)' : ''} *`}
+                                            style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1.5px solid #fde68a', fontSize: '0.78rem', fontFamily: 'inherit', outline: 'none', minHeight: 44, resize: 'none', background: '#fffbeb', boxSizing: 'border-box' as const }} />
+                                        {hasChangedQty && <div style={{ fontSize: '0.7rem', color: '#92400e', fontWeight: 600 }}>Keeping {totalKept} of {bookingResourceIds.length} unit(s)</div>}
                                     </div>
                                 )}
                             </div>
                         )}
-
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                            <button
-                                onClick={() => handleApprove(resourceGroups)}
-                                disabled={actionLoading}
-                                style={{
-                                    padding: '6px 16px', borderRadius: '8px', border: 'none',
-                                    background: '#059669', color: '#fff',
-                                    cursor: actionLoading ? 'not-allowed' : 'pointer',
-                                    fontSize: '0.78rem', fontWeight: 700,
-                                    display: 'flex', alignItems: 'center', gap: '4px'
-                                }}
-                            >
+                        <div style={{ display: 'flex', gap: 8 }}>
+                            <button onClick={() => handleApprove(resourceGroups)} disabled={actionLoading}
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 16px', borderRadius: 9, border: 'none', background: '#059669', color: '#fff', fontSize: '0.8rem', fontWeight: 700, cursor: actionLoading ? 'not-allowed' : 'pointer', opacity: actionLoading ? 0.7 : 1 }}>
                                 {actionLoading ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />} Confirm Approve
                             </button>
-                            <button
-                                onClick={() => { setShowApproveForm(false); setShowAdjustments(false); setGroupKeptQtys(null); }}
-                                style={{
-                                    padding: '6px 16px', borderRadius: '8px',
-                                    border: '1px solid var(--border-color)', background: '#fff',
-                                    color: 'var(--text-secondary)', cursor: 'pointer',
-                                    fontSize: '0.78rem', fontWeight: 700
-                                }}
-                            >
+                            <button onClick={() => { setShowApproveForm(false); setShowAdjustments(false); setGroupKeptQtys(null); }}
+                                style={{ padding: '7px 14px', borderRadius: 9, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
                                 Cancel
                             </button>
                         </div>
                     </div>
                 )}
 
-                {/* Reject Form */}
+                {/* ── Reject form ── */}
                 {showRejectForm && canApproveReject && (
-                    <div style={{ ...sectionStyle, background: '#fef2f2', border: '1px solid #fecaca' }}>
-                        <div style={{ ...labelStyle, color: '#dc2626' }}><XCircle size={11} /> Reject Booking</div>
-                        <textarea
-                            style={{
-                                width: '100%', padding: '7px 10px', borderRadius: '7px',
-                                border: '1.5px solid #fecaca', fontSize: '0.78rem', fontFamily: 'inherit',
-                                outline: 'none', minHeight: '48px', resize: 'vertical' as const,
-                                background: '#fff', marginBottom: '8px', boxSizing: 'border-box' as const
-                            }}
-                            value={rejectReason}
-                            onChange={e => setRejectReason(e.target.value)}
+                    <div style={{ padding: '14px 16px', background: '#fef2f2', borderBottom: '1px solid #fecaca' }}>
+                        <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#dc2626', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>
+                            <XCircle size={11} /> Reject Booking
+                        </div>
+                        <textarea autoFocus value={rejectReason} onChange={e => setRejectReason(e.target.value)}
                             placeholder="Reason for rejection (required)..."
-                        />
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                            <button
-                                onClick={handleReject}
-                                disabled={actionLoading || !rejectReason.trim()}
-                                style={{
-                                    padding: '6px 16px', borderRadius: '8px', border: 'none',
-                                    background: !rejectReason.trim() ? '#e2e8f0' : '#dc2626',
-                                    color: '#fff',
-                                    cursor: actionLoading || !rejectReason.trim() ? 'not-allowed' : 'pointer',
-                                    fontSize: '0.78rem', fontWeight: 700,
-                                    display: 'flex', alignItems: 'center', gap: '4px'
-                                }}
-                            >
+                            style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid #fecaca', fontSize: '0.8rem', fontFamily: 'inherit', outline: 'none', minHeight: 52, resize: 'none', background: '#fff', boxSizing: 'border-box', marginBottom: 8 }} />
+                        <div style={{ display: 'flex', gap: 8 }}>
+                            <button onClick={handleReject} disabled={actionLoading || !rejectReason.trim()}
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 16px', borderRadius: 9, border: 'none', background: !rejectReason.trim() ? '#e2e8f0' : '#dc2626', color: '#fff', fontSize: '0.8rem', fontWeight: 700, cursor: actionLoading || !rejectReason.trim() ? 'not-allowed' : 'pointer' }}>
                                 {actionLoading ? <Loader2 size={12} className="animate-spin" /> : <XCircle size={12} />} Confirm Reject
                             </button>
-                            <button
-                                onClick={() => setShowRejectForm(false)}
-                                style={{
-                                    padding: '6px 16px', borderRadius: '8px',
-                                    border: '1px solid var(--border-color)', background: '#fff',
-                                    color: 'var(--text-secondary)', cursor: 'pointer',
-                                    fontSize: '0.78rem', fontWeight: 700
-                                }}
-                            >
+                            <button onClick={() => setShowRejectForm(false)}
+                                style={{ padding: '7px 14px', borderRadius: 9, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
                                 Cancel
                             </button>
                         </div>
                     </div>
                 )}
 
-                {/* Check Out Form (Approved → InUse) */}
+                {/* ── Check Out form ── */}
                 {showCheckOutForm && canCheckOut && (
-                    <div style={{ ...sectionStyle, background: '#eff6ff', border: '1px solid #bfdbfe' }}>
-                        <div style={{ ...labelStyle, color: '#2563eb' }}><LogOut size={11} style={{ transform: 'scaleX(-1)' }} /> Check Out — Record Pickup</div>
-                        <textarea
-                            style={{
-                                width: '100%', padding: '7px 10px', borderRadius: '7px',
-                                border: '1.5px solid #bfdbfe', fontSize: '0.78rem', fontFamily: 'inherit',
-                                outline: 'none', minHeight: '48px', resize: 'vertical' as const,
-                                background: '#fff', marginBottom: '8px', boxSizing: 'border-box' as const
-                            }}
-                            value={checkOutNote}
-                            onChange={e => setCheckOutNote(e.target.value)}
+                    <div style={{ padding: '14px 16px', background: '#eff6ff', borderBottom: '1px solid #bfdbfe' }}>
+                        <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>
+                            <LogOut size={11} style={{ transform: 'scaleX(-1)' }} /> Check Out — Record Pickup
+                        </div>
+                        <textarea autoFocus value={checkOutNote} onChange={e => setCheckOutNote(e.target.value)}
                             placeholder="Note (optional)..."
-                        />
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                            <button
-                                onClick={handleCheckOut}
-                                disabled={actionLoading}
-                                style={{
-                                    padding: '6px 16px', borderRadius: '8px', border: 'none',
-                                    background: '#2563eb', color: '#fff',
-                                    cursor: actionLoading ? 'not-allowed' : 'pointer',
-                                    fontSize: '0.78rem', fontWeight: 700,
-                                    display: 'flex', alignItems: 'center', gap: '4px'
-                                }}
-                            >
+                            style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid #bfdbfe', fontSize: '0.8rem', fontFamily: 'inherit', outline: 'none', minHeight: 52, resize: 'none', background: '#fff', boxSizing: 'border-box', marginBottom: 8 }} />
+                        <div style={{ display: 'flex', gap: 8 }}>
+                            <button onClick={handleCheckOut} disabled={actionLoading}
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 16px', borderRadius: 9, border: 'none', background: '#2563eb', color: '#fff', fontSize: '0.8rem', fontWeight: 700, cursor: actionLoading ? 'not-allowed' : 'pointer', opacity: actionLoading ? 0.7 : 1 }}>
                                 {actionLoading ? <Loader2 size={12} className="animate-spin" /> : <LogOut size={12} style={{ transform: 'scaleX(-1)' }} />} Confirm Check Out
                             </button>
-                            <button
-                                onClick={() => { setShowCheckOutForm(false); setCheckOutNote(''); }}
-                                style={{
-                                    padding: '6px 16px', borderRadius: '8px',
-                                    border: '1px solid var(--border-color)', background: '#fff',
-                                    color: 'var(--text-secondary)', cursor: 'pointer',
-                                    fontSize: '0.78rem', fontWeight: 700
-                                }}
-                            >
+                            <button onClick={() => { setShowCheckOutForm(false); setCheckOutNote(''); }}
+                                style={{ padding: '7px 14px', borderRadius: 9, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
                                 Cancel
                             </button>
                         </div>
                     </div>
                 )}
 
-                {/* Check In Form (InUse → Completed) */}
+                {/* ── Check In form ── */}
                 {showCheckInForm && canCheckIn && (
-                    <div style={{ ...sectionStyle, background: '#f0fdf4', border: '1px solid #a7f3d0' }}>
-                        <div style={{ ...labelStyle, color: '#059669' }}><LogIn size={11} /> Check In — Record Return</div>
-                        <textarea
-                            style={{
-                                width: '100%', padding: '7px 10px', borderRadius: '7px',
-                                border: '1.5px solid #a7f3d0', fontSize: '0.78rem', fontFamily: 'inherit',
-                                outline: 'none', minHeight: '48px', resize: 'vertical' as const,
-                                background: '#fff', marginBottom: '8px', boxSizing: 'border-box' as const
-                            }}
-                            value={checkInNote}
-                            onChange={e => setCheckInNote(e.target.value)}
+                    <div style={{ padding: '14px 16px', background: '#f0fdf4', borderBottom: '1px solid #a7f3d0' }}>
+                        <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#059669', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>
+                            <LogIn size={11} /> Check In — Record Return
+                        </div>
+                        <textarea autoFocus value={checkInNote} onChange={e => setCheckInNote(e.target.value)}
                             placeholder="Note (optional)..."
-                        />
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                            <button
-                                onClick={handleCheckIn}
-                                disabled={actionLoading}
-                                style={{
-                                    padding: '6px 16px', borderRadius: '8px', border: 'none',
-                                    background: '#059669', color: '#fff',
-                                    cursor: actionLoading ? 'not-allowed' : 'pointer',
-                                    fontSize: '0.78rem', fontWeight: 700,
-                                    display: 'flex', alignItems: 'center', gap: '4px'
-                                }}
-                            >
+                            style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid #a7f3d0', fontSize: '0.8rem', fontFamily: 'inherit', outline: 'none', minHeight: 52, resize: 'none', background: '#fff', boxSizing: 'border-box', marginBottom: 8 }} />
+                        <div style={{ display: 'flex', gap: 8 }}>
+                            <button onClick={handleCheckIn} disabled={actionLoading}
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 16px', borderRadius: 9, border: 'none', background: '#059669', color: '#fff', fontSize: '0.8rem', fontWeight: 700, cursor: actionLoading ? 'not-allowed' : 'pointer', opacity: actionLoading ? 0.7 : 1 }}>
                                 {actionLoading ? <Loader2 size={12} className="animate-spin" /> : <LogIn size={12} />} Confirm Check In
                             </button>
-                            <button
-                                onClick={() => { setShowCheckInForm(false); setCheckInNote(''); }}
-                                style={{
-                                    padding: '6px 16px', borderRadius: '8px',
-                                    border: '1px solid var(--border-color)', background: '#fff',
-                                    color: 'var(--text-secondary)', cursor: 'pointer',
-                                    fontSize: '0.78rem', fontWeight: 700
-                                }}
-                            >
+                            <button onClick={() => { setShowCheckInForm(false); setCheckInNote(''); }}
+                                style={{ padding: '7px 14px', borderRadius: 9, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
                                 Cancel
                             </button>
                         </div>
                     </div>
                 )}
 
-                {/* Cancel Form */}
+                {/* ── Cancel form ── */}
                 {showCancelForm && canCancel && (
-                    <div style={{ ...sectionStyle, background: '#f3f4f6', border: '1px solid #e5e7eb' }}>
-                        <div style={{ ...labelStyle, color: '#6b7280' }}><AlertTriangle size={12} /> Cancel Booking</div>
-                        <textarea
-                            style={{
-                                width: '100%', padding: '10px 14px', borderRadius: '10px',
-                                border: '1.5px solid #e5e7eb', fontSize: '0.85rem', fontWeight: 500,
-                                fontFamily: 'inherit', outline: 'none', minHeight: '60px',
-                                resize: 'vertical' as const, background: '#fff', marginBottom: '10px'
-                            }}
-                            value={cancelReason}
-                            onChange={e => setCancelReason(e.target.value)}
+                    <div style={{ padding: '14px 16px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                        <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>
+                            <AlertTriangle size={11} /> Cancel Booking
+                        </div>
+                        <textarea autoFocus value={cancelReason} onChange={e => setCancelReason(e.target.value)}
                             placeholder="Reason for cancellation (optional)..."
-                        />
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                            <button
-                                onClick={handleCancel}
-                                disabled={actionLoading}
-                                style={{
-                                    padding: '6px 16px', borderRadius: '8px', border: 'none',
-                                    background: '#6b7280', color: '#fff',
-                                    cursor: actionLoading ? 'not-allowed' : 'pointer',
-                                    fontSize: '0.78rem', fontWeight: 700,
-                                    display: 'flex', alignItems: 'center', gap: '4px'
-                                }}
-                            >
+                            style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: '0.8rem', fontFamily: 'inherit', outline: 'none', minHeight: 52, resize: 'none', background: '#fff', boxSizing: 'border-box', marginBottom: 8 }} />
+                        <div style={{ display: 'flex', gap: 8 }}>
+                            <button onClick={handleCancel} disabled={actionLoading}
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 16px', borderRadius: 9, border: 'none', background: '#64748b', color: '#fff', fontSize: '0.8rem', fontWeight: 700, cursor: actionLoading ? 'not-allowed' : 'pointer', opacity: actionLoading ? 0.7 : 1 }}>
                                 {actionLoading ? <Loader2 size={12} className="animate-spin" /> : <XCircle size={12} />} Confirm Cancel
                             </button>
-                            <button
-                                onClick={() => setShowCancelForm(false)}
-                                style={{
-                                    padding: '6px 16px', borderRadius: '8px',
-                                    border: '1px solid var(--border-color)', background: '#fff',
-                                    color: 'var(--text-secondary)', cursor: 'pointer',
-                                    fontSize: '0.78rem', fontWeight: 700
-                                }}
-                            >
+                            <button onClick={() => setShowCancelForm(false)}
+                                style={{ padding: '7px 14px', borderRadius: 9, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
                                 Back
                             </button>
                         </div>
                     </div>
                 )}
-            </div>
 
-            {/* Footer — sticky, always visible */}
-            <div style={{
-                flexShrink: 0, paddingTop: '14px',
-                borderTop: '1px solid var(--border-light)',
-                display: 'flex', justifyContent: 'space-between',
-                gap: '10px', marginTop: '12px'
-            }}>
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                    {canCheckOut && !showCheckOutForm && !showCheckInForm && !showApproveForm && !showRejectForm && !showCancelForm && (
-                        <button
-                            onClick={() => setShowCheckOutForm(true)}
-                            style={{
-                                padding: '8px 16px', borderRadius: '10px',
-                                border: 'none', background: '#2563eb',
-                                color: '#fff', cursor: 'pointer',
-                                fontSize: '0.8rem', fontWeight: 700,
-                                display: 'flex', alignItems: 'center', gap: '6px',
-                                boxShadow: '0 2px 8px rgba(37,99,235,0.2)'
-                            }}
-                        >
-                            <LogOut size={14} style={{ transform: 'scaleX(-1)' }} /> Check Out
-                        </button>
-                    )}
-                    {canCheckIn && !showCheckInForm && !showCheckOutForm && !showApproveForm && !showRejectForm && !showCancelForm && (
-                        <button
-                            onClick={() => setShowCheckInForm(true)}
-                            style={{
-                                padding: '8px 16px', borderRadius: '10px',
-                                border: 'none', background: '#059669',
-                                color: '#fff', cursor: 'pointer',
-                                fontSize: '0.8rem', fontWeight: 700,
-                                display: 'flex', alignItems: 'center', gap: '6px',
-                                boxShadow: '0 2px 8px rgba(5,150,105,0.2)'
-                            }}
-                        >
-                            <LogIn size={14} /> Check In
-                        </button>
-                    )}
-                    {canCancel && !showCancelForm && !showApproveForm && !showRejectForm && !showCheckOutForm && !showCheckInForm && (
-                        <button
-                            onClick={() => { setShowCancelForm(true); setShowApproveForm(false); setShowRejectForm(false); }}
-                            style={{
-                                padding: '8px 16px', borderRadius: '10px',
-                                border: '1px solid #e5e7eb', background: '#fff',
-                                color: '#6b7280', cursor: 'pointer',
-                                fontSize: '0.8rem', fontWeight: 700,
-                                display: 'flex', alignItems: 'center', gap: '6px'
-                            }}
-                        >
-                            <XCircle size={14} /> Cancel Booking
-                        </button>
-                    )}
-                    {canApproveReject && !showApproveForm && !showRejectForm && !showCancelForm && (
-                        <>
-                            <button
-                                onClick={() => { setShowApproveForm(true); setShowRejectForm(false); setShowCancelForm(false); }}
-                                style={{
-                                    padding: '7px 16px', borderRadius: '8px',
-                                    border: 'none', background: '#059669',
-                                    color: '#fff', cursor: 'pointer',
-                                    fontSize: '0.78rem', fontWeight: 700,
-                                    display: 'flex', alignItems: 'center', gap: '5px',
-                                    boxShadow: '0 2px 8px rgba(5,150,105,0.2)'
-                                }}
-                            >
-                                <CheckCircle2 size={13} /> Approve
-                            </button>
-                            <button
-                                onClick={() => { setShowRejectForm(true); setShowApproveForm(false); setShowCancelForm(false); }}
-                                style={{
-                                    padding: '7px 14px', borderRadius: '8px',
-                                    border: '1px solid #fecaca', background: '#fff',
-                                    color: '#dc2626', cursor: 'pointer',
-                                    fontSize: '0.78rem', fontWeight: 700,
-                                    display: 'flex', alignItems: 'center', gap: '5px',
-                                }}
-                            >
-                                <XCircle size={13} /> Reject
-                            </button>
-                        </>
-                    )}
+                {/* ── Button row ── */}
+                <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' as const }}>
+                        {!anyFormOpen && canCheckOut && (
+                            <FooterBtn onClick={() => setShowCheckOutForm(true)} variant="primary" color="#2563eb" shadow="rgba(37,99,235,0.22)"
+                                icon={<LogOut size={14} style={{ transform: 'scaleX(-1)' }} />} label="Check Out" />
+                        )}
+                        {!anyFormOpen && canCheckIn && (
+                            <FooterBtn onClick={() => setShowCheckInForm(true)} variant="primary" color="#059669" shadow="rgba(5,150,105,0.22)"
+                                icon={<LogIn size={14} />} label="Check In" />
+                        )}
+                        {!anyFormOpen && canApproveReject && (
+                            <>
+                                <FooterBtn onClick={() => { setShowApproveForm(true); setShowRejectForm(false); setShowCancelForm(false); setShowAdjustForm(false); }}
+                                    variant="primary" color="#059669" shadow="rgba(5,150,105,0.22)"
+                                    icon={<CheckCircle2 size={14} />} label="Approve" />
+                                <FooterBtn onClick={() => { setShowAdjustForm(true); openAdjustForm(resourceGroups); setShowApproveForm(false); setShowRejectForm(false); setShowCancelForm(false); }}
+                                    variant="outline" color="#ea580c" borderColor="#fed7aa"
+                                    icon={<Info size={14} />} label="Adjust" />
+                                <FooterBtn onClick={() => { setShowRejectForm(true); setShowApproveForm(false); setShowCancelForm(false); setShowAdjustForm(false); }}
+                                    variant="outline" color="#dc2626" borderColor="#fca5a5"
+                                    icon={<XCircle size={14} />} label="Reject" />
+                            </>
+                        )}
+                        {!anyFormOpen && canCancel && (
+                            <FooterBtn onClick={() => { setShowCancelForm(true); setShowApproveForm(false); setShowRejectForm(false); }}
+                                variant="ghost" icon={<XCircle size={14} />} label="Cancel Booking" />
+                        )}
+                    </div>
+                    <button onClick={onClose}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 18px', borderRadius: 10, border: '1px solid #e2e8f0', background: '#f8fafc', color: '#64748b', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600, flexShrink: 0 }}
+                        onMouseEnter={e => { e.currentTarget.style.background = '#f1f5f9'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = '#f8fafc'; }}>
+                        Close
+                    </button>
                 </div>
-
-                <button
-                    onClick={onClose}
-                    style={{
-                        padding: '7px 14px', borderRadius: '8px',
-                        border: '1px solid var(--border-color)', background: '#fff',
-                        color: 'var(--text-secondary)', cursor: 'pointer',
-                        fontSize: '0.78rem', fontWeight: 700,
-                    }}
-                >
-                    Close
-                </button>
             </div>
 
             {/* Server Terminal Modal */}

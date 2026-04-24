@@ -525,9 +525,22 @@ function MonthCalendar({ year, month, bookings, resources, selectedDate, onSelec
     const days = buildMonthGrid(year, month);
     const today = new Date();
     const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const todayRef = useRef<HTMLDivElement | null>(null);
+    const scrollRef = useRef<HTMLDivElement | null>(null);
+
+    useEffect(() => {
+        if (todayRef.current && scrollRef.current) {
+            const container = scrollRef.current;
+            const cell = todayRef.current;
+            const cellTop = cell.offsetTop;
+            const cellHeight = cell.offsetHeight;
+            const containerHeight = container.clientHeight;
+            container.scrollTo({ top: cellTop - containerHeight / 2 + cellHeight / 2, behavior: 'smooth' });
+        }
+    }, [year, month]);
 
     return (
-        <div className="bk-card bk-scroll" style={{ overflow: 'auto', display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
+        <div ref={scrollRef} className="bk-card bk-scroll" style={{ overflow: 'auto', display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
             <div style={{ minWidth: 600 }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,minmax(80px,1fr))', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
                 {weekdays.map(w => (
@@ -545,7 +558,7 @@ function MonthCalendar({ year, month, bookings, resources, selectedDate, onSelec
                     const maxVisible = dayBookings.length > 2 ? 2 : 3;
                     const overflow = dayBookings.length - maxVisible;
                     return (
-                        <div key={i} onClick={() => onSelectDate(day)}
+                        <div key={i} ref={isToday ? todayRef : null} onClick={() => onSelectDate(day)}
                             className="bk-cal-cell"
                             style={{
                                 borderRight: i % 7 !== 6 ? '1px solid #f1f5f9' : 'none',
