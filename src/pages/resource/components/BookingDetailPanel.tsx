@@ -274,6 +274,9 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
     const [showCheckInForm, setShowCheckInForm] = useState(false);
     const [checkOutNote, setCheckOutNote] = useState('');
     const [checkInNote, setCheckInNote] = useState('');
+    const [showAdjustForm, setShowAdjustForm] = useState(false);
+    const [adjustReason, setAdjustReason] = useState('');
+    const [adjustKeptQtys, setAdjustKeptQtys] = useState<Record<string, number>>({});
     
     // Compute access state
     const [showTerminalModal, setShowTerminalModal] = useState(false);
@@ -409,6 +412,41 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
         }
     };
 
+    const openAdjustForm = (groups: ResourceGroup[]) => {
+        const init: Record<string, number> = {};
+        groups.forEach(g => { init[g.key] = g.ids.length; });
+        setAdjustKeptQtys(init);
+        setAdjustReason('');
+        setShowAdjustForm(true);
+    };
+
+    const handleAdjust = async (groups: ResourceGroup[]) => {
+        if (!adjustReason.trim()) { addToast('Adjustment reason is required.', 'warning'); return; }
+        const totalKeptAdj = groups.reduce((s, g) => s + (adjustKeptQtys[g.key] ?? g.ids.length), 0);
+        const newResourceIds = groups.flatMap(g => g.ids.slice(0, adjustKeptQtys[g.key] ?? g.ids.length));
+        setActionLoading(true);
+        try {
+            if (totalKeptAdj === 0) {
+                await bookingService.reject(bookingId, adjustReason.trim());
+                onSaved(false, 'Booking rejected (all resources removed).');
+            } else {
+                await bookingService.approve(bookingId, {
+                    note: null,
+                    newResourceIds,
+                    adjustReason: adjustReason.trim(),
+                });
+                onSaved(false, 'Resources adjusted and booking approved.');
+            }
+            setShowAdjustForm(false);
+            setAdjustReason('');
+            loadBooking();
+        } catch (err: any) {
+            addToast(err?.response?.data?.message || 'Adjust failed.', 'error');
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
     const handleOpenTerminal = (access: ComputeAccess) => {
         setSelectedComputeAccess(access);
         setShowTerminalModal(true);
@@ -467,11 +505,14 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
     );
 
     const duration = calcDuration(booking.startTime, booking.endTime);
-    const anyFormOpen = showApproveForm || showRejectForm || showCancelForm || showCheckOutForm || showCheckInForm;
+    const anyFormOpen = showApproveForm || showRejectForm || showCancelForm || showCheckOutForm || showCheckInForm || showAdjustForm;
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 0 }}>
-            {/* ── Scrollable Content ── */}
+            {/* ── Body: left info + right resource sidebar ── */}
+            <div style={{ display: 'flex', flex: 1, minHeight: 0, gap: 0 }}>
+
+            {/* ── LEFT: main info scrollable ── */}
             <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, paddingRight: 4 }} className="custom-scrollbar">
 
                 {/* ═══════════════════════════════════════════
@@ -620,101 +661,7 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                     </p>
                 </div>
 
-                {/* ═══════════════════════════════════════════
-                    RESOURCES
-                ═══════════════════════════════════════════ */}
-                {bookingResources.length > 0 && (
-                    <div style={{ marginBottom: 14 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                            <div style={labelStyle}><Package size={12} /> Booked Resources</div>
-                            <span style={{
-                                fontSize: '0.65rem', fontWeight: 800, color: '#475569',
-                                background: '#f1f5f9', border: '1px solid #e2e8f0',
-                                padding: '2px 9px', borderRadius: 20,
-                            }}>
-                                {bookingResources.length} unit{bookingResources.length !== 1 ? 's' : ''}
-                            </span>
-                        </div>
-                        <div className="custom-scrollbar" style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 160, overflowY: 'scroll', paddingRight: 4 }}>
-                            {bookingResources.map((r, idx) => (
-                                <div key={r.id ?? idx} style={{
-                                    display: 'flex', alignItems: 'center', gap: 10,
-                                    padding: '10px 12px',
-                                    background: '#fff',
-                                    border: `1px solid ${r.isDamaged ? '#fecaca' : '#e2e8f0'}`,
-                                    borderLeft: `4px solid ${r.isDamaged ? '#ef4444' : '#c7d2fe'}`,
-                                    borderRadius: 10, flexShrink: 0,
-                                }}>
-                                    {/* Index badge */}
-                                    <div style={{
-                                        width: 26, height: 26, borderRadius: 7, flexShrink: 0,
-                                        background: '#f1f5f9', border: '1px solid #e2e8f0',
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        fontSize: '0.7rem', fontWeight: 800, color: '#64748b',
-                                    }}>
-                                        {idx + 1}
-                                    </div>
-                                    {/* Name + meta */}
-                                    <div style={{ flex: 1, minWidth: 0 }}>
-                                        <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0f172a', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }} title={r.name}>
-                                            {r.name}
-                                        </div>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'nowrap' as const, overflow: 'hidden' }}>
-                                            {r.resourceTypeName && (
-                                                <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#7c3aed', background: '#f5f3ff', border: '1px solid #e9d5ff', padding: '1px 6px', borderRadius: 20, whiteSpace: 'nowrap', flexShrink: 0 }}>
-                                                    {r.resourceTypeName}
-                                                </span>
-                                            )}
-                                            {r.location && (
-                                                <span style={{ fontSize: '0.6rem', fontWeight: 600, color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
-                                                    <MapPin size={8} style={{ flexShrink: 0 }} /> {r.location}
-                                                </span>
-                                            )}
-                                            {r.isDamaged && (
-                                                <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', padding: '1px 6px', borderRadius: 20, whiteSpace: 'nowrap', flexShrink: 0 }}>
-                                                    ⚠ Damaged
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
-                                    {/* Model series */}
-                                    {(r as any).modelSeries && (
-                                        <div style={{ textAlign: 'right', flexShrink: 0, maxWidth: 120 }}>
-                                            <div style={{ fontSize: '0.55rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>
-                                                Serial
-                                            </div>
-                                            <code style={{
-                                                fontSize: '0.65rem', fontWeight: 700, color: '#334155',
-                                                background: '#f8fafc', border: '1px solid #e2e8f0',
-                                                padding: '2px 6px', borderRadius: 6, letterSpacing: '0.02em',
-                                                display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                                            }}>
-                                                {(r as any).modelSeries}
-                                            </code>
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                {/* Fallback resource */}
-                {bookingResources.length === 0 && (booking.resourceName || (booking.quantity && booking.quantity > 0)) && (
-                    <div style={{ ...sectionStyle, marginBottom: 14 }}>
-                        <div style={labelStyle}><Package size={12} /> Resource</div>
-                        <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#1e293b' }}>
-                            {booking.resourceName || '—'}
-                            {booking.quantity && booking.quantity > 1 && (
-                                <span style={{ marginLeft: 8, fontSize: '0.72rem', color: '#64748b' }}>× {booking.quantity} units</span>
-                            )}
-                        </div>
-                    </div>
-                )}
-
-                {/* ═══════════════════════════════════════════
-                    NOTES / REASON BANNERS
-                ═══════════════════════════════════════════ */}
+                {/* Notes / Reason banners */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
                     {booking.status === BookingStatus.Rejected && booking.rejectReason && (
                         <div style={{ padding: '12px 16px', background: '#fef2f2', border: '1px solid #fecaca', borderLeft: '4px solid #ef4444', borderRadius: 12 }}>
@@ -751,7 +698,100 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                         <ComputeAccessPanel bookingId={bookingId} onOpenTerminal={handleOpenTerminal} />
                     </div>
                 )}
-            </div>
+            </div>{/* end left column */}
+
+            {/* ── RIGHT: resource sidebar ── */}
+            <div style={{
+                width: 260, flexShrink: 0,
+                borderLeft: '1px solid #f1f5f9',
+                display: 'flex', flexDirection: 'column',
+                background: '#fafafa',
+            }}>
+                {/* Sidebar header */}
+                <div style={{ padding: '16px 14px 10px', flexShrink: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 2 }}>
+                        <div style={labelStyle}><Package size={12} /> Resources</div>
+                        <span style={{
+                            fontSize: '0.62rem', fontWeight: 800, color: '#475569',
+                            background: '#e2e8f0', padding: '1px 8px', borderRadius: 20,
+                        }}>
+                            {bookingResources.length} unit{bookingResources.length !== 1 ? 's' : ''}
+                        </span>
+                    </div>
+                </div>
+
+                {/* Scrollable resource list */}
+                <div className="custom-scrollbar" style={{ flex: 1, overflowY: 'auto', padding: '0 10px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {bookingResources.length === 0 ? (
+                        <div style={{ padding: '24px 0', textAlign: 'center', color: '#94a3b8', fontSize: '0.78rem' }}>
+                            No resources.
+                        </div>
+                    ) : bookingResources.map((r, idx) => (
+                        <div key={r.id ?? idx} style={{
+                            background: '#fff',
+                            border: `1px solid ${r.isDamaged ? '#fecaca' : '#e8edf3'}`,
+                            borderTop: `3px solid ${r.isDamaged ? '#ef4444' : '#818cf8'}`,
+                            borderRadius: 10, padding: '10px 11px',
+                            display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0,
+                            boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                        }}>
+                            {/* Index + name row */}
+                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 7 }}>
+                                <span style={{
+                                    width: 20, height: 20, borderRadius: 6, flexShrink: 0, marginTop: 1,
+                                    background: '#f1f5f9', border: '1px solid #e2e8f0',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    fontSize: '0.62rem', fontWeight: 800, color: '#64748b',
+                                }}>{idx + 1}</span>
+                                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0f172a', lineHeight: 1.35, wordBreak: 'break-word' as const }}>
+                                    {r.name}
+                                </div>
+                            </div>
+                            {/* Badges */}
+                            <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 4 }}>
+                                {r.resourceTypeName && (
+                                    <span style={{ fontSize: '0.58rem', fontWeight: 700, color: '#7c3aed', background: '#f5f3ff', border: '1px solid #e9d5ff', padding: '1px 6px', borderRadius: 20 }}>
+                                        {r.resourceTypeName}
+                                    </span>
+                                )}
+                                {r.location && (
+                                    <span style={{ fontSize: '0.58rem', fontWeight: 600, color: '#475569', display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+                                        <MapPin size={8} /> {r.location}
+                                    </span>
+                                )}
+                                {r.isDamaged && (
+                                    <span style={{ fontSize: '0.58rem', fontWeight: 700, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', padding: '1px 6px', borderRadius: 20 }}>
+                                        ⚠ Damaged
+                                    </span>
+                                )}
+                            </div>
+                            {/* Serial */}
+                            {(r as any).modelSeries && (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4, paddingTop: 4, borderTop: '1px solid #f1f5f9' }}>
+                                    <span style={{ fontSize: '0.55rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Serial</span>
+                                    <code style={{ fontSize: '0.62rem', fontWeight: 700, color: '#334155', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '1px 6px', borderRadius: 5, letterSpacing: '0.02em' }}>
+                                        {(r as any).modelSeries}
+                                    </code>
+                                </div>
+                            )}
+                        </div>
+                    ))}
+
+                    {/* Fallback resource */}
+                    {bookingResources.length === 0 && (booking.resourceName || (booking.quantity && booking.quantity > 0)) && (
+                        <div style={{ padding: '10px 11px', background: '#fff', border: '1px solid #e8edf3', borderRadius: 10 }}>
+                            <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#1e293b' }}>
+                                {booking.resourceName || '—'}
+                                {booking.quantity && booking.quantity > 1 && (
+                                    <span style={{ marginLeft: 6, fontSize: '0.7rem', color: '#64748b' }}>× {booking.quantity}</span>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>{/* end right sidebar */}
+
+            </div>{/* end body row */}
 
             {/* ══════════════════════════════════════════════
                 FIXED ACTION AREA — never scrolls away
@@ -761,6 +801,67 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                 borderTop: '1px solid #f1f5f9',
                 background: '#fff',
             }}>
+                {/* ── Adjust form ── */}
+                {showAdjustForm && canApproveReject && (
+                    <div style={{ padding: '14px 16px', background: '#fff7ed', borderBottom: '1px solid #fed7aa' }}>
+                        <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#c2410c', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 5 }}>
+                            <Info size={11} /> Adjust Resources
+                        </div>
+                        {/* Stepper per group */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
+                            {resourceGroups.length === 0 ? (
+                                <div style={{ fontSize: '0.75rem', color: '#92400e' }}>No resource details available.</div>
+                            ) : resourceGroups.map(g => {
+                                const kept = adjustKeptQtys[g.key] ?? g.ids.length;
+                                const isZero = kept === 0;
+                                const isChanged = kept !== g.ids.length;
+                                return (
+                                    <div key={g.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 11px', background: '#fff', border: `1.5px solid ${isZero ? '#fecaca' : isChanged ? '#fdba74' : '#fed7aa'}`, borderRadius: 9 }}>
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{g.name}</div>
+                                            <div style={{ fontSize: '0.62rem', color: '#92400e', marginTop: 1 }}>
+                                                Requested: {g.ids.length}
+                                                {isChanged && !isZero && <span style={{ color: '#ea580c', fontWeight: 700 }}> → {kept}</span>}
+                                                {isZero && <span style={{ color: '#dc2626', fontWeight: 700 }}> → removed</span>}
+                                            </div>
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+                                            <button type="button" onClick={() => setAdjustKeptQtys(p => ({ ...p, [g.key]: Math.max(0, (p[g.key] ?? g.ids.length) - 1) }))} disabled={kept <= 0}
+                                                style={{ width: 26, height: 26, borderRadius: 7, border: '1.5px solid #fed7aa', background: kept <= 0 ? '#f8fafc' : '#fff', cursor: kept <= 0 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: kept <= 0 ? '#cbd5e1' : '#ea580c' }}>
+                                                <Minus size={11} />
+                                            </button>
+                                            <span style={{ fontSize: '0.9rem', fontWeight: 800, minWidth: 22, textAlign: 'center' as const, color: isZero ? '#dc2626' : isChanged ? '#ea580c' : '#1e293b' }}>{kept}</span>
+                                            <button type="button" onClick={() => setAdjustKeptQtys(p => ({ ...p, [g.key]: Math.min(g.ids.length, (p[g.key] ?? g.ids.length) + 1) }))} disabled={kept >= g.ids.length}
+                                                style={{ width: 26, height: 26, borderRadius: 7, border: '1.5px solid #fed7aa', background: kept >= g.ids.length ? '#f8fafc' : '#fff', cursor: kept >= g.ids.length ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: kept >= g.ids.length ? '#cbd5e1' : '#ea580c' }}>
+                                                <Plus size={11} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        {/* total = 0 warning */}
+                        {resourceGroups.reduce((s, g) => s + (adjustKeptQtys[g.key] ?? g.ids.length), 0) === 0 && (
+                            <div style={{ padding: '6px 10px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, fontSize: '0.72rem', fontWeight: 700, color: '#dc2626', marginBottom: 8 }}>
+                                ⚠ All removed — this will reject the booking
+                            </div>
+                        )}
+                        <textarea autoFocus value={adjustReason} onChange={e => setAdjustReason(e.target.value)}
+                            placeholder="Reason for adjustment (required)..."
+                            style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid #fed7aa', fontSize: '0.8rem', fontFamily: 'inherit', outline: 'none', minHeight: 52, resize: 'none', background: '#fff', boxSizing: 'border-box', marginBottom: 8 }} />
+                        <div style={{ display: 'flex', gap: 8 }}>
+                            <button onClick={() => handleAdjust(resourceGroups)} disabled={actionLoading || !adjustReason.trim()}
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 16px', borderRadius: 9, border: 'none', background: !adjustReason.trim() ? '#e2e8f0' : '#ea580c', color: '#fff', fontSize: '0.8rem', fontWeight: 700, cursor: actionLoading || !adjustReason.trim() ? 'not-allowed' : 'pointer', opacity: actionLoading ? 0.7 : 1 }}>
+                                {actionLoading ? <Loader2 size={12} className="animate-spin" /> : <Info size={12} />} Confirm Adjust
+                            </button>
+                            <button onClick={() => { setShowAdjustForm(false); setAdjustReason(''); }}
+                                style={{ padding: '7px 14px', borderRadius: 9, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                )}
+
                 {/* ── Approve form ── */}
                 {showApproveForm && canApproveReject && (
                     <div style={{ padding: '14px 16px', background: '#f0fdf4', borderBottom: '1px solid #a7f3d0' }}>
@@ -924,10 +1025,13 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                         )}
                         {!anyFormOpen && canApproveReject && (
                             <>
-                                <FooterBtn onClick={() => { setShowApproveForm(true); setShowRejectForm(false); setShowCancelForm(false); }}
+                                <FooterBtn onClick={() => { setShowApproveForm(true); setShowRejectForm(false); setShowCancelForm(false); setShowAdjustForm(false); }}
                                     variant="primary" color="#059669" shadow="rgba(5,150,105,0.22)"
                                     icon={<CheckCircle2 size={14} />} label="Approve" />
-                                <FooterBtn onClick={() => { setShowRejectForm(true); setShowApproveForm(false); setShowCancelForm(false); }}
+                                <FooterBtn onClick={() => { setShowAdjustForm(true); openAdjustForm(resourceGroups); setShowApproveForm(false); setShowRejectForm(false); setShowCancelForm(false); }}
+                                    variant="outline" color="#ea580c" borderColor="#fed7aa"
+                                    icon={<Info size={14} />} label="Adjust" />
+                                <FooterBtn onClick={() => { setShowRejectForm(true); setShowApproveForm(false); setShowCancelForm(false); setShowAdjustForm(false); }}
                                     variant="outline" color="#dc2626" borderColor="#fca5a5"
                                     icon={<XCircle size={14} />} label="Reject" />
                             </>
