@@ -11,12 +11,12 @@ export interface StatusMeta {
 }
 
 export const STATUS_META: Record<number, StatusMeta> = {
-    [BookingStatus.Pending]:   { label: 'Pending',   color: '#d97706', bg: '#fefce8', border: '#fde68a', dot: '#f59e0b' },
-    [BookingStatus.Approved]:  { label: 'Approved',  color: '#059669', bg: '#ecfdf5', border: '#a7f3d0', dot: '#10b981' },
-    [BookingStatus.Rejected]:  { label: 'Rejected',  color: '#dc2626', bg: '#fef2f2', border: '#fecaca', dot: '#ef4444' },
-    [BookingStatus.Cancelled]: { label: 'Cancelled', color: '#6b7280', bg: '#f3f4f6', border: '#e5e7eb', dot: '#9ca3af' },
-    [BookingStatus.Completed]: { label: 'Completed', color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe', dot: '#60a5fa' },
-    [BookingStatus.InUse]:     { label: 'In Use',    color: '#7c3aed', bg: '#f5f3ff', border: '#e9d5ff', dot: '#8b5cf6' },
+    [BookingStatus.Pending]:   { label: 'Pending',   color: '#a16207', bg: '#fffbeb', border: '#fde68a', dot: '#f59e0b' },
+    [BookingStatus.Approved]:  { label: 'Approved',  color: '#166534', bg: '#ecfdf5', border: '#bbf7d0', dot: '#22c55e' },
+    [BookingStatus.Rejected]:  { label: 'Rejected',  color: '#6b7280', bg: '#f8fafc', border: '#e5e7eb', dot: '#ef4444' },
+    [BookingStatus.Cancelled]: { label: 'Cancelled', color: '#6b7280', bg: '#f8fafc', border: '#e5e7eb', dot: '#ef4444' },
+    [BookingStatus.Completed]: { label: 'Completed', color: '#6b7280', bg: '#f8fafc', border: '#e5e7eb', dot: '#9ca3af' },
+    [BookingStatus.InUse]:     { label: 'In Use',    color: '#166534', bg: '#f0fdf4', border: '#bbf7d0', dot: '#16a34a' },
 };
 
 // ─── Resource type visual metadata ──────────────────────────────────────────

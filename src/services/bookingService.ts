@@ -31,7 +31,7 @@ export const bookingService = {
     });
     const data = response.data.data || response.data;
     
-    const normalize = (item: any) => ({ ...item, id: item.id || item.bookingId });
+    const normalize = (item: any) => ({ ...item, id: item.bookingId || item.id });
 
     if (Array.isArray(data)) {
       const items = data.map(normalize);
@@ -50,7 +50,7 @@ export const bookingService = {
   getById: async (id: string): Promise<Booking> => {
     const response = await api.get(`/api/bookings/${id}`);
     const data = response.data.data || response.data;
-    return { ...data, id: data.id || data.bookingId };
+    return { ...data, id: data.bookingId || data.id };
   },
 
   getManaged: async (pageIndex = 1, pageSize = 50): Promise<PaginatedResponse<Booking>> => {
@@ -58,7 +58,7 @@ export const bookingService = {
       params: { pageIndex, pageSize }
     });
     const data = response.data.data || response.data;
-    const normalize = (item: any) => ({ ...item, id: item.id || item.bookingId });
+    const normalize = (item: any) => ({ ...item, id: item.bookingId || item.id });
     if (Array.isArray(data)) {
       const items = data.map(normalize);
       return { items, totalCount: items.length, pageIndex: 1, pageSize: items.length, totalPages: 1 };
@@ -75,7 +75,7 @@ export const bookingService = {
     });
     const data = response.data.data || response.data;
     
-    const normalize = (item: any) => ({ ...item, id: item.id || item.bookingId });
+    const normalize = (item: any) => ({ ...item, id: item.bookingId || item.id });
     
     if (Array.isArray(data)) {
       const items = data.map(normalize);
@@ -93,7 +93,7 @@ export const bookingService = {
     const response = await api.get('/api/bookings/my/upcoming');
     const data = response.data.data || response.data;
     const array = Array.isArray(data) ? data : (data.items || []);
-    return array.map((item: any) => ({ ...item, id: item.id || item.bookingId }));
+    return array.map((item: any) => ({ ...item, id: item.bookingId || item.id }));
   },
 
   getMyHistory: async (pageIndex = 1, pageSize = 50): Promise<PaginatedResponse<Booking>> => {
@@ -102,7 +102,7 @@ export const bookingService = {
     });
     const data = response.data.data || response.data;
     
-    const normalize = (item: any) => ({ ...item, id: item.id || item.bookingId });
+    const normalize = (item: any) => ({ ...item, id: item.bookingId || item.id });
     
     if (Array.isArray(data)) {
       const items = data.map(normalize);
@@ -120,7 +120,7 @@ export const bookingService = {
     const response = await api.post('/api/bookings', request);
     const data = response.data.data || response.data;
     const arr: any[] = Array.isArray(data) ? data : [data];
-    return arr.map((item: any) => ({ ...item, id: item.id || item.bookingId }));
+    return arr.map((item: any) => ({ ...item, id: item.bookingId || item.id }));
   },
 
   update: async (id: string, request: UpdateBookingRequest): Promise<Booking> => {
@@ -129,7 +129,7 @@ export const bookingService = {
       ...request
     });
     const data = response.data.data || response.data;
-    return { ...data, id: data.id || data.bookingId };
+    return { ...data, id: data.bookingId || data.id };
   },
 
   cancel: async (id: string, cancelReason?: string): Promise<void> => {
