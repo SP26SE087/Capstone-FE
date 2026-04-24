@@ -201,4 +201,28 @@ export const bookingService = {
     }
     return data;
   },
+
+  /**
+   * GET /api/bookings/by-resource/{resourceId}
+   * Returns paginated booking history for a specific resource unit.
+   * Sorted by CreatedAt desc (server-side).
+   */
+  getByResource: async (resourceId: string, pageIndex = 1, pageSize = 10): Promise<PaginatedResponse<BasicBookingResponse>> => {
+    const response = await api.get(`/api/bookings/by-resource/${resourceId}`, {
+      params: { pageIndex, pageSize },
+    });
+    const data = response.data.data || response.data;
+    const normalize = (item: any): BasicBookingResponse => ({
+      ...item,
+      bookingId: item.bookingId || item.id,
+    });
+    if (Array.isArray(data)) {
+      const items = data.map(normalize);
+      return { items, totalCount: items.length, pageIndex: 1, pageSize: items.length, totalPages: 1 };
+    }
+    if (data.items && Array.isArray(data.items)) {
+      data.items = data.items.map(normalize);
+    }
+    return data;
+  },
 };

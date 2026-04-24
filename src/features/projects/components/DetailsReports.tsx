@@ -321,7 +321,7 @@ const DetailsReports: React.FC<DetailsReportsProps> = ({ projectId }) => {
                     <div style={{
                         flex: 6,
                         minWidth: 0,
-                        maxHeight: 'calc(100vh - 320px)',
+                        maxHeight: 'calc(100vh - 180px)',
                         overflowY: 'auto',
                         display: 'flex',
                         flexDirection: 'column'

@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import SearchableSelect from '@/components/common/SearchableSelect';
-import { Resource, ResourceType, UpdateResourceRequest } from '@/types/booking';
+import { Resource, ResourceType, UpdateResourceRequest, BasicBookingResponse, BookingStatus } from '@/types/booking';
 import { resourceService } from '@/services/resourceService';
+import { bookingService } from '@/services/bookingService';
 import { userService, UserResponse } from '@/services/userService';
 import { resourceTypeService, ResourceTypeItem } from '@/services/resourceTypeService';
 import {
@@ -18,7 +19,12 @@ import {
     AlertTriangle,
     Hash,
     UserCog,
-    ChevronDown
+    ChevronDown,
+    ChevronLeft,
+    ChevronRight,
+    History,
+    Clock,
+    User,
 } from 'lucide-react';
 
 // ─── Lightweight custom select (open/close toggle like native <select>) ────────
@@ -212,6 +218,53 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
     const [isDamaged, setIsDamaged] = useState(!!initialResource.isDamaged);
     const [isInUse, setIsInUse] = useState(!!initialResource.isInUse);
 
+    // ─── Panel tab state ───────────────────────────────────────────────────
+    type PanelTab = 'details' | 'history';
+    const [panelTab, setPanelTab] = useState<PanelTab>('details');
+
+    // ─── Booking history state ─────────────────────────────────────────────
+    const [historyItems, setHistoryItems] = useState<BasicBookingResponse[]>([]);
+    const [historyLoading, setHistoryLoading] = useState(false);
+    const [historyPage, setHistoryPage] = useState(1);
+    const historyPageSize = 10;
+    const [historyTotalCount, setHistoryTotalCount] = useState(0);
+
+    const fetchHistory = async (resourceId: string, page: number) => {
+        setHistoryLoading(true);
+        try {
+            const result = await bookingService.getByResource(resourceId, page, historyPageSize);
+            setHistoryItems(result.items || []);
+            setHistoryTotalCount(result.totalCount || 0);
+        } catch {
+            setHistoryItems([]);
+            setHistoryTotalCount(0);
+        } finally {
+            setHistoryLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (panelTab === 'history') {
+            fetchHistory(targetResource.id, historyPage);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [panelTab, historyPage, targetResource.id]);
+
+    const historyStatusCfg: Record<number, { label: string; color: string; bg: string }> = {
+        [BookingStatus.Pending]:   { label: 'Pending',   color: '#d97706', bg: '#fef9c3' },
+        [BookingStatus.Approved]:  { label: 'Approved',  color: '#059669', bg: '#d1fae5' },
+        [BookingStatus.Rejected]:  { label: 'Rejected',  color: '#dc2626', bg: '#fee2e2' },
+        [BookingStatus.Cancelled]: { label: 'Cancelled', color: '#6b7280', bg: '#f3f4f6' },
+        [BookingStatus.Completed]: { label: 'Completed', color: '#2563eb', bg: '#dbeafe' },
+        [BookingStatus.InUse]:     { label: 'In Use',    color: '#7c3aed', bg: '#ede9fe' },
+    };
+
+    const fmtDt = (s: string) => {
+        const d = new Date(s);
+        if (isNaN(d.getTime())) return 'N/A';
+        return `${d.getDate().toString().padStart(2,'0')}/${(d.getMonth()+1).toString().padStart(2,'0')}/${d.getFullYear()} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
+    };
+
     const typeColor = getTypeColor(initialResource.type);
 
     useEffect(() => {
@@ -236,6 +289,8 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
         setResourceTypeId(initialResource.resourceTypeId || '');
         setIsDamaged(!!initialResource.isDamaged);
         setIsInUse(!!initialResource.isInUse);
+        setPanelTab('details');
+        setHistoryPage(1);
     }, [initialResource]);
 
     useEffect(() => {
@@ -347,7 +402,7 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             {/* Panel Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '12px', borderBottom: '1px solid var(--border-light)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', paddingBottom: '12px', borderBottom: '1px solid var(--border-light)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <div style={{
                         width: '32px', height: '32px', borderRadius: '10px',
@@ -370,8 +425,128 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
                 </div>
             </div>
 
+            {/* Tab switcher */}
+            <div style={{ display: 'flex', gap: '4px', marginBottom: '12px', background: '#f1f5f9', borderRadius: '10px', padding: '4px' }}>
+                {([
+                    { id: 'details', label: 'Details', icon: <FileText size={13} /> },
+                    { id: 'history', label: 'Booking History', icon: <History size={13} /> },
+                ] as const).map(tab => {
+                    const active = panelTab === tab.id;
+                    return (
+                        <button
+                            key={tab.id}
+                            onClick={() => setPanelTab(tab.id)}
+                            style={{
+                                flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                                padding: '6px 10px', borderRadius: '7px', border: 'none', cursor: 'pointer',
+                                fontSize: '0.78rem', fontWeight: active ? 700 : 500,
+                                background: active ? '#fff' : 'transparent',
+                                color: active ? (tab.id === 'history' ? '#4f46e5' : typeColor) : '#64748b',
+                                boxShadow: active ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
+                                transition: 'all 0.15s',
+                            }}
+                        >
+                            {tab.icon} {tab.label}
+                            {tab.id === 'history' && historyTotalCount > 0 && (
+                                <span style={{
+                                    fontSize: '0.62rem', fontWeight: 800, minWidth: '16px', height: '16px',
+                                    borderRadius: '8px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                    padding: '0 4px',
+                                    background: active ? '#4f46e5' : '#e2e8f0',
+                                    color: active ? '#fff' : '#64748b',
+                                }}>
+                                    {historyTotalCount}
+                                </span>
+                            )}
+                        </button>
+                    );
+                })}
+            </div>
+
             {/* Scrollable Content */}
             <div style={{ flex: 1, overflowY: 'auto', paddingRight: '4px' }} className="custom-scrollbar">
+
+                {/* ── Booking History Tab ── */}
+                {panelTab === 'history' && (() => {
+                    const totalPages = Math.ceil(historyTotalCount / historyPageSize) || 1;
+                    return (
+                        <div>
+                            {historyLoading ? (
+                                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '3rem' }}>
+                                    <Loader2 size={28} className="animate-spin" style={{ color: '#4f46e5' }} />
+                                </div>
+                            ) : historyItems.length === 0 ? (
+                                <div style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8', fontSize: '0.85rem' }}>
+                                    <History size={36} style={{ opacity: 0.25, marginBottom: '10px' }} />
+                                    <div>No booking history found for this resource.</div>
+                                </div>
+                            ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    {historyItems.map((item, idx) => {
+                                        const sc = historyStatusCfg[item.status] ?? { label: 'Unknown', color: '#64748b', bg: '#f8fafc' };
+                                        return (
+                                            <div key={item.bookingId || idx} style={{
+                                                background: '#fff', borderRadius: '10px',
+                                                border: '1px solid #e2e8f0', padding: '12px 14px',
+                                            }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                                    <span style={{
+                                                        fontSize: '0.68rem', fontWeight: 700, padding: '2px 9px',
+                                                        borderRadius: '20px', color: sc.color, background: sc.bg,
+                                                    }}>
+                                                        {sc.label}
+                                                    </span>
+                                                    <span style={{ fontSize: '0.68rem', color: '#94a3b8', fontFamily: 'monospace' }}>
+                                                        #{(item.bookingId || '').slice(-8).toUpperCase()}
+                                                    </span>
+                                                </div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '5px', fontSize: '0.78rem', color: '#475569' }}>
+                                                    <Clock size={12} style={{ color: '#94a3b8', flexShrink: 0 }} />
+                                                    <span>{fmtDt(item.startTime)}</span>
+                                                    <span style={{ color: '#cbd5e1' }}>→</span>
+                                                    <span>{fmtDt(item.endTime)}</span>
+                                                </div>
+                                                {item.managerFullName && (
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.72rem', color: '#64748b' }}>
+                                                        <User size={11} style={{ color: '#94a3b8', flexShrink: 0 }} />
+                                                        Manager: <strong style={{ color: '#1e293b' }}>{item.managerFullName}</strong>
+                                                        {item.managerEmail && <span style={{ color: '#94a3b8' }}>({item.managerEmail})</span>}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+
+                            {/* Pagination */}
+                            {historyTotalCount > historyPageSize && (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '12px 0 4px', borderTop: '1px solid #f1f5f9', marginTop: '10px' }}>
+                                    <button
+                                        disabled={historyPage <= 1}
+                                        onClick={() => setHistoryPage(p => Math.max(1, p - 1))}
+                                        style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 12px', borderRadius: '7px', border: '1px solid #e2e8f0', background: historyPage <= 1 ? '#f8fafc' : '#fff', color: historyPage <= 1 ? '#cbd5e1' : '#475569', fontSize: '0.78rem', fontWeight: 600, cursor: historyPage <= 1 ? 'not-allowed' : 'pointer' }}
+                                    >
+                                        <ChevronLeft size={13} /> Prev
+                                    </button>
+                                    <span style={{ fontSize: '0.78rem', color: '#64748b', fontWeight: 600 }}>
+                                        {historyPage} / {totalPages}
+                                    </span>
+                                    <button
+                                        disabled={historyPage >= totalPages}
+                                        onClick={() => setHistoryPage(p => Math.min(totalPages, p + 1))}
+                                        style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 12px', borderRadius: '7px', border: '1px solid #e2e8f0', background: historyPage >= totalPages ? '#f8fafc' : '#fff', color: historyPage >= totalPages ? '#cbd5e1' : '#475569', fontSize: '0.78rem', fontWeight: 600, cursor: historyPage >= totalPages ? 'not-allowed' : 'pointer' }}
+                                    >
+                                        Next <ChevronRight size={13} />
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    );
+                })()}
+
+                {/* ── Details Tab ── */}
+                {panelTab === 'details' && (<>
 
                 {/* Inventory Status */}
                 <div style={sectionStyle}>
@@ -663,6 +838,7 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
                         </div>
                     </div>
                 )}
+                </>)}
             </div>
 
             {/* Footer */}
@@ -671,7 +847,7 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
                 display: 'flex', justifyContent: 'space-between', gap: '10px', marginTop: 'auto'
             }}>
                 <div>
-                    {canDelete && !showDeleteConfirm && (
+                    {panelTab === 'details' && canDelete && !showDeleteConfirm && (
                         <button
                             onClick={() => setShowDeleteConfirm(true)}
                             style={{
@@ -697,7 +873,7 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
                     >
                         Close
                     </button>
-                    {canEdit && (
+                    {canEdit && panelTab === 'details' && (
                         <button
                             onClick={handleSave}
                             disabled={saving || serialLoading}
