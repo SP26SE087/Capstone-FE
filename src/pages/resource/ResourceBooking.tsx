@@ -694,24 +694,14 @@ const ResourceBooking: React.FC = () => {
                         <div
                             onClick={e => e.stopPropagation()}
                             style={{
-                                width: '100%', maxWidth: 600, maxHeight: '90vh',
+                                width: '100%', maxWidth: 860, maxHeight: '88vh',
                                 background: '#fff', borderRadius: 16,
-                                boxShadow: '0 24px 48px rgba(0,0,0,0.24)',
+                                boxShadow: '0 24px 48px rgba(0,0,0,0.2), 0 0 0 1px rgba(0,0,0,0.06)',
                                 display: 'flex', flexDirection: 'column',
-                                overflow: 'auto', zoom: 0.9,
+                                overflow: 'hidden',
                             }}
-                            className="bk-scroll"
                         >
-                            <div style={{ padding: '16px 20px 0', display: 'flex', justifyContent: 'flex-end' }}>
-                                <button
-                                    onClick={() => setViewModalBookingId(null)}
-                                    className="icon-btn"
-                                    style={{ width: 30, height: 30 }}
-                                >
-                                    <X size={16} />
-                                </button>
-                            </div>
-                            <div style={{ padding: '0 20px 20px', flex: 1, minHeight: 0 }}>
+                            <div className="custom-scrollbar" style={{ padding: '16px 20px', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
                                 <BookingDetailPanel
                                     key={viewModalBookingId}
                                     bookingId={viewModalBookingId}
