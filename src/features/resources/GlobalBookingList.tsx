@@ -85,9 +85,9 @@ const GlobalBookingList: React.FC<GlobalBookingListProps> = ({ bookings, loading
                       <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#2563eb', background: '#eff6ff', padding: '1px 6px', borderRadius: '4px' }}>
                         Borrower: {booking.userFullName || booking.userName}
                       </span>
-                      {booking.approvedByName && (
+                      {booking.managerFullName && (
                         <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#059669', background: '#f0fdf4', padding: '1px 6px', borderRadius: '4px' }}>
-                          Manager: {booking.approvedByName}
+                          Manager: {booking.managerFullName}
                         </span>
                       )}
                     </div>

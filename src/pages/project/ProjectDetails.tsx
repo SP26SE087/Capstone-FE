@@ -20,7 +20,8 @@ import {
     AlertCircle,
     Home,
     Users,
-    Package
+    Package,
+    FileText
 } from 'lucide-react';
 /* ProjectRoleEnum already in @/types */
 
@@ -31,12 +32,13 @@ import DetailsMembers from '@/features/projects/components/DetailsMembers';
 import DetailsTasks from '@/features/projects/components/DetailsTasks';
 import DetailsSettings from '@/features/projects/components/DetailsSettings';
 import DetailsBookingPlan from '@/features/projects/components/DetailsBookingPlan';
+import DetailsReports from '@/features/projects/components/DetailsReports';
 
 // Import Modals & Other Components
 import TaskFormModal from '@/features/tasks/TaskFormModal';
 import ProjectTimeline from '@/features/projects/ProjectTimeline';
 
-type ActiveTab = 'home' | 'timeline' | 'milestones' | 'members' | 'tasks' | 'settings' | 'resources';
+type ActiveTab = 'home' | 'timeline' | 'milestones' | 'members' | 'tasks' | 'settings' | 'resources' | 'report';
 
 const ProjectDetails: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -665,7 +667,8 @@ const ProjectDetails: React.FC = () => {
                             icon: <Users size={18} />
                         },
                         { id: 'resources', label: 'Resources', icon: <Package size={18} /> },
-                        { id: 'settings', label: 'Settings', icon: <SettingsIcon size={18} /> }
+                        { id: 'settings', label: 'Settings', icon: <SettingsIcon size={18} /> },
+                        { id: 'report', label: 'Reports', icon: <FileText size={18} /> }
                     ].map(tab => (
                         <button
                             key={tab.id}
@@ -751,7 +754,7 @@ const ProjectDetails: React.FC = () => {
                             />
                         )}
 
-                        {activeTab === 'milestones' && (
+                        <div style={{ display: activeTab === 'milestones' ? 'contents' : 'none' }}>
                             <DetailsMilestones
                                 projectId={id}
                                 milestones={milestones}
@@ -783,7 +786,7 @@ const ProjectDetails: React.FC = () => {
                                 isMilestoneSaving={isMilestoneSaving}
                                 allTasks={tasks}
                             />
-                        )}
+                        </div>
 
                         {activeTab === 'members' && (
                             <DetailsMembers
@@ -843,6 +846,10 @@ const ProjectDetails: React.FC = () => {
                                 canManage={canManageProject}
                                 showToast={showToast}
                             />
+                        )}
+
+                        {activeTab === 'report' && (
+                            <DetailsReports projectId={id || ''} />
                         )}
 
                         {activeTab === 'settings' && (

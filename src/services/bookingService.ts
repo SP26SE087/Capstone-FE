@@ -1,5 +1,5 @@
 import api from './api';
-import { Booking, CreateBookingRequest, UpdateBookingRequest, ApproveBookingRequest, BulkApproveItem, BulkApproveResult, PaginatedResponse } from '@/types/booking';
+import { Booking, BasicBookingResponse, CreateBookingRequest, UpdateBookingRequest, ApproveBookingRequest, BulkApproveItem, BulkApproveResult, PaginatedResponse } from '@/types/booking';
 
 const PAGE_SIZE_MAX = 200;
 
@@ -177,4 +177,28 @@ export const bookingService = {
   /** Fetch ALL history bookings across every page (auto-paginated, max 200/page). */
   getMyHistoryAllPages: (): Promise<Booking[]> =>
     fetchAllPages((p, s) => bookingService.getMyHistory(p, s)),
+
+  /**
+   * GET /api/bookings/by-user
+   * email = undefined → history of the currently authenticated user (from JWT)
+   * email = "..." → history of the user with that email (any role can view)
+   */
+  getByUser: async (email?: string, pageIndex = 1, pageSize = 10): Promise<PaginatedResponse<BasicBookingResponse>> => {
+    const params: Record<string, string | number> = { pageIndex, pageSize };
+    if (email) params.email = email;
+    const response = await api.get('/api/bookings/by-user', { params });
+    const data = response.data.data || response.data;
+    const normalize = (item: any): BasicBookingResponse => ({
+      ...item,
+      bookingId: item.bookingId || item.id,
+    });
+    if (Array.isArray(data)) {
+      const items = data.map(normalize);
+      return { items, totalCount: items.length, pageIndex: 1, pageSize: items.length, totalPages: 1 };
+    }
+    if (data.items && Array.isArray(data.items)) {
+      data.items = data.items.map(normalize);
+    }
+    return data;
+  },
 };
