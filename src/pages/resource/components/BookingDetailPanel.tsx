@@ -467,11 +467,12 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
     );
 
     const duration = calcDuration(booking.startTime, booking.endTime);
+    const anyFormOpen = showApproveForm || showRejectForm || showCancelForm || showCheckOutForm || showCheckInForm;
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-            {/* Scrollable Content */}
-            <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, paddingRight: 2 }} className="custom-scrollbar">
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 0 }}>
+            {/* ── Scrollable Content ── */}
+            <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, paddingRight: 4 }} className="custom-scrollbar">
 
                 {/* ═══════════════════════════════════════════
                     HERO HEADER
@@ -634,44 +635,43 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                                 {bookingResources.length} unit{bookingResources.length !== 1 ? 's' : ''}
                             </span>
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <div className="custom-scrollbar" style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 160, overflowY: 'scroll', paddingRight: 4 }}>
                             {bookingResources.map((r, idx) => (
                                 <div key={r.id ?? idx} style={{
-                                    display: 'flex', alignItems: 'center', gap: 12,
-                                    padding: '12px 14px',
+                                    display: 'flex', alignItems: 'center', gap: 10,
+                                    padding: '10px 12px',
                                     background: '#fff',
                                     border: `1px solid ${r.isDamaged ? '#fecaca' : '#e2e8f0'}`,
-                                    borderLeft: `4px solid ${r.isDamaged ? '#ef4444' : '#e2e8f0'}`,
-                                    borderRadius: 12,
+                                    borderLeft: `4px solid ${r.isDamaged ? '#ef4444' : '#c7d2fe'}`,
+                                    borderRadius: 10, flexShrink: 0,
                                 }}>
                                     {/* Index badge */}
                                     <div style={{
-                                        width: 32, height: 32, borderRadius: 9, flexShrink: 0,
-                                        background: '#f8fafc', border: '1px solid #e2e8f0',
+                                        width: 26, height: 26, borderRadius: 7, flexShrink: 0,
+                                        background: '#f1f5f9', border: '1px solid #e2e8f0',
                                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        fontSize: '0.75rem', fontWeight: 800, color: '#64748b',
+                                        fontSize: '0.7rem', fontWeight: 800, color: '#64748b',
                                     }}>
                                         {idx + 1}
                                     </div>
                                     {/* Name + meta */}
                                     <div style={{ flex: 1, minWidth: 0 }}>
-                                        <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#0f172a', marginBottom: 5 }}>
+                                        <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0f172a', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }} title={r.name}>
                                             {r.name}
                                         </div>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' as const }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'nowrap' as const, overflow: 'hidden' }}>
                                             {r.resourceTypeName && (
-                                                <span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#7c3aed', background: '#f5f3ff', border: '1px solid #e9d5ff', padding: '2px 7px', borderRadius: 20 }}>
-                                                    <Tag size={8} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 2 }} />
+                                                <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#7c3aed', background: '#f5f3ff', border: '1px solid #e9d5ff', padding: '1px 6px', borderRadius: 20, whiteSpace: 'nowrap', flexShrink: 0 }}>
                                                     {r.resourceTypeName}
                                                 </span>
                                             )}
                                             {r.location && (
-                                                <span style={{ fontSize: '0.62rem', fontWeight: 600, color: '#475569', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                                                    <MapPin size={9} /> {r.location}
+                                                <span style={{ fontSize: '0.6rem', fontWeight: 600, color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
+                                                    <MapPin size={8} style={{ flexShrink: 0 }} /> {r.location}
                                                 </span>
                                             )}
                                             {r.isDamaged && (
-                                                <span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', padding: '2px 7px', borderRadius: 20 }}>
+                                                <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', padding: '1px 6px', borderRadius: 20, whiteSpace: 'nowrap', flexShrink: 0 }}>
                                                     ⚠ Damaged
                                                 </span>
                                             )}
@@ -679,14 +679,15 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                                     </div>
                                     {/* Model series */}
                                     {(r as any).modelSeries && (
-                                        <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                                            <div style={{ fontSize: '0.58rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>
+                                        <div style={{ textAlign: 'right', flexShrink: 0, maxWidth: 120 }}>
+                                            <div style={{ fontSize: '0.55rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>
                                                 Serial
                                             </div>
                                             <code style={{
-                                                fontSize: '0.68rem', fontWeight: 700, color: '#334155',
+                                                fontSize: '0.65rem', fontWeight: 700, color: '#334155',
                                                 background: '#f8fafc', border: '1px solid #e2e8f0',
-                                                padding: '2px 7px', borderRadius: 6, letterSpacing: '0.03em',
+                                                padding: '2px 6px', borderRadius: 6, letterSpacing: '0.02em',
+                                                display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                                             }}>
                                                 {(r as any).modelSeries}
                                             </code>
@@ -741,411 +742,208 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                     )}
                 </div>
 
-                {/* ── Full-width: Compute Access ── */}
+                {/* Compute Access */}
                 {showComputeAccess && (
                     <div style={{ ...sectionStyle, marginBottom: 14 }}>
-                        <div style={{ ...labelStyle, color: 'var(--accent-color)', marginBottom: '10px' }}>
+                        <div style={{ ...labelStyle, color: 'var(--accent-color)', marginBottom: 10 }}>
                             <Server size={12} /> Compute Instance
                         </div>
-                        <ComputeAccessPanel
-                            bookingId={bookingId}
-                            onOpenTerminal={handleOpenTerminal}
-                        />
+                        <ComputeAccessPanel bookingId={bookingId} onOpenTerminal={handleOpenTerminal} />
                     </div>
                 )}
+            </div>
 
-                {/* Approve Form */}
+            {/* ══════════════════════════════════════════════
+                FIXED ACTION AREA — never scrolls away
+            ══════════════════════════════════════════════ */}
+            <div style={{
+                flexShrink: 0,
+                borderTop: '1px solid #f1f5f9',
+                background: '#fff',
+            }}>
+                {/* ── Approve form ── */}
                 {showApproveForm && canApproveReject && (
-                    <div style={{ ...sectionStyle, background: '#ecfdf5', border: '1px solid #a7f3d0' }}>
-                        <div style={{ ...labelStyle, color: '#059669' }}><CheckCircle2 size={11} /> Approve Booking</div>
+                    <div style={{ padding: '14px 16px', background: '#f0fdf4', borderBottom: '1px solid #a7f3d0' }}>
+                        <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#059669', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>
+                            <CheckCircle2 size={11} /> Approve Booking
+                        </div>
                         <textarea
-                            style={{
-                                width: '100%', padding: '7px 10px', borderRadius: '7px',
-                                border: '1.5px solid #a7f3d0', fontSize: '0.78rem', fontFamily: 'inherit',
-                                outline: 'none', minHeight: '48px', resize: 'vertical' as const,
-                                background: '#fff', marginBottom: '8px', boxSizing: 'border-box' as const
-                            }}
-                            value={approveNote}
-                            onChange={e => setApproveNote(e.target.value)}
-                            placeholder="Optional approval note..."
+                            autoFocus
+                            value={approveNote} onChange={e => setApproveNote(e.target.value)}
+                            placeholder="Approval note (optional)..."
+                            style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid #a7f3d0', fontSize: '0.8rem', fontFamily: 'inherit', outline: 'none', minHeight: 52, resize: 'none', background: '#fff', boxSizing: 'border-box', marginBottom: 8 }}
                         />
-
-                        {/* Adjustment toggle — only if booking has resources to adjust */}
                         {bookingResourceIds.length > 0 && (
-                            <div style={{ marginBottom: '10px' }}>
-                                <button
-                                    type="button"
-                                    onClick={() => handleToggleAdjustments(resourceGroups)}
-                                    style={{
-                                        fontSize: '0.75rem', fontWeight: 700,
-                                        color: showAdjustments ? '#059669' : '#64748b',
-                                        background: showAdjustments ? '#dcfce7' : '#f1f5f9',
-                                        border: `1px solid ${showAdjustments ? '#a7f3d0' : '#e2e8f0'}`,
-                                        borderRadius: '8px', padding: '5px 12px', cursor: 'pointer'
-                                    }}
-                                >
-                                    {showAdjustments ? '− Hide Adjustments' : '+ Adjust Resource Quantities'}
+                            <div style={{ marginBottom: 8 }}>
+                                <button type="button" onClick={() => handleToggleAdjustments(resourceGroups)}
+                                    style={{ fontSize: '0.75rem', fontWeight: 700, color: showAdjustments ? '#059669' : '#64748b', background: showAdjustments ? '#dcfce7' : '#f1f5f9', border: `1px solid ${showAdjustments ? '#a7f3d0' : '#e2e8f0'}`, borderRadius: 8, padding: '4px 12px', cursor: 'pointer' }}>
+                                    {showAdjustments ? '− Hide Adjustments' : '+ Adjust Quantities'}
                                 </button>
-
                                 {showAdjustments && groupKeptQtys && (
-                                    <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                        {allRemoved && (
-                                            <div style={{ padding: '8px 12px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 700, color: '#dc2626' }}>
-                                                ⚠ All resources removed — this will auto-reject the booking
-                                            </div>
-                                        )}
-
-                                        {/* One stepper row per group */}
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                                            {resourceGroups.length > 0 ? resourceGroups.map(g => {
-                                                const kept = groupKeptQtys[g.key] ?? g.ids.length;
-                                                const isChanged = kept !== g.ids.length;
-                                                const isZero = kept === 0;
-                                                return (
-                                                    <div key={g.key} style={{
-                                                        padding: '9px 11px', borderRadius: '8px', background: '#fff',
-                                                        border: `1.5px solid ${isZero ? '#fecaca' : isChanged ? '#fdba74' : '#fde68a'}`,
-                                                        display: 'flex', alignItems: 'center', gap: '10px'
-                                                    }}>
-                                                        <div style={{ flex: 1, minWidth: 0 }}>
-                                                            <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{g.name}</div>
-                                                            <div style={{ fontSize: '0.62rem', color: '#92400e', marginTop: '1px' }}>
-                                                                Requested: {g.ids.length}
-                                                                {isChanged && !isZero && <span style={{ color: '#f97316', fontWeight: 700 }}> → {kept}</span>}
-                                                                {isZero && <span style={{ color: '#dc2626', fontWeight: 700 }}> → removed</span>}
-                                                            </div>
-                                                            {g.location && (
-                                                                <div style={{ fontSize: '0.6rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '2px', marginTop: '1px' }}>
-                                                                    <MapPin size={8} /> {g.location}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                                                            <button type="button"
-                                                                onClick={() => setGroupKeptQtys(prev => ({ ...prev!, [g.key]: Math.max(0, (prev![g.key] ?? g.ids.length) - 1) }))}
-                                                                disabled={kept <= 0}
-                                                                style={{ width: '26px', height: '26px', borderRadius: '7px', border: '1.5px solid #e2e8f0', background: kept <= 0 ? '#f8fafc' : '#fff', cursor: kept <= 0 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: kept <= 0 ? '#cbd5e1' : '#475569' }}>
-                                                                <Minus size={11} />
-                                                            </button>
-                                                            <span style={{ fontSize: '1rem', fontWeight: 800, minWidth: '22px', textAlign: 'center' as const, color: isZero ? '#dc2626' : isChanged ? '#f97316' : '#1e293b' }}>{kept}</span>
-                                                            <button type="button"
-                                                                onClick={() => setGroupKeptQtys(prev => ({ ...prev!, [g.key]: Math.min(g.ids.length, (prev![g.key] ?? g.ids.length) + 1) }))}
-                                                                disabled={kept >= g.ids.length}
-                                                                style={{ width: '26px', height: '26px', borderRadius: '7px', border: '1.5px solid #e2e8f0', background: kept >= g.ids.length ? '#f8fafc' : '#fff', cursor: kept >= g.ids.length ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: kept >= g.ids.length ? '#cbd5e1' : '#475569' }}>
-                                                                <Plus size={11} />
-                                                            </button>
-                                                        </div>
+                                    <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                        {allRemoved && <div style={{ padding: '6px 10px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 7, fontSize: '0.75rem', fontWeight: 700, color: '#dc2626' }}>⚠ All removed — will auto-reject</div>}
+                                        {resourceGroups.map(g => {
+                                            const kept = groupKeptQtys[g.key] ?? g.ids.length;
+                                            const isZero = kept === 0; const isChanged = kept !== g.ids.length;
+                                            return (
+                                                <div key={g.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', background: '#fff', border: `1.5px solid ${isZero ? '#fecaca' : isChanged ? '#fdba74' : '#fde68a'}`, borderRadius: 8 }}>
+                                                    <div style={{ flex: 1, fontSize: '0.78rem', fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{g.name}</div>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+                                                        <button type="button" onClick={() => setGroupKeptQtys(p => ({ ...p!, [g.key]: Math.max(0, (p![g.key] ?? g.ids.length) - 1) }))} disabled={kept <= 0}
+                                                            style={{ width: 24, height: 24, borderRadius: 6, border: '1.5px solid #e2e8f0', background: kept <= 0 ? '#f8fafc' : '#fff', cursor: kept <= 0 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: kept <= 0 ? '#cbd5e1' : '#475569' }}>
+                                                            <Minus size={10} />
+                                                        </button>
+                                                        <span style={{ fontSize: '0.85rem', fontWeight: 800, minWidth: 20, textAlign: 'center' as const, color: isZero ? '#dc2626' : isChanged ? '#f97316' : '#1e293b' }}>{kept}</span>
+                                                        <button type="button" onClick={() => setGroupKeptQtys(p => ({ ...p!, [g.key]: Math.min(g.ids.length, (p![g.key] ?? g.ids.length) + 1) }))} disabled={kept >= g.ids.length}
+                                                            style={{ width: 24, height: 24, borderRadius: 6, border: '1.5px solid #e2e8f0', background: kept >= g.ids.length ? '#f8fafc' : '#fff', cursor: kept >= g.ids.length ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: kept >= g.ids.length ? '#cbd5e1' : '#475569' }}>
+                                                            <Plus size={10} />
+                                                        </button>
                                                     </div>
-                                                );
-                                            }) : (
-                                                <div style={{ fontSize: '0.75rem', color: '#92400e' }}>
-                                                    {bookingResourceIds.length} resource ID{bookingResourceIds.length !== 1 ? 's' : ''} in this booking.
-                                                    Detailed resource info not available — approve without adjustment.
                                                 </div>
-                                            )}
-                                        </div>
-
-                                        <div>
-                                            <label style={{ ...labelStyle, fontSize: '0.68rem', color: '#92400e' }}>
-                                                Adjust Reason * {allRemoved ? '(becomes reject reason)' : ''}
-                                            </label>
-                                            <textarea
-                                                style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1.5px solid #fde68a', fontSize: '0.83rem', fontFamily: 'inherit', outline: 'none', minHeight: '50px', resize: 'vertical' as const, background: '#fffbeb', boxSizing: 'border-box' as const }}
-                                                value={approveAdjustReason}
-                                                onChange={e => setApproveAdjustReason(e.target.value)}
-                                                placeholder="Reason for adjusting quantities (required)..."
-                                            />
-                                        </div>
-
-                                        {hasChangedQty && (
-                                            <div style={{ fontSize: '0.72rem', color: '#92400e', fontWeight: 600 }}>
-                                                Keeping {totalKept} of {bookingResourceIds.length} unit{bookingResourceIds.length !== 1 ? 's' : ''}
-                                            </div>
-                                        )}
+                                            );
+                                        })}
+                                        <textarea value={approveAdjustReason} onChange={e => setApproveAdjustReason(e.target.value)}
+                                            placeholder={`Adjustment reason${allRemoved ? ' (reject reason)' : ''} *`}
+                                            style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1.5px solid #fde68a', fontSize: '0.78rem', fontFamily: 'inherit', outline: 'none', minHeight: 44, resize: 'none', background: '#fffbeb', boxSizing: 'border-box' as const }} />
+                                        {hasChangedQty && <div style={{ fontSize: '0.7rem', color: '#92400e', fontWeight: 600 }}>Keeping {totalKept} of {bookingResourceIds.length} unit(s)</div>}
                                     </div>
                                 )}
                             </div>
                         )}
-
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                            <button
-                                onClick={() => handleApprove(resourceGroups)}
-                                disabled={actionLoading}
-                                style={{
-                                    padding: '6px 16px', borderRadius: '8px', border: 'none',
-                                    background: '#059669', color: '#fff',
-                                    cursor: actionLoading ? 'not-allowed' : 'pointer',
-                                    fontSize: '0.78rem', fontWeight: 700,
-                                    display: 'flex', alignItems: 'center', gap: '4px'
-                                }}
-                            >
+                        <div style={{ display: 'flex', gap: 8 }}>
+                            <button onClick={() => handleApprove(resourceGroups)} disabled={actionLoading}
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 16px', borderRadius: 9, border: 'none', background: '#059669', color: '#fff', fontSize: '0.8rem', fontWeight: 700, cursor: actionLoading ? 'not-allowed' : 'pointer', opacity: actionLoading ? 0.7 : 1 }}>
                                 {actionLoading ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />} Confirm Approve
                             </button>
-                            <button
-                                onClick={() => { setShowApproveForm(false); setShowAdjustments(false); setGroupKeptQtys(null); }}
-                                style={{
-                                    padding: '6px 16px', borderRadius: '8px',
-                                    border: '1px solid var(--border-color)', background: '#fff',
-                                    color: 'var(--text-secondary)', cursor: 'pointer',
-                                    fontSize: '0.78rem', fontWeight: 700
-                                }}
-                            >
+                            <button onClick={() => { setShowApproveForm(false); setShowAdjustments(false); setGroupKeptQtys(null); }}
+                                style={{ padding: '7px 14px', borderRadius: 9, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
                                 Cancel
                             </button>
                         </div>
                     </div>
                 )}
 
-                {/* Reject Form */}
+                {/* ── Reject form ── */}
                 {showRejectForm && canApproveReject && (
-                    <div style={{ ...sectionStyle, background: '#fef2f2', border: '1px solid #fecaca' }}>
-                        <div style={{ ...labelStyle, color: '#dc2626' }}><XCircle size={11} /> Reject Booking</div>
-                        <textarea
-                            style={{
-                                width: '100%', padding: '7px 10px', borderRadius: '7px',
-                                border: '1.5px solid #fecaca', fontSize: '0.78rem', fontFamily: 'inherit',
-                                outline: 'none', minHeight: '48px', resize: 'vertical' as const,
-                                background: '#fff', marginBottom: '8px', boxSizing: 'border-box' as const
-                            }}
-                            value={rejectReason}
-                            onChange={e => setRejectReason(e.target.value)}
+                    <div style={{ padding: '14px 16px', background: '#fef2f2', borderBottom: '1px solid #fecaca' }}>
+                        <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#dc2626', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>
+                            <XCircle size={11} /> Reject Booking
+                        </div>
+                        <textarea autoFocus value={rejectReason} onChange={e => setRejectReason(e.target.value)}
                             placeholder="Reason for rejection (required)..."
-                        />
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                            <button
-                                onClick={handleReject}
-                                disabled={actionLoading || !rejectReason.trim()}
-                                style={{
-                                    padding: '6px 16px', borderRadius: '8px', border: 'none',
-                                    background: !rejectReason.trim() ? '#e2e8f0' : '#dc2626',
-                                    color: '#fff',
-                                    cursor: actionLoading || !rejectReason.trim() ? 'not-allowed' : 'pointer',
-                                    fontSize: '0.78rem', fontWeight: 700,
-                                    display: 'flex', alignItems: 'center', gap: '4px'
-                                }}
-                            >
+                            style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid #fecaca', fontSize: '0.8rem', fontFamily: 'inherit', outline: 'none', minHeight: 52, resize: 'none', background: '#fff', boxSizing: 'border-box', marginBottom: 8 }} />
+                        <div style={{ display: 'flex', gap: 8 }}>
+                            <button onClick={handleReject} disabled={actionLoading || !rejectReason.trim()}
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 16px', borderRadius: 9, border: 'none', background: !rejectReason.trim() ? '#e2e8f0' : '#dc2626', color: '#fff', fontSize: '0.8rem', fontWeight: 700, cursor: actionLoading || !rejectReason.trim() ? 'not-allowed' : 'pointer' }}>
                                 {actionLoading ? <Loader2 size={12} className="animate-spin" /> : <XCircle size={12} />} Confirm Reject
                             </button>
-                            <button
-                                onClick={() => setShowRejectForm(false)}
-                                style={{
-                                    padding: '6px 16px', borderRadius: '8px',
-                                    border: '1px solid var(--border-color)', background: '#fff',
-                                    color: 'var(--text-secondary)', cursor: 'pointer',
-                                    fontSize: '0.78rem', fontWeight: 700
-                                }}
-                            >
+                            <button onClick={() => setShowRejectForm(false)}
+                                style={{ padding: '7px 14px', borderRadius: 9, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
                                 Cancel
                             </button>
                         </div>
                     </div>
                 )}
 
-                {/* Check Out Form (Approved → InUse) */}
+                {/* ── Check Out form ── */}
                 {showCheckOutForm && canCheckOut && (
-                    <div style={{ ...sectionStyle, background: '#eff6ff', border: '1px solid #bfdbfe' }}>
-                        <div style={{ ...labelStyle, color: '#2563eb' }}><LogOut size={11} style={{ transform: 'scaleX(-1)' }} /> Check Out — Record Pickup</div>
-                        <textarea
-                            style={{
-                                width: '100%', padding: '7px 10px', borderRadius: '7px',
-                                border: '1.5px solid #bfdbfe', fontSize: '0.78rem', fontFamily: 'inherit',
-                                outline: 'none', minHeight: '48px', resize: 'vertical' as const,
-                                background: '#fff', marginBottom: '8px', boxSizing: 'border-box' as const
-                            }}
-                            value={checkOutNote}
-                            onChange={e => setCheckOutNote(e.target.value)}
+                    <div style={{ padding: '14px 16px', background: '#eff6ff', borderBottom: '1px solid #bfdbfe' }}>
+                        <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>
+                            <LogOut size={11} style={{ transform: 'scaleX(-1)' }} /> Check Out — Record Pickup
+                        </div>
+                        <textarea autoFocus value={checkOutNote} onChange={e => setCheckOutNote(e.target.value)}
                             placeholder="Note (optional)..."
-                        />
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                            <button
-                                onClick={handleCheckOut}
-                                disabled={actionLoading}
-                                style={{
-                                    padding: '6px 16px', borderRadius: '8px', border: 'none',
-                                    background: '#2563eb', color: '#fff',
-                                    cursor: actionLoading ? 'not-allowed' : 'pointer',
-                                    fontSize: '0.78rem', fontWeight: 700,
-                                    display: 'flex', alignItems: 'center', gap: '4px'
-                                }}
-                            >
+                            style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid #bfdbfe', fontSize: '0.8rem', fontFamily: 'inherit', outline: 'none', minHeight: 52, resize: 'none', background: '#fff', boxSizing: 'border-box', marginBottom: 8 }} />
+                        <div style={{ display: 'flex', gap: 8 }}>
+                            <button onClick={handleCheckOut} disabled={actionLoading}
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 16px', borderRadius: 9, border: 'none', background: '#2563eb', color: '#fff', fontSize: '0.8rem', fontWeight: 700, cursor: actionLoading ? 'not-allowed' : 'pointer', opacity: actionLoading ? 0.7 : 1 }}>
                                 {actionLoading ? <Loader2 size={12} className="animate-spin" /> : <LogOut size={12} style={{ transform: 'scaleX(-1)' }} />} Confirm Check Out
                             </button>
-                            <button
-                                onClick={() => { setShowCheckOutForm(false); setCheckOutNote(''); }}
-                                style={{
-                                    padding: '6px 16px', borderRadius: '8px',
-                                    border: '1px solid var(--border-color)', background: '#fff',
-                                    color: 'var(--text-secondary)', cursor: 'pointer',
-                                    fontSize: '0.78rem', fontWeight: 700
-                                }}
-                            >
+                            <button onClick={() => { setShowCheckOutForm(false); setCheckOutNote(''); }}
+                                style={{ padding: '7px 14px', borderRadius: 9, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
                                 Cancel
                             </button>
                         </div>
                     </div>
                 )}
 
-                {/* Check In Form (InUse → Completed) */}
+                {/* ── Check In form ── */}
                 {showCheckInForm && canCheckIn && (
-                    <div style={{ ...sectionStyle, background: '#f0fdf4', border: '1px solid #a7f3d0' }}>
-                        <div style={{ ...labelStyle, color: '#059669' }}><LogIn size={11} /> Check In — Record Return</div>
-                        <textarea
-                            style={{
-                                width: '100%', padding: '7px 10px', borderRadius: '7px',
-                                border: '1.5px solid #a7f3d0', fontSize: '0.78rem', fontFamily: 'inherit',
-                                outline: 'none', minHeight: '48px', resize: 'vertical' as const,
-                                background: '#fff', marginBottom: '8px', boxSizing: 'border-box' as const
-                            }}
-                            value={checkInNote}
-                            onChange={e => setCheckInNote(e.target.value)}
+                    <div style={{ padding: '14px 16px', background: '#f0fdf4', borderBottom: '1px solid #a7f3d0' }}>
+                        <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#059669', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>
+                            <LogIn size={11} /> Check In — Record Return
+                        </div>
+                        <textarea autoFocus value={checkInNote} onChange={e => setCheckInNote(e.target.value)}
                             placeholder="Note (optional)..."
-                        />
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                            <button
-                                onClick={handleCheckIn}
-                                disabled={actionLoading}
-                                style={{
-                                    padding: '6px 16px', borderRadius: '8px', border: 'none',
-                                    background: '#059669', color: '#fff',
-                                    cursor: actionLoading ? 'not-allowed' : 'pointer',
-                                    fontSize: '0.78rem', fontWeight: 700,
-                                    display: 'flex', alignItems: 'center', gap: '4px'
-                                }}
-                            >
+                            style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid #a7f3d0', fontSize: '0.8rem', fontFamily: 'inherit', outline: 'none', minHeight: 52, resize: 'none', background: '#fff', boxSizing: 'border-box', marginBottom: 8 }} />
+                        <div style={{ display: 'flex', gap: 8 }}>
+                            <button onClick={handleCheckIn} disabled={actionLoading}
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 16px', borderRadius: 9, border: 'none', background: '#059669', color: '#fff', fontSize: '0.8rem', fontWeight: 700, cursor: actionLoading ? 'not-allowed' : 'pointer', opacity: actionLoading ? 0.7 : 1 }}>
                                 {actionLoading ? <Loader2 size={12} className="animate-spin" /> : <LogIn size={12} />} Confirm Check In
                             </button>
-                            <button
-                                onClick={() => { setShowCheckInForm(false); setCheckInNote(''); }}
-                                style={{
-                                    padding: '6px 16px', borderRadius: '8px',
-                                    border: '1px solid var(--border-color)', background: '#fff',
-                                    color: 'var(--text-secondary)', cursor: 'pointer',
-                                    fontSize: '0.78rem', fontWeight: 700
-                                }}
-                            >
+                            <button onClick={() => { setShowCheckInForm(false); setCheckInNote(''); }}
+                                style={{ padding: '7px 14px', borderRadius: 9, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
                                 Cancel
                             </button>
                         </div>
                     </div>
                 )}
 
-                {/* Cancel Form */}
+                {/* ── Cancel form ── */}
                 {showCancelForm && canCancel && (
-                    <div style={{ ...sectionStyle, background: '#f3f4f6', border: '1px solid #e5e7eb' }}>
-                        <div style={{ ...labelStyle, color: '#6b7280' }}><AlertTriangle size={12} /> Cancel Booking</div>
-                        <textarea
-                            style={{
-                                width: '100%', padding: '10px 14px', borderRadius: '10px',
-                                border: '1.5px solid #e5e7eb', fontSize: '0.85rem', fontWeight: 500,
-                                fontFamily: 'inherit', outline: 'none', minHeight: '60px',
-                                resize: 'vertical' as const, background: '#fff', marginBottom: '10px'
-                            }}
-                            value={cancelReason}
-                            onChange={e => setCancelReason(e.target.value)}
+                    <div style={{ padding: '14px 16px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                        <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>
+                            <AlertTriangle size={11} /> Cancel Booking
+                        </div>
+                        <textarea autoFocus value={cancelReason} onChange={e => setCancelReason(e.target.value)}
                             placeholder="Reason for cancellation (optional)..."
-                        />
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                            <button
-                                onClick={handleCancel}
-                                disabled={actionLoading}
-                                style={{
-                                    padding: '6px 16px', borderRadius: '8px', border: 'none',
-                                    background: '#6b7280', color: '#fff',
-                                    cursor: actionLoading ? 'not-allowed' : 'pointer',
-                                    fontSize: '0.78rem', fontWeight: 700,
-                                    display: 'flex', alignItems: 'center', gap: '4px'
-                                }}
-                            >
+                            style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid #e2e8f0', fontSize: '0.8rem', fontFamily: 'inherit', outline: 'none', minHeight: 52, resize: 'none', background: '#fff', boxSizing: 'border-box', marginBottom: 8 }} />
+                        <div style={{ display: 'flex', gap: 8 }}>
+                            <button onClick={handleCancel} disabled={actionLoading}
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 16px', borderRadius: 9, border: 'none', background: '#64748b', color: '#fff', fontSize: '0.8rem', fontWeight: 700, cursor: actionLoading ? 'not-allowed' : 'pointer', opacity: actionLoading ? 0.7 : 1 }}>
                                 {actionLoading ? <Loader2 size={12} className="animate-spin" /> : <XCircle size={12} />} Confirm Cancel
                             </button>
-                            <button
-                                onClick={() => setShowCancelForm(false)}
-                                style={{
-                                    padding: '6px 16px', borderRadius: '8px',
-                                    border: '1px solid var(--border-color)', background: '#fff',
-                                    color: 'var(--text-secondary)', cursor: 'pointer',
-                                    fontSize: '0.78rem', fontWeight: 700
-                                }}
-                            >
+                            <button onClick={() => setShowCancelForm(false)}
+                                style={{ padding: '7px 14px', borderRadius: 9, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
                                 Back
                             </button>
                         </div>
                     </div>
                 )}
-            </div>
 
-            {/* Footer — sticky, always visible */}
-            <div style={{
-                flexShrink: 0,
-                paddingTop: 12,
-                marginTop: 12,
-                borderTop: '1px solid #f1f5f9',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 8,
-            }}>
-                {/* Left: action buttons */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    {canCheckOut && !showCheckOutForm && !showCheckInForm && !showApproveForm && !showRejectForm && !showCancelForm && (
-                        <FooterBtn
-                            onClick={() => setShowCheckOutForm(true)}
-                            variant="primary" color="#2563eb" shadow="rgba(37,99,235,0.25)"
-                            icon={<LogOut size={14} style={{ transform: 'scaleX(-1)' }} />}
-                            label="Check Out"
-                        />
-                    )}
-                    {canCheckIn && !showCheckInForm && !showCheckOutForm && !showApproveForm && !showRejectForm && !showCancelForm && (
-                        <FooterBtn
-                            onClick={() => setShowCheckInForm(true)}
-                            variant="primary" color="#059669" shadow="rgba(5,150,105,0.25)"
-                            icon={<LogIn size={14} />}
-                            label="Check In"
-                        />
-                    )}
-                    {canApproveReject && !showApproveForm && !showRejectForm && !showCancelForm && (
-                        <>
-                            <FooterBtn
-                                onClick={() => { setShowApproveForm(true); setShowRejectForm(false); setShowCancelForm(false); }}
-                                variant="primary" color="#059669" shadow="rgba(5,150,105,0.25)"
-                                icon={<CheckCircle2 size={14} />}
-                                label="Approve"
-                            />
-                            <FooterBtn
-                                onClick={() => { setShowRejectForm(true); setShowApproveForm(false); setShowCancelForm(false); }}
-                                variant="outline" color="#dc2626" borderColor="#fca5a5"
-                                icon={<XCircle size={14} />}
-                                label="Reject"
-                            />
-                        </>
-                    )}
-                    {canCancel && !showCancelForm && !showApproveForm && !showRejectForm && !showCheckOutForm && !showCheckInForm && (
-                        <FooterBtn
-                            onClick={() => { setShowCancelForm(true); setShowApproveForm(false); setShowRejectForm(false); }}
-                            variant="ghost"
-                            icon={<XCircle size={14} />}
-                            label="Cancel Booking"
-                        />
-                    )}
+                {/* ── Button row ── */}
+                <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' as const }}>
+                        {!anyFormOpen && canCheckOut && (
+                            <FooterBtn onClick={() => setShowCheckOutForm(true)} variant="primary" color="#2563eb" shadow="rgba(37,99,235,0.22)"
+                                icon={<LogOut size={14} style={{ transform: 'scaleX(-1)' }} />} label="Check Out" />
+                        )}
+                        {!anyFormOpen && canCheckIn && (
+                            <FooterBtn onClick={() => setShowCheckInForm(true)} variant="primary" color="#059669" shadow="rgba(5,150,105,0.22)"
+                                icon={<LogIn size={14} />} label="Check In" />
+                        )}
+                        {!anyFormOpen && canApproveReject && (
+                            <>
+                                <FooterBtn onClick={() => { setShowApproveForm(true); setShowRejectForm(false); setShowCancelForm(false); }}
+                                    variant="primary" color="#059669" shadow="rgba(5,150,105,0.22)"
+                                    icon={<CheckCircle2 size={14} />} label="Approve" />
+                                <FooterBtn onClick={() => { setShowRejectForm(true); setShowApproveForm(false); setShowCancelForm(false); }}
+                                    variant="outline" color="#dc2626" borderColor="#fca5a5"
+                                    icon={<XCircle size={14} />} label="Reject" />
+                            </>
+                        )}
+                        {!anyFormOpen && canCancel && (
+                            <FooterBtn onClick={() => { setShowCancelForm(true); setShowApproveForm(false); setShowRejectForm(false); }}
+                                variant="ghost" icon={<XCircle size={14} />} label="Cancel Booking" />
+                        )}
+                    </div>
+                    <button onClick={onClose}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 18px', borderRadius: 10, border: '1px solid #e2e8f0', background: '#f8fafc', color: '#64748b', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600, flexShrink: 0 }}
+                        onMouseEnter={e => { e.currentTarget.style.background = '#f1f5f9'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = '#f8fafc'; }}>
+                        Close
+                    </button>
                 </div>
-
-                {/* Right: close */}
-                <button
-                    onClick={onClose}
-                    style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 6,
-                        padding: '8px 18px', borderRadius: 10,
-                        border: '1px solid #e2e8f0', background: '#f8fafc',
-                        color: '#64748b', cursor: 'pointer',
-                        fontSize: '0.82rem', fontWeight: 600,
-                        transition: 'background 0.15s',
-                        flexShrink: 0,
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.background = '#f1f5f9'; }}
-                    onMouseLeave={e => { e.currentTarget.style.background = '#f8fafc'; }}
-                >
-                    Close
-                </button>
             </div>
 
             {/* Server Terminal Modal */}
