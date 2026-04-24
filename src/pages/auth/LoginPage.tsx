@@ -2,10 +2,11 @@ import React, { useState, useRef } from 'react';
 import { Navigate, useNavigate, Link } from 'react-router-dom';
 import { useGoogleLogin } from '@react-oauth/google';
 import { authService } from '@/services/authService';
-import { AlertTriangle, ArrowLeft, CalendarClock, ShieldCheck, Sparkles, Users2 } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CalendarClock, ShieldCheck, Sparkles, Users2, UserCheck } from 'lucide-react';
 import { SystemRoleEnum } from '@/types/enums';
 import logo from '@/assets/aita.png';
 import './LoginPage.css';
+import VisitorRegistrationModal from '@/components/schedule/VisitorRegistrationModal';
 
 const loginHighlights = [
     {
@@ -29,6 +30,7 @@ const LoginPage: React.FC = () => {
     const navigate = useNavigate();
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
+    const [showRegister, setShowRegister] = useState(false);
     const handlingRef = useRef(false);
 
     const getPostLoginPath = (role: string | number | undefined) => {
@@ -154,6 +156,18 @@ const LoginPage: React.FC = () => {
                         </div>
                     )}
 
+                    <div style={{ borderTop: '1px solid var(--border-color)', margin: '1rem 0', paddingTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'center' }}>
+                        <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)' }}>Not a lab member?</p>
+                        <button
+                            type="button"
+                            onClick={() => setShowRegister(true)}
+                            style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', padding: '0.3rem 0.5rem', fontSize: '0.85rem', color: 'var(--accent-color)', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}
+                        >
+                            <UserCheck size={15} />
+                            Book a Meeting
+                        </button>
+                    </div>
+
                     <p className="signin-disclaimer">
                         Internal access only. Unauthorized attempts are logged and reviewed.
                     </p>
@@ -165,6 +179,7 @@ const LoginPage: React.FC = () => {
                     </div>
                 </section>
             </div>
+            <VisitorRegistrationModal isOpen={showRegister} onClose={() => setShowRegister(false)} />
         </div>
     );
 };

@@ -24,6 +24,7 @@ import PaperSubmissions from '@/pages/paper/PaperSubmissions';
 import ProfilePage from '@/pages/profile/ProfilePage';
 import RoleGuard from '@/components/auth/RoleGuard';
 import LabProjects from '@/pages/project/LabProjects';
+import VisitorRegistrations from '@/pages/schedule/VisitorRegistrations';
 
 export const router = createBrowserRouter([
     {
@@ -126,6 +127,10 @@ export const router = createBrowserRouter([
     {
         path: '/user-management',
         element: <AuthGuard><RoleGuard allowedRoles={[1]}><UserManagement /></RoleGuard></AuthGuard>,
+    },
+    {
+        path: '/visitor-registrations',
+        element: <AuthGuard><VisitorRegistrations /></AuthGuard>,
     },
     {
         path: '*',

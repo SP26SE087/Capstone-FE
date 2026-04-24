@@ -635,8 +635,6 @@ const ProjectDetails: React.FC = () => {
                 }}>
                     {[
                         { id: 'home', label: 'Dashboard', icon: <Layout size={18} /> },
-                        { id: 'tasks', label: 'Tasks', icon: <CheckCircle2 size={18} /> },
-                        { id: 'milestones', label: 'Milestones', icon: <Target size={18} /> },
                         {
                             id: 'members',
                             label: (
@@ -666,9 +664,11 @@ const ProjectDetails: React.FC = () => {
                             ),
                             icon: <Users size={18} />
                         },
+                        { id: 'milestones', label: 'Milestones', icon: <Target size={18} /> },
+                        { id: 'tasks', label: 'Tasks', icon: <CheckCircle2 size={18} /> },
                         { id: 'resources', label: 'Resources', icon: <Package size={18} /> },
-                        { id: 'settings', label: 'Settings', icon: <SettingsIcon size={18} /> },
-                        { id: 'report', label: 'Reports', icon: <FileText size={18} /> }
+                        { id: 'report', label: 'Reports', icon: <FileText size={18} /> },
+                        { id: 'settings', label: 'Settings', icon: <SettingsIcon size={18} /> }
                     ].map(tab => (
                         <button
                             key={tab.id}
