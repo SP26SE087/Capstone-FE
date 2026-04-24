@@ -84,7 +84,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, footer,
                     </button>
                 </div>
  
-                <div style={maxHeight ? { flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0, fontSize: '1rem', color: '#334155', lineHeight: 1.6 } : { padding: '2rem 1.75rem', fontSize: '1rem', color: '#334155', lineHeight: 1.6 }}>
+                <div style={maxHeight ? { flex: 1, overflowY: 'auto', minHeight: 0, fontSize: '1rem', color: '#334155', lineHeight: 1.6 } : { padding: '2rem 1.75rem', fontSize: '1rem', color: '#334155', lineHeight: 1.6 }}>
                     {children}
                 </div>
  

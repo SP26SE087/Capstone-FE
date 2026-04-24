@@ -188,14 +188,14 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                 </div>
             }
         >
-            <div style={{ padding: '1.25rem 1.75rem', flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            <div style={{ padding: '1.25rem 1.75rem' }}>
                 {errors.general && (
                     <div style={{ background: '#fff1f2', border: '1px solid #fecdd3', borderRadius: 'var(--radius-sm)', padding: '0.75rem 1rem', color: '#e11d48', fontSize: '0.88rem', marginBottom: '1rem' }}>
                         {errors.general}
                     </div>
                 )}
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
                     {/* Left column — text fields */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                         {/* Full Name */}
@@ -232,7 +232,7 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                     </div>
 
                     {/* Right column — photo uploads */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto', paddingRight: '4px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                         {/* Photo */}
                         <div>
                             <label style={labelStyle}>Your Photo <span style={{ color: '#e11d48' }}>*</span></label>
