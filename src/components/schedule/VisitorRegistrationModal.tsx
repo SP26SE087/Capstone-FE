@@ -177,6 +177,7 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
             onClose={handleClose}
             title="Book a Meeting"
             maxWidth="720px"
+            maxHeight="680px"
             disableBackdropClose={true}
             footer={
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', padding: '1rem 1.75rem', borderTop: '1px solid var(--border-color)' }}>
@@ -240,12 +241,13 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                                 style={{
                                     border: `1.5px dashed ${errors.photo ? '#e11d48' : 'var(--border-color)'}`,
                                     borderRadius: 'var(--radius-sm)',
-                                    padding: '1.25rem 1rem',
                                     textAlign: 'center',
                                     cursor: 'pointer',
                                     background: photo ? '#f0fdf4' : 'var(--surface-hover)',
                                     transition: 'border-color 0.2s',
-                                    minHeight: '90px',
+                                    height: '150px',
+                                    overflow: 'hidden',
+                                    position: 'relative',
                                     display: 'flex',
                                     flexDirection: 'column',
                                     alignItems: 'center',
@@ -253,8 +255,8 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                                 }}
                             >
                                 {photo && photoPreview ? (
-                                    <div style={{ position: 'relative', width: '100%' }}>
-                                        <img src={photoPreview} alt="preview" style={{ width: '100%', maxHeight: '140px', objectFit: 'cover', borderRadius: 'var(--radius-sm)', display: 'block' }} />
+                                    <div style={{ position: 'absolute', inset: 0 }}>
+                                        <img src={photoPreview} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                                         <button
                                             type="button"
                                             onClick={e => { e.stopPropagation(); setPhoto(null); setPhotoPreview(prev => { if (prev) URL.revokeObjectURL(prev); return null; }); if (photoRef.current) photoRef.current.value = ''; }}
@@ -262,7 +264,7 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                                         >
                                             <X size={13} color="#fff" />
                                         </button>
-                                        <span style={{ fontSize: '0.73rem', color: '#16a34a', marginTop: '4px', display: 'block', textAlign: 'center', wordBreak: 'break-all' }}>{photo.name}</span>
+                                        <span style={{ position: 'absolute', bottom: '4px', left: '4px', right: '4px', fontSize: '0.68rem', color: '#fff', background: 'rgba(0,0,0,0.5)', borderRadius: '3px', padding: '1px 4px', textAlign: 'center', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{photo.name}</span>
                                     </div>
                                 ) : (
                                     <>
@@ -283,12 +285,13 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                                 style={{
                                     border: `1.5px dashed ${errors.cccdImage ? '#e11d48' : 'var(--border-color)'}`,
                                     borderRadius: 'var(--radius-sm)',
-                                    padding: '1.25rem 1rem',
                                     textAlign: 'center',
                                     cursor: 'pointer',
                                     background: cccdImage ? '#f0fdf4' : 'var(--surface-hover)',
                                     transition: 'border-color 0.2s',
-                                    minHeight: '90px',
+                                    height: '150px',
+                                    overflow: 'hidden',
+                                    position: 'relative',
                                     display: 'flex',
                                     flexDirection: 'column',
                                     alignItems: 'center',
@@ -296,8 +299,8 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                                 }}
                             >
                                 {cccdImage && cccdPreview ? (
-                                    <div style={{ position: 'relative', width: '100%' }}>
-                                        <img src={cccdPreview} alt="preview" style={{ width: '100%', maxHeight: '140px', objectFit: 'cover', borderRadius: 'var(--radius-sm)', display: 'block' }} />
+                                    <div style={{ position: 'absolute', inset: 0 }}>
+                                        <img src={cccdPreview} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                                         <button
                                             type="button"
                                             onClick={e => { e.stopPropagation(); setCccdImage(null); setCccdPreview(prev => { if (prev) URL.revokeObjectURL(prev); return null; }); if (cccdRef.current) cccdRef.current.value = ''; }}
@@ -305,7 +308,7 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                                         >
                                             <X size={13} color="#fff" />
                                         </button>
-                                        <span style={{ fontSize: '0.73rem', color: '#16a34a', marginTop: '4px', display: 'block', textAlign: 'center', wordBreak: 'break-all' }}>{cccdImage.name}</span>
+                                        <span style={{ position: 'absolute', bottom: '4px', left: '4px', right: '4px', fontSize: '0.68rem', color: '#fff', background: 'rgba(0,0,0,0.5)', borderRadius: '3px', padding: '1px 4px', textAlign: 'center', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{cccdImage.name}</span>
                                     </div>
                                 ) : (
                                     <>
