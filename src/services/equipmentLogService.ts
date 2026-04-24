@@ -9,6 +9,13 @@ const BASE_URL = '/api/equipment-logs';
 const normalize = (item: any): EquipmentLog => ({
   ...item,
   resourceName: item.resourceTitle || item.resourceName || '',
+  // Normalize legacy userId fields from new borrowerId fields
+  borrowerId: item.borrowerId ?? item.userId,
+  borrowerFullName: item.borrowerFullName ?? item.userFullName ?? item.userName,
+  borrowerEmail: item.borrowerEmail ?? item.userEmail,
+  checkedOutById: item.checkedOutById ?? item.userId,
+  checkedOutByFullName: item.checkedOutByFullName ?? item.userFullName ?? item.userName,
+  checkedOutByEmail: item.checkedOutByEmail ?? item.userEmail,
 });
 
 export const equipmentLogService = {

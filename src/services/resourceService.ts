@@ -1,6 +1,22 @@
 import api from './api';
 import { Resource, CreateResourceRequest, UpdateResourceRequest, PaginatedResponse } from '@/types/booking';
 
+export type BookingStatusLabel = 'Pending' | 'Approved' | 'InUse' | 'Completed' | 'Cancelled';
+
+export interface ProjectResource {
+  resourceId: string;
+  name: string;
+  resourceTypeName: string;
+  modelSeries: string | null;
+  location: string | null;
+  isDamaged: boolean;
+  isInUse: boolean;
+  bookingId: string | null;
+  bookingStatus: BookingStatusLabel | null;
+  startTime: string | null;
+  endTime: string | null;
+}
+
 // Re-export for backward compatibility
 export type { CreateResourceRequest, UpdateResourceRequest } from '@/types/booking';
 
@@ -172,4 +188,11 @@ export const resourceService = {
   /** Fetch ALL managed resources across every page (auto-paginated, max 200/page). */
   getManagedAllPages: (): Promise<Resource[]> =>
     fetchAllPages((p, s) => resourceService.getManaged(p, s)),
+
+  /** GET /api/resources/by-project/{projectId} — list all resources booked for a project */
+  getByProject: async (projectId: string): Promise<ProjectResource[]> => {
+    const response = await api.get(`/api/resources/by-project/${projectId}`);
+    const data = response.data.data ?? response.data;
+    return Array.isArray(data) ? data : [];
+  },
 };

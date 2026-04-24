@@ -370,7 +370,10 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                                     fontSize: '0.62rem', color: '#64748b',
                                     display: 'inline-flex', alignItems: 'center', gap: '3px'
                                 }}>
-                                    · <span style={{ fontWeight: 700, color: '#059669' }}>Manager:</span> <span style={{ fontWeight: 700, color: '#334155' }}>{booking.approvedByName}</span>
+                                    · <span style={{ fontWeight: 700, color: '#059669' }}>Approved by:</span> <span style={{ fontWeight: 700, color: '#334155' }}>{booking.approvedByName}</span>
+                                    {booking.approvedByEmail && (
+                                        <span style={{ color: '#2563eb' }}> ({booking.approvedByEmail})</span>
+                                    )}
                                     {booking.approvedAt && (
                                         <span style={{ color: '#94a3b8' }}>· {formatDisplayDate(booking.approvedAt)}</span>
                                     )}
@@ -384,151 +387,205 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
             {/* Scrollable Content */}
             <div style={{ flex: 1, overflowY: 'auto', paddingRight: '4px', minHeight: 0 }} className="custom-scrollbar">
 
-                {/* Schedule Info */}
-                <div style={sectionStyle}>
-                    <div style={labelStyle}><Clock size={11} /> Schedule</div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
-                        <div style={{ padding: '6px 10px', background: '#fff', borderRadius: '6px', border: '1px solid var(--border-light)' }}>
-                            <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '1px' }}>Pickup</div>
-                            <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                                {formatDisplayDate(booking.startTime)}
-                            </div>
-                        </div>
-                        <div style={{ padding: '6px 10px', background: '#fff', borderRadius: '6px', border: '1px solid var(--border-light)' }}>
-                            <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '1px' }}>Return</div>
-                            <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                                {formatDisplayDate(booking.endTime)}
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                {/* ── 2-column grid: left = metadata, right = content ── */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
 
-                {/* Requester Info */}
-                {(booking.userFullName || booking.userEmail) && (
-                    <div style={sectionStyle}>
-                        <div style={labelStyle}><User size={11} /> Borrower</div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                            {booking.userFullName && (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 700, minWidth: '40px' }}>Name</span>
-                                    <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-primary)' }}>{booking.userFullName}</span>
-                                </div>
-                            )}
-                            {booking.userEmail && (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 700, minWidth: '40px' }}>Email</span>
-                                    <span style={{ fontSize: '0.78rem', fontWeight: 500, color: '#2563eb' }}>{booking.userEmail}</span>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                )}
+                    {/* ── LEFT column ── */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
 
-                {/* Purpose */}
-                <div style={sectionStyle}>
-                    <div style={labelStyle}><FileText size={11} /> Purpose</div>
-                    <div style={{ fontSize: '0.78rem', color: '#1e293b', lineHeight: '1.5' }}>
-                        {booking.purpose || 'No purpose specified.'}
-                    </div>
-                </div>
-
-                {/* Booked Resources — grouped by name + type + location */}
-                {resourceGroups.length > 0 && (
-                    <div style={sectionStyle}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                            <div style={labelStyle}><Package size={12} /> Booked Resources</div>
-                            <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#64748b' }}>
-                                {bookingResources.length} unit{bookingResources.length !== 1 ? 's' : ''}
-                                {booking.adjustReason && booking.status !== BookingStatus.Rejected && (
-                                    <span style={{ marginLeft: '6px', color: '#92400e', background: '#fef3c7', border: '1px solid #fde68a', padding: '1px 5px', borderRadius: '4px' }}>Adjusted</span>
-                                )}
-                            </span>
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                            {resourceGroups.map((g) => (
-                                <div key={g.key} style={{
-                                    padding: '8px 10px', background: '#fff', borderRadius: '7px',
-                                    border: '1px solid var(--border-light)',
-                                    display: 'flex', alignItems: 'center', gap: '8px'
-                                }}>
-                                    <Package size={14} style={{ color: '#64748b', flexShrink: 0 }} />
-                                    <div style={{ flex: 1, minWidth: 0 }}>
-                                        <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#1e293b' }}>{g.name}</div>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '3px', flexWrap: 'wrap' as const }}>
-                                            {g.resourceTypeName && (
-                                                <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#7c3aed', background: '#f5f3ff', border: '1px solid #e9d5ff', padding: '0px 5px', borderRadius: '4px' }}>
-                                                    {g.resourceTypeName}
-                                                </span>
-                                            )}
-                                            {g.location && (
-                                                <span style={{ fontSize: '0.62rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '2px' }}>
-                                                    <MapPin size={9} /> {g.location}
-                                                </span>
-                                            )}
-                                            {g.hasDamaged && (
-                                                <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', padding: '0px 5px', borderRadius: '4px' }}>Damaged</span>
-                                            )}
-                                        </div>
+                        {/* Schedule */}
+                        <div style={sectionStyle}>
+                            <div style={labelStyle}><Clock size={11} /> Schedule</div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                <div style={{ padding: '6px 10px', background: '#fff', borderRadius: '6px', border: '1px solid var(--border-light)' }}>
+                                    <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '1px' }}>Pickup</div>
+                                    <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                        {formatDisplayDate(booking.startTime)}
                                     </div>
-                                    {/* Quantity badge */}
-                                    {g.ids.length > 1 ? (
-                                        <span style={{ fontSize: '0.78rem', fontWeight: 800, color: '#fff', background: '#334155', padding: '2px 8px', borderRadius: '6px', flexShrink: 0 }}>
-                                            ×{g.ids.length}
-                                        </span>
-                                    ) : (
-                                        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b', flexShrink: 0 }}>×1</span>
+                                </div>
+                                <div style={{ padding: '6px 10px', background: '#fff', borderRadius: '6px', border: '1px solid var(--border-light)' }}>
+                                    <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '1px' }}>Return</div>
+                                    <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                                        {formatDisplayDate(booking.endTime)}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Borrower */}
+                        {(booking.userFullName || booking.userEmail) && (
+                            <div style={sectionStyle}>
+                                <div style={labelStyle}><User size={11} /> Borrower</div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                    {booking.userFullName && (
+                                        <div>
+                                            <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '1px' }}>Name</div>
+                                            <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-primary)' }}>{booking.userFullName}</div>
+                                        </div>
+                                    )}
+                                    {booking.userEmail && (
+                                        <div>
+                                            <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '1px' }}>Email</div>
+                                            <div style={{ fontSize: '0.75rem', fontWeight: 500, color: '#2563eb', wordBreak: 'break-all' }}>{booking.userEmail}</div>
+                                        </div>
                                     )}
                                 </div>
-                            ))}
+                            </div>
+                        )}
+
+                        {/* Resource Manager */}
+                        {(booking.managerFullName || booking.managerEmail) && (
+                            <div style={sectionStyle}>
+                                <div style={labelStyle}><User size={11} /> Resource Manager</div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                    {booking.managerFullName && (
+                                        <div>
+                                            <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '1px' }}>Name</div>
+                                            <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-primary)' }}>{booking.managerFullName}</div>
+                                        </div>
+                                    )}
+                                    {booking.managerEmail && (
+                                        <div>
+                                            <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '1px' }}>Email</div>
+                                            <div style={{ fontSize: '0.75rem', fontWeight: 500, color: '#2563eb', wordBreak: 'break-all' }}>{booking.managerEmail}</div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Approved By */}
+                        {booking.approvedByName && (
+                            <div style={sectionStyle}>
+                                <div style={labelStyle}><CheckCircle2 size={11} /> Approved By</div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                    <div>
+                                        <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '1px' }}>Name</div>
+                                        <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-primary)' }}>{booking.approvedByName}</div>
+                                    </div>
+                                    {booking.approvedByEmail && (
+                                        <div>
+                                            <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '1px' }}>Email</div>
+                                            <div style={{ fontSize: '0.75rem', fontWeight: 500, color: '#2563eb', wordBreak: 'break-all' }}>{booking.approvedByEmail}</div>
+                                        </div>
+                                    )}
+                                    {booking.approvedAt && (
+                                        <div>
+                                            <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '1px' }}>At</div>
+                                            <div style={{ fontSize: '0.75rem', fontWeight: 500, color: 'var(--text-primary)' }}>{formatDisplayDate(booking.approvedAt)}</div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* ── RIGHT column ── */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+
+                        {/* Purpose */}
+                        <div style={sectionStyle}>
+                            <div style={labelStyle}><FileText size={11} /> Purpose</div>
+                            <div style={{ fontSize: '0.78rem', color: '#1e293b', lineHeight: '1.6' }}>
+                                {booking.purpose || 'No purpose specified.'}
+                            </div>
                         </div>
-                    </div>
-                )}
 
-                {/* Fallback: show resource name from list view if no detail resources */}
-                {bookingResources.length === 0 && (booking.resourceName || (booking.quantity && booking.quantity > 0)) && (
-                    <div style={sectionStyle}>
-                        <div style={labelStyle}><Package size={12} /> Resource</div>
-                        <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#1e293b' }}>
-                            {booking.resourceName || '—'}
-                            {booking.quantity && booking.quantity > 1 && (
-                                <span style={{ marginLeft: '8px', fontSize: '0.72rem', color: '#64748b' }}>× {booking.quantity} units</span>
-                            )}
-                        </div>
-                    </div>
-                )}
+                        {/* Booked Resources */}
+                        {resourceGroups.length > 0 && (
+                            <div style={sectionStyle}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                                    <div style={labelStyle}><Package size={12} /> Resources</div>
+                                    <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#64748b' }}>
+                                        {bookingResources.length} unit{bookingResources.length !== 1 ? 's' : ''}
+                                        {booking.adjustReason && booking.status !== BookingStatus.Rejected && (
+                                            <span style={{ marginLeft: '6px', color: '#92400e', background: '#fef3c7', border: '1px solid #fde68a', padding: '1px 5px', borderRadius: '4px' }}>Adjusted</span>
+                                        )}
+                                    </span>
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                    {resourceGroups.map((g) => (
+                                        <div key={g.key} style={{
+                                            padding: '7px 9px', background: '#fff', borderRadius: '7px',
+                                            border: '1px solid var(--border-light)',
+                                            display: 'flex', alignItems: 'center', gap: '7px'
+                                        }}>
+                                            <Package size={13} style={{ color: '#64748b', flexShrink: 0 }} />
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#1e293b', wordBreak: 'break-word' }}>{g.name}</div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '3px', flexWrap: 'wrap' as const }}>
+                                                    {g.resourceTypeName && (
+                                                        <span style={{ fontSize: '0.58rem', fontWeight: 700, color: '#7c3aed', background: '#f5f3ff', border: '1px solid #e9d5ff', padding: '0px 5px', borderRadius: '4px' }}>
+                                                            {g.resourceTypeName}
+                                                        </span>
+                                                    )}
+                                                    {g.location && (
+                                                        <span style={{ fontSize: '0.6rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '2px' }}>
+                                                            <MapPin size={9} /> {g.location}
+                                                        </span>
+                                                    )}
+                                                    {g.hasDamaged && (
+                                                        <span style={{ fontSize: '0.58rem', fontWeight: 700, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', padding: '0px 5px', borderRadius: '4px' }}>Damaged</span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#fff', background: '#334155', padding: '2px 7px', borderRadius: '6px', flexShrink: 0 }}>
+                                                ×{g.ids.length}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
 
-                {/* Rejection reason */}
-                {booking.status === BookingStatus.Rejected && booking.rejectReason && (
-                    <div style={{ ...sectionStyle, background: '#fef2f2', border: '1px solid #fecaca' }}>
-                        <div style={{ ...labelStyle, color: '#dc2626' }}><XCircle size={12} /> Rejection Reason</div>
-                        <div style={{ fontSize: '0.85rem', color: '#7f1d1d', lineHeight: '1.5' }}>{booking.rejectReason}</div>
-                    </div>
-                )}
+                        {/* Fallback resource */}
+                        {bookingResources.length === 0 && (booking.resourceName || (booking.quantity && booking.quantity > 0)) && (
+                            <div style={sectionStyle}>
+                                <div style={labelStyle}><Package size={12} /> Resource</div>
+                                <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#1e293b' }}>
+                                    {booking.resourceName || '—'}
+                                    {booking.quantity && booking.quantity > 1 && (
+                                        <span style={{ marginLeft: '8px', fontSize: '0.72rem', color: '#64748b' }}>× {booking.quantity} units</span>
+                                    )}
+                                </div>
+                            </div>
+                        )}
 
-                {/* Cancel reason */}
-                {booking.cancelReason && (
-                    <div style={{ ...sectionStyle, background: '#f3f4f6', border: '1px solid #e5e7eb' }}>
-                        <div style={{ ...labelStyle, color: '#6b7280' }}><XCircle size={12} /> Cancellation Reason</div>
-                        <div style={{ fontSize: '0.85rem', color: '#374151', lineHeight: '1.5' }}>{booking.cancelReason}</div>
-                    </div>
-                )}
+                        {/* Rejection reason */}
+                        {booking.status === BookingStatus.Rejected && booking.rejectReason && (
+                            <div style={{ ...sectionStyle, background: '#fef2f2', border: '1px solid #fecaca' }}>
+                                <div style={{ ...labelStyle, color: '#dc2626' }}><XCircle size={12} /> Rejection Reason</div>
+                                <div style={{ fontSize: '0.82rem', color: '#7f1d1d', lineHeight: '1.5' }}>{booking.rejectReason}</div>
+                            </div>
+                        )}
 
-                {/* Adjust reason (approved with adjustment) */}
-                {booking.adjustReason && booking.status !== BookingStatus.Rejected && (
-                    <div style={{ ...sectionStyle, background: '#fffbeb', border: '1px solid #fde68a' }}>
-                        <div style={{ ...labelStyle, color: '#92400e' }}><Info size={12} /> Adjustment Reason</div>
-                        <div style={{ fontSize: '0.85rem', color: '#78350f', lineHeight: '1.5' }}>{booking.adjustReason}</div>
-                    </div>
-                )}
+                        {/* Cancel reason */}
+                        {booking.cancelReason && (
+                            <div style={{ ...sectionStyle, background: '#f3f4f6', border: '1px solid #e5e7eb' }}>
+                                <div style={{ ...labelStyle, color: '#6b7280' }}><XCircle size={12} /> Cancellation Reason</div>
+                                <div style={{ fontSize: '0.82rem', color: '#374151', lineHeight: '1.5' }}>{booking.cancelReason}</div>
+                            </div>
+                        )}
 
-                {/* Approval note */}
-                {booking.note && (
-                    <div style={{ ...sectionStyle, background: '#ecfdf5', border: '1px solid #a7f3d0' }}>
-                        <div style={{ ...labelStyle, color: '#059669' }}><MessageSquare size={12} /> Approval Note</div>
-                        <div style={{ fontSize: '0.85rem', color: '#065f46', lineHeight: '1.5' }}>{booking.note}</div>
-                    </div>
-                )}
+                        {/* Adjustment reason */}
+                        {booking.adjustReason && booking.status !== BookingStatus.Rejected && (
+                            <div style={{ ...sectionStyle, background: '#fffbeb', border: '1px solid #fde68a' }}>
+                                <div style={{ ...labelStyle, color: '#92400e' }}><Info size={12} /> Adjustment Reason</div>
+                                <div style={{ fontSize: '0.82rem', color: '#78350f', lineHeight: '1.5' }}>{booking.adjustReason}</div>
+                            </div>
+                        )}
 
+                        {/* Approval note */}
+                        {booking.note && (
+                            <div style={{ ...sectionStyle, background: '#ecfdf5', border: '1px solid #a7f3d0' }}>
+                                <div style={{ ...labelStyle, color: '#059669' }}><MessageSquare size={12} /> Approval Note</div>
+                                <div style={{ fontSize: '0.82rem', color: '#065f46', lineHeight: '1.5' }}>{booking.note}</div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* ── Full-width: Compute Access ── */}
                 {/* Compute Access Panel - for compute resource bookings */}
                 {showComputeAccess && (
                     <div style={sectionStyle}>
