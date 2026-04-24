@@ -177,7 +177,7 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
             onClose={handleClose}
             title="Book a Meeting"
             maxWidth="720px"
-            disableBackdropClose={submitting}
+            disableBackdropClose={true}
             footer={
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', padding: '1rem 1.75rem', borderTop: '1px solid var(--border-color)' }}>
                     <button className="btn btn-secondary" onClick={handleClose} disabled={submitting}>Cancel</button>
@@ -187,14 +187,14 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                 </div>
             }
         >
-            <div style={{ padding: '1.25rem 1.75rem' }}>
+            <div style={{ padding: '1.25rem 1.75rem', flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
                 {errors.general && (
                     <div style={{ background: '#fff1f2', border: '1px solid #fecdd3', borderRadius: 'var(--radius-sm)', padding: '0.75rem 1rem', color: '#e11d48', fontSize: '0.88rem', marginBottom: '1rem' }}>
                         {errors.general}
                     </div>
                 )}
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', flex: 1, minHeight: 0, overflow: 'hidden' }}>
                     {/* Left column — text fields */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                         {/* Full Name */}
@@ -231,7 +231,7 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                     </div>
 
                     {/* Right column — photo uploads */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto', paddingRight: '4px' }}>
                         {/* Photo */}
                         <div>
                             <label style={labelStyle}>Your Photo <span style={{ color: '#e11d48' }}>*</span></label>
