@@ -1,8 +1,13 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useImperativeHandle, forwardRef } from 'react';
 import { Terminal as XTerm, IDisposable } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import { RefreshCw, AlertCircle, Wifi, WifiOff } from 'lucide-react';
+
+export interface ServerTerminalHandle {
+  /** Send a raw command string through the WebSocket (adds the bytes to xterm too) */
+  sendCommand: (cmd: string) => void;
+}
 
 interface ServerTerminalProps {
   wsUrl: string;
@@ -12,13 +17,13 @@ interface ServerTerminalProps {
   style?: React.CSSProperties;
 }
 
-const ServerTerminal: React.FC<ServerTerminalProps> = ({
+const ServerTerminal = forwardRef<ServerTerminalHandle, ServerTerminalProps>(function ServerTerminal({
   wsUrl,
   token,
   onConnectionChange,
   className,
   style
-}) => {
+}, ref) {
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -34,6 +39,16 @@ const ServerTerminal: React.FC<ServerTerminalProps> = ({
   const stableConnectionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const MAX_RECONNECT_ATTEMPTS = 5;
+
+  // Expose sendCommand to parent via ref
+  useImperativeHandle(ref, () => ({
+    sendCommand(cmd: string) {
+      // Send silently — no echo to xterm (background command)
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(new TextEncoder().encode(cmd));
+      }
+    },
+  }));
 
   const getCloseReason = (code: number, reason: string) => {
     if (code === 1008 || code === 4401 || code === 4001) {
@@ -244,7 +259,8 @@ const ServerTerminal: React.FC<ServerTerminalProps> = ({
     const sendResize = () => {
       if (!fitAddonRef.current) return;
       const dims = fitAddonRef.current.proposeDimensions();
-      if (dims && wsRef.current?.readyState === WebSocket.OPEN) {
+      // Guard: skip if hidden (cols/rows are null/zero when display:none)
+      if (dims && dims.cols && dims.rows && wsRef.current?.readyState === WebSocket.OPEN) {
         wsRef.current.send(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
       }
     };
@@ -386,6 +402,6 @@ const ServerTerminal: React.FC<ServerTerminalProps> = ({
       />
     </div>
   );
-};
+});
 
 export default ServerTerminal;
