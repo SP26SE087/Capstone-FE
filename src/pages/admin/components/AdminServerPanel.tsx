@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { resourceTypeService, ResourceTypeItem, ResourceTypeCategory } from '@/services/resourceTypeService';
-import { serverService, CreateServerRequest } from '@/services/serverService';
+import { serverService, CreateServerRequest, UpdateServerRequest } from '@/services/serverService';
 import {
   Server, Save, Loader2, MapPin, FileText, Cpu, MemoryStick, Zap,
   Users, Network, Key, Eye, EyeOff, ShieldCheck, AlertTriangle, Layers,
 } from 'lucide-react';
 
 interface AdminServerPanelProps {
+  /** If provided, panel operates in Edit mode, pre-filling from GET /api/resources/server/{editingId} */
+  editingId?: string;
   onClose: () => void;
   onSaved: (reload: boolean, message?: string) => void;
 }
@@ -66,8 +68,10 @@ function handleBlur(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>)
   e.currentTarget.style.boxShadow = 'none';
 }
 
-const AdminServerPanel: React.FC<AdminServerPanelProps> = ({ onClose, onSaved }) => {
+const AdminServerPanel: React.FC<AdminServerPanelProps> = ({ editingId, onClose, onSaved }) => {
+  const isEdit = !!editingId;
   const [saving, setSaving] = useState(false);
+  const [loadingDetail, setLoadingDetail] = useState(false);
   const [serverTypes, setServerTypes] = useState<ResourceTypeItem[]>([]);
   const [loadingTypes, setLoadingTypes] = useState(false);
   const [showPrivateKey, setShowPrivateKey] = useState(false);
@@ -95,7 +99,7 @@ const AdminServerPanel: React.FC<AdminServerPanelProps> = ({ onClose, onSaved })
         const all = await resourceTypeService.getAll();
         const serverOnly = all.filter(t => t.category === ResourceTypeCategory.ServerCompute);
         setServerTypes(serverOnly);
-        if (serverOnly.length === 1) setResourceTypeId(serverOnly[0].id);
+        if (!editingId && serverOnly.length === 1) setResourceTypeId(serverOnly[0].id);
       } catch {
         // non-fatal
       } finally {
@@ -103,7 +107,31 @@ const AdminServerPanel: React.FC<AdminServerPanelProps> = ({ onClose, onSaved })
       }
     };
     load();
-  }, []);
+  }, [editingId]);
+
+  // Pre-fill for edit mode
+  useEffect(() => {
+    if (!editingId) return;
+    setLoadingDetail(true);
+    serverService.getServerDetail(editingId)
+      .then(d => {
+        setName(d.name ?? '');
+        setDescription(d.description ?? '');
+        setResourceTypeId(d.resourceTypeId ?? '');
+        setLocation(d.location ?? '');
+        setSshHost(d.sshHost ?? '');
+        setSshPort(d.sshPort ?? 22);
+        setSshUsername(d.sshUsername ?? '');
+        setSshPrivateKey(''); // never pre-fill key
+        setGpuCount(d.gpuCount ?? '');
+        setCpuCores(d.cpuCores ?? '');
+        setRamGb(d.ramGb ?? '');
+        setMaxConcurrentUsers(d.maxConcurrentUsers ?? 4);
+        setModelSeries(d.modelSeries ?? '');
+      })
+      .catch(() => setErrors(p => ({ ...p, submit: 'Failed to load server details for editing.' })))
+      .finally(() => setLoadingDetail(false));
+  }, [editingId]);
 
   const validate = () => {
     const errs: Record<string, string> = {};
@@ -111,7 +139,8 @@ const AdminServerPanel: React.FC<AdminServerPanelProps> = ({ onClose, onSaved })
     if (!resourceTypeId) errs.resourceTypeId = 'Please select a resource type.';
     if (!sshHost.trim()) errs.sshHost = 'SSH host is required.';
     if (!sshUsername.trim()) errs.sshUsername = 'SSH username is required.';
-    if (!sshPrivateKey.trim()) errs.sshPrivateKey = 'Private key is required.';
+    // private key required only when creating
+    if (!isEdit && !sshPrivateKey.trim()) errs.sshPrivateKey = 'Private key is required.';
     if (sshPort < 1 || sshPort > 65535) errs.sshPort = 'Port must be 1–65535.';
     setErrors(errs);
     return Object.keys(errs).length === 0;
@@ -121,25 +150,46 @@ const AdminServerPanel: React.FC<AdminServerPanelProps> = ({ onClose, onSaved })
     if (!validate()) return;
     setSaving(true);
     try {
-      const payload: CreateServerRequest = {
-        name: name.trim(),
-        description: description.trim() || undefined,
-        resourceTypeId,
-        location: location.trim() || undefined,
-        sshHost: sshHost.trim(),
-        sshPort,
-        sshUsername: sshUsername.trim(),
-        sshPrivateKey: sshPrivateKey.trim(),
-        gpuCount: gpuCount !== '' ? Number(gpuCount) : undefined,
-        cpuCores: cpuCores !== '' ? Number(cpuCores) : undefined,
-        ramGb: ramGb !== '' ? Number(ramGb) : undefined,
-        maxConcurrentUsers: maxConcurrentUsers !== '' ? Number(maxConcurrentUsers) : undefined,
-        modelSeries: modelSeries.trim() || undefined,
-      };
-      await serverService.createServer(payload);
-      onSaved(true, `Server "${name.trim()}" registered successfully.`);
+      if (isEdit) {
+        const payload: UpdateServerRequest = {
+          name: name.trim(),
+          description: description.trim() || undefined,
+          resourceTypeId,
+          location: location.trim() || undefined,
+          sshHost: sshHost.trim(),
+          sshPort,
+          sshUsername: sshUsername.trim(),
+          // only include key if user entered one
+          ...(sshPrivateKey.trim() ? { sshPrivateKey: sshPrivateKey.trim() } : {}),
+          gpuCount: gpuCount !== '' ? Number(gpuCount) : undefined,
+          cpuCores: cpuCores !== '' ? Number(cpuCores) : undefined,
+          ramGb: ramGb !== '' ? Number(ramGb) : undefined,
+          maxConcurrentUsers: maxConcurrentUsers !== '' ? Number(maxConcurrentUsers) : undefined,
+          modelSeries: modelSeries.trim() || undefined,
+        };
+        await serverService.updateServer(editingId!, payload);
+        onSaved(true, `Server "${name.trim()}" updated successfully.`);
+      } else {
+        const payload: CreateServerRequest = {
+          name: name.trim(),
+          description: description.trim() || undefined,
+          resourceTypeId,
+          location: location.trim() || undefined,
+          sshHost: sshHost.trim(),
+          sshPort,
+          sshUsername: sshUsername.trim(),
+          sshPrivateKey: sshPrivateKey.trim(),
+          gpuCount: gpuCount !== '' ? Number(gpuCount) : undefined,
+          cpuCores: cpuCores !== '' ? Number(cpuCores) : undefined,
+          ramGb: ramGb !== '' ? Number(ramGb) : undefined,
+          maxConcurrentUsers: maxConcurrentUsers !== '' ? Number(maxConcurrentUsers) : undefined,
+          modelSeries: modelSeries.trim() || undefined,
+        };
+        await serverService.createServer(payload);
+        onSaved(true, `Server "${name.trim()}" registered successfully.`);
+      }
     } catch (err: any) {
-      const msg = err?.response?.data?.message || err?.response?.data?.title || 'Failed to register server.';
+      const msg = err?.response?.data?.message || err?.response?.data?.title || (isEdit ? 'Failed to update server.' : 'Failed to register server.');
       setErrors(prev => ({ ...prev, submit: msg }));
     } finally {
       setSaving(false);
@@ -148,6 +198,13 @@ const AdminServerPanel: React.FC<AdminServerPanelProps> = ({ onClose, onSaved })
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+
+      {loadingDetail && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 14px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '10px', marginBottom: '14px' }}>
+          <Loader2 size={15} className="animate-spin" style={{ color: '#2563eb' }} />
+          <span style={{ fontSize: '0.78rem', color: '#1d4ed8', fontWeight: 600 }}>Loading server details…</span>
+        </div>
+      )}
 
       {/* Security notice */}
       <div style={{
@@ -369,7 +426,12 @@ const AdminServerPanel: React.FC<AdminServerPanelProps> = ({ onClose, onSaved })
             onFocus={e => { setShowPrivateKey(true); handleFocus(e); }}
             onBlur={e => { handleBlur(e); }}
           />
-          {errors.sshPrivateKey && <span style={{ fontSize: '0.72rem', color: '#ef4444', marginTop: '4px', display: 'block' }}>{errors.sshPrivateKey}</span>}
+          {!isEdit && errors.sshPrivateKey && <span style={{ fontSize: '0.72rem', color: '#ef4444', marginTop: '4px', display: 'block' }}>{errors.sshPrivateKey}</span>}
+          {isEdit && (
+            <span style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '4px', display: 'block' }}>
+              Để trống nếu không muốn thay đổi private key hiện tại.
+            </span>
+          )}
         </div>
       </div>
 
@@ -402,7 +464,7 @@ const AdminServerPanel: React.FC<AdminServerPanelProps> = ({ onClose, onSaved })
           }}
         >
           {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-          Register Server
+          {isEdit ? 'Save Changes' : 'Register Server'}
         </button>
       </div>
     </div>
