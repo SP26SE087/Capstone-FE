@@ -297,6 +297,17 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
     const [countdownMs, setCountdownMs] = useState<number | null>(null);
     const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+    // Must be declared before the useEffect hooks that reference it in dependency arrays
+    const bookingResources = booking?.resources ?? [];
+    const isServerComputeBooking = useMemo(() => {
+        return bookingResources.some((r: any) =>
+            r.resourceTypeCategory === 2 ||
+            r.resourceTypeName?.toLowerCase().includes('compute') ||
+            r.resourceTypeName?.toLowerCase().includes('server') ||
+            r.resourceTypeName?.toLowerCase().includes('gpu rental')
+        );
+    }, [bookingResources]);
+
     useEffect(() => {
         if (bookingId) loadBooking();
     }, [bookingId]);
@@ -525,19 +536,8 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
 
 
     // Hooks must come before any early returns
-    const bookingResources = booking?.resources ?? [];
     const bookingResourceIds = booking?.resourceIds ?? bookingResources.map(r => r.id);
     const resourceGroups = useMemo(() => groupResources(bookingResources), [bookingResources]);
-    
-    // Check if booking has compute/server resources (category = 2 or name-based fallback)
-    const isServerComputeBooking = useMemo(() => {
-        return bookingResources.some((r: any) =>
-            r.resourceTypeCategory === 2 ||
-            r.resourceTypeName?.toLowerCase().includes('compute') ||
-            r.resourceTypeName?.toLowerCase().includes('server') ||
-            r.resourceTypeName?.toLowerCase().includes('gpu rental')
-        );
-    }, [bookingResources]);
 
     const totalKept = groupKeptQtys
         ? resourceGroups.reduce((sum, g) => sum + (groupKeptQtys[g.key] ?? g.ids.length), 0)

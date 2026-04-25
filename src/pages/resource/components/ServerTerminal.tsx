@@ -31,6 +31,7 @@ const ServerTerminal: React.FC<ServerTerminalProps> = ({
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
   const reconnectAttemptsRef = useRef(0);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stableConnectionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const MAX_RECONNECT_ATTEMPTS = 5;
 
@@ -71,15 +72,20 @@ const ServerTerminal: React.FC<ServerTerminalProps> = ({
         setConnected(true);
         setConnecting(false);
         setError(null);
-        reconnectAttemptsRef.current = 0;
-        setReconnectAttempts(0);
         onConnectionChange?.(true);
+        // Reset the retry counter only after the connection has been stable for 5s.
+        // Resetting immediately would cause infinite reconnect if the server closes right after open.
+        if (stableConnectionTimerRef.current) clearTimeout(stableConnectionTimerRef.current);
+        stableConnectionTimerRef.current = setTimeout(() => {
+          reconnectAttemptsRef.current = 0;
+          setReconnectAttempts(0);
+        }, 5_000);
 
         if (xtermRef.current) {
-          // Send input as text frames — SSH.NET ShellStream reads text frames
+          // Send keyboard input as binary frames
           onDataDisposableRef.current = xtermRef.current.onData((data) => {
             if (ws.readyState === WebSocket.OPEN) {
-              ws.send(data);
+              ws.send(new TextEncoder().encode(data));
             }
           });
           xtermRef.current.focus();
@@ -90,16 +96,24 @@ const ServerTerminal: React.FC<ServerTerminalProps> = ({
 
       ws.onmessage = (event) => {
         if (!xtermRef.current) return;
-        if (typeof event.data === 'string') {
-          xtermRef.current.write(event.data);
+        if (event.data instanceof ArrayBuffer) {
+          const bytes = new Uint8Array(event.data);
+          // Skip 1-byte 0x00 keepalive ping frames sent by backend every 30s
+          if (bytes.length === 1 && bytes[0] === 0x00) return;
+          xtermRef.current.write(bytes);
         } else {
-          xtermRef.current.write(new Uint8Array(event.data as ArrayBuffer));
+          xtermRef.current.write(event.data as string);
         }
       };
 
       ws.onclose = (event) => {
         setConnected(false);
         onConnectionChange?.(false);
+        // Cancel the stable-connection timer so the counter is NOT reset for a brief connection
+        if (stableConnectionTimerRef.current) {
+          clearTimeout(stableConnectionTimerRef.current);
+          stableConnectionTimerRef.current = null;
+        }
         if (onDataDisposableRef.current) {
           onDataDisposableRef.current.dispose();
           onDataDisposableRef.current = null;
@@ -112,8 +126,16 @@ const ServerTerminal: React.FC<ServerTerminalProps> = ({
           return;
         }
 
+        // Normal server-initiated close (booking ended / session closed)
+        if (event.code === 1000) {
+          const reason = event.reason || 'Session closed.';
+          xtermRef.current?.writeln(`\r\n\x1b[33m[${reason}]\x1b[0m`);
+          setConnecting(false);
+          return;
+        }
+
         // Attempt reconnection if not intentional close
-        if (event.code !== 1000 && reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS) {
+        if (reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS) {
           const attempt = reconnectAttemptsRef.current;
           reconnectAttemptsRef.current += 1;
           setReconnectAttempts(reconnectAttemptsRef.current);
@@ -139,6 +161,10 @@ const ServerTerminal: React.FC<ServerTerminalProps> = ({
     if (reconnectTimerRef.current) {
       clearTimeout(reconnectTimerRef.current);
       reconnectTimerRef.current = null;
+    }
+    if (stableConnectionTimerRef.current) {
+      clearTimeout(stableConnectionTimerRef.current);
+      stableConnectionTimerRef.current = null;
     }
     reconnectAttemptsRef.current = MAX_RECONNECT_ATTEMPTS; // prevent further auto-reconnects
     if (onDataDisposableRef.current) {
@@ -214,13 +240,18 @@ const ServerTerminal: React.FC<ServerTerminalProps> = ({
     // Connect to WebSocket
     connect();
 
-    // Handle resize
+    // Handle resize — send JSON resize control message to backend
+    const sendResize = () => {
+      if (!fitAddonRef.current) return;
+      const dims = fitAddonRef.current.proposeDimensions();
+      if (dims && wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
+      }
+    };
     const handleResize = () => {
       if (fitAddonRef.current) {
         fitAddonRef.current.fit();
-        if (wsRef.current?.readyState === WebSocket.OPEN && xtermRef.current) {
-          // Raw PTY stream: no JSON resize frames
-        }
+        sendResize();
       }
     };
 
