@@ -4,11 +4,14 @@ import { useToastStore } from '@/store/slices/toastSlice';
 import { resourceTypeService, ResourceTypeItem, ResourceTypeCategory } from '@/services/resourceTypeService';
 import { resourceService } from '@/services/resourceService';
 import { Resource } from '@/types/booking';
+import { serverService, ServerResourceDetail } from '@/services/serverService';
+import { useAuth } from '@/hooks/useAuth';
 import AdminServerPanel from './components/AdminServerPanel';
 import {
   Server, Layers, Plus, Loader2, Edit2, Trash2, CheckCircle2,
   XCircle, Cpu, MemoryStick, Zap, Users, X, ShieldCheck,
-  ChevronRight, Tag,
+  ChevronRight, Tag, Eye, MapPin, Network, Hash, Key, Mail, UserCircle,
+  Calendar, AlertTriangle,
 } from 'lucide-react';
 import ConfirmModal from '@/components/common/ConfirmModal';
 import ResourceTypePanel from '@/pages/resource/components/ResourceTypePanel';
@@ -18,7 +21,10 @@ type TabType = 'types' | 'servers';
 type SlidePanel =
   | { kind: 'newType' }
   | { kind: 'editType'; item: ResourceTypeItem }
-  | { kind: 'newServer' };
+  | { kind: 'viewType'; item: ResourceTypeItem }
+  | { kind: 'newServer' }
+  | { kind: 'viewServer'; item: Resource }
+  | { kind: 'editServer'; item: Resource };
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 const badge = (label: string, color: string, bg: string) => (
@@ -87,6 +93,9 @@ const ComputeServerAdmin: React.FC = () => {
 
   const panelTitle = slidePanel?.kind === 'newType' ? 'New ServerCompute Type'
     : slidePanel?.kind === 'editType' ? 'Edit Resource Type'
+    : slidePanel?.kind === 'viewType' ? 'Resource Type Details'
+    : slidePanel?.kind === 'viewServer' ? 'Compute Server Details'
+    : slidePanel?.kind === 'editServer' ? 'Edit Compute Server'
     : 'Register Compute Server';
 
   return (
@@ -208,12 +217,15 @@ const ComputeServerAdmin: React.FC = () => {
                 onEdit={item => setSlidePanel({ kind: 'editType', item })}
                 onDelete={setTypeToDelete}
                 onNew={() => setSlidePanel({ kind: 'newType' })}
+                onView={item => setSlidePanel({ kind: 'viewType', item })}
               />
             ) : (
               <ServersList
                 servers={servers}
                 onNew={() => types.length === 0 ? setTab('types') : setSlidePanel({ kind: 'newServer' })}
                 hasTypes={types.length > 0}
+                onView={item => setSlidePanel({ kind: 'viewServer', item })}
+                onEdit={item => setSlidePanel({ kind: 'editServer', item })}
               />
             )}
           </div>
@@ -240,10 +252,26 @@ const ComputeServerAdmin: React.FC = () => {
                     onSaved={handleTypeSaved}
                   />
                 )}
+                {slidePanel.kind === 'viewType' && (
+                  <TypeDetailView item={slidePanel.item} onEdit={() => setSlidePanel({ kind: 'editType', item: slidePanel.item })} />
+                )}
                 {slidePanel.kind === 'newServer' && (
                   <AdminServerPanel
                     onClose={() => setSlidePanel(null)}
                     onSaved={handleSaved}
+                  />
+                )}
+                {slidePanel.kind === 'editServer' && (
+                  <AdminServerPanel
+                    editingId={slidePanel.item.id}
+                    onClose={() => setSlidePanel(null)}
+                    onSaved={handleSaved}
+                  />
+                )}
+                {slidePanel.kind === 'viewServer' && (
+                  <ServerDetailView
+                    server={slidePanel.item}
+                    onEdit={() => setSlidePanel({ kind: 'editServer', item: slidePanel.item })}
                   />
                 )}
               </div>
@@ -281,7 +309,8 @@ const TypesList: React.FC<{
   onEdit: (item: ResourceTypeItem) => void;
   onDelete: (item: ResourceTypeItem) => void;
   onNew: () => void;
-}> = ({ types, onEdit, onDelete, onNew }) => {
+  onView: (item: ResourceTypeItem) => void;
+}> = ({ types, onEdit, onDelete, onNew, onView }) => {
   if (types.length === 0) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '360px', gap: '14px', color: '#94a3b8' }}>
@@ -301,16 +330,16 @@ const TypesList: React.FC<{
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
       {types.map(t => (
         <div key={t.id} style={{
-          padding: '14px 16px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '14px',
-          display: 'flex', alignItems: 'center', gap: '14px',
+          padding: '10px 12px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px',
+          display: 'flex', alignItems: 'center', gap: '10px',
           transition: 'box-shadow 0.2s',
         }}>
-          <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'linear-gradient(135deg, #f59e0b, #f97316)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <Tag size={18} />
+          <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: 'linear-gradient(135deg, #f59e0b, #f97316)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <Tag size={15} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
-              <span style={{ fontWeight: 700, fontSize: '0.9rem', color: '#0f172a' }}>{t.name}</span>
+              <span style={{ fontWeight: 700, fontSize: '0.87rem', color: '#0f172a' }}>{t.name}</span>
               {badge('ServerCompute', '#0369a1', '#e0f2fe')}
               {t.isActive === false
                 ? badge('Inactive', '#64748b', '#f1f5f9')
@@ -321,6 +350,9 @@ const TypesList: React.FC<{
             )}
           </div>
           <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+            <button onClick={() => onView(t)} style={iconBtn('#0ea5e9', '#f0f9ff')} title="View details">
+              <Eye size={14} />
+            </button>
             <button onClick={() => onEdit(t)} style={iconBtn('#3b82f6', '#eff6ff')} title="Edit">
               <Edit2 size={14} />
             </button>
@@ -339,7 +371,9 @@ const ServersList: React.FC<{
   servers: Resource[];
   onNew: () => void;
   hasTypes: boolean;
-}> = ({ servers, onNew, hasTypes }) => {
+  onView: (item: Resource) => void;
+  onEdit: (item: Resource) => void;
+}> = ({ servers, onNew, hasTypes, onView, onEdit }) => {
   if (servers.length === 0) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '360px', gap: '14px', color: '#94a3b8' }}>
@@ -360,13 +394,13 @@ const ServersList: React.FC<{
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
       {servers.map(s => (
-        <div key={s.id} style={{ padding: '14px 16px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '14px', display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'linear-gradient(135deg, #0ea5e9, #2563eb)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <Server size={20} />
+        <div key={s.id} style={{ padding: '10px 12px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ width: '34px', height: '34px', borderRadius: '9px', background: 'linear-gradient(135deg, #0ea5e9, #2563eb)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <Server size={16} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' as const }}>
-              <span style={{ fontWeight: 700, fontSize: '0.92rem', color: '#0f172a' }}>{s.name}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px', flexWrap: 'wrap' as const }}>
+              <span style={{ fontWeight: 700, fontSize: '0.87rem', color: '#0f172a' }}>{s.name}</span>
               {s.resourceTypeName && badge(s.resourceTypeName, '#0369a1', '#e0f2fe')}
               {s.status != null
                 ? badge('Available', '#16a34a', '#dcfce7')
@@ -378,7 +412,7 @@ const ServersList: React.FC<{
               )}
               {s.location && (
                 <span style={{ fontSize: '0.72rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                  📍 {s.location}
+                  <MapPin size={11} /> {s.location}
                 </span>
               )}
             </div>
@@ -392,13 +426,219 @@ const ServersList: React.FC<{
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0 }}>
             <span style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 600 }}>SSH terminal available</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '6px' }}>
               <CheckCircle2 size={13} style={{ color: '#10b981' }} />
               <span style={{ fontSize: '0.72rem', color: '#10b981', fontWeight: 600 }}>Credentials stored</span>
+            </div>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <button onClick={() => onView(s)} style={iconBtn('#0ea5e9', '#f0f9ff')} title="View details">
+                <Eye size={14} />
+              </button>
+              <button onClick={() => onEdit(s)} style={iconBtn('#3b82f6', '#eff6ff')} title="Edit server">
+                <Edit2 size={14} />
+              </button>
             </div>
           </div>
         </div>
       ))}
+    </div>
+  );
+};
+
+// ─── Type Detail View ────────────────────────────────────────────────────────
+const TypeDetailView: React.FC<{ item: ResourceTypeItem; onEdit: () => void }> = ({ item, onEdit }) => {
+  const detailRow = (label: string, value: React.ReactNode, icon?: React.ReactNode) => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', padding: '10px 14px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+      <span style={{ fontSize: '0.67rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' as const, letterSpacing: '0.6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+        {icon}{label}
+      </span>
+      <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#0f172a' }}>{value}</span>
+    </div>
+  );
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px', background: 'linear-gradient(135deg, #fffbeb, #fef3c7)', borderRadius: '14px', border: '1px solid #fde68a' }}>
+        <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'linear-gradient(135deg, #f59e0b, #f97316)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <Tag size={20} />
+        </div>
+        <div>
+          <div style={{ fontWeight: 800, fontSize: '1rem', color: '#0f172a' }}>{item.name}</div>
+          <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
+            {badge('ServerCompute', '#0369a1', '#e0f2fe')}
+            {item.isActive === false ? badge('Inactive', '#64748b', '#f1f5f9') : badge('Active', '#16a34a', '#dcfce7')}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        {detailRow('Name', item.name, <Tag size={10} />)}
+        {detailRow('Category', 'ServerCompute', <Layers size={10} />)}
+        {detailRow('Status', item.isActive === false
+          ? <span style={{ color: '#64748b' }}>Inactive</span>
+          : <span style={{ color: '#16a34a' }}>Active</span>)}
+        {item.description && detailRow('Description', item.description)}
+      </div>
+
+      <button onClick={onEdit} style={{
+        marginTop: '4px', padding: '9px 0', borderRadius: '10px', border: 'none', cursor: 'pointer',
+        background: 'linear-gradient(135deg, #f59e0b, #f97316)', color: '#fff', fontWeight: 700,
+        fontSize: '0.82rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+      }}>
+        <Edit2 size={13} /> Edit This Type
+      </button>
+    </div>
+  );
+};
+
+// ─── Server Detail View ───────────────────────────────────────────────────────
+const ServerDetailView: React.FC<{ server: Resource; onEdit: () => void }> = ({ server, onEdit }) => {
+  const { user } = useAuth();
+  const isPrivileged = user.role === 'Admin' || user.role === 'LabDirector';
+
+  const [detail, setDetail] = useState<ServerResourceDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true); setError(null);
+    serverService.getServerDetail(server.id)
+      .then(d => { if (!cancelled) setDetail(d); })
+      .catch(e => { if (!cancelled) setError(e?.response?.data?.message || 'Failed to load server detail.'); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [server.id]);
+
+  const detailRow = (label: string, value: React.ReactNode, icon?: React.ReactNode) => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', padding: '10px 14px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+      <span style={{ fontSize: '0.67rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' as const, letterSpacing: '0.6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+        {icon}{label}
+      </span>
+      <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#0f172a' }}>{value}</span>
+    </div>
+  );
+
+  if (loading) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '200px', gap: '10px', color: '#94a3b8' }}>
+      <Loader2 size={22} className="animate-spin" />
+      <span style={{ fontSize: '0.85rem' }}>Loading server details…</span>
+    </div>
+  );
+
+  if (error) return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '12px', color: '#dc2626' }}>
+      <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: '1px' }} />
+      <span style={{ fontSize: '0.82rem', fontWeight: 600 }}>{error}</span>
+    </div>
+  );
+
+  const d = detail!;
+  const statusLabel = d.status === 0 ? 'Available' : 'Unavailable';
+  const statusColor = d.status === 0 ? '#16a34a' : '#64748b';
+  const statusBg = d.status === 0 ? '#dcfce7' : '#f1f5f9';
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      {/* Hero */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px', background: 'linear-gradient(135deg, #eff6ff, #dbeafe)', borderRadius: '14px', border: '1px solid #bfdbfe' }}>
+        <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'linear-gradient(135deg, #0ea5e9, #2563eb)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <Server size={20} />
+        </div>
+        <div>
+          <div style={{ fontWeight: 800, fontSize: '1rem', color: '#0f172a' }}>{d.name}</div>
+          <div style={{ display: 'flex', gap: '6px', marginTop: '4px', flexWrap: 'wrap' as const }}>
+            {d.resourceTypeName && badge(d.resourceTypeName, '#0369a1', '#e0f2fe')}
+            {badge(statusLabel, statusColor, statusBg)}
+          </div>
+        </div>
+      </div>
+
+      {/* Section: Thông tin chung */}
+      <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' as const, letterSpacing: '0.7px', padding: '0 2px', marginTop: '4px' }}>Thông tin chung</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        {detailRow('Name', d.name, <Server size={10} />)}
+        {d.description && detailRow('Description', d.description)}
+        {d.location && detailRow('Location', d.location, <MapPin size={10} />)}
+        {d.modelSeries && detailRow('Model Series', d.modelSeries, <Zap size={10} />)}
+        {detailRow('Status', badge(statusLabel, statusColor, statusBg))}
+        {d.managedByName && detailRow('Managed By', d.managedByName, <UserCircle size={10} />)}
+        {d.managedByEmail && detailRow('Manager Email', d.managedByEmail, <Mail size={10} />)}
+      </div>
+
+      {/* Section: Trạng thái */}
+      <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' as const, letterSpacing: '0.7px', padding: '0 2px', marginTop: '4px' }}>Trạng thái</div>
+      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' as const }}>
+        <div style={{ flex: 1, minWidth: '90px', padding: '10px 14px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'center' }}>
+          <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' as const, letterSpacing: '0.5px' }}>Available</span>
+          {d.isAvailable
+            ? <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', fontWeight: 700, color: '#16a34a' }}><CheckCircle2 size={14} /> Yes</span>
+            : <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', fontWeight: 700, color: '#64748b' }}><XCircle size={14} /> No</span>}
+        </div>
+        <div style={{ flex: 1, minWidth: '90px', padding: '10px 14px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'center' }}>
+          <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' as const, letterSpacing: '0.5px' }}>Damaged</span>
+          {d.isDamaged
+            ? <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', fontWeight: 700, color: '#dc2626' }}><AlertTriangle size={14} /> Yes</span>
+            : <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', fontWeight: 700, color: '#16a34a' }}><CheckCircle2 size={14} /> No</span>}
+        </div>
+        <div style={{ flex: 1, minWidth: '90px', padding: '10px 14px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'center' }}>
+          <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' as const, letterSpacing: '0.5px' }}>In Use</span>
+          {d.isInUse
+            ? <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', fontWeight: 700, color: '#d97706' }}><Users size={14} /> Yes</span>
+            : <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', fontWeight: 700, color: '#64748b' }}><XCircle size={14} /> No</span>}
+        </div>
+      </div>
+
+      {/* Section: Thông số phần cứng (privileged only) */}
+      {isPrivileged && (
+        <>
+          <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' as const, letterSpacing: '0.7px', padding: '0 2px', marginTop: '4px' }}>Thông số phần cứng</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+            {d.gpuCount != null && detailRow('GPU Count', d.gpuCount, <Zap size={10} />)}
+            {d.cpuCores != null && detailRow('CPU Cores', d.cpuCores, <Cpu size={10} />)}
+            {d.ramGb != null && detailRow('RAM (GB)', d.ramGb, <MemoryStick size={10} />)}
+            {d.maxConcurrentUsers != null && detailRow('Max Concurrent Users', d.maxConcurrentUsers, <Users size={10} />)}
+          </div>
+        </>
+      )}
+
+      {/* Section: SSH Connection (privileged only) */}
+      {isPrivileged && (
+        <>
+          <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' as const, letterSpacing: '0.7px', padding: '0 2px', marginTop: '4px' }}>SSH Connection</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '14px', background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '12px' }}>
+            {d.sshHost && detailRow('Host', d.sshHost, <Network size={10} />)}
+            {d.sshPort != null && detailRow('Port', d.sshPort, <Network size={10} />)}
+            {d.sshUsername && detailRow('Username', d.sshUsername, <UserCircle size={10} />)}
+            {detailRow('Private Key', (
+              <span style={{ color: '#64748b', fontStyle: 'italic', fontSize: '0.8rem' }}>Đã cấu hình (ẩn)</span>
+            ), <Key size={10} />)}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '10px 14px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '10px' }}>
+            <ShieldCheck size={14} style={{ color: '#2563eb', flexShrink: 0, marginTop: '1px' }} />
+            <span style={{ fontSize: '0.73rem', color: '#1d4ed8', lineHeight: 1.5 }}>
+              SSH private key được <strong>mã hóa AES-256</strong> — không bao giờ được trả về qua API.
+            </span>
+          </div>
+        </>
+      )}
+
+      {/* Timestamps */}
+      {(d.createdAt || d.updatedAt) && (
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' as const }}>
+          {d.createdAt && detailRow('Created', new Date(d.createdAt).toLocaleString('vi-VN'), <Calendar size={10} />)}
+          {d.updatedAt && detailRow('Updated', new Date(d.updatedAt).toLocaleString('vi-VN'), <Calendar size={10} />)}
+        </div>
+      )}
+
+      {/* Edit button */}
+      <button onClick={onEdit} style={{
+        marginTop: '4px', padding: '9px 0', borderRadius: '10px', border: 'none', cursor: 'pointer',
+        background: 'linear-gradient(135deg, #0ea5e9, #2563eb)', color: '#fff', fontWeight: 700,
+        fontSize: '0.82rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+      }}>
+        <Edit2 size={13} /> Edit This Server
+      </button>
     </div>
   );
 };

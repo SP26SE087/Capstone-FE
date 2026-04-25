@@ -47,6 +47,7 @@ export interface BasicResourceResponse {
   name: string;
   resourceTypeId?: string;
   resourceTypeName?: string;
+  resourceTypeCategory?: number; // 1 = Physical, 2 = ServerCompute
   status?: number;
   location?: string | null;
   modelSeries?: string;
@@ -239,11 +240,9 @@ export interface ComputeTier {
 export enum ComputeAccessStatus {
   Pending = 1,
   Provisioning = 2,
-  Ready = 3,
-  Running = 4,
-  Stopped = 5,
-  Terminated = 6,
-  Error = 7
+  Active = 3,
+  Expired = 4,
+  Revoked = 5,
 }
 
 export interface ComputeAccess {
