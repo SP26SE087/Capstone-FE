@@ -12,6 +12,7 @@ import {
     ClipboardList,
     BookOpen,
     FileText,
+    Box,
 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { TaskStatus, DashboardStats, Project, Task } from '@/types';
@@ -20,6 +21,59 @@ import { getProjectStatusStyle } from '@/utils/projectUtils';
 import { useAuth } from '@/hooks/useAuth';
 import seminarService from '@/services/seminarService';
 import { SeminarMeetingResponse } from '@/types/seminar';
+import { bookingService } from '@/services/bookingService';
+import { Booking, BookingStatus } from '@/types/booking';
+import reportService, { Report } from '@/services/reportService';
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === 'object' && value !== null;
+
+const normalizeList = <T,>(payload: unknown): T[] => {
+    if (Array.isArray(payload)) return payload as T[];
+    if (isRecord(payload) && Array.isArray(payload.data)) return payload.data as T[];
+    return [];
+};
+
+const formatBookingTimeRange = (startTime: string, endTime: string): string => {
+    const start = new Date(startTime);
+    const end = new Date(endTime);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 'Schedule pending';
+    return `${start.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short' })} · ${start.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}-${end.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
+};
+
+const getBookingStatusStyle = (status: BookingStatus): { label: string; bg: string; color: string } => {
+    switch (status) {
+        case BookingStatus.Pending:
+            return { label: 'Pending', bg: 'var(--info-bg)', color: 'var(--info)' };
+        case BookingStatus.Approved:
+            return { label: 'Approved', bg: 'var(--success-bg)', color: 'var(--success)' };
+        case BookingStatus.InUse:
+            return { label: 'In Use', bg: 'var(--warning-bg)', color: 'var(--warning)' };
+        case BookingStatus.Completed:
+            return { label: 'Completed', bg: 'var(--surface-hover)', color: 'var(--text-secondary)' };
+        case BookingStatus.Cancelled:
+            return { label: 'Cancelled', bg: 'var(--danger-bg)', color: 'var(--danger)' };
+        case BookingStatus.Rejected:
+            return { label: 'Rejected', bg: 'var(--danger-bg)', color: 'var(--danger)' };
+        default:
+            return { label: 'Unknown', bg: 'var(--surface-hover)', color: 'var(--text-secondary)' };
+    }
+};
+
+const getReportStatusMeta = (status: number): { label: string; bg: string; color: string } => {
+    switch (status) {
+        case 0:
+            return { label: 'Drafting', bg: 'var(--surface-hover)', color: 'var(--text-secondary)' };
+        case 1:
+            return { label: 'Submitted', bg: 'var(--info-bg)', color: 'var(--info)' };
+        case 2:
+            return { label: 'Approved', bg: 'var(--success-bg)', color: 'var(--success)' };
+        case 3:
+            return { label: 'Revision', bg: 'var(--danger-bg)', color: 'var(--danger)' };
+        default:
+            return { label: 'Unknown', bg: 'var(--surface-hover)', color: 'var(--text-secondary)' };
+    }
+};
 
 function Dashboard() {
     const navigate = useNavigate();
@@ -28,6 +82,9 @@ function Dashboard() {
     const [projects, setProjects] = useState<Project[]>([]);
     const [tasks, setTasks] = useState<Task[]>([]);
     const [seminars, setSeminars] = useState<SeminarMeetingResponse[]>([]);
+    const [bookings, setBookings] = useState<Booking[]>([]);
+    const [myReports, setMyReports] = useState<Report[]>([]);
+    const [assignedReports, setAssignedReports] = useState<Report[]>([]);
     const [loading, setLoading] = useState(true);
 
 
@@ -36,11 +93,14 @@ function Dashboard() {
         const fetchData = async () => {
             setLoading(true);
             try {
-                const [statsData, projectsData, tasksData, seminarData] = await Promise.all([
+                const [statsData, projectsData, tasksData, seminarData, bookingData, myReportsData, assignedReportsData] = await Promise.all([
                     dashboardService.getStats(),
                     projectService.getAll(),
                     taskService.getPriorityTasks(),
-                    seminarService.getInvitedSeminarMeetings().catch(() => [] as SeminarMeetingResponse[])
+                    seminarService.getInvitedSeminarMeetings().catch(() => [] as SeminarMeetingResponse[]),
+                    bookingService.getMyUpcoming().catch(() => [] as Booking[]),
+                    reportService.getMyReports().catch(() => []),
+                    reportService.getAssignedReports().catch(() => []),
                 ]);
                 setStats(statsData);
                 setProjects(projectsData || []);
@@ -54,6 +114,19 @@ function Dashboard() {
                         new Date(`${b.meetingDate}T${b.startTime}`).getTime()
                     );
                 setSeminars(upcoming);
+
+                const upcomingBookings = normalizeList<Booking>(bookingData)
+                    .filter((b) => {
+                        const endTime = new Date(b.endTime).getTime();
+                        return !Number.isNaN(endTime) && endTime >= now.getTime() &&
+                            b.status !== BookingStatus.Cancelled &&
+                            b.status !== BookingStatus.Rejected;
+                    })
+                    .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+                setBookings(upcomingBookings);
+
+                setMyReports(normalizeList<Report>(myReportsData));
+                setAssignedReports(normalizeList<Report>(assignedReportsData));
             } catch (error) {
                 console.error('Failed to fetch dashboard data:', error);
             } finally {
@@ -71,12 +144,20 @@ function Dashboard() {
         return 'Good evening';
     };
 
+    const reportReviewPending = assignedReports.filter((r) => r.status !== 2).length;
+    const reportDraftCount = myReports.filter((r) => r.status === 0).length;
+    const reportSubmittedCount = myReports.filter((r) => r.status === 1).length;
+    const reportRevisionCount = myReports.filter((r) => r.status === 3).length;
+    const pendingReviewReports = assignedReports.filter((r) => r.status !== 2);
+
     const statCards = [
         { label: 'Active Projects', value: stats?.totalActiveProjects ?? 0, Icon: BarChart3, accent: 'var(--accent-color)', bg: 'var(--accent-bg)' },
         { label: 'Pending Tasks', value: stats?.pendingTasksCount ?? 0, Icon: Clock, accent: 'var(--info)', bg: 'var(--info-bg)' },
         { label: 'Completed (Month)', value: stats?.completedTasksThisMonth ?? 0, Icon: CheckCircle2, accent: 'var(--success)', bg: 'var(--success-bg)' },
         { label: 'Due Soon', value: stats?.approachingDeadlinesCount ?? 0, Icon: AlertCircle, accent: 'var(--danger)', bg: 'var(--danger-bg)' },
         { label: 'Available Resources', value: stats?.availableResourcesCount ?? 0, Icon: Layers, accent: 'var(--text-secondary)', bg: 'var(--border-light)' },
+        { label: 'Upcoming Bookings', value: bookings.length, Icon: Box, accent: 'var(--warning)', bg: 'var(--warning-bg)' },
+        { label: 'Review Requests', value: reportReviewPending, Icon: FileText, accent: 'var(--primary-color)', bg: 'var(--border-light)' },
     ];
 
     const quickLinks = [
@@ -86,6 +167,13 @@ function Dashboard() {
         { label: 'Bookings', Icon: Layers, path: '/bookings', color: 'var(--warning)' },
         { label: 'Papers', Icon: FileText, path: '/papers', color: 'var(--danger)' },
         { label: 'Projects', Icon: BookOpen, path: '/projects', color: 'var(--primary-color)' },
+    ];
+
+    const reportSummaryItems = [
+        { label: 'My Drafts', value: reportDraftCount, color: 'var(--text-secondary)', bg: 'var(--surface-hover)' },
+        { label: 'Submitted', value: reportSubmittedCount, color: 'var(--info)', bg: 'var(--info-bg)' },
+        { label: 'Need Revision', value: reportRevisionCount, color: 'var(--danger)', bg: 'var(--danger-bg)' },
+        { label: 'Need Review', value: reportReviewPending, color: 'var(--accent-color)', bg: 'var(--accent-bg)' },
     ];
 
     return (
@@ -429,6 +517,94 @@ function Dashboard() {
                             </div>
                         </section>
 
+                        {/* Upcoming Bookings */}
+                        <section className="card">
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>Upcoming Bookings</h3>
+                                <Link
+                                    to="/bookings"
+                                    style={{
+                                        fontSize: '0.82rem',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        color: 'var(--accent-color)',
+                                        textDecoration: 'none',
+                                        fontWeight: 600
+                                    }}
+                                >
+                                    All <ArrowUpRight size={14} />
+                                </Link>
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                {loading ? (
+                                    [1, 2].map(i => (
+                                        <div key={i} style={{
+                                            height: 66,
+                                            borderRadius: 'var(--radius-sm)',
+                                            background: 'var(--surface-hover)',
+                                            border: '1px dashed var(--border-color)'
+                                        }} />
+                                    ))
+                                ) : bookings.length > 0 ? (
+                                    bookings.slice(0, 4).map((booking) => {
+                                        const bookingStatus = getBookingStatusStyle(booking.status);
+                                        const bookingId = booking.bookingId || booking.id;
+                                        return (
+                                            <div
+                                                key={bookingId}
+                                                onClick={() => navigate(bookingId ? `/bookings?selectedId=${bookingId}` : '/bookings')}
+                                                style={{
+                                                    padding: '0.85rem 1rem',
+                                                    borderRadius: 'var(--radius-sm)',
+                                                    border: '1px solid var(--border-color)',
+                                                    background: 'var(--surface-hover)',
+                                                    cursor: 'pointer',
+                                                    display: 'flex',
+                                                    justifyContent: 'space-between',
+                                                    alignItems: 'center',
+                                                    gap: '8px'
+                                                }}
+                                            >
+                                                <div style={{ minWidth: 0 }}>
+                                                    <p style={{
+                                                        margin: '0 0 3px',
+                                                        fontWeight: 700,
+                                                        fontSize: '0.88rem',
+                                                        color: 'var(--text-primary)',
+                                                        whiteSpace: 'nowrap',
+                                                        overflow: 'hidden',
+                                                        textOverflow: 'ellipsis'
+                                                    }}>
+                                                        {booking.title || booking.resourceName || 'Resource Booking'}
+                                                    </p>
+                                                    <p style={{
+                                                        margin: 0,
+                                                        fontSize: '0.76rem',
+                                                        color: 'var(--text-secondary)',
+                                                        fontWeight: 500,
+                                                        whiteSpace: 'nowrap',
+                                                        overflow: 'hidden',
+                                                        textOverflow: 'ellipsis'
+                                                    }}>
+                                                        {formatBookingTimeRange(booking.startTime, booking.endTime)}
+                                                    </p>
+                                                </div>
+                                                <span className="badge" style={{ background: bookingStatus.bg, color: bookingStatus.color, flexShrink: 0 }}>
+                                                    {bookingStatus.label}
+                                                </span>
+                                            </div>
+                                        );
+                                    })
+                                ) : (
+                                    <div style={{ textAlign: 'center', padding: '1.75rem 1rem', color: 'var(--text-muted)' }}>
+                                        <Box size={28} style={{ opacity: 0.25, display: 'block', margin: '0 auto 0.5rem' }} />
+                                        <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 500 }}>No upcoming bookings.</p>
+                                    </div>
+                                )}
+                            </div>
+                        </section>
+
                         {/* Upcoming Seminars */}
                         <section className="card">
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
@@ -503,6 +679,101 @@ function Dashboard() {
                                         <Presentation size={28} style={{ opacity: 0.25, display: 'block', margin: '0 auto 0.5rem' }} />
                                         <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 500 }}>No upcoming seminars.</p>
                                     </div>
+                                )}
+                            </div>
+                        </section>
+
+                        {/* Report Snapshot */}
+                        <section className="card">
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>Report Snapshot</h3>
+                                <Link
+                                    to="/reports"
+                                    style={{
+                                        fontSize: '0.82rem',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        color: 'var(--accent-color)',
+                                        textDecoration: 'none',
+                                        fontWeight: 600
+                                    }}
+                                >
+                                    Open <ArrowUpRight size={14} />
+                                </Link>
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '0.9rem' }}>
+                                {reportSummaryItems.map((item) => (
+                                    <div
+                                        key={item.label}
+                                        style={{
+                                            borderRadius: 'var(--radius-sm)',
+                                            padding: '0.65rem 0.7rem',
+                                            background: item.bg,
+                                            border: '1px solid var(--border-color)'
+                                        }}
+                                    >
+                                        <p style={{ margin: 0, fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                                            {item.label}
+                                        </p>
+                                        <p style={{ margin: '2px 0 0', fontSize: '1.1rem', lineHeight: 1.1, color: item.color, fontWeight: 800 }}>
+                                            {loading ? '–' : item.value}
+                                        </p>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                {loading ? (
+                                    [1, 2].map(i => (
+                                        <div key={i} style={{
+                                            height: 58,
+                                            borderRadius: 'var(--radius-sm)',
+                                            background: 'var(--surface-hover)',
+                                            border: '1px dashed var(--border-color)'
+                                        }} />
+                                    ))
+                                ) : pendingReviewReports.length > 0 ? (
+                                    pendingReviewReports.slice(0, 3).map((report) => {
+                                        const status = getReportStatusMeta(report.status);
+                                        return (
+                                            <div
+                                                key={report.id}
+                                                onClick={() => navigate('/reports')}
+                                                style={{
+                                                    padding: '0.75rem 0.85rem',
+                                                    borderRadius: 'var(--radius-sm)',
+                                                    border: '1px solid var(--border-color)',
+                                                    background: 'var(--surface-hover)',
+                                                    display: 'flex',
+                                                    justifyContent: 'space-between',
+                                                    alignItems: 'center',
+                                                    gap: '8px',
+                                                    cursor: 'pointer'
+                                                }}
+                                            >
+                                                <p style={{
+                                                    margin: 0,
+                                                    fontSize: '0.82rem',
+                                                    fontWeight: 600,
+                                                    color: 'var(--text-primary)',
+                                                    whiteSpace: 'nowrap',
+                                                    overflow: 'hidden',
+                                                    textOverflow: 'ellipsis'
+                                                }}>
+                                                    {report.title || 'Untitled report'}
+                                                </p>
+                                                <span className="badge" style={{ background: status.bg, color: status.color, flexShrink: 0 }}>
+                                                    {status.label}
+                                                </span>
+                                            </div>
+                                        );
+                                    })
+                                ) : (
+                                    <p style={{ margin: 0, color: 'var(--text-secondary)', textAlign: 'center', padding: '0.85rem 0.5rem', fontSize: '0.82rem' }}>
+                                        No pending review requests.
+                                    </p>
                                 )}
                             </div>
                         </section>
