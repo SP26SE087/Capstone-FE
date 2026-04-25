@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
-import { X, Maximize2, Minimize2, Copy, Check, Zap, Clock } from 'lucide-react';
+import { X, Maximize2, Minimize2, Copy, Check, Zap, Clock, Terminal, FolderOpen } from 'lucide-react';
 import { ComputeAccess } from '@/types/booking';
 import { computeService } from '@/services/computeService';
 import ServerTerminal from './ServerTerminal';
+import TerminalFileManager from './TerminalFileManager';
 
 interface ServerTerminalModalProps {
   isOpen: boolean;
@@ -17,6 +18,7 @@ const ServerTerminalModal: React.FC<ServerTerminalModalProps> = ({
   access
 }) => {
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'terminal' | 'files'>('terminal');
   const [token, setToken] = useState<string>('');
   const [wsUrl, setWsUrl] = useState<string>('');
   const [sessionExpiresAt, setSessionExpiresAt] = useState<string | undefined>(undefined);
@@ -190,6 +192,35 @@ const ServerTerminalModal: React.FC<ServerTerminalModalProps> = ({
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            {/* Tab switcher — only when token is loaded */}
+            {!loading && !error && (
+              <div style={{
+                display: 'flex', alignItems: 'center',
+                background: 'rgba(255,255,255,0.05)',
+                borderRadius: '8px',
+                padding: '3px',
+                gap: '2px',
+              }}>
+                {(['terminal', 'files'] as const).map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '5px',
+                      padding: '4px 12px', borderRadius: '6px', border: 'none',
+                      background: activeTab === tab ? 'rgba(255,255,255,0.12)' : 'none',
+                      color: activeTab === tab ? '#f1f5f9' : '#64748b',
+                      cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600,
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    {tab === 'terminal' ? <Terminal size={13} /> : <FolderOpen size={13} />}
+                    {tab === 'terminal' ? 'Terminal' : 'Files'}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {/* Connection indicator */}
             <div
               style={{
@@ -324,12 +355,24 @@ const ServerTerminalModal: React.FC<ServerTerminalModalProps> = ({
               </button>
             </div>
           ) : (
-            <ServerTerminal
-              wsUrl={wsUrl}
-              token={token}
-              onConnectionChange={setConnected}
-              style={{ flex: 1, borderRadius: 0, border: 'none' }}
-            />
+            <div style={{ flex: 1, display: 'flex', overflow: 'hidden', position: 'relative' }}>
+              {/* Terminal tab */}
+              <div style={{ display: activeTab === 'terminal' ? 'flex' : 'none', flex: 1, flexDirection: 'column', overflow: 'hidden' }}>
+                <ServerTerminal
+                  wsUrl={wsUrl}
+                  token={token}
+                  onConnectionChange={setConnected}
+                  style={{ flex: 1, borderRadius: 0, border: 'none' }}
+                />
+              </div>
+              {/* Files tab */}
+              <div style={{ display: activeTab === 'files' ? 'flex' : 'none', flex: 1, flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
+                <TerminalFileManager
+                  bookingId={access.bookingId}
+                  terminalToken={token}
+                />
+              </div>
+            </div>
           )}
         </div>
       </div>
