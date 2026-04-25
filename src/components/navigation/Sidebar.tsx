@@ -82,21 +82,6 @@ const Sidebar: React.FC = () => {
                     </>
                 )}
 
-                {isLabDirector && (
-                    <>
-                        <div className="sidebar-section-label">MANAGEMENT</div>
-                        <NavLink
-                            to="/admin/compute"
-                            className={({ isActive }) =>
-                                `sidebar-link ${isActive ? 'active' : ''}`
-                            }
-                        >
-                            <span className="sidebar-link-icon"><Server size={20} /></span>
-                            <span className="sidebar-link-label">Compute Servers</span>
-                        </NavLink>
-                    </>
-                )}
-
                 {isAdmin && (
                     <>
                         <div className="sidebar-section-label">WORKSPACE</div>
