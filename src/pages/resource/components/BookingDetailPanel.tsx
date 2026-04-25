@@ -317,9 +317,7 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
         if (!bookingId || !isServerComputeBooking) return;
         if (booking?.status !== BookingStatus.Approved && booking?.status !== BookingStatus.InUse) return;
         const interval = setInterval(() => loadBooking(), 60_000);
-        const onFocus = () => loadBooking();
-        window.addEventListener('focus', onFocus);
-        return () => { clearInterval(interval); window.removeEventListener('focus', onFocus); };
+        return () => { clearInterval(interval); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [bookingId, isServerComputeBooking, booking?.status]);
 
