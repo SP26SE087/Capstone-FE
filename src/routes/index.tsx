@@ -15,6 +15,7 @@ import Reports from '@/pages/report/Reports';
 import CreateReport from '@/pages/report/CreateReport';
 import ReportDetail from '@/pages/report/ReportDetail';
 import ResourceBooking from '@/pages/resource/ResourceBooking';
+import TerminalPage from '@/pages/resource/TerminalPage';
 import LabResourceAdmin from '@/pages/admin/LabResourceAdmin';
 import ComputeServerAdmin from '@/pages/admin/ComputeServerAdmin';
 import Schedules from '@/pages/schedule/Schedules';
@@ -92,6 +93,10 @@ export const router = createBrowserRouter([
         element: <AuthGuard><ResourceBooking /></AuthGuard>,
     },
     {
+        path: '/bookings/:bookingId/terminal',
+        element: <AuthGuard><TerminalPage /></AuthGuard>,
+    },
+    {
         path: '/admin/resources',
         element: <AuthGuard><RoleGuard allowedRoles={[2]}><LabResourceAdmin /></RoleGuard></AuthGuard>,
     },
@@ -105,7 +110,7 @@ export const router = createBrowserRouter([
     },
     {
         path: '/admin/compute',
-        element: <AuthGuard><RoleGuard allowedRoles={[1]}><ComputeServerAdmin /></RoleGuard></AuthGuard>,
+        element: <AuthGuard><RoleGuard allowedRoles={[1, 2]}><ComputeServerAdmin /></RoleGuard></AuthGuard>,
     },
     {
         path: '/schedules',
