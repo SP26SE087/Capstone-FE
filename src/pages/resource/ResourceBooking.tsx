@@ -1201,6 +1201,11 @@ const ResourceBooking: React.FC = () => {
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 10px', borderRadius: '8px', background: action.bg, color: action.color, fontSize: '0.72rem', fontWeight: 700, flexShrink: 0 }}>
                                                     {action.icon} {action.label}
                                                 </div>
+                                                {log.note?.startsWith('[AUTO]') && (
+                                                    <span style={{ fontSize: '0.62rem', fontWeight: 800, color: '#0369a1', background: '#e0f2fe', border: '1px solid #bae6fd', padding: '2px 7px', borderRadius: 20, flexShrink: 0, letterSpacing: '0.04em' }}>
+                                                        AUTO
+                                                    </span>
+                                                )}
                                                 <div style={{ flex: 1, minWidth: 0 }}>
                                                     <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{log.resourceName || 'Unknown Resource'}</div>
                                                     <div style={{ fontSize: '0.72rem', color: '#64748b' }}>
@@ -1384,9 +1389,14 @@ const ResourceBooking: React.FC = () => {
 
                                         {/* Note */}
                                         {log.note && (
-                                            <div style={{ ...cardStyle, background: '#fffbeb', border: '1px solid #fde68a' }}>
-                                                <div style={{ ...labelSt, color: '#d97706' }}>Note</div>
-                                                <div style={{ ...valueSt, color: '#92400e' }}>{log.note}</div>
+                                            <div style={{ ...cardStyle, background: log.note.startsWith('[AUTO]') ? '#eff6ff' : '#fffbeb', border: `1px solid ${log.note.startsWith('[AUTO]') ? '#bfdbfe' : '#fde68a'}` }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', ...labelSt, color: log.note.startsWith('[AUTO]') ? '#2563eb' : '#d97706', marginBottom: '4px' }}>
+                                                    Note
+                                                    {log.note.startsWith('[AUTO]') && (
+                                                        <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#0369a1', background: '#e0f2fe', border: '1px solid #bae6fd', padding: '1px 7px', borderRadius: 12 }}>AUTO</span>
+                                                    )}
+                                                </div>
+                                                <div style={{ ...valueSt, color: log.note.startsWith('[AUTO]') ? '#1e40af' : '#92400e' }}>{log.note}</div>
                                             </div>
                                         )}
                                     </div>

@@ -10,10 +10,12 @@ import {
     Calendar,
     ArrowRight,
     SearchX,
-    TrendingUp
+    TrendingUp,
+    UserCheck,
 } from 'lucide-react';
 
 import { useAuth } from '@/hooks/useAuth';
+import VisitorRegistrationModal from '@/components/schedule/VisitorRegistrationModal';
 
 const Home: React.FC = () => {
     const navigate = useNavigate();
@@ -22,6 +24,7 @@ const Home: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [activeField, setActiveField] = useState<string>('All');
+    const [showRegisterModal, setShowRegisterModal] = useState(false);
 
     useEffect(() => {
         const fetchPublicProjects = async () => {
@@ -63,6 +66,14 @@ const Home: React.FC = () => {
                         <h1>Project in Lab</h1>
                         <p>Explore the collective research repository and innovative breakthroughs.</p>
                     </div>
+                    <button
+                        className="btn btn-primary"
+                        style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                        onClick={() => setShowRegisterModal(true)}
+                    >
+                        <UserCheck size={16} />
+                        Book a Meeting
+                    </button>
                 </div>
 
                 {/* Search Bar - Integrated style */}
@@ -234,6 +245,8 @@ const Home: React.FC = () => {
                     </button>
                 </div>
             </div>
+
+            <VisitorRegistrationModal isOpen={showRegisterModal} onClose={() => setShowRegisterModal(false)} />
         </MainLayout>
     );
 };

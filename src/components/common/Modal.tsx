@@ -10,10 +10,11 @@ interface ModalProps {
     footer?: React.ReactNode;
     variant?: 'danger' | 'info' | 'success';
     maxWidth?: string;
+    maxHeight?: string;
     disableBackdropClose?: boolean;
 }
 
-const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, footer, variant = 'info', maxWidth = '680px', disableBackdropClose = false }) => {
+const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, footer, variant = 'info', maxWidth = '680px', maxHeight, disableBackdropClose = false }) => {
     if (!isOpen) return null;
 
     return ReactDOM.createPortal(
@@ -35,6 +36,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, footer,
                     borderRadius: 'var(--radius-lg)',
                     width: '100%',
                     maxWidth: maxWidth,
+                    ...(maxHeight ? { maxHeight, height: maxHeight } : {}),
                     boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
                     overflow: 'hidden',
                     display: 'flex',
@@ -82,7 +84,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, footer,
                     </button>
                 </div>
  
-                <div style={{ padding: '2rem 1.75rem', fontSize: '1rem', color: '#334155', lineHeight: 1.6 }}>
+                <div style={maxHeight ? { flex: 1, overflowY: 'auto', minHeight: 0, fontSize: '1rem', color: '#334155', lineHeight: 1.6 } : { padding: '2rem 1.75rem', fontSize: '1rem', color: '#334155', lineHeight: 1.6 }}>
                     {children}
                 </div>
  

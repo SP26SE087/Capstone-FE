@@ -14,7 +14,8 @@ import {
     MessageSquare,
     Sparkles,
     CheckCircle2,
-    XCircle
+    XCircle,
+    User
 } from 'lucide-react';
 import reportService, { Report, UpdateReportRequest } from '@/services/reportService';
 import { projectService } from '@/services/projectService';
@@ -458,6 +459,17 @@ const handleAiSuggest = async () => {
                             )}
                         </h2>
                         {!isAdding && <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600 }}>ID: {reportId?.substring(0, 8)}</span>}
+                        {!isAdding && report && (() => {
+                            const submitterId = (report as any).userId || (report as any).UserId || (report as any).createdBy || (report as any).createdByUserId || (report as any).reporterId;
+                            const submitterFromList = allUsers.find(u => (u.userId || u.id)?.toString() === submitterId?.toString());
+                            const submitterName = (report as any).userName || (report as any).UserName || submitterFromList?.fullName || submitterFromList?.name;
+                            return submitterName ? (
+                                <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.72rem', color: '#475569', fontWeight: 600, marginTop: '4px' }}>
+                                    <User size={11} color="#64748b" />
+                                    Submitted by&nbsp;<span style={{ color: '#1e293b', fontWeight: 700 }}>{submitterName}</span>
+                                </span>
+                            ) : null;
+                        })()}
                     </div>
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>

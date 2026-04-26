@@ -21,7 +21,7 @@ const MOCK_TIERS: ComputeTier[] = [
 ];
 
 /** Status values returned by GET /api/server-access/bookings/{bookingId} */
-export type ServerAccessStatus = 'Pending' | 'Provisioned' | 'Revoked' | 'Expired';
+export type ServerAccessStatus = 'Pending' | 'Provisioning' | 'Active' | 'Provisioned' | 'Expired' | 'Revoked';
 
 export interface ServerAccess {
   bookingId: string;

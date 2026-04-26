@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, BarChart2, Box, Briefcase, Calendar, FileText, Sparkles, Users } from 'lucide-react';
+import { ArrowRight, BarChart2, Box, Briefcase, Calendar, FileText, Sparkles, Users, UserCheck } from 'lucide-react';
 import logo from '@/assets/aita.png';
 import { authService } from '@/services/authService';
 import { SystemRoleEnum } from '@/types/enums';
 import './LandingPage.css';
+import VisitorRegistrationModal from '@/components/schedule/VisitorRegistrationModal';
 
 const features = [
     { icon: <Briefcase size={22} />, title: 'Project Management', desc: 'Organize and track research projects with milestones, tasks, and timelines.' },
@@ -25,6 +26,7 @@ const LandingPage: React.FC = () => {
     const isLoggedIn = authService.isAuthenticated();
     const stored = authService.getAuthUser();
     const appPath = Number(stored?.role) === SystemRoleEnum.Admin ? '/user-management' : '/dashboard';
+    const [showRegister, setShowRegister] = useState(false);
 
     return (
         <div className="welcome-page">
@@ -39,9 +41,18 @@ const LandingPage: React.FC = () => {
                     </span>
                 </Link>
 
-                <Link to={isLoggedIn ? appPath : '/login'} className="welcome-signin-link">
-                    {isLoggedIn ? 'Go to App' : 'Sign In'}
-                </Link>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <button
+                        onClick={() => setShowRegister(true)}
+                        style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', fontSize: '0.88rem', color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, padding: '0.4rem 0.75rem' }}
+                    >
+                        <UserCheck size={15} />
+                        Book a Meeting
+                    </button>
+                    <Link to={isLoggedIn ? appPath : '/login'} className="welcome-signin-link">
+                        {isLoggedIn ? 'Go to App' : 'Sign In'}
+                    </Link>
+                </div>
             </nav>
 
             <main className="welcome-main">
@@ -141,6 +152,8 @@ const LandingPage: React.FC = () => {
                     <a href="mailto:contact@aitalab.edu.vn">Contact</a>
                 </div>
             </footer>
+
+            <VisitorRegistrationModal isOpen={showRegister} onClose={() => setShowRegister(false)} />
         </div>
     );
 };

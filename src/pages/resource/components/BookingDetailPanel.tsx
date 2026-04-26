@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Booking, BookingStatus, BasicResourceResponse, ResourceType, ComputeAccess } from '@/types/booking';
 import { bookingService } from '@/services/bookingService';
+import { computeService, ServerAccess } from '@/services/computeService';
 import ComputeAccessPanel from './ComputeAccessPanel';
 import ServerTerminalModal from './ServerTerminalModal';
 import { useAuth } from '@/hooks/useAuth';
@@ -110,6 +111,17 @@ const getInitials = (name: string) => {
     const parts = name.trim().split(/\s+/);
     if (parts.length === 1) return parts[0][0].toUpperCase();
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+};
+
+// ─── Countdown helper ─────────────────────────────────────────────────────────
+const formatCountdown = (ms: number): string => {
+    if (ms <= 0) return 'ngay bây giờ';
+    const h = Math.floor(ms / 3_600_000);
+    const m = Math.floor((ms % 3_600_000) / 60_000);
+    const s = Math.floor((ms % 60_000) / 1_000);
+    if (h > 0) return `${h}h ${m.toString().padStart(2, '0')}m`;
+    if (m > 0) return `${m}m ${s.toString().padStart(2, '0')}s`;
+    return `${s}s`;
 };
 
 // ─── Resource grouping ───────────────────────────────────────────────────────
@@ -281,10 +293,54 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
     // Compute access state
     const [showTerminalModal, setShowTerminalModal] = useState(false);
     const [selectedComputeAccess, setSelectedComputeAccess] = useState<ComputeAccess | null>(null);
+    const [serverAccess, setServerAccess] = useState<ServerAccess | null>(null);
+    const [countdownMs, setCountdownMs] = useState<number | null>(null);
+    const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     useEffect(() => {
         if (bookingId) loadBooking();
     }, [bookingId]);
+
+    // Poll every 60s + refetch on tab focus for server compute bookings in active states
+    useEffect(() => {
+        if (!bookingId || !isServerComputeBooking) return;
+        if (booking?.status !== BookingStatus.Approved && booking?.status !== BookingStatus.InUse) return;
+        const interval = setInterval(() => loadBooking(), 60_000);
+        const onFocus = () => loadBooking();
+        window.addEventListener('focus', onFocus);
+        return () => { clearInterval(interval); window.removeEventListener('focus', onFocus); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [bookingId, isServerComputeBooking, booking?.status]);
+
+    // Countdown timer for Approved (→ startTime) and InUse (→ endTime)
+    useEffect(() => {
+        if (countdownIntervalRef.current) {
+            clearInterval(countdownIntervalRef.current);
+            countdownIntervalRef.current = null;
+        }
+        if (!booking || !isServerComputeBooking) { setCountdownMs(null); return; }
+        const target = booking.status === BookingStatus.Approved ? booking.startTime
+            : booking.status === BookingStatus.InUse ? booking.endTime
+            : null;
+        if (!target) { setCountdownMs(null); return; }
+        const tick = () => {
+            const remaining = new Date(target).getTime() - Date.now();
+            if (remaining <= 0) {
+                setCountdownMs(0);
+                clearInterval(countdownIntervalRef.current!);
+                countdownIntervalRef.current = null;
+                loadBooking();
+            } else {
+                setCountdownMs(remaining);
+            }
+        };
+        tick();
+        countdownIntervalRef.current = setInterval(tick, 1_000);
+        return () => {
+            if (countdownIntervalRef.current) { clearInterval(countdownIntervalRef.current); countdownIntervalRef.current = null; }
+        };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [booking?.status, booking?.startTime, booking?.endTime, isServerComputeBooking]);
 
     const loadBooking = async () => {
         setLoading(true);
@@ -292,6 +348,21 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
             const data = await bookingService.getById(bookingId);
             setBooking(data);
             onTitleChange?.(data.title || 'Booking');
+            // Fetch server access status for compute bookings
+            const resources = data.resources ?? [];
+            const isCompute = resources.some((r: any) =>
+                r.resourceTypeCategory === 2 ||
+                r.resourceTypeName?.toLowerCase().includes('compute') ||
+                r.resourceTypeName?.toLowerCase().includes('server')
+            );
+            if (isCompute) {
+                try {
+                    const access = await computeService.getAccessStatus(bookingId);
+                    setServerAccess(access);
+                } catch {
+                    // non-fatal
+                }
+            }
         } catch (err) {
             console.error('Failed to load booking:', err);
         } finally {
@@ -458,9 +529,10 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
     const bookingResourceIds = booking?.resourceIds ?? bookingResources.map(r => r.id);
     const resourceGroups = useMemo(() => groupResources(bookingResources), [bookingResources]);
     
-    // Check if booking has compute resources (for terminal access)
-    const hasComputeResources = useMemo(() => {
-        return bookingResources.some(r => 
+    // Check if booking has compute/server resources (category = 2 or name-based fallback)
+    const isServerComputeBooking = useMemo(() => {
+        return bookingResources.some((r: any) =>
+            r.resourceTypeCategory === 2 ||
             r.resourceTypeName?.toLowerCase().includes('compute') ||
             r.resourceTypeName?.toLowerCase().includes('server') ||
             r.resourceTypeName?.toLowerCase().includes('gpu rental')
@@ -495,11 +567,12 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
     const isRequester = !!currentUserEmail && !!bookingUserEmail && currentUserEmail === bookingUserEmail;
     const canApproveReject = isManagedView && booking.status === BookingStatus.Pending;
     const canCancel = isRequester && booking.status === BookingStatus.Pending;
-    const canCheckOut = isManagedView && booking.status === BookingStatus.Approved;
-    const canCheckIn = isManagedView && booking.status === BookingStatus.InUse;
+    // Server compute bookings use auto checkout/checkin — hide manual buttons
+    const canCheckOut = isManagedView && booking.status === BookingStatus.Approved && !isServerComputeBooking;
+    const canCheckIn = isManagedView && booking.status === BookingStatus.InUse && !isServerComputeBooking;
     
     // Show compute access panel for approved/in-use bookings with compute resources
-    const showComputeAccess = hasComputeResources && (
+    const showComputeAccess = isServerComputeBooking && (
         booking.status === BookingStatus.Approved || 
         booking.status === BookingStatus.InUse
     );
@@ -566,6 +639,24 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                                 }}>
                                     {statusConfig.icon} {statusConfig.label}
                                 </span>
+                                {/* Countdown timer for server compute bookings */}
+                                {isServerComputeBooking && countdownMs !== null && (
+                                    booking.status === BookingStatus.Approved || booking.status === BookingStatus.InUse
+                                ) && (
+                                    <span style={{
+                                        fontSize: '0.72rem', fontWeight: 700,
+                                        color: booking.status === BookingStatus.Approved ? '#d97706' : '#7c3aed',
+                                        background: booking.status === BookingStatus.Approved ? '#fffbeb' : '#f5f3ff',
+                                        border: `1px solid ${booking.status === BookingStatus.Approved ? '#fde68a' : '#e9d5ff'}`,
+                                        padding: '3px 11px', borderRadius: 20,
+                                        display: 'inline-flex', alignItems: 'center', gap: 5,
+                                    }}>
+                                        <Timer size={11} />
+                                        {booking.status === BookingStatus.Approved
+                                            ? `Bắt đầu sau ${formatCountdown(countdownMs)}`
+                                            : `Còn lại ${formatCountdown(countdownMs)}`}
+                                    </span>
+                                )}
                             </div>
                         </div>
 
@@ -695,7 +786,7 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                         <div style={{ ...labelStyle, color: 'var(--accent-color)', marginBottom: 10 }}>
                             <Server size={12} /> Compute Instance
                         </div>
-                        <ComputeAccessPanel bookingId={bookingId} onOpenTerminal={handleOpenTerminal} />
+                        <ComputeAccessPanel bookingId={bookingId} onOpenTerminal={handleOpenTerminal} serverAccess={serverAccess} />
                     </div>
                 )}
             </div>{/* end left column */}
