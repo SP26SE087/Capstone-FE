@@ -48,13 +48,30 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
         setCccdExtractError(null);
         try {
             const result = await visitorRegistrationService.extractCccd(file);
-            setForm(prev => ({ ...prev, FullName: toTitleCase(result.fullName) }));
-            setErrors(prev => ({ ...prev, FullName: undefined }));
-            if (result.faceImageBase64) {
-                // Handle both raw base64 and data URI formats
-                const dataUri = result.faceImageBase64.startsWith('data:')
-                    ? result.faceImageBase64
-                    : `data:image/jpeg;base64,${result.faceImageBase64}`;
+            // Debug: log raw response to check field names
+            console.log('[CCCD extract] result:', result);
+
+            // Handle various possible field names from BE
+            const fullName: string = (result as any).fullName
+                || (result as any).full_name
+                || (result as any).name
+                || '';
+            const faceImageRaw: string | null = (result as any).faceImageBase64
+                || (result as any).faceImage
+                || (result as any).portrait
+                || (result as any).face_image
+                || (result as any).image
+                || null;
+
+            if (fullName) {
+                setForm(prev => ({ ...prev, FullName: toTitleCase(fullName) }));
+                setErrors(prev => ({ ...prev, FullName: undefined }));
+            }
+
+            if (faceImageRaw) {
+                const dataUri = faceImageRaw.startsWith('data:')
+                    ? faceImageRaw
+                    : `data:image/jpeg;base64,${faceImageRaw}`;
                 const res = await fetch(dataUri);
                 const blob = await res.blob();
                 const f = new File([blob], 'cccd-portrait.jpg', { type: blob.type || 'image/jpeg' });
@@ -63,7 +80,12 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                 setPhotoPreview(prev => { if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev); return previewUrl; });
                 setErrors(prev => ({ ...prev, photo: undefined }));
             }
+
+            if (!fullName && !faceImageRaw) {
+                setCccdExtractError('Card was read but no data was returned. Check console for details.');
+            }
         } catch (err: any) {
+            console.error('[CCCD extract] error:', err?.response?.data ?? err);
             const code = err?.response?.data?.messageCode
                 || err?.response?.data?.MessageCode
                 || err?.response?.data?.errorCode;
@@ -348,12 +370,15 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                                 {cccdImage && cccdPreview ? (
                                     <div style={{ position: 'absolute', inset: 0 }}>
                                         <img src={cccdPreview} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                                        {cccdExtracting ? (
-                                            <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                                        {/* Loading overlay */}
+                                        {cccdExtracting && (
+                                            <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
                                                 <Loader2 size={22} color="#fff" style={{ animation: 'spin 1s linear infinite' }} />
                                                 <span style={{ fontSize: '0.75rem', color: '#fff', fontWeight: 600 }}>Reading ID Card...</span>
                                             </div>
-                                        ) : (
+                                        )}
+                                        {/* Remove button */}
+                                        {!cccdExtracting && (
                                             <button
                                                 type="button"
                                                 onClick={e => { e.stopPropagation(); setCccdImage(null); setCccdPreview(prev => { if (prev) URL.revokeObjectURL(prev); return null; }); setCccdExtractError(null); if (cccdRef.current) cccdRef.current.value = ''; }}
@@ -362,7 +387,16 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                                                 <X size={13} color="#fff" />
                                             </button>
                                         )}
-                                        <span style={{ position: 'absolute', bottom: '4px', left: '4px', right: '4px', fontSize: '0.68rem', color: '#fff', background: 'rgba(0,0,0,0.5)', borderRadius: '3px', padding: '1px 4px', textAlign: 'center', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{cccdImage.name}</span>
+                                        {/* Load Data button — pinned at bottom of image */}
+                                        {!cccdExtracting && (
+                                            <button
+                                                type="button"
+                                                onClick={e => { e.stopPropagation(); handleExtractCccd(); }}
+                                                style={{ position: 'absolute', bottom: 0, left: 0, right: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', padding: '6px 8px', background: 'rgba(37,99,235,0.88)', border: 'none', color: '#fff', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer', letterSpacing: '0.01em' }}
+                                            >
+                                                <RefreshCw size={12} /> Load Data from ID Card
+                                            </button>
+                                        )}
                                     </div>
                                 ) : (
                                     <>
@@ -374,35 +408,6 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                             </div>
                             <input ref={cccdRef} type="file" accept={ACCEPTED} style={{ display: 'none' }} onChange={e => handleFileChange(e, 'cccdImage')} />
                             {errors.cccdImage && <p style={errorStyle}>{errors.cccdImage}</p>}
-                            {cccdImage && (
-                                <button
-                                    type="button"
-                                    onClick={handleExtractCccd}
-                                    disabled={cccdExtracting}
-                                    style={{
-                                        marginTop: '0.4rem',
-                                        width: '100%',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        gap: '6px',
-                                        padding: '0.4rem 0.75rem',
-                                        borderRadius: 'var(--radius-sm)',
-                                        border: '1px solid var(--accent-color)',
-                                        background: 'transparent',
-                                        color: 'var(--accent-color)',
-                                        fontSize: '0.82rem',
-                                        fontWeight: 600,
-                                        cursor: cccdExtracting ? 'not-allowed' : 'pointer',
-                                        opacity: cccdExtracting ? 0.6 : 1,
-                                        transition: 'opacity 0.15s',
-                                    }}
-                                >
-                                    {cccdExtracting
-                                        ? <><Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> Reading ID Card...</>
-                                        : <><RefreshCw size={13} /> Load Data from ID Card</>}
-                                </button>
-                            )}
                             {cccdExtractError && (
                                 <p style={{ ...errorStyle, marginTop: '0.35rem', lineHeight: 1.4 }}>{cccdExtractError}</p>
                             )}
