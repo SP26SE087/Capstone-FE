@@ -22,17 +22,17 @@ const MOCK_TIERS: ComputeTier[] = [
 
 /**
  * Numeric accessStatus values from GET /api/server-access/bookings/{bookingId}
- * 0 = Pending, 1 = Active, 2 = Provisioning, 3 = Revoked, 4 = Expired
+ * 1 = Pending, 2 = Provisioning, 3 = Active, 4 = Expired, 5 = Revoked
  */
-export type ServerAccessStatusCode = 0 | 1 | 2 | 3 | 4;
+export type ServerAccessStatusCode = 1 | 2 | 3 | 4 | 5;
 export type ServerAccessStatus = 'Pending' | 'Provisioning' | 'Active' | 'Expired' | 'Revoked';
 
 const STATUS_MAP: Record<ServerAccessStatusCode, ServerAccessStatus> = {
-  0: 'Pending',
-  1: 'Provisioning',
-  2: 'Active',
-  3: 'Expired',
-  4: 'Revoked',
+  1: 'Pending',
+  2: 'Provisioning',
+  3: 'Active',
+  4: 'Expired',
+  5: 'Revoked',
 };
 
 export interface ServerAccess {
@@ -111,20 +111,6 @@ export const computeService = {
     } catch (err: any) {
       const msg = err.response?.data?.message || err.response?.data?.title || err.message;
       throw new Error(msg || 'Failed to submit public key');
-    }
-  },
-
-  /**
-   * Step 5 — Submit RSA private key before connecting to the terminal.
-   * POST /api/server-access/bookings/{bookingId}/private-key
-   * Key is AES-256 encrypted server-side and discarded when the booking ends.
-   */
-  submitPrivateKey: async (bookingId: string, privateKey: string): Promise<void> => {
-    try {
-      await api.post(`/api/server-access/bookings/${bookingId}/private-key`, { privateKey });
-    } catch (err: any) {
-      const msg = err.response?.data?.message || err.response?.data?.title || err.message;
-      throw new Error(msg || 'Failed to submit private key');
     }
   },
 
