@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import Modal from '@/components/common/Modal';
 import { visitorRegistrationService } from '@/services/visitorRegistrationService';
-import { Upload, X, CheckCircle2, Loader2 } from 'lucide-react';
+import { Upload, X, CheckCircle2, Loader2, RefreshCw } from 'lucide-react';
 
 interface Props {
     isOpen: boolean;
@@ -51,11 +51,16 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
             setForm(prev => ({ ...prev, FullName: toTitleCase(result.fullName) }));
             setErrors(prev => ({ ...prev, FullName: undefined }));
             if (result.faceImageBase64) {
-                const res = await fetch(result.faceImageBase64);
+                // Handle both raw base64 and data URI formats
+                const dataUri = result.faceImageBase64.startsWith('data:')
+                    ? result.faceImageBase64
+                    : `data:image/jpeg;base64,${result.faceImageBase64}`;
+                const res = await fetch(dataUri);
                 const blob = await res.blob();
                 const f = new File([blob], 'cccd-portrait.jpg', { type: blob.type || 'image/jpeg' });
+                const previewUrl = URL.createObjectURL(blob);
                 setPhoto(f);
-                setPhotoPreview(prev => { if (prev) URL.revokeObjectURL(prev); return result.faceImageBase64!; });
+                setPhotoPreview(prev => { if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev); return previewUrl; });
                 setErrors(prev => ({ ...prev, photo: undefined }));
             }
         } catch (err: any) {
@@ -84,7 +89,7 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
         }
     };
 
-    const validateFile = (file: File, fieldName: 'photo' | 'cccdImage'): string | undefined => {
+    const validateFile = (file: File, _fieldName: 'photo' | 'cccdImage'): string | undefined => {
         if (file.size > MAX_SIZE) return 'File exceeds 10 MB limit';
         if (!['image/jpeg', 'image/jpg', 'image/png', 'image/webp'].includes(file.type)) {
             return 'Invalid format (only jpg/jpeg/png/webp)';
@@ -369,17 +374,37 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                             </div>
                             <input ref={cccdRef} type="file" accept={ACCEPTED} style={{ display: 'none' }} onChange={e => handleFileChange(e, 'cccdImage')} />
                             {errors.cccdImage && <p style={errorStyle}>{errors.cccdImage}</p>}
+                            {cccdImage && (
+                                <button
+                                    type="button"
+                                    onClick={handleExtractCccd}
+                                    disabled={cccdExtracting}
+                                    style={{
+                                        marginTop: '0.4rem',
+                                        width: '100%',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '6px',
+                                        padding: '0.4rem 0.75rem',
+                                        borderRadius: 'var(--radius-sm)',
+                                        border: '1px solid var(--accent-color)',
+                                        background: 'transparent',
+                                        color: 'var(--accent-color)',
+                                        fontSize: '0.82rem',
+                                        fontWeight: 600,
+                                        cursor: cccdExtracting ? 'not-allowed' : 'pointer',
+                                        opacity: cccdExtracting ? 0.6 : 1,
+                                        transition: 'opacity 0.15s',
+                                    }}
+                                >
+                                    {cccdExtracting
+                                        ? <><Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> Reading ID Card...</>
+                                        : <><RefreshCw size={13} /> Load Data from ID Card</>}
+                                </button>
+                            )}
                             {cccdExtractError && (
-                                <div style={{ marginTop: '0.4rem', display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
-                                    <p style={{ ...errorStyle, marginTop: 0, lineHeight: 1.4, flex: 1 }}>{cccdExtractError}</p>
-                                    <button
-                                        type="button"
-                                        onClick={handleExtractCccd}
-                                        style={{ flexShrink: 0, padding: '2px 8px', fontSize: '0.75rem', fontWeight: 600, border: '1px solid var(--accent-color)', borderRadius: 'var(--radius-sm)', background: 'transparent', color: 'var(--accent-color)', cursor: 'pointer', whiteSpace: 'nowrap' }}
-                                    >
-                                        Retry
-                                    </button>
-                                </div>
+                                <p style={{ ...errorStyle, marginTop: '0.35rem', lineHeight: 1.4 }}>{cccdExtractError}</p>
                             )}
                         </div>
                     </div>
