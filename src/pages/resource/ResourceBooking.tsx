@@ -6,7 +6,7 @@ import { Resource, Booking, BookingStatus, BasicBookingResponse, EquipmentLog, E
 import { bookingService } from '@/services/bookingService';
 import { resourceService } from '@/services/resourceService';
 import { equipmentLogService } from '@/services/equipmentLogService';
-import { resourceTypeService, ResourceTypeItem } from '@/services/resourceTypeService';
+import { resourceTypeService, ResourceTypeItem, ResourceTypeCategory } from '@/services/resourceTypeService';
 import { useToastStore } from '@/store/slices/toastSlice';
 import {
     Search,
@@ -30,7 +30,9 @@ import {
     X,
     Wrench,
     Activity,
-    RotateCcw
+    RotateCcw,
+    Box,
+    Cpu
 } from 'lucide-react';
 
 import ResourceListView from './components/ResourceListView';
@@ -374,8 +376,10 @@ const ResourceBooking: React.FC = () => {
         );
     };
 
-    const handleViewBooking = (booking: Booking) =>
-        setActivePanel({ id: `view-booking-${booking.id}`, type: 'view_booking', targetId: booking.id, title: booking.title });
+    const handleViewBooking = (booking: Booking) => {
+        const resolvedId = booking.bookingId || booking.id;
+        if (resolvedId) setViewModalBookingId(resolvedId);
+    };
 
     const handleCreateResourceType = () =>
         setActivePanel({ id: `create-rt-${Date.now()}`, type: 'resource_type_form', title: 'New Resource Type' });
@@ -694,7 +698,7 @@ const ResourceBooking: React.FC = () => {
                         <div
                             onClick={e => e.stopPropagation()}
                             style={{
-                                width: '100%', maxWidth: 860, maxHeight: '88vh',
+                                width: 900, height: '82vh',
                                 background: '#fff', borderRadius: 16,
                                 boxShadow: '0 24px 48px rgba(0,0,0,0.2), 0 0 0 1px rgba(0,0,0,0.06)',
                                 display: 'flex', flexDirection: 'column',
@@ -710,9 +714,10 @@ const ResourceBooking: React.FC = () => {
                                         if (message) showToast(message, 'success');
                                         if (shouldClose) setViewModalBookingId(null);
                                         fetchViewData();
+                                        fetchData();
                                     }}
                                     isLabDirector={isLabDirector}
-                                    isManagedView={isLabDirector}
+                                    isManagedView={activeTab === 'managed_bookings' || isLabDirector}
                                 />
                             </div>
                         </div>
@@ -823,7 +828,11 @@ const ResourceBooking: React.FC = () => {
                                         )}
                                         {mainTab === 'bookings' && (
                                             <>
-                                                <button style={pillStyle(bookingSubTab === 'my', meta.color)} onClick={() => switchBookingSubTab('my')}>My Bookings</button>
+                                                {isLabDirector && (
+                                                    <button style={pillStyle(bookingSubTab === 'all', meta.color)} onClick={() => switchBookingSubTab('all')}>
+                                                        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><ClipboardList size={12} /> All Bookings</span>
+                                                    </button>
+                                                )}
                                                 <button style={pillStyle(bookingSubTab === 'managed', meta.color)} onClick={() => switchBookingSubTab('managed')}>
                                                     <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                                         Managed
@@ -841,11 +850,7 @@ const ResourceBooking: React.FC = () => {
                                                         )}
                                                     </span>
                                                 </button>
-                                                {isLabDirector && (
-                                                    <button style={pillStyle(bookingSubTab === 'all', meta.color)} onClick={() => switchBookingSubTab('all')}>
-                                                        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><ClipboardList size={12} /> All Bookings</span>
-                                                    </button>
-                                                )}
+                                                <button style={pillStyle(bookingSubTab === 'my', meta.color)} onClick={() => switchBookingSubTab('my')}>My Bookings</button>
                                             </>
                                         )}
                                     </div>
@@ -866,7 +871,7 @@ const ResourceBooking: React.FC = () => {
                                                 color: '#fff', cursor: 'pointer', boxShadow: `0 2px 6px ${meta.color}55`
                                             }}><Plus size={14} /> Add Resource</button>
                                         )}
-                                        {mainTab === 'resources' && !isResourceTypeTab && (
+                                        {mainTab === 'bookings' && (
                                             <button onClick={() => handleCreateBooking()} style={{
                                                 display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700,
                                                 padding: '0 14px', height: '32px', borderRadius: '8px', fontSize: '0.8rem',
@@ -1012,11 +1017,11 @@ const ResourceBooking: React.FC = () => {
                 <div style={{ display: 'flex', height: 'calc(100vh - 320px)', minHeight: '560px', background: '#fff', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', overflow: 'hidden' }}>
                     {/* Left: List */}
                     <div style={{
-                        flex: activePanel ? 5 : 10,
+                        flex: (activePanel && activePanel.type !== 'view_booking') ? 5 : 10,
                         display: 'flex', flexDirection: 'column',
                         transition: 'flex 0.35s cubic-bezier(0.4,0,0.2,1)',
                         overflow: 'hidden', minWidth: 0,
-                        borderRight: activePanel ? '1px solid #f1f5f9' : 'none',
+                        borderRight: (activePanel && activePanel.type !== 'view_booking') ? '1px solid #f1f5f9' : 'none',
                     }}>
                         <div style={{ flex: 1, overflowY: 'auto', padding: '12px 12px 12px 12px' }} className="custom-scrollbar">
                             {loading ? (
@@ -1041,6 +1046,7 @@ const ResourceBooking: React.FC = () => {
                                         selectedId={activePanel?.type === 'view_resource' ? activePanel.targetId ?? null : null}
                                         onSelect={handleViewResource}
                                         onBook={handleCreateBooking}
+                                        resourceTypes={resourceTypes}
                                     />
                                 </>
                             ) : isBookingTab ? (
@@ -1142,7 +1148,7 @@ const ResourceBooking: React.FC = () => {
                                     })()}
                                     <BookingListView
                                         bookings={displayBookings}
-                                        selectedId={activePanel?.type === 'view_booking' ? activePanel.targetId ?? null : null}
+                                        selectedId={viewModalBookingId}
                                         onSelect={handleViewBooking}
                                         selectable={bookingSubTab === 'managed'}
                                         selectedIds={bulkSelectedIds}
@@ -1238,8 +1244,13 @@ const ResourceBooking: React.FC = () => {
                                             onMouseEnter={e => (e.currentTarget.style.background = '#f8fafc')}
                                             onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                                         >
-                                            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#f5f3ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#7c3aed', flexShrink: 0 }}>
-                                                <Layers size={16} />
+                                            <div style={{
+                                                width: '32px', height: '32px', borderRadius: '8px', flexShrink: 0,
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                background: rt.category === ResourceTypeCategory.ServerCompute ? '#f5f3ff' : '#f0f9ff',
+                                                color: rt.category === ResourceTypeCategory.ServerCompute ? '#7c3aed' : '#0284c7',
+                                            }}>
+                                                {rt.category === ResourceTypeCategory.ServerCompute ? <Cpu size={16} /> : <Box size={16} />}
                                             </div>
                                             <div style={{ flex: 1, minWidth: 0 }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1265,8 +1276,8 @@ const ResourceBooking: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Right: Detail / Form Panel */}
-                    {activePanel && (
+                    {/* Right: Detail / Form Panel (not view_booking — that uses modal) */}
+                    {activePanel && activePanel.type !== 'view_booking' && (
                         <div style={{
                             flex: 5, transition: 'flex 0.35s cubic-bezier(0.4,0,0.2,1)',
                             overflow: 'auto', display: 'flex', flexDirection: 'column',
@@ -1288,14 +1299,6 @@ const ResourceBooking: React.FC = () => {
                                     onClose={handleClosePanel} onSaved={handlePanelSaved}
                                     onTitleChange={handleTitleChange}
                                     cartItems={bookingCart} onCartChange={setBookingCart}
-                                />
-                            )}
-                            {activePanel.type === 'view_booking' && activePanel.targetId && (
-                                <BookingDetailPanel
-                                    bookingId={activePanel.targetId} onClose={handleClosePanel}
-                                    onSaved={handlePanelSaved} onTitleChange={handleTitleChange}
-                                    isLabDirector={isLabDirector}
-                                    isManagedView={activeTab === 'managed_bookings'}
                                 />
                             )}
                             {activePanel.type === 'resource_type_form' && (

@@ -27,11 +27,11 @@ interface BookingListViewProps {
 
 const STATUS_CFG = {
     [BookingStatus.Pending]:   { label: 'Pending',   color: '#d97706', bg: '#fefce8', border: '#fde68a' },
-    [BookingStatus.Approved]:  { label: 'Approved',  color: '#059669', bg: '#ecfdf5', border: '#a7f3d0' },
+    [BookingStatus.Approved]:  { label: 'Approved',  color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe' },
     [BookingStatus.Rejected]:  { label: 'Rejected',  color: '#dc2626', bg: '#fef2f2', border: '#fecaca' },
     [BookingStatus.Cancelled]: { label: 'Cancelled', color: '#6b7280', bg: '#f3f4f6', border: '#e5e7eb' },
-    [BookingStatus.Completed]: { label: 'Completed', color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe' },
-    [BookingStatus.InUse]:     { label: 'In Use',    color: '#7c3aed', bg: '#f5f3ff', border: '#e9d5ff' },
+    [BookingStatus.Completed]: { label: 'Completed', color: '#6b7280', bg: '#f8fafc', border: '#e5e7eb' },
+    [BookingStatus.InUse]:     { label: 'In Use',    color: '#059669', bg: '#ecfdf5', border: '#a7f3d0' },
 } as const;
 
 const cfg = (status: BookingStatus) =>
@@ -215,7 +215,7 @@ const BookingListView: React.FC<BookingListViewProps> = ({
         const allDone     = group.bookings.every(b =>
             b.status === BookingStatus.Completed || b.status === BookingStatus.Cancelled || b.status === BookingStatus.Rejected
         );
-        const groupAccent = hasPending ? '#f59e0b' : hasInUse ? '#7c3aed' : allDone ? '#94a3b8' : '#059669';
+        const groupAccent = hasPending ? '#f59e0b' : hasInUse ? '#059669' : allDone ? '#94a3b8' : '#059669';
 
         return (
             <div key={group.key} style={{ borderRadius: '10px', border: '1px solid #e2e8f0', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
@@ -509,7 +509,7 @@ const BookingListView: React.FC<BookingListViewProps> = ({
             )}
             {activeGroups.length > 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <SectionHeader label="Approved & Active" count={activeGroups.length} color="#059669" bg="#ecfdf5" />
+                    <SectionHeader label="Approved & Active" count={activeGroups.length} color="#1d4ed8" bg="#eff6ff" />
                     {activeGroups.map(renderGroup)}
                 </div>
             )}

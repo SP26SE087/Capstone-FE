@@ -22,6 +22,7 @@ export interface Resource {
   description?: string;
   resourceTypeId?: string;
   resourceTypeName?: string;
+  resourceTypeCategory?: number; // 1 = Physical, 2 = ServerCompute
   modelSeries?: string;
   type: ResourceType;
   status?: ResourceStatus;

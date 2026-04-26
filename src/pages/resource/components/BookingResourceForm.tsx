@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Resource, ResourceType, CreateBookingRequest, Booking, BookingStatus } from '@/types/booking';
+import { Resource, CreateBookingRequest, Booking, BookingStatus } from '@/types/booking';
 import { resourceService } from '@/services/resourceService';
 import { bookingService } from '@/services/bookingService';
 import {
@@ -9,9 +9,7 @@ import {
     Clock,
     FileText,
     Cpu,
-    HardDrive,
     Box,
-    Monitor,
     Package,
     AlertCircle,
     Minus,
@@ -19,6 +17,7 @@ import {
     X,
     Search,
     MapPin,
+    Layers,
     Zap,
 } from 'lucide-react';
 
@@ -95,20 +94,26 @@ function computeAvailableForWindow(
 }
 
 // ─── Icons & labels ───────────────────────────────────────────────────────────
-const RT_ICON: Record<number, React.ReactNode> = {
-    [ResourceType.GPU]:       <Cpu size={13} />,
-    [ResourceType.Equipment]: <HardDrive size={13} />,
-    [ResourceType.Dataset]:   <Box size={13} />,
-    [ResourceType.LabStation]:<Monitor size={13} />,
-    [ResourceType.Compute]:   <Zap size={13} />,
-};
-const RT_LABEL: Record<number, string> = {
-    [ResourceType.GPU]:       'GPU',
-    [ResourceType.Equipment]: 'Equipment',
-    [ResourceType.Dataset]:   'Dataset',
-    [ResourceType.LabStation]:'Lab Station',
-    [ResourceType.Compute]:   'Compute',
-};
+function getResourceCategoryIcon(resource: Resource): React.ReactNode {
+    if (resource.resourceTypeCategory === 2 ||
+        (resource.resourceTypeName ?? '').toLowerCase().includes('compute') ||
+        (resource.resourceTypeName ?? '').toLowerCase().includes('server') ||
+        (resource.resourceTypeName ?? '').toLowerCase().includes('gpu')) {
+        return <Cpu size={13} />;
+    }
+    return <Box size={13} />;
+}
+
+function getResourceCategoryStyle(resource: Resource, inCart: boolean): { bg: string; color: string } {
+    if (inCart) return { bg: '#e0e7ff', color: '#4f46e5' };
+    const isCompute = resource.resourceTypeCategory === 2 ||
+        (resource.resourceTypeName ?? '').toLowerCase().includes('compute') ||
+        (resource.resourceTypeName ?? '').toLowerCase().includes('server') ||
+        (resource.resourceTypeName ?? '').toLowerCase().includes('gpu');
+    return isCompute
+        ? { bg: '#f5f3ff', color: '#7c3aed' }
+        : { bg: '#e0f2fe', color: '#0284c7' };
+}
 
 // ─── Style constants ──────────────────────────────────────────────────────────
 const baseInput: React.CSSProperties = {
@@ -162,11 +167,12 @@ const BookingResourceForm: React.FC<BookingResourceFormProps> = ({
     const [endTime,   setEndTime]   = useState(fmtLocal(defaultEnd));
     const [search,    setSearch]    = useState('');
 
-    const [resources,   setResources]   = useState<Resource[]>([]);
-    const [allBookings, setAllBookings] = useState<Booking[]>([]);
-    const [loading,     setLoading]     = useState(false);
-    const [saving,      setSaving]      = useState(false);
-    const [errors,      setErrors]      = useState<Record<string, string>>({});
+    const [resources,       setResources]       = useState<Resource[]>([]);
+    const [allBookings,     setAllBookings]     = useState<Booking[]>([]);
+    const [loading,         setLoading]         = useState(false);
+    const [saving,          setSaving]          = useState(false);
+    const [errors,          setErrors]          = useState<Record<string, string>>({});
+    const [categoryFilter,  setCategoryFilter]  = useState<'all' | 'physical' | 'compute'>('all');
 
     // ── Load resources + all bookings once ───────────────────────────────────
     useEffect(() => {
@@ -199,13 +205,28 @@ const BookingResourceForm: React.FC<BookingResourceFormProps> = ({
     // ── Derived: filtered resource list ──────────────────────────────────────
     const filteredResources = useMemo(() => {
         const q = search.toLowerCase().trim();
-        if (!q) return resources;
-        return resources.filter(r =>
-            r.name.toLowerCase().includes(q) ||
-            (r.resourceTypeName ?? '').toLowerCase().includes(q) ||
-            (r.location ?? '').toLowerCase().includes(q),
-        );
-    }, [resources, search]);
+        let list = q
+            ? resources.filter(r =>
+                r.name.toLowerCase().includes(q) ||
+                (r.resourceTypeName ?? '').toLowerCase().includes(q) ||
+                (r.location ?? '').toLowerCase().includes(q))
+            : resources;
+        if (categoryFilter === 'compute') {
+            list = list.filter(r =>
+                r.resourceTypeCategory === 2 ||
+                (r.resourceTypeName ?? '').toLowerCase().includes('compute') ||
+                (r.resourceTypeName ?? '').toLowerCase().includes('server') ||
+                (r.resourceTypeName ?? '').toLowerCase().includes('gpu'));
+        } else if (categoryFilter === 'physical') {
+            list = list.filter(r =>
+                r.resourceTypeCategory === 1 ||
+                (r.resourceTypeCategory === undefined && !(
+                    (r.resourceTypeName ?? '').toLowerCase().includes('compute') ||
+                    (r.resourceTypeName ?? '').toLowerCase().includes('server') ||
+                    (r.resourceTypeName ?? '').toLowerCase().includes('gpu'))));
+        }
+        return list;
+    }, [resources, search, categoryFilter]);
 
     // ── Cart helpers ──────────────────────────────────────────────────────────
     const cartMap = useMemo(() => {
@@ -372,6 +393,30 @@ const BookingResourceForm: React.FC<BookingResourceFormProps> = ({
                         )}
                     </div>
 
+                    {/* Category filter pills */}
+                    <div style={{ display: 'flex', gap: 5, marginBottom: 7 }}>
+                        {([
+                            { key: 'all',      label: 'All',             icon: <Layers size={11} />, activeColor: '#475569', activeBg: '#f1f5f9' },
+                            { key: 'physical', label: 'Physical',         icon: <Box size={11} />,    activeColor: '#0284c7', activeBg: '#e0f2fe' },
+                            { key: 'compute',  label: 'Server / Compute', icon: <Cpu size={11} />,    activeColor: '#7c3aed', activeBg: '#f5f3ff' },
+                        ] as const).map(opt => {
+                            const active = categoryFilter === opt.key;
+                            return (
+                                <button key={opt.key} type="button" onClick={() => setCategoryFilter(opt.key)}
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: 4,
+                                        padding: '4px 10px', borderRadius: 20, border: 'none', cursor: 'pointer',
+                                        fontSize: '0.68rem', fontWeight: active ? 700 : 500,
+                                        background: active ? opt.activeBg : '#f8fafc',
+                                        color: active ? opt.activeColor : '#64748b',
+                                        boxShadow: active ? `0 0 0 1.5px ${opt.activeColor}55` : 'none',
+                                        transition: 'all 0.15s',
+                                    }}>
+                                    {opt.icon} {opt.label}
+                                </button>
+                            );
+                        })}
+                    </div>
                     {/* Search */}
                     <div style={{ position: 'relative', marginBottom: 7 }}>
                         <Search size={12} style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', pointerEvents: 'none' }} />
@@ -425,8 +470,8 @@ const BookingResourceForm: React.FC<BookingResourceFormProps> = ({
                                     }}>
                                         {/* Top row */}
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px 4px' }}>
-                                            <div style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0, background: inCart ? '#e0e7ff' : '#f1f5f9', color: inCart ? '#4f46e5' : fullyBooked ? '#94a3b8' : '#475569', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                {RT_ICON[resource.type] ?? <Package size={13} />}
+                                            <div style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', ...(fullyBooked && !inCart ? { background: '#f1f5f9', color: '#94a3b8' } : getResourceCategoryStyle(resource, inCart)) }}>
+                                                {getResourceCategoryIcon(resource)}
                                             </div>
                                             <div style={{ flex: 1, minWidth: 0 }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -441,7 +486,7 @@ const BookingResourceForm: React.FC<BookingResourceFormProps> = ({
                                                 </div>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 1 }}>
                                                     <span style={{ fontSize: '0.62rem', color: '#64748b' }}>
-                                                        {RT_LABEL[resource.type] ?? 'Resource'}
+                                                        {resource.resourceTypeName ?? 'Resource'}
                                                     </span>
                                                     {resource.location && (
                                                         <span style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: '0.62rem', color: '#94a3b8' }}>

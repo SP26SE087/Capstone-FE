@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { Server, Terminal, Clock, CheckCircle2, AlertTriangle, Ban } from 'lucide-react';
 import { ComputeAccess, ComputeAccessStatus } from '@/types/booking';
 import { ServerAccess } from '@/services/computeService';

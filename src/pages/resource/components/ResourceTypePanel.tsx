@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { resourceTypeService, ResourceTypeItem, ResourceTypeCategory } from '@/services/resourceTypeService';
-import { Save, Loader2, Layers, Tag, Box, Server } from 'lucide-react';
+import { Save, Loader2, Layers, Tag, Box, Cpu } from 'lucide-react';
 
 interface ResourceTypePanelProps {
     editing?: ResourceTypeItem | null;
@@ -135,7 +135,7 @@ const ResourceTypePanel: React.FC<ResourceTypePanelProps> = ({ editing, onClose,
                         <div style={{ display: 'flex', gap: '8px' }}>
                             {[
                                 { value: ResourceTypeCategory.Physical, label: 'Physical', desc: 'Lab equipment, hardware', icon: <Box size={14} /> },
-                                { value: ResourceTypeCategory.ServerCompute, label: 'Server / Compute', desc: 'GPU nodes, compute instances', icon: <Server size={14} /> },
+                                { value: ResourceTypeCategory.ServerCompute, label: 'Server / Compute', desc: 'GPU nodes, compute instances', icon: <Cpu size={14} /> },
                             ].map(opt => (
                                 <button
                                     key={opt.value}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Booking, BookingStatus, BasicResourceResponse, ResourceType, ComputeAccess } from '@/types/booking';
+import { Booking, BookingStatus, BasicResourceResponse, ComputeAccess } from '@/types/booking';
 import { bookingService } from '@/services/bookingService';
 import { computeService, ServerAccess } from '@/services/computeService';
 import ComputeAccessPanel from './ComputeAccessPanel';
@@ -25,7 +25,6 @@ import {
     LogIn,
     LogOut,
     Server,
-    Tag,
     UserCheck,
     UserX,
     Timer,
@@ -64,11 +63,11 @@ const sectionStyle: React.CSSProperties = {
 const getStatusConfig = (status: BookingStatus) => {
     switch (status) {
         case BookingStatus.Pending:   return { label: 'Pending',   color: '#d97706', bg: '#fefce8', border: '#fde68a', icon: <Clock size={14} /> };
-        case BookingStatus.Approved:  return { label: 'Approved',  color: '#059669', bg: '#ecfdf5', border: '#a7f3d0', icon: <CheckCircle2 size={14} /> };
+        case BookingStatus.Approved:  return { label: 'Approved',  color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe', icon: <CheckCircle2 size={14} /> };
         case BookingStatus.Rejected:  return { label: 'Rejected',  color: '#dc2626', bg: '#fef2f2', border: '#fecaca', icon: <XCircle size={14} /> };
         case BookingStatus.Cancelled: return { label: 'Cancelled', color: '#6b7280', bg: '#f3f4f6', border: '#e5e7eb', icon: <XCircle size={14} /> };
-        case BookingStatus.Completed: return { label: 'Completed', color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe', icon: <CheckCircle2 size={14} /> };
-        case BookingStatus.InUse:     return { label: 'In Use',    color: '#7c3aed', bg: '#f5f3ff', border: '#e9d5ff', icon: <Loader2 size={14} /> };
+        case BookingStatus.Completed: return { label: 'Completed', color: '#6b7280', bg: '#f8fafc', border: '#e5e7eb', icon: <CheckCircle2 size={14} /> };
+        case BookingStatus.InUse:     return { label: 'In Use',    color: '#059669', bg: '#ecfdf5', border: '#a7f3d0', icon: <Loader2 size={14} /> };
         default:                      return { label: 'Unknown',   color: '#64748b', bg: '#f8fafc', border: '#e2e8f0', icon: null };
     }
 };
@@ -297,18 +296,29 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
     const [countdownMs, setCountdownMs] = useState<number | null>(null);
     const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+    // Derive these before any useEffect that references them to avoid temporal dead zone
+    const bookingResources = booking?.resources ?? [];
+    const bookingResourceIds = booking?.resourceIds ?? bookingResources.map((r: any) => r.id);
+    const resourceGroups = useMemo(() => groupResources(bookingResources), [bookingResources]);
+    const isServerComputeBooking = useMemo(() => {
+        return bookingResources.some((r: any) =>
+            r.resourceTypeCategory === 2 ||
+            r.resourceTypeName?.toLowerCase().includes('compute') ||
+            r.resourceTypeName?.toLowerCase().includes('server') ||
+            r.resourceTypeName?.toLowerCase().includes('gpu rental')
+        );
+    }, [bookingResources]);
+
     useEffect(() => {
         if (bookingId) loadBooking();
     }, [bookingId]);
 
-    // Poll every 60s + refetch on tab focus for server compute bookings in active states
+    // Poll every 60s for server compute bookings in active states (no focus reload)
     useEffect(() => {
         if (!bookingId || !isServerComputeBooking) return;
         if (booking?.status !== BookingStatus.Approved && booking?.status !== BookingStatus.InUse) return;
         const interval = setInterval(() => loadBooking(), 60_000);
-        const onFocus = () => loadBooking();
-        window.addEventListener('focus', onFocus);
-        return () => { clearInterval(interval); window.removeEventListener('focus', onFocus); };
+        return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [bookingId, isServerComputeBooking, booking?.status]);
 
@@ -363,8 +373,10 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                     // non-fatal
                 }
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error('Failed to load booking:', err);
+            const msg = err?.response?.data?.message || err?.response?.data?.title || 'Server error. Cannot load booking details.';
+            addToast(msg, 'error');
         } finally {
             setLoading(false);
         }
@@ -523,21 +535,6 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
         setShowTerminalModal(true);
     };
 
-
-    // Hooks must come before any early returns
-    const bookingResources = booking?.resources ?? [];
-    const bookingResourceIds = booking?.resourceIds ?? bookingResources.map(r => r.id);
-    const resourceGroups = useMemo(() => groupResources(bookingResources), [bookingResources]);
-    
-    // Check if booking has compute/server resources (category = 2 or name-based fallback)
-    const isServerComputeBooking = useMemo(() => {
-        return bookingResources.some((r: any) =>
-            r.resourceTypeCategory === 2 ||
-            r.resourceTypeName?.toLowerCase().includes('compute') ||
-            r.resourceTypeName?.toLowerCase().includes('server') ||
-            r.resourceTypeName?.toLowerCase().includes('gpu rental')
-        );
-    }, [bookingResources]);
 
     const totalKept = groupKeptQtys
         ? resourceGroups.reduce((sum, g) => sum + (groupKeptQtys[g.key] ?? g.ids.length), 0)
@@ -712,21 +709,21 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                     <PersonCard
                         label="Borrower"
                         icon={<User size={11} />}
-                        name={booking.userFullName}
-                        email={booking.userEmail}
-                        accentColor="#2563eb"
-                        accentBg="#eff6ff"
-                        accentBorder="#bfdbfe"
+                        name={booking.userFullName ?? null}
+                        email={booking.userEmail ?? null}
+                        accentColor="#475569"
+                        accentBg="#f8fafc"
+                        accentBorder="#e2e8f0"
                     />
                     {/* Resource Manager */}
                     <PersonCard
                         label="Resource Manager"
                         icon={<Shield size={11} />}
-                        name={booking.managerFullName}
-                        email={booking.managerEmail}
-                        accentColor="#7c3aed"
-                        accentBg="#f5f3ff"
-                        accentBorder="#e9d5ff"
+                        name={booking.managerFullName ?? null}
+                        email={booking.managerEmail ?? null}
+                        accentColor="#475569"
+                        accentBg="#f8fafc"
+                        accentBorder="#e2e8f0"
                     />
                     {/* Approved By — always shown */}
                     <PersonCard
@@ -735,9 +732,9 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                         name={booking.approvedByName ?? null}
                         email={booking.approvedByEmail ?? null}
                         sub={booking.approvedAt ? formatDisplayDate(booking.approvedAt) : undefined}
-                        accentColor={booking.approvedByName ? '#059669' : '#94a3b8'}
-                        accentBg={booking.approvedByName ? '#ecfdf5' : '#f8fafc'}
-                        accentBorder={booking.approvedByName ? '#a7f3d0' : '#e2e8f0'}
+                        accentColor="#475569"
+                        accentBg="#f8fafc"
+                        accentBorder="#e2e8f0"
                         placeholder="Not approved yet"
                     />
                 </div>
@@ -841,17 +838,24 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                             {/* Badges */}
                             <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 4 }}>
                                 {r.resourceTypeName && (
-                                    <span style={{ fontSize: '0.58rem', fontWeight: 700, color: '#7c3aed', background: '#f5f3ff', border: '1px solid #e9d5ff', padding: '1px 6px', borderRadius: 20 }}>
+                                    <span style={{
+                                        fontSize: '0.65rem', fontWeight: 800,
+                                        color: (r as any).resourceTypeCategory === 2 ? '#7c3aed' : '#0284c7',
+                                        background: (r as any).resourceTypeCategory === 2 ? '#f5f3ff' : '#f0f9ff',
+                                        border: `1.5px solid ${(r as any).resourceTypeCategory === 2 ? '#c4b5fd' : '#7dd3fc'}`,
+                                        padding: '2px 8px', borderRadius: 6,
+                                        letterSpacing: '0.01em',
+                                    }}>
                                         {r.resourceTypeName}
                                     </span>
                                 )}
                                 {r.location && (
-                                    <span style={{ fontSize: '0.58rem', fontWeight: 600, color: '#475569', display: 'inline-flex', alignItems: 'center', gap: 2 }}>
-                                        <MapPin size={8} /> {r.location}
+                                    <span style={{ fontSize: '0.62rem', fontWeight: 600, color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+                                        <MapPin size={9} /> {r.location}
                                     </span>
                                 )}
                                 {r.isDamaged && (
-                                    <span style={{ fontSize: '0.58rem', fontWeight: 700, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', padding: '1px 6px', borderRadius: 20 }}>
+                                    <span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', padding: '2px 7px', borderRadius: 6 }}>
                                         ⚠ Damaged
                                     </span>
                                 )}
