@@ -4,6 +4,9 @@ import { API_BASE_URL } from './api';
 import {
     VisitorRegistrationResponse,
     UpdateVisitorRegistrationStatusRequest,
+    AssigneeTransferRequestResponse,
+    TransferRequest,
+    RespondTransferRequest,
 } from '@/types/visitorRegistration';
 
 export const visitorRegistrationService = {
@@ -44,5 +47,64 @@ export const visitorRegistrationService = {
         const response = await api.patch(`/api/visitor-registrations/${id}/status`, body);
         const data = response.data?.data ?? response.data;
         return data as VisitorRegistrationResponse;
+    },
+
+    /**
+     * Get a single registration by ID (includes full logs[]).
+     * Requires JWT auth.
+     */
+    getById: async (id: string): Promise<VisitorRegistrationResponse> => {
+        const response = await api.get(`/api/visitor-registrations/${id}`);
+        const data = response.data?.data ?? response.data;
+        return data as VisitorRegistrationResponse;
+    },
+
+    /**
+     * Request transfer of a registration to another assignee.
+     * Requires JWT auth; caller must be current assignee.
+     */
+    requestTransfer: async (id: string, body: TransferRequest): Promise<AssigneeTransferRequestResponse> => {
+        const response = await api.post(`/api/visitor-registrations/${id}/transfer`, body);
+        const data = response.data?.data ?? response.data;
+        return data as AssigneeTransferRequestResponse;
+    },
+
+    /**
+     * Get all pending transfer requests where the current user is the target recipient.
+     */
+    getPendingTransfers: async (): Promise<AssigneeTransferRequestResponse[]> => {
+        const response = await api.get('/api/visitor-registrations/transfers/pending');
+        const data = response.data?.data ?? response.data;
+        return Array.isArray(data) ? data : [];
+    },
+
+    /**
+     * Accept or reject a transfer request. Caller must be the toAssignee.
+     */
+    respondToTransfer: async (
+        transferId: string,
+        body: RespondTransferRequest,
+    ): Promise<VisitorRegistrationResponse> => {
+        const response = await api.patch(`/api/visitor-registrations/transfers/${transferId}`, body);
+        const data = response.data?.data ?? response.data;
+        return data as VisitorRegistrationResponse;
+    },
+
+    /**
+     * Extract full name and portrait from a Vietnamese CCCD front-side image.
+     * No auth required (AllowAnonymous).
+     */
+    extractCccd: async (image: File): Promise<{ fullName: string; faceImageBase64: string | null }> => {
+        const anonAxios = axios.create({
+            baseURL: API_BASE_URL,
+            timeout: 30000,
+        });
+        const fd = new FormData();
+        fd.append('image', image);
+        const response = await anonAxios.post('/api/cccd/extract', fd, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        const data = response.data?.data ?? response.data;
+        return data as { fullName: string; faceImageBase64: string | null };
     },
 };
