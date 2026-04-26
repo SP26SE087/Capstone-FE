@@ -10,12 +10,14 @@ interface ServerTerminalModalProps {
   isOpen: boolean;
   onClose: () => void;
   access: ComputeAccess;
+  privateKey: string;
 }
 
 const ServerTerminalModal: React.FC<ServerTerminalModalProps> = ({
   isOpen,
   onClose,
-  access
+  access,
+  privateKey,
 }) => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [activeTab, setActiveTab] = useState<'terminal' | 'files'>('terminal');
@@ -360,6 +362,7 @@ const ServerTerminalModal: React.FC<ServerTerminalModalProps> = ({
                 <ServerTerminal
                   wsUrl={wsUrl}
                   token={token}
+                  privateKey={privateKey}
                   onConnectionChange={setConnected}
                   style={{ flex: 1, borderRadius: 0, border: 'none' }}
                 />
@@ -369,6 +372,7 @@ const ServerTerminalModal: React.FC<ServerTerminalModalProps> = ({
                 <TerminalFileManager
                   bookingId={access.bookingId}
                   terminalToken={token}
+                  privateKey={privateKey}
                 />
               </div>
             </div>

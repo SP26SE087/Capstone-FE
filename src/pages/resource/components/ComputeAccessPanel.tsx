@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { Server, Terminal, Clock, CheckCircle2, AlertTriangle, Ban, Key, Upload, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
+import { Server, Terminal, Clock, CheckCircle2, AlertTriangle, Ban, Key, ChevronDown, ChevronUp, Loader2, Upload } from 'lucide-react';
 import { ComputeAccess, ComputeAccessStatus } from '@/types/booking';
 import { ServerAccess, computeService, SubmitPublicKeyRequest } from '@/services/computeService';
 
 interface ComputeAccessPanelProps {
   bookingId: string;
-  onOpenTerminal: (access: ComputeAccess) => void;
+  /** Called with the ComputeAccess object when user wants to open terminal */
+  onOpenTerminal: (access: ComputeAccess, privateKey: string) => void;
   serverAccess?: ServerAccess | null;
   onAccessChange?: () => void;
 }
@@ -46,14 +47,14 @@ const textareaStyle: React.CSSProperties = {
   minHeight: '80px',
 };
 
-const stepBtnStyle = (active: boolean): React.CSSProperties => ({
+const actionBtnStyle = (active: boolean, color = '#0ea5e9'): React.CSSProperties => ({
   display: 'flex', alignItems: 'center', gap: '5px',
   padding: '6px 13px', borderRadius: '7px', border: 'none',
-  background: active ? '#0ea5e9' : '#334155',
+  background: active ? color : '#334155',
   color: active ? '#fff' : '#64748b',
   cursor: active ? 'pointer' : 'not-allowed',
   fontWeight: 700, fontSize: '0.75rem',
-  boxShadow: active ? '0 3px 10px rgba(14,165,233,0.35)' : 'none',
+  boxShadow: active ? `0 3px 10px ${color}55` : 'none',
   opacity: active ? 1 : 0.7,
   flexShrink: 0,
 });
@@ -75,25 +76,20 @@ const ComputeAccessPanel: React.FC<ComputeAccessPanelProps> = ({
   const [submittingPublicKey, setSubmittingPublicKey] = useState(false);
   const [publicKeyError, setPublicKeyError] = useState<string | null>(null);
 
-  // ── Step 5: submit private key ───────────────────────────────────────
+  // ── Private key — stays in browser only ─────────────────────────────
   const [showPrivateKeyForm, setShowPrivateKeyForm] = useState(false);
   const [privateKey, setPrivateKey] = useState('');
-  const [submittingPrivateKey, setSubmittingPrivateKey] = useState(false);
-  const [privateKeyError, setPrivateKeyError] = useState<string | null>(null);
-  const [privateKeyDone, setPrivateKeyDone] = useState(false);
 
   const accessConfig = serverAccess ? getAccessStatusConfig(serverAccess.status) : null;
   const isSessionEnded = !!accessConfig && !accessConfig.canConnect
     && serverAccess?.status !== 'Pending'
     && serverAccess?.status !== 'Provisioning';
 
-  // Derive what the user needs to do next
+  const isActive = serverAccess?.status === 'Active' || serverAccess?.accessStatus === 3;
   const needsPublicKey = !serverAccess;
-  const isActive = serverAccess?.status === 'Active' || serverAccess?.accessStatus === 1;
-  // Private key is discarded server-side when booking ends — must re-submit each session
-  const needsPrivateKey = !!serverAccess && isActive && !privateKeyDone;
-  // Can connect only when Active AND private key submitted this session
-  const canConnect = isActive && privateKeyDone;
+  // Active = provisioned and ready; user must paste private key in browser to connect
+  const needsPrivateKey = isActive && !privateKey.trim();
+  const canConnect = isActive && !!privateKey.trim();
 
   const handleSubmitPublicKey = async () => {
     if (!publicKey.trim()) { setPublicKeyError('SSH public key is required.'); return; }
@@ -119,22 +115,6 @@ const ComputeAccessPanel: React.FC<ComputeAccessPanelProps> = ({
     }
   };
 
-  const handleSubmitPrivateKey = async () => {
-    if (!privateKey.trim()) { setPrivateKeyError('SSH private key is required.'); return; }
-    setSubmittingPrivateKey(true);
-    setPrivateKeyError(null);
-    try {
-      await computeService.submitPrivateKey(bookingId, privateKey.trim());
-      setPrivateKeyDone(true);
-      setShowPrivateKeyForm(false);
-      setPrivateKey('');
-    } catch (err: any) {
-      setPrivateKeyError(err.message || 'Failed to submit private key.');
-    } finally {
-      setSubmittingPrivateKey(false);
-    }
-  };
-
   const handleOpenTerminal = () => {
     const access: ComputeAccess = {
       id: bookingId,
@@ -143,7 +123,7 @@ const ComputeAccessPanel: React.FC<ComputeAccessPanelProps> = ({
       tierName: '',
       status: ComputeAccessStatus.Active,
     };
-    onOpenTerminal(access);
+    onOpenTerminal(access, privateKey.trim());
   };
 
   return (
@@ -181,8 +161,7 @@ const ComputeAccessPanel: React.FC<ComputeAccessPanelProps> = ({
               <span style={{
                 display: 'inline-flex', alignItems: 'center', gap: '4px',
                 fontSize: '0.62rem', fontWeight: 700,
-                color: accessConfig.color,
-                background: accessConfig.bg,
+                color: accessConfig.color, background: accessConfig.bg,
                 border: `1px solid ${accessConfig.border}`,
                 padding: '1px 8px', borderRadius: 20,
               }}>
@@ -209,19 +188,17 @@ const ComputeAccessPanel: React.FC<ComputeAccessPanelProps> = ({
                   : needsPublicKey
                     ? 'Submit your SSH public key to request access'
                     : needsPrivateKey
-                      ? 'Server provisioned — submit your private key to connect'
-                      : privateKeyDone
-                        ? 'Private key accepted — click to open the terminal'
-                        : 'Click to open the terminal'}
+                      ? 'Server ready — paste your private key to connect'
+                      : 'Private key entered — click to open the terminal'}
           </div>
         </div>
 
         {/* Action buttons */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
           {needsPublicKey && (
-            <button
+            <button type="button"
               onClick={() => setShowPublicKeyForm(v => !v)}
-              style={stepBtnStyle(true)}
+              style={actionBtnStyle(true)}
             >
               <Key size={13} />
               {showPublicKeyForm ? 'Cancel' : 'Submit Public Key'}
@@ -229,18 +206,18 @@ const ComputeAccessPanel: React.FC<ComputeAccessPanelProps> = ({
             </button>
           )}
 
-          {needsPrivateKey && !privateKeyDone && (
-            <button
+          {isActive && (
+            <button type="button"
               onClick={() => setShowPrivateKeyForm(v => !v)}
-              style={stepBtnStyle(true)}
+              style={actionBtnStyle(true, '#10b981')}
             >
               <Upload size={13} />
-              {showPrivateKeyForm ? 'Cancel' : 'Submit Private Key'}
+              {showPrivateKeyForm ? 'Cancel' : (privateKey.trim() ? 'Change Key' : 'Paste Private Key')}
               {showPrivateKeyForm ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
             </button>
           )}
 
-          <button
+          <button type="button"
             onClick={handleOpenTerminal}
             disabled={!canConnect}
             style={{
@@ -268,19 +245,18 @@ const ComputeAccessPanel: React.FC<ComputeAccessPanelProps> = ({
           display: 'flex', flexDirection: 'column', gap: '8px',
         }}>
           <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#38bdf8', marginBottom: 2 }}>
-            Step 1 of 2 — Submit SSH Public Key
+            Submit SSH Public Key
+          </div>
+          <div style={{ fontSize: '0.68rem', color: '#64748b' }}>
+            Generate with: <code style={{ color: '#94a3b8' }}>ssh-keygen -t rsa -b 4096 -m PEM -f labsync_key -N ""</code> then paste contents of <code style={{ color: '#94a3b8' }}>labsync_key.pub</code>
           </div>
 
           <div>
             <label style={{ fontSize: '0.68rem', color: '#94a3b8', display: 'block', marginBottom: 4 }}>
               SSH Public Key <span style={{ color: '#ef4444' }}>*</span>
             </label>
-            <textarea
-              style={textareaStyle}
-              placeholder="ssh-rsa AAAAB3NzaC1yc2E..."
-              value={publicKey}
-              onChange={e => setPublicKey(e.target.value)}
-            />
+            <textarea style={textareaStyle} placeholder="ssh-rsa AAAAB3NzaC1yc2E..."
+              value={publicKey} onChange={e => setPublicKey(e.target.value)} />
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
@@ -305,12 +281,9 @@ const ComputeAccessPanel: React.FC<ComputeAccessPanelProps> = ({
 
           <div>
             <label style={{ fontSize: '0.68rem', color: '#94a3b8', display: 'block', marginBottom: 4 }}>Project Description</label>
-            <textarea
-              style={{ ...textareaStyle, minHeight: '56px' }}
+            <textarea style={{ ...textareaStyle, minHeight: '56px' }}
               placeholder="Brief description of your project…"
-              value={projectDescription}
-              onChange={e => setProjectDescription(e.target.value)}
-            />
+              value={projectDescription} onChange={e => setProjectDescription(e.target.value)} />
           </div>
 
           {publicKeyError && (
@@ -319,22 +292,20 @@ const ComputeAccessPanel: React.FC<ComputeAccessPanelProps> = ({
             </div>
           )}
 
-          <button
+          <button type="button"
             onClick={handleSubmitPublicKey}
             disabled={submittingPublicKey || !publicKey.trim()}
-            style={{
-              ...stepBtnStyle(!submittingPublicKey && !!publicKey.trim()),
-              alignSelf: 'flex-end',
-              padding: '7px 18px',
-            }}
+            style={{ ...actionBtnStyle(!submittingPublicKey && !!publicKey.trim()), alignSelf: 'flex-end', padding: '7px 18px' }}
           >
-            {submittingPublicKey ? <><Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> Submitting…</> : <><Key size={13} /> Submit Public Key</>}
+            {submittingPublicKey
+              ? <><Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> Submitting…</>
+              : <><Key size={13} /> Submit Public Key</>}
           </button>
         </div>
       )}
 
-      {/* ── Step 5: Private key form ── */}
-      {showPrivateKeyForm && needsPrivateKey && (
+      {/* ── Private key form (browser-only, never sent to server) ── */}
+      {showPrivateKeyForm && isActive && (
         <div style={{
           padding: '12px', borderRadius: '8px',
           background: 'rgba(16,185,129,0.08)',
@@ -342,10 +313,10 @@ const ComputeAccessPanel: React.FC<ComputeAccessPanelProps> = ({
           display: 'flex', flexDirection: 'column', gap: '8px',
         }}>
           <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#34d399', marginBottom: 2 }}>
-            Step 2 of 2 — Submit SSH Private Key
+            Paste SSH Private Key
           </div>
           <div style={{ fontSize: '0.68rem', color: '#64748b' }}>
-            Your private key is AES-256 encrypted server-side and automatically discarded when the booking ends. It is never returned to any client.
+            Your private key <strong style={{ color: '#94a3b8' }}>never leaves your browser</strong> — it is used only in-memory for the WebSocket connection and is never stored or sent to the server.
           </div>
 
           <div>
@@ -354,30 +325,21 @@ const ComputeAccessPanel: React.FC<ComputeAccessPanelProps> = ({
             </label>
             <textarea
               style={{ ...textareaStyle, minHeight: '100px' }}
-              placeholder="-----BEGIN RSA PRIVATE KEY-----&#10;...&#10;-----END RSA PRIVATE KEY-----"
+              placeholder={'-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----'}
               value={privateKey}
               onChange={e => setPrivateKey(e.target.value)}
             />
           </div>
 
-          {privateKeyError && (
-            <div style={{ fontSize: '0.72rem', color: '#ef4444', padding: '6px 8px', background: 'rgba(239,68,68,0.1)', borderRadius: '6px' }}>
-              {privateKeyError}
-            </div>
-          )}
-
-          <button
-            onClick={handleSubmitPrivateKey}
-            disabled={submittingPrivateKey || !privateKey.trim()}
+          <button type="button"
+            onClick={() => { if (privateKey.trim()) setShowPrivateKeyForm(false); }}
+            disabled={!privateKey.trim()}
             style={{
-              ...stepBtnStyle(!submittingPrivateKey && !!privateKey.trim()),
-              alignSelf: 'flex-end',
-              padding: '7px 18px',
-              background: (!submittingPrivateKey && !!privateKey.trim()) ? '#10b981' : '#334155',
-              boxShadow: (!submittingPrivateKey && !!privateKey.trim()) ? '0 3px 10px rgba(16,185,129,0.35)' : 'none',
+              ...actionBtnStyle(!!privateKey.trim(), '#10b981'),
+              alignSelf: 'flex-end', padding: '7px 18px',
             }}
           >
-            {submittingPrivateKey ? <><Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> Submitting…</> : <><Upload size={13} /> Submit Private Key</>}
+            <Upload size={13} /> Use This Key
           </button>
         </div>
       )}

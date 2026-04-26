@@ -12,6 +12,8 @@ export interface ServerTerminalHandle {
 interface ServerTerminalProps {
   wsUrl: string;
   token: string;
+  /** RSA private key — stays in browser, appended to WS URL as ?privateKey= */
+  privateKey: string;
   onConnectionChange?: (connected: boolean) => void;
   className?: string;
   style?: React.CSSProperties;
@@ -20,6 +22,7 @@ interface ServerTerminalProps {
 const ServerTerminal = forwardRef<ServerTerminalHandle, ServerTerminalProps>(function ServerTerminal({
   wsUrl,
   token,
+  privateKey,
   onConnectionChange,
   className,
   style
@@ -73,12 +76,15 @@ const ServerTerminal = forwardRef<ServerTerminalHandle, ServerTerminalProps>(fun
     setError(null);
 
     try {
-      // Create WebSocket with token in URL or as subprotocol
+      // Build WS URL: inject token + private key as query params
       const url = new URL(wsUrl);
       if (!url.searchParams.get('token') && token) {
         url.searchParams.set('token', token);
       }
-      
+      if (privateKey) {
+        url.searchParams.set('privateKey', privateKey);
+      }
+
       const ws = new WebSocket(url.toString());
       ws.binaryType = 'arraybuffer';
       wsRef.current = ws;
@@ -170,7 +176,7 @@ const ServerTerminal = forwardRef<ServerTerminalHandle, ServerTerminalProps>(fun
       setError('Invalid terminal URL');
       setConnecting(false);
     }
-  }, [wsUrl, token, onConnectionChange]);
+  }, [wsUrl, token, privateKey, onConnectionChange]);
 
   const disconnect = useCallback(() => {
     if (reconnectTimerRef.current) {

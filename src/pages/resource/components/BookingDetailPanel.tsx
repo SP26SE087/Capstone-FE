@@ -526,8 +526,8 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
         }
     };
 
-    const handleOpenTerminal = (_access: ComputeAccess) => {
-        navigate(`/bookings/${bookingId}/terminal`);
+    const handleOpenTerminal = (_access: ComputeAccess, privateKey: string) => {
+        navigate(`/bookings/${bookingId}/terminal`, { state: { privateKey } });
     };
 
     const handleProvision = async () => {
