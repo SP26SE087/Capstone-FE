@@ -765,5 +765,3 @@ const VisitorRegistrations: React.FC = () => {
 };
 
 export default VisitorRegistrations;
-
-    [VisitorRegistrationStatus.Approved]: { label: 'Approved', color: '#16a34a', bg: '#dcfce7', icon: <CheckCircle2 size={13} /> },
