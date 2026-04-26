@@ -20,14 +20,47 @@ const MOCK_TIERS: ComputeTier[] = [
   },
 ];
 
-/** Status values returned by GET /api/server-access/bookings/{bookingId} */
-export type ServerAccessStatus = 'Pending' | 'Provisioning' | 'Active' | 'Provisioned' | 'Expired' | 'Revoked';
+/**
+ * Numeric accessStatus values from GET /api/server-access/bookings/{bookingId}
+ * 0 = Pending, 1 = Active, 2 = Provisioning, 3 = Revoked, 4 = Expired
+ */
+export type ServerAccessStatusCode = 0 | 1 | 2 | 3 | 4;
+export type ServerAccessStatus = 'Pending' | 'Provisioning' | 'Active' | 'Expired' | 'Revoked';
+
+const STATUS_MAP: Record<ServerAccessStatusCode, ServerAccessStatus> = {
+  0: 'Pending',
+  1: 'Provisioning',
+  2: 'Active',
+  3: 'Expired',
+  4: 'Revoked',
+};
 
 export interface ServerAccess {
+  id: string;
   bookingId: string;
+  linuxUsername: string | null;
+  isProvisioned: boolean;
+  /** Normalised string status derived from numeric accessStatus */
   status: ServerAccessStatus;
-  provisionedAt?: string;
-  expiresAt?: string;
+  accessStatus: ServerAccessStatusCode;
+  requestedGpuCount: number | null;
+  requestedCpuCores: number | null;
+  requestedRamGb: number | null;
+  dockerImage: string | null;
+  projectDescription: string | null;
+  provisionedAt: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SubmitPublicKeyRequest {
+  sshPublicKey: string;
+  requestedGpuCount?: number;
+  requestedCpuCores?: number;
+  requestedRamGb?: number;
+  dockerImage?: string;
+  projectDescription?: string;
 }
 
 /** Build a wss:// URL from the API base URL (or explicit terminal WS base) */
@@ -36,6 +69,15 @@ function toWsUrl(path: string): string {
   const base = (explicitBase || API_BASE_URL || '').replace(/\/$/, '');
   const wsBase = base.replace(/^https:\/\//, 'wss://').replace(/^http:\/\//, 'ws://');
   return `${wsBase}${path}`;
+}
+
+function normaliseAccess(raw: any): ServerAccess {
+  const code = (raw.accessStatus ?? 0) as ServerAccessStatusCode;
+  return {
+    ...raw,
+    accessStatus: code,
+    status: STATUS_MAP[code] ?? 'Pending',
+  };
 }
 
 export const computeService = {
@@ -59,27 +101,41 @@ export const computeService = {
   },
 
   /**
-   * Submit access request — POST /api/server-access/bookings/{bookingId}
-   * Call when user wants to access a provisioned compute server booking.
+   * Step 2 — Submit RSA public key + resource request after creating a booking.
+   * POST /api/server-access/bookings/{bookingId}
    */
-  requestAccess: async (bookingId: string): Promise<ServerAccess> => {
+  submitPublicKey: async (bookingId: string, req: SubmitPublicKeyRequest): Promise<ServerAccess> => {
     try {
-      const response = await api.post(`/api/server-access/bookings/${bookingId}`, {});
-      return response.data.data || response.data;
+      const response = await api.post(`/api/server-access/bookings/${bookingId}`, req);
+      return normaliseAccess(response.data.data || response.data);
     } catch (err: any) {
       const msg = err.response?.data?.message || err.response?.data?.title || err.message;
-      throw new Error(msg || 'Request failed');
+      throw new Error(msg || 'Failed to submit public key');
     }
   },
 
   /**
-   * Get access status — GET /api/server-access/bookings/{bookingId}
+   * Step 5 — Submit RSA private key before connecting to the terminal.
+   * POST /api/server-access/bookings/{bookingId}/private-key
+   * Key is AES-256 encrypted server-side and discarded when the booking ends.
+   */
+  submitPrivateKey: async (bookingId: string, privateKey: string): Promise<void> => {
+    try {
+      await api.post(`/api/server-access/bookings/${bookingId}/private-key`, { privateKey });
+    } catch (err: any) {
+      const msg = err.response?.data?.message || err.response?.data?.title || err.message;
+      throw new Error(msg || 'Failed to submit private key');
+    }
+  },
+
+  /**
+   * Get server access status — GET /api/server-access/bookings/{bookingId}
    * Returns null when no access request exists (404).
    */
   getAccessStatus: async (bookingId: string): Promise<ServerAccess | null> => {
     try {
       const response = await api.get(`/api/server-access/bookings/${bookingId}`);
-      return response.data.data || response.data;
+      return normaliseAccess(response.data.data || response.data);
     } catch (err: any) {
       if (err.response?.status === 404) return null;
       throw err;
@@ -88,14 +144,12 @@ export const computeService = {
 
   /**
    * Get terminal WebSocket token — GET /api/terminal/bookings/{bookingId}/token
-   * Response: { token, expiresAt } — wsUrl is constructed from API_BASE_URL.
-   * Requires booking to be in Approved status.
+   * Prerequisites: booking Approved/InUse, provisioned, private key submitted.
    */
   getTerminalToken: async (bookingId: string): Promise<{ token: string; wsUrl: string; expiresAt?: string }> => {
     try {
       const response = await api.get(`/api/terminal/bookings/${bookingId}/token`);
       const data = response.data.data || response.data;
-      // Backend returns { token, expiresAt } — construct wsUrl from base URL
       if (!data.wsUrl && data.token) {
         data.wsUrl = toWsUrl(`/api/terminal/connect?token=${encodeURIComponent(data.token)}`);
       }
@@ -107,8 +161,7 @@ export const computeService = {
   },
 
   /**
-   * Admin: provision SSH credentials — POST /api/server-access/bookings/{bookingId}/provision
-   * SSH credentials are encrypted server-side; the frontend never receives them.
+   * Admin: provision Linux user on server — POST /api/server-access/bookings/{bookingId}/provision
    */
   provisionAccess: async (bookingId: string): Promise<void> => {
     await api.post(`/api/server-access/bookings/${bookingId}/provision`, {});

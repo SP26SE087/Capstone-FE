@@ -530,6 +530,19 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
         navigate(`/bookings/${bookingId}/terminal`);
     };
 
+    const handleProvision = async () => {
+        setActionLoading(true);
+        try {
+            await computeService.provisionAccess(bookingId);
+            addToast('Server provisioning started.', 'success');
+            loadBooking(true);
+        } catch (err: any) {
+            addToast(err?.response?.data?.message || 'Provisioning failed.', 'error');
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
 
     // Hooks must come before any early returns
     const bookingResourceIds = booking?.resourceIds ?? bookingResources.map(r => r.id);
@@ -569,9 +582,15 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
     
     // Show compute access panel for approved/in-use bookings with compute resources
     const showComputeAccess = isServerComputeBooking && (
-        booking.status === BookingStatus.Approved || 
+        booking.status === BookingStatus.Approved ||
         booking.status === BookingStatus.InUse
     );
+
+    // Admin: show "Provision Server" when public key submitted but not yet provisioned
+    const canProvision = isManagedView && isServerComputeBooking
+        && booking.status === BookingStatus.Approved
+        && !!serverAccess && !serverAccess.isProvisioned
+        && serverAccess.status === 'Pending';
 
     const duration = calcDuration(booking.startTime, booking.endTime);
     const anyFormOpen = showApproveForm || showRejectForm || showCancelForm || showCheckOutForm || showCheckInForm || showAdjustForm;
@@ -782,7 +801,7 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                         <div style={{ ...labelStyle, color: 'var(--accent-color)', marginBottom: 10 }}>
                             <Server size={12} /> Compute Instance
                         </div>
-                        <ComputeAccessPanel bookingId={bookingId} onOpenTerminal={handleOpenTerminal} serverAccess={serverAccess} />
+                        <ComputeAccessPanel bookingId={bookingId} onOpenTerminal={handleOpenTerminal} serverAccess={serverAccess} onAccessChange={() => loadBooking(true)} />
                     </div>
                 )}
             </div>{/* end left column */}
@@ -1102,6 +1121,10 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                 {/* ── Button row ── */}
                 <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' as const }}>
+                        {!anyFormOpen && canProvision && (
+                            <FooterBtn onClick={handleProvision} disabled={actionLoading} variant="primary" color="#7c3aed" shadow="rgba(124,58,237,0.22)"
+                                icon={actionLoading ? <Loader2 size={14} className="animate-spin" /> : <Server size={14} />} label="Provision Server" />
+                        )}
                         {!anyFormOpen && canCheckOut && (
                             <FooterBtn onClick={() => setShowCheckOutForm(true)} variant="primary" color="#2563eb" shadow="rgba(37,99,235,0.22)"
                                 icon={<LogOut size={14} style={{ transform: 'scaleX(-1)' }} />} label="Check Out" />
