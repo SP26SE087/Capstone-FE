@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import Modal from '@/components/common/Modal';
 import { visitorRegistrationService } from '@/services/visitorRegistrationService';
-import { Upload, X, CheckCircle2, Loader2 } from 'lucide-react';
+import { Upload, X, CheckCircle2, Loader2, ScanLine } from 'lucide-react';
 
 interface Props {
     isOpen: boolean;
@@ -34,9 +34,44 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
     const [success, setSuccess] = useState(false);
     const [photoPreview, setPhotoPreview] = useState<string | null>(null);
     const [cccdPreview, setCccdPreview] = useState<string | null>(null);
+    const [cccdExtracting, setCccdExtracting] = useState(false);
+    const [cccdExtractError, setCccdExtractError] = useState<string | null>(null);
 
     const photoRef = useRef<HTMLInputElement>(null);
     const cccdRef = useRef<HTMLInputElement>(null);
+
+    const toTitleCase = (str: string) =>
+        str.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+
+    const handleExtractCccd = async () => {
+        if (!cccdImage) return;
+        setCccdExtracting(true);
+        setCccdExtractError(null);
+        try {
+            const result = await visitorRegistrationService.extractCccd(cccdImage);
+            setForm(prev => ({ ...prev, FullName: toTitleCase(result.fullName) }));
+            setErrors(prev => ({ ...prev, FullName: undefined }));
+            if (result.faceImageBase64) {
+                const res = await fetch(result.faceImageBase64);
+                const blob = await res.blob();
+                const file = new File([blob], 'cccd-portrait.jpg', { type: blob.type || 'image/jpeg' });
+                setPhoto(file);
+                setPhotoPreview(prev => { if (prev) URL.revokeObjectURL(prev); return result.faceImageBase64!; });
+                setErrors(prev => ({ ...prev, photo: undefined }));
+            }
+        } catch (err: any) {
+            const code = err?.response?.data?.messageCode
+                || err?.response?.data?.MessageCode
+                || err?.response?.data?.errorCode;
+            if (err?.response?.status === 422 || code === 'US063') {
+                setCccdExtractError('Could not read the card. Please use a clear, well-lit photo of the front side.');
+            } else {
+                setCccdExtractError('Failed to connect to OCR service. Please try again.');
+            }
+        } finally {
+            setCccdExtracting(false);
+        }
+    };
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
@@ -70,6 +105,7 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
         } else {
             setCccdImage(file);
             setCccdPreview(prev => { if (prev) URL.revokeObjectURL(prev); return url; });
+            setCccdExtractError(null);
         }
     };
 
@@ -94,10 +130,10 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
         setSubmitting(true);
         try {
             const fd = new FormData();
-            fd.append('FullName', form.FullName.trim());
-            fd.append('Email', form.Email.trim());
-            fd.append('ContactEmail', form.ContactEmail.trim());
-            fd.append('AppointmentDateTime', new Date(form.AppointmentDateTime).toISOString());
+            fd.append('fullName', form.FullName.trim());
+            fd.append('email', form.Email.trim());
+            fd.append('contactorEmail', form.ContactEmail.trim());
+            fd.append('appointmentDateTime', new Date(form.AppointmentDateTime).toISOString());
             fd.append('photo', photo!);
             fd.append('cccdImage', cccdImage!);
             await visitorRegistrationService.create(fd);
@@ -123,6 +159,7 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
         if (photoPreview) { URL.revokeObjectURL(photoPreview); setPhotoPreview(null); }
         if (cccdPreview) { URL.revokeObjectURL(cccdPreview); setCccdPreview(null); }
         setErrors({});
+        setCccdExtractError(null);
         setSuccess(false);
         onClose();
     };
@@ -303,7 +340,7 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                                         <img src={cccdPreview} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                                         <button
                                             type="button"
-                                            onClick={e => { e.stopPropagation(); setCccdImage(null); setCccdPreview(prev => { if (prev) URL.revokeObjectURL(prev); return null; }); if (cccdRef.current) cccdRef.current.value = ''; }}
+                                            onClick={e => { e.stopPropagation(); setCccdImage(null); setCccdPreview(prev => { if (prev) URL.revokeObjectURL(prev); return null; }); setCccdExtractError(null); if (cccdRef.current) cccdRef.current.value = ''; }}
                                             style={{ position: 'absolute', top: '4px', right: '4px', background: 'rgba(0,0,0,0.55)', border: 'none', borderRadius: '50%', cursor: 'pointer', width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
                                         >
                                             <X size={13} color="#fff" />
@@ -319,6 +356,37 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                             </div>
                             <input ref={cccdRef} type="file" accept={ACCEPTED} style={{ display: 'none' }} onChange={e => handleFileChange(e, 'cccdImage')} />
                             {errors.cccdImage && <p style={errorStyle}>{errors.cccdImage}</p>}
+                            {cccdImage && (
+                                <button
+                                    type="button"
+                                    onClick={handleExtractCccd}
+                                    disabled={cccdExtracting}
+                                    style={{
+                                        marginTop: '0.5rem',
+                                        width: '100%',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '6px',
+                                        padding: '0.45rem 0.75rem',
+                                        borderRadius: 'var(--radius-sm)',
+                                        border: '1px solid var(--accent-color)',
+                                        background: cccdExtracting ? 'var(--surface-hover)' : 'transparent',
+                                        color: 'var(--accent-color)',
+                                        fontSize: '0.82rem',
+                                        fontWeight: 600,
+                                        cursor: cccdExtracting ? 'not-allowed' : 'pointer',
+                                        transition: 'background 0.15s',
+                                    }}
+                                >
+                                    {cccdExtracting
+                                        ? <><Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> Reading ID Card...</>
+                                        : <><ScanLine size={13} /> Load from ID Card</>}
+                                </button>
+                            )}
+                            {cccdExtractError && (
+                                <p style={{ ...errorStyle, marginTop: '0.35rem', lineHeight: 1.4 }}>{cccdExtractError}</p>
+                            )}
                         </div>
                     </div>
                 </div>
