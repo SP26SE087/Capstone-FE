@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import Modal from '@/components/common/Modal';
 import { visitorRegistrationService } from '@/services/visitorRegistrationService';
-import { Upload, X, CheckCircle2, Loader2, ScanLine } from 'lucide-react';
+import { Upload, X, CheckCircle2, Loader2 } from 'lucide-react';
 
 interface Props {
     isOpen: boolean;
@@ -43,19 +43,18 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
     const toTitleCase = (str: string) =>
         str.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
 
-    const handleExtractCccd = async () => {
-        if (!cccdImage) return;
+    const extractCccdFromFile = async (file: File) => {
         setCccdExtracting(true);
         setCccdExtractError(null);
         try {
-            const result = await visitorRegistrationService.extractCccd(cccdImage);
+            const result = await visitorRegistrationService.extractCccd(file);
             setForm(prev => ({ ...prev, FullName: toTitleCase(result.fullName) }));
             setErrors(prev => ({ ...prev, FullName: undefined }));
             if (result.faceImageBase64) {
                 const res = await fetch(result.faceImageBase64);
                 const blob = await res.blob();
-                const file = new File([blob], 'cccd-portrait.jpg', { type: blob.type || 'image/jpeg' });
-                setPhoto(file);
+                const f = new File([blob], 'cccd-portrait.jpg', { type: blob.type || 'image/jpeg' });
+                setPhoto(f);
                 setPhotoPreview(prev => { if (prev) URL.revokeObjectURL(prev); return result.faceImageBase64!; });
                 setErrors(prev => ({ ...prev, photo: undefined }));
             }
@@ -71,6 +70,10 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
         } finally {
             setCccdExtracting(false);
         }
+    };
+
+    const handleExtractCccd = () => {
+        if (cccdImage) extractCccdFromFile(cccdImage);
     };
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -106,6 +109,8 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
             setCccdImage(file);
             setCccdPreview(prev => { if (prev) URL.revokeObjectURL(prev); return url; });
             setCccdExtractError(null);
+            // Auto-extract when CCCD image is selected
+            extractCccdFromFile(file);
         }
     };
 
@@ -318,12 +323,12 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                         <div>
                             <label style={labelStyle}>ID Card Photo <span style={{ color: '#e11d48' }}>*</span></label>
                             <div
-                                onClick={() => cccdRef.current?.click()}
+                                onClick={() => !cccdExtracting && cccdRef.current?.click()}
                                 style={{
                                     border: `1.5px dashed ${errors.cccdImage ? '#e11d48' : 'var(--border-color)'}`,
                                     borderRadius: 'var(--radius-sm)',
                                     textAlign: 'center',
-                                    cursor: 'pointer',
+                                    cursor: cccdExtracting ? 'default' : 'pointer',
                                     background: cccdImage ? '#f0fdf4' : 'var(--surface-hover)',
                                     transition: 'border-color 0.2s',
                                     height: '150px',
@@ -338,54 +343,43 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                                 {cccdImage && cccdPreview ? (
                                     <div style={{ position: 'absolute', inset: 0 }}>
                                         <img src={cccdPreview} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                                        <button
-                                            type="button"
-                                            onClick={e => { e.stopPropagation(); setCccdImage(null); setCccdPreview(prev => { if (prev) URL.revokeObjectURL(prev); return null; }); setCccdExtractError(null); if (cccdRef.current) cccdRef.current.value = ''; }}
-                                            style={{ position: 'absolute', top: '4px', right: '4px', background: 'rgba(0,0,0,0.55)', border: 'none', borderRadius: '50%', cursor: 'pointer', width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
-                                        >
-                                            <X size={13} color="#fff" />
-                                        </button>
+                                        {cccdExtracting ? (
+                                            <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                                                <Loader2 size={22} color="#fff" style={{ animation: 'spin 1s linear infinite' }} />
+                                                <span style={{ fontSize: '0.75rem', color: '#fff', fontWeight: 600 }}>Reading ID Card...</span>
+                                            </div>
+                                        ) : (
+                                            <button
+                                                type="button"
+                                                onClick={e => { e.stopPropagation(); setCccdImage(null); setCccdPreview(prev => { if (prev) URL.revokeObjectURL(prev); return null; }); setCccdExtractError(null); if (cccdRef.current) cccdRef.current.value = ''; }}
+                                                style={{ position: 'absolute', top: '4px', right: '4px', background: 'rgba(0,0,0,0.55)', border: 'none', borderRadius: '50%', cursor: 'pointer', width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
+                                            >
+                                                <X size={13} color="#fff" />
+                                            </button>
+                                        )}
                                         <span style={{ position: 'absolute', bottom: '4px', left: '4px', right: '4px', fontSize: '0.68rem', color: '#fff', background: 'rgba(0,0,0,0.5)', borderRadius: '3px', padding: '1px 4px', textAlign: 'center', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{cccdImage.name}</span>
                                     </div>
                                 ) : (
                                     <>
                                         <Upload size={20} color="var(--text-muted)" />
-                                        <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>jpg/png/webp, max 10 MB</p>
+                                        <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>Upload to auto-fill form</p>
+                                        <p style={{ margin: '2px 0 0', fontSize: '0.72rem', color: 'var(--text-muted)' }}>jpg/png/webp, max 10 MB</p>
                                     </>
                                 )}
                             </div>
                             <input ref={cccdRef} type="file" accept={ACCEPTED} style={{ display: 'none' }} onChange={e => handleFileChange(e, 'cccdImage')} />
                             {errors.cccdImage && <p style={errorStyle}>{errors.cccdImage}</p>}
-                            {cccdImage && (
-                                <button
-                                    type="button"
-                                    onClick={handleExtractCccd}
-                                    disabled={cccdExtracting}
-                                    style={{
-                                        marginTop: '0.5rem',
-                                        width: '100%',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        gap: '6px',
-                                        padding: '0.45rem 0.75rem',
-                                        borderRadius: 'var(--radius-sm)',
-                                        border: '1px solid var(--accent-color)',
-                                        background: cccdExtracting ? 'var(--surface-hover)' : 'transparent',
-                                        color: 'var(--accent-color)',
-                                        fontSize: '0.82rem',
-                                        fontWeight: 600,
-                                        cursor: cccdExtracting ? 'not-allowed' : 'pointer',
-                                        transition: 'background 0.15s',
-                                    }}
-                                >
-                                    {cccdExtracting
-                                        ? <><Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> Reading ID Card...</>
-                                        : <><ScanLine size={13} /> Load from ID Card</>}
-                                </button>
-                            )}
                             {cccdExtractError && (
-                                <p style={{ ...errorStyle, marginTop: '0.35rem', lineHeight: 1.4 }}>{cccdExtractError}</p>
+                                <div style={{ marginTop: '0.4rem', display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+                                    <p style={{ ...errorStyle, marginTop: 0, lineHeight: 1.4, flex: 1 }}>{cccdExtractError}</p>
+                                    <button
+                                        type="button"
+                                        onClick={handleExtractCccd}
+                                        style={{ flexShrink: 0, padding: '2px 8px', fontSize: '0.75rem', fontWeight: 600, border: '1px solid var(--accent-color)', borderRadius: 'var(--radius-sm)', background: 'transparent', color: 'var(--accent-color)', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                                    >
+                                        Retry
+                                    </button>
+                                </div>
                             )}
                         </div>
                     </div>
