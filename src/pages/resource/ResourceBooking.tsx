@@ -34,7 +34,7 @@ import {
     Server
 } from 'lucide-react';
 
-import ResourceListView from './components/ResourceListView';
+import ResourceListView, { BookingCartItem } from './components/ResourceListView';
 import CreateResourceForm from './components/CreateResourceForm';
 import ResourceDetailPanel from './components/ResourceDetailPanel';
 import BookingResourceForm from './components/BookingResourceForm';
@@ -126,9 +126,9 @@ const ResourceBooking: React.FC = () => {
     const [filterType, setFilterType] = useState('');
     const { addToast } = useToastStore();
     const [activePanel, setActivePanel] = useState<ActivePanel | null>(null);
-    const [bookingCart, setBookingCart] = useState<{ resourceId: string; quantity: number }[]>([]);
+    const [bookingCart, setBookingCart] = useState<BookingCartItem[]>([]);
     const [viewNewBookingOpen, setViewNewBookingOpen] = useState(false);
-    const [viewNewBookingCart, setViewNewBookingCart] = useState<{ resourceId: string; quantity: number }[]>([]);
+    const [viewNewBookingCart, setViewNewBookingCart] = useState<BookingCartItem[]>([]);
 
     const isLabDirector = useMemo(() => {
         if (!user) return false;
@@ -366,12 +366,7 @@ const ResourceBooking: React.FC = () => {
     const handleViewResource = (resource: Resource) =>
         setActivePanel({ id: `view-res-${resource.id}`, type: 'view_resource', targetId: resource.id, title: resource.name, resource });
 
-    const handleCreateBooking = (resource?: Resource) => {
-        if (resource) {
-            setBookingCart(prev =>
-                prev.find(i => i.resourceId === resource.id) ? prev : [...prev, { resourceId: resource.id, quantity: 1 }]
-            );
-        }
+    const handleCreateBooking = () => {
         setActivePanel(prev =>
             prev?.type === 'create_booking' ? prev : { id: `create-booking-${Date.now()}`, type: 'create_booking', title: 'New Booking' }
         );
@@ -406,7 +401,6 @@ const ResourceBooking: React.FC = () => {
     const handleViewLog = (log: EquipmentLog) => setActivePanel({ id: `view-log-${log.id}`, type: 'view_log', targetId: log.id, title: log.resourceName, log });
     const handleClosePanel = () => {
         setActivePanel(null);
-        setBookingCart([]);
     };
 
     const handleTitleChange = (newTitle: string) => {
@@ -416,7 +410,10 @@ const ResourceBooking: React.FC = () => {
     const handlePanelSaved = (shouldClose = false, message?: string) => {
         fetchData();
         if (message) showToast(message, 'success');
-        if (shouldClose) handleClosePanel();
+        if (shouldClose) {
+            handleClosePanel();
+            setBookingCart([]);
+        }
     };
 
     const switchMainTab = (tab: MainTab) => {
@@ -881,7 +878,14 @@ const ResourceBooking: React.FC = () => {
                                                 padding: '0 14px', height: '32px', borderRadius: '8px', fontSize: '0.8rem',
                                                 background: '#8b5cf6', border: 'none',
                                                 color: '#fff', cursor: 'pointer', boxShadow: '0 2px 6px #8b5cf655'
-                                            }}><Plus size={14} /> New Booking</button>
+                                            }}>
+                                                <Plus size={14} /> New Booking
+                                                {bookingCart.length > 0 && (
+                                                    <span style={{ marginLeft: '2px', background: '#fff', color: '#7c3aed', borderRadius: '10px', fontSize: '0.65rem', fontWeight: 800, padding: '0 6px', lineHeight: '16px', minWidth: '16px', display: 'inline-block', textAlign: 'center' }}>
+                                                        {bookingCart.length}
+                                                    </span>
+                                                )}
+                                            </button>
                                         )}
                                     </div>
                                 </div>
@@ -1035,7 +1039,9 @@ const ResourceBooking: React.FC = () => {
                                         resources={displayResources}
                                         selectedId={activePanel?.type === 'view_resource' ? activePanel.targetId ?? null : null}
                                         onSelect={handleViewResource}
-                                        onBook={handleCreateBooking}
+                                        onBook={handleViewResource}
+                                        cartItems={bookingCart}
+                                        onCartChange={setBookingCart}
                                     />
                                 </>
                             ) : isBookingTab ? (
