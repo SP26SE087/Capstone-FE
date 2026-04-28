@@ -217,43 +217,23 @@ function PersonCard({ label, icon, name, email, sub, accentColor, accentBg, acce
     const hasData = !!name;
     return (
         <div style={{
-            padding: '12px 14px',
-            background: hasData ? accentBg : '#fafafa',
-            border: `1px solid ${hasData ? accentBorder : '#e2e8f0'}`,
-            borderRadius: 12,
-            display: 'flex', flexDirection: 'column', gap: 8,
+            padding: '8px 12px',
+            background: '#fff',
+            border: '1px solid #e8edf3',
+            borderRadius: 10,
+            display: 'flex', flexDirection: 'column', gap: 3,
         }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '0.6rem', fontWeight: 800, color: hasData ? accentColor : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.6rem', fontWeight: 800, color: hasData ? accentColor : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                 {icon} {label}
             </div>
             {hasData ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                    <div style={{
-                        width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
-                        background: accentColor + '1a', border: `1.5px solid ${accentBorder}`,
-                        color: accentColor, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: '0.72rem', fontWeight: 800, letterSpacing: '-0.01em',
-                    }}>
-                        {getInitials(name)}
-                    </div>
-                    <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</div>
-                        {email && <div style={{ fontSize: '0.65rem', color: accentColor, marginTop: 1, wordBreak: 'break-all' }}>{email}</div>}
-                        {sub && <div style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: 2 }}>{sub}</div>}
-                    </div>
+                <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>
+                    {email && <div style={{ fontSize: '0.65rem', color: '#64748b', marginTop: 1, wordBreak: 'break-all' }}>{email}</div>}
+                    {sub && <div style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: 1 }}>{sub}</div>}
                 </div>
             ) : (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{
-                        width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
-                        background: '#f1f5f9', border: '1.5px dashed #cbd5e1',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        color: '#cbd5e1',
-                    }}>
-                        <User size={14} />
-                    </div>
-                    <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic' }}>{placeholder ?? 'Not assigned'}</span>
-                </div>
+                <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic' }}>{placeholder ?? 'Not assigned'}</span>
             )}
         </div>
     );
@@ -607,13 +587,11 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                     HERO HEADER
                 ═══════════════════════════════════════════ */}
                 <div style={{
-                    borderRadius: 16, marginBottom: 16, overflow: 'hidden',
-                    border: `1.5px solid ${statusConfig.border}`,
-                    boxShadow: `0 4px 20px ${statusConfig.color}14`,
+                    borderRadius: 12, marginBottom: 16, overflow: 'hidden',
+                    border: '1px solid #e2e8f0',
+                    boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
                 }}>
-                    {/* Colour bar */}
-                    <div style={{ height: 5, background: `linear-gradient(90deg, ${statusConfig.color}, ${statusConfig.color}88)` }} />
-                    <div style={{ padding: '16px 18px', background: `linear-gradient(135deg, ${statusConfig.bg} 0%, #fff 70%)` }}>
+                    <div style={{ padding: '16px 18px', background: '#fff' }}>
                         {/* Top row: title + badges */}
                         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
                             <div style={{
@@ -677,44 +655,22 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
 
                         {/* Schedule timeline */}
                         <div style={{
-                            display: 'flex', alignItems: 'center', gap: 0,
-                            background: '#fff', border: '1px solid #e2e8f0',
-                            borderRadius: 12, overflow: 'hidden',
+                            display: 'flex', alignItems: 'center', gap: 6,
+                            padding: '8px 12px',
+                            background: '#f8fafc', border: '1px solid #e2e8f0',
+                            borderRadius: 10, fontSize: '0.78rem',
                         }}>
-                            <div style={{ flex: 1, padding: '10px 14px' }}>
-                                <div style={{ fontSize: '0.6rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>
-                                    Pickup
-                                </div>
-                                <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.01em' }}>
-                                    {formatTimeOnly(booking.startTime)}
-                                </div>
-                                <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: 1 }}>
-                                    {formatDateShort(booking.startTime)}
-                                </div>
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0 8px', flexShrink: 0 }}>
-                                <div style={{ width: 1, height: 10, background: '#e2e8f0' }} />
-                                <div style={{
-                                    display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px',
-                                    background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 20,
-                                    fontSize: '0.65rem', fontWeight: 700, color: '#64748b',
-                                    whiteSpace: 'nowrap',
-                                }}>
-                                    <Timer size={10} /> {duration ?? '—'}
-                                </div>
-                                <div style={{ width: 1, height: 10, background: '#e2e8f0' }} />
-                            </div>
-                            <div style={{ flex: 1, padding: '10px 14px', borderLeft: '1px solid #f1f5f9' }}>
-                                <div style={{ fontSize: '0.6rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>
-                                    Return
-                                </div>
-                                <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.01em' }}>
-                                    {formatTimeOnly(booking.endTime)}
-                                </div>
-                                <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: 1 }}>
-                                    {formatDateShort(booking.endTime)}
-                                </div>
-                            </div>
+                            <Calendar size={13} color="#64748b" style={{ flexShrink: 0 }} />
+                            <span style={{ fontWeight: 700, color: '#0f172a' }}>{formatDateShort(booking.startTime)}</span>
+                            <span style={{ color: '#64748b', fontWeight: 700 }}>{formatTimeOnly(booking.startTime)}</span>
+                            <span style={{ color: '#94a3b8', fontSize: '0.7rem' }}>→</span>
+                            <span style={{ fontWeight: 700, color: '#0f172a' }}>{formatDateShort(booking.endTime)}</span>
+                            <span style={{ color: '#64748b', fontWeight: 700 }}>{formatTimeOnly(booking.endTime)}</span>
+                            {duration && (
+                                <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 3, fontSize: '0.7rem', color: '#64748b', flexShrink: 0 }}>
+                                    <Timer size={11} /> {duration}
+                                </span>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -722,7 +678,7 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                 {/* ═══════════════════════════════════════════
                     PEOPLE ROW — Borrower | Manager | Approved By
                 ═══════════════════════════════════════════ */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 14 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 }}>
                     {/* Borrower */}
                     <PersonCard
                         label="Borrower"
@@ -836,10 +792,9 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                         <div key={r.id ?? idx} style={{
                             background: '#fff',
                             border: `1px solid ${r.isDamaged ? '#fecaca' : '#e8edf3'}`,
-                            borderTop: `3px solid ${r.isDamaged ? '#ef4444' : '#818cf8'}`,
                             borderRadius: 10, padding: '10px 11px',
                             display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0,
-                            boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
                         }}>
                             {/* Index + name row */}
                             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 7 }}>
@@ -856,7 +811,7 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                             {/* Badges */}
                             <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 4 }}>
                                 {r.resourceTypeName && (
-                                    <span style={{ fontSize: '0.58rem', fontWeight: 700, color: '#7c3aed', background: '#f5f3ff', border: '1px solid #e9d5ff', padding: '1px 6px', borderRadius: 20 }}>
+                                    <span style={{ fontSize: '0.58rem', fontWeight: 600, color: '#64748b', background: '#f1f5f9', border: '1px solid #e2e8f0', padding: '1px 6px', borderRadius: 20 }}>
                                         {r.resourceTypeName}
                                     </span>
                                 )}
