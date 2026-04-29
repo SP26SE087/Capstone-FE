@@ -1,7 +1,9 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Modal from '@/components/common/Modal';
 import { visitorRegistrationService } from '@/services/visitorRegistrationService';
-import { Upload, X, CheckCircle2, Loader2, RefreshCw } from 'lucide-react';
+import { contactorService } from '@/services/contactorService';
+import { ContactorResponse } from '@/types/visitorRegistration';
+import { Upload, X, CheckCircle2, Loader2, RefreshCw, Users } from 'lucide-react';
 
 interface Props {
     isOpen: boolean;
@@ -36,9 +38,26 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
     const [cccdPreview, setCccdPreview] = useState<string | null>(null);
     const [cccdExtracting, setCccdExtracting] = useState(false);
     const [cccdExtractError, setCccdExtractError] = useState<string | null>(null);
+    const [contactors, setContactors] = useState<ContactorResponse[]>([]);
+    const [contactorLoading, setContactorLoading] = useState(false);
+    const [contactorFetched, setContactorFetched] = useState(false);
+    const [contactorOpen, setContactorOpen] = useState(false);
+    const [contactorSearch, setContactorSearch] = useState('');
 
     const photoRef = useRef<HTMLInputElement>(null);
     const cccdRef = useRef<HTMLInputElement>(null);
+    const contactorRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (!contactorOpen) return;
+        const handleOutside = (e: MouseEvent) => {
+            if (contactorRef.current && !contactorRef.current.contains(e.target as Node)) {
+                setContactorOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleOutside);
+        return () => document.removeEventListener('mousedown', handleOutside);
+    }, [contactorOpen]);
 
     const toTitleCase = (str: string) =>
         str.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
@@ -101,6 +120,29 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
 
     const handleExtractCccd = () => {
         if (cccdImage) extractCccdFromFile(cccdImage);
+    };
+
+    const handleContactorDropdown = async () => {
+        if (!contactorFetched) {
+            setContactorLoading(true);
+            try {
+                const data = await contactorService.getAll();
+                setContactors(data);
+                setContactorFetched(true);
+            } catch {
+                // silently fail — user can still type manually
+            } finally {
+                setContactorLoading(false);
+            }
+        }
+        setContactorOpen(prev => !prev);
+    };
+
+    const handleSelectContactor = (c: ContactorResponse) => {
+        setForm(prev => ({ ...prev, ContactEmail: c.email }));
+        setErrors(prev => ({ ...prev, ContactEmail: undefined }));
+        setContactorOpen(false);
+        setContactorSearch('');
     };
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -192,6 +234,8 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
         if (cccdPreview) { URL.revokeObjectURL(cccdPreview); setCccdPreview(null); }
         setErrors({});
         setCccdExtractError(null);
+        setContactorOpen(false);
+        setContactorSearch('');
         setSuccess(false);
         onClose();
     };
@@ -282,9 +326,95 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                         </div>
 
                         {/* Contact Email */}
-                        <div>
+                        <div ref={contactorRef} style={{ position: 'relative' }}>
                             <label style={labelStyle}>Lab Member's Email <span style={{ color: '#e11d48' }}>*</span></label>
-                            <input name="ContactEmail" type="email" value={form.ContactEmail} onChange={handleChange} style={inputStyle(errors.ContactEmail)} placeholder="labmember@aitlab.com" maxLength={255} />
+                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                <input name="ContactEmail" type="email" value={form.ContactEmail} onChange={handleChange} style={{ ...inputStyle(errors.ContactEmail), flex: 1 }} placeholder="labmember@aitlab.com" maxLength={255} />
+                                <button
+                                    type="button"
+                                    onClick={handleContactorDropdown}
+                                    style={{
+                                        padding: '0.6rem 0.75rem',
+                                        border: '1px solid var(--border-color)',
+                                        borderRadius: 'var(--radius-sm)',
+                                        background: 'white',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        fontSize: '0.83rem',
+                                        color: 'var(--text-secondary)',
+                                        whiteSpace: 'nowrap',
+                                    }}
+                                >
+                                    {contactorLoading
+                                        ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                                        : <Users size={14} />}
+                                    Select
+                                </button>
+                            </div>
+                            {contactorOpen && (
+                                <div style={{
+                                    position: 'absolute',
+                                    top: '100%',
+                                    left: 0,
+                                    right: 0,
+                                    zIndex: 100,
+                                    background: 'white',
+                                    border: '1px solid var(--border-color)',
+                                    borderRadius: 'var(--radius-sm)',
+                                    boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+                                    maxHeight: '200px',
+                                    overflowY: 'auto',
+                                    marginTop: '4px',
+                                }}>
+                                    <div style={{ padding: '0.5rem', borderBottom: '1px solid var(--border-color)', position: 'sticky', top: 0, background: 'white' }}>
+                                        <input
+                                            type="text"
+                                            placeholder="Search by name or email..."
+                                            value={contactorSearch}
+                                            onChange={e => setContactorSearch(e.target.value)}
+                                            style={{ ...inputStyle(), fontSize: '0.83rem', padding: '0.4rem 0.65rem' }}
+                                            autoFocus
+                                        />
+                                    </div>
+                                    {(() => {
+                                        const filtered = contactors.filter(c =>
+                                            c.fullName.toLowerCase().includes(contactorSearch.toLowerCase()) ||
+                                            c.email.toLowerCase().includes(contactorSearch.toLowerCase())
+                                        );
+                                        return filtered.length === 0 ? (
+                                            <div style={{ padding: '1rem', textAlign: 'center', fontSize: '0.83rem', color: 'var(--text-muted)' }}>
+                                                No contactors found
+                                            </div>
+                                        ) : filtered.map(c => (
+                                            <button
+                                                key={c.id}
+                                                type="button"
+                                                onClick={() => handleSelectContactor(c)}
+                                                style={{
+                                                    display: 'flex',
+                                                    flexDirection: 'column',
+                                                    width: '100%',
+                                                    padding: '0.6rem 0.85rem',
+                                                    border: 'none',
+                                                    borderBottom: '1px solid var(--border-color)',
+                                                    background: 'white',
+                                                    cursor: 'pointer',
+                                                    textAlign: 'left',
+                                                    gap: '2px',
+                                                    boxSizing: 'border-box',
+                                                }}
+                                                onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-hover)')}
+                                                onMouseLeave={e => (e.currentTarget.style.background = 'white')}
+                                            >
+                                                <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>{c.fullName}</span>
+                                                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{c.email}</span>
+                                            </button>
+                                        ));
+                                    })()}
+                                </div>
+                            )}
                             {errors.ContactEmail && <p style={errorStyle}>{errors.ContactEmail}</p>}
                         </div>
 

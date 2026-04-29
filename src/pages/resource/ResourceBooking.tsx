@@ -30,7 +30,6 @@ import {
     X,
     Wrench,
     Activity,
-    RotateCcw,
     Server
 } from 'lucide-react';
 
@@ -119,7 +118,6 @@ const ResourceBooking: React.FC = () => {
     const [equipmentLogs, setEquipmentLogs] = useState<EquipmentLog[]>([]);
     const [resourceTypes, setResourceTypes] = useState<ResourceTypeItem[]>([]);
     const [loading, setLoading] = useState(false);
-    const [refreshing, setRefreshing] = useState(false);
     const [confirmDeleteRtId, setConfirmDeleteRtId] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [filterStatus, setFilterStatus] = useState('');
@@ -347,15 +345,6 @@ const ResourceBooking: React.FC = () => {
     }, [activeTab, myBookingsPage, myBookingsPageSize]);
 
     useEffect(() => { fetchData(); }, [fetchData]);
-
-    const handleRefresh = async () => {
-        setRefreshing(true);
-        try {
-            await fetchData();
-        } finally {
-            setRefreshing(false);
-        }
-    };
 
     const showToast = (msg: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => addToast(msg, type);
 
@@ -661,11 +650,6 @@ const ResourceBooking: React.FC = () => {
                         );
                     })}
                     <div style={{ flex: 1 }} />
-                    {bookingVariant !== 'management' && (
-                        <button onClick={() => { fetchViewData(); }} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 12px', border: '1px solid #e2e8f0', background: 'white', borderRadius: 7, fontSize: '0.78rem', fontWeight: 600, color: '#64748b', cursor: 'pointer' }}>
-                            <RotateCcw size={13} style={{ animation: viewLoading ? 'spin 1s linear infinite' : 'none' }} /> Refresh
-                        </button>
-                    )}
                 </div>
 
                 {/* ── New Booking modal overlay (Calendar / Timeline / Workspace) ── */}
@@ -979,14 +963,6 @@ const ResourceBooking: React.FC = () => {
                             />
                         </div>
                     )}
-                    <button
-                        onClick={handleRefresh}
-                        disabled={refreshing}
-                        style={{ padding: '6px 12px', border: '1px solid #e2e8f0', background: 'white', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', flexShrink: 0 }}
-                    >
-                        <RotateCcw size={13} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
-                        Refresh
-                    </button>
                     </div>
                 </div>}
                 {/* ── Breadcrumb when panel open ── */}

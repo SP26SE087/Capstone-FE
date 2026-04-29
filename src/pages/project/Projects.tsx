@@ -20,8 +20,7 @@ import {
     Check,
     AlertTriangle,
     Clock,
-    FlaskConical,
-    RotateCcw
+    FlaskConical
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import ResearchFieldManager from '@/features/projects/components/ResearchFieldManager';
@@ -55,7 +54,6 @@ const Projects: React.FC = () => {
     const { addToast } = useToastStore();
     const [projects, setProjects] = useState<Project[]>([]);
     const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState<ProjectStatus | 'All'>('All');
 
@@ -116,18 +114,6 @@ const Projects: React.FC = () => {
             console.error('Failed to fetch projects:', error);
         } finally {
             setLoading(false);
-        }
-    };
-
-    const handleRefresh = async () => {
-        setRefreshing(true);
-        try {
-            const data = await projectService.getAll();
-            setProjects(data || []);
-        } catch (error) {
-            console.error('Failed to refresh projects:', error);
-        } finally {
-            setRefreshing(false);
         }
     };
 
@@ -266,24 +252,6 @@ const Projects: React.FC = () => {
                         ))}
                     </div>
 
-                    {/* Divider */}
-                    <div style={{ width: '1px', height: '22px', background: 'var(--border-color)', flexShrink: 0 }} />
-
-                    {/* Refresh */}
-                    <button
-                        onClick={handleRefresh}
-                        disabled={refreshing}
-                        style={{
-                            height: '36px', padding: '0 12px', borderRadius: '10px', border: '1px solid var(--border-color)',
-                            background: 'white', cursor: refreshing ? 'not-allowed' : 'pointer',
-                            display: 'flex', alignItems: 'center', gap: '6px',
-                            color: 'var(--text-secondary)', opacity: refreshing ? 0.6 : 1, flexShrink: 0, transition: 'all 0.15s',
-                            fontSize: '0.8rem', fontWeight: 600,
-                        }}
-                    >
-                        <RotateCcw size={14} className={refreshing ? 'animate-spin' : ''} />
-                        Refresh
-                    </button>
                 </div>
 
                 {/* Project Grid + Create Project Panel */}

@@ -18,7 +18,6 @@ import {
     Loader2,
     X,
     Zap,
-    RotateCcw,
     User,
     CalendarDays,
     ChevronLeft,
@@ -40,7 +39,6 @@ const Reports: React.FC = () => {
     const [activeTab, setActiveTab] = useState<TabType>('my_reports');
     const [reports, setReports] = useState<Report[]>([]);
     const [loading, setLoading] = useState(false);
-    const [refreshing, setRefreshing] = useState(false);
     const [projectsMap, setProjectsMap] = useState<Record<string, string>>({});
     const [usersMap, setUsersMap] = useState<Record<string, string>>({});
     const [usersList, setUsersList] = useState<{ id: string; name: string }[]>([]);
@@ -125,11 +123,6 @@ const Reports: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    };
-
-    const handleRefresh = async () => {
-        setRefreshing(true);
-        try { await fetchReports(); } finally { setRefreshing(false); }
     };
 
     const prevMonth = () => {
@@ -438,14 +431,6 @@ const Reports: React.FC = () => {
                         </p>
                     </div>
                     <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                        <button
-                            onClick={handleRefresh}
-                            disabled={refreshing || loading}
-                            style={{ height: '38px', padding: '0 14px', border: '1px solid #e2e8f0', background: 'white', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', opacity: refreshing || loading ? 0.6 : 1 }}
-                        >
-                            <RotateCcw size={13} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
-                            Refresh
-                        </button>
                         {!isLabDirector && (
                             <button
                                 className="btn btn-primary"

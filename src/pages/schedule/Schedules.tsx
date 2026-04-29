@@ -23,7 +23,6 @@ import {
     Sparkles,
     Zap,
     X,
-    RotateCcw,
 } from 'lucide-react';
 import meetingService from '@/services/meetingService';
 import seminarService from '@/services/seminarService';
@@ -106,7 +105,6 @@ const Schedules: React.FC = () => {
     // Semantic search
     const [semanticResults, setSemanticResults] = useState<MeetingResponse[] | null>(null);
     const [isSemanticLoading, setIsSemanticLoading] = useState(false);
-    const [refreshing, setRefreshing] = useState(false);
     const [aiSummaryByMeetingId, setAiSummaryByMeetingId] = useState<Record<string, boolean>>({});
     const aiSummaryCacheRef = useRef<Record<string, boolean>>({});
 
@@ -239,15 +237,6 @@ const Schedules: React.FC = () => {
             setSeminarMeetings([]);
         } finally {
             setLoading(false);
-        }
-    };
-
-    const handleRefresh = async () => {
-        setRefreshing(true);
-        try {
-            await fetchMeetings();
-        } finally {
-            setRefreshing(false);
         }
     };
 
@@ -472,20 +461,6 @@ const Schedules: React.FC = () => {
                             Manage meetings, video calls, and team schedules with Google Meet integration.
                         </p>
                     </div>
-                    <button
-                        onClick={handleRefresh}
-                        disabled={refreshing}
-                        title="Refresh"
-                        style={{
-                            padding: '6px 8px', border: '1px solid #e2e8f0', background: 'white',
-                            borderRadius: '8px', display: 'flex', alignItems: 'center',
-                            cursor: refreshing ? 'not-allowed' : 'pointer',
-                            color: '#64748b', flexShrink: 0,
-                            opacity: refreshing ? 0.5 : 1, transition: 'opacity 0.2s',
-                        }}
-                    >
-                        <RotateCcw size={14} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
-                    </button>
                 </div>
 
                 {/* Search Bar */}

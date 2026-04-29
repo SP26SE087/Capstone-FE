@@ -9,7 +9,7 @@ import {
 } from '@/types/visitorRegistration';
 import Modal from '@/components/common/Modal';
 import {
-    UserCheck, Clock, CheckCircle2, XCircle, Loader2, RefreshCw, Eye,
+    UserCheck, Clock, CheckCircle2, XCircle, Loader2, Eye,
     ArrowRightLeft, CheckCheck, X, Wifi, WifiOff, User, List, GitPullRequest,
 } from 'lucide-react';
 
@@ -94,7 +94,6 @@ const VisitorRegistrations: React.FC = () => {
     // Registrations
     const [registrations, setRegistrations] = useState<VisitorRegistrationResponse[]>([]);
     const [regLoading, setRegLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
 
     // Transfers
     const [transfers, setTransfers] = useState<AssigneeTransferRequestResponse[]>([]);
@@ -125,15 +124,13 @@ const VisitorRegistrations: React.FC = () => {
     const [respondSubmitting, setRespondSubmitting] = useState(false);
     const [respondError, setRespondError] = useState<string | null>(null);
 
-    const fetchRegistrations = useCallback(async (silent = false) => {
-        if (!silent) setRegLoading(true);
-        else setRefreshing(true);
+    const fetchRegistrations = useCallback(async () => {
+        setRegLoading(true);
         try {
             const data = await visitorRegistrationService.getMyList();
             setRegistrations(data);
         } catch { /* ignore */ } finally {
             setRegLoading(false);
-            setRefreshing(false);
         }
     }, []);
 
@@ -315,14 +312,6 @@ const VisitorRegistrations: React.FC = () => {
                         <h1>Visitor Registrations</h1>
                         <p>Manage visit requests assigned to you.</p>
                     </div>
-                    <button
-                        className="btn btn-secondary"
-                        onClick={() => { fetchRegistrations(true); if (tab === 'transfers') fetchTransfers(); }}
-                        disabled={refreshing}
-                        style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-                    >
-                        <RefreshCw size={15} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} /> Refresh
-                    </button>
                 </div>
 
                 {/* Tabs */}

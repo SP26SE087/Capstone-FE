@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { contactorService } from '@/services/contactorService';
 import { ContactorResponse } from '@/types/visitorRegistration';
 import Modal from '@/components/common/Modal';
-import { Plus, Pencil, Trash2, Loader2, Users, RefreshCw, Mail, Phone } from 'lucide-react';
+import { Plus, Pencil, Trash2, Loader2, Users, Mail, Phone } from 'lucide-react';
 
 interface FormState {
     fullName: string;
@@ -21,7 +21,6 @@ const ContactorsPage: React.FC = () => {
     const { user } = useAuth();
     const [contactors, setContactors] = useState<ContactorResponse[]>([]);
     const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
 
     // Create / Edit modal
     const [editTarget, setEditTarget] = useState<ContactorResponse | null>(null);
@@ -36,15 +35,13 @@ const ContactorsPage: React.FC = () => {
     const [deleteSubmitting, setDeleteSubmitting] = useState(false);
     const [deleteError, setDeleteError] = useState<string | null>(null);
 
-    const fetchContactors = useCallback(async (silent = false) => {
-        if (!silent) setLoading(true);
-        else setRefreshing(true);
+    const fetchContactors = useCallback(async () => {
+        setLoading(true);
         try {
             const data = await contactorService.getAll();
             setContactors(data);
         } catch { /* ignore */ } finally {
             setLoading(false);
-            setRefreshing(false);
         }
     }, []);
 
@@ -153,9 +150,6 @@ const ContactorsPage: React.FC = () => {
                         <p>Lab members who can be contacted by visitors.</p>
                     </div>
                     <div style={{ display: 'flex', gap: '0.75rem' }}>
-                        <button className="btn btn-secondary" onClick={() => fetchContactors(true)} disabled={refreshing} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <RefreshCw size={15} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} /> Refresh
-                        </button>
                         <button className="btn btn-primary" onClick={openCreate} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                             <Plus size={15} /> Add Contactor
                         </button>
