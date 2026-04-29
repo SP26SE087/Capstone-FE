@@ -290,7 +290,7 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
             onClose={handleClose}
             title="Book a Meeting"
             maxWidth="720px"
-            maxHeight="780px"
+            maxHeight="640px"
             disableBackdropClose={true}
             footer={
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', padding: '1rem 1.75rem', borderTop: '1px solid var(--border-color)' }}>
@@ -301,7 +301,7 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                 </div>
             }
         >
-            <div style={{ padding: '1.25rem 1.75rem' }}>
+            <div style={{ padding: '0.85rem 1.75rem' }}>
                 {errors.general && (
                     <div style={{ background: '#fff1f2', border: '1px solid #fecdd3', borderRadius: 'var(--radius-sm)', padding: '0.75rem 1rem', color: '#e11d48', fontSize: '0.88rem', marginBottom: '1rem' }}>
                         {errors.general}
@@ -310,7 +310,7 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
                     {/* Left column — text fields */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                         {/* Full Name */}
                         <div>
                             <label style={labelStyle}>Full Name <span style={{ color: '#e11d48' }}>*</span></label>
@@ -431,7 +431,7 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                     </div>
 
                     {/* Right column — photo uploads */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                         {/* Photo */}
                         <div>
                             <label style={labelStyle}>Your Photo <span style={{ color: '#e11d48' }}>*</span></label>
@@ -444,7 +444,7 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                                     cursor: 'pointer',
                                     background: photo ? '#f8fafc' : 'var(--surface-hover)',
                                     transition: 'border-color 0.2s',
-                                    height: '160px',
+                                    height: '130px',
                                     overflow: 'hidden',
                                     position: 'relative',
                                     display: 'flex',
@@ -488,7 +488,7 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                                     cursor: cccdExtracting ? 'default' : 'pointer',
                                     background: cccdImage ? '#f8fafc' : 'var(--surface-hover)',
                                     transition: 'border-color 0.2s',
-                                    height: '160px',
+                                    height: '130px',
                                     overflow: 'hidden',
                                     position: 'relative',
                                     display: 'flex',
@@ -499,7 +499,6 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                             >
                                 {cccdImage && cccdPreview ? (
                                     <div style={{ position: 'absolute', inset: 0 }}>
-                                        <img src={cccdPreview} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#f8fafc', display: 'block' }} />
                                         {/* Loading overlay */}
                                         {cccdExtracting && (
                                             <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>

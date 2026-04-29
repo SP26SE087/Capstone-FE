@@ -2,15 +2,19 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import MainLayout from '@/layout/MainLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { visitorRegistrationService } from '@/services/visitorRegistrationService';
+import { contactorService } from '@/services/contactorService';
+import { userService } from '@/services/userService';
 import {
     VisitorRegistrationResponse,
     VisitorRegistrationStatus,
     AssigneeTransferRequestResponse,
+    ContactorResponse,
 } from '@/types/visitorRegistration';
 import Modal from '@/components/common/Modal';
 import {
     UserCheck, Clock, CheckCircle2, XCircle, Loader2, Eye, EyeOff,
     ArrowRightLeft, CheckCheck, X, Wifi, WifiOff, User, List, GitPullRequest,
+    Users, Mail, Phone, Plus, Trash2, ChevronDown, Search,
 } from 'lucide-react';
 
 // ─── Status configs ────────────────────────────────────────────────────────────
@@ -89,7 +93,8 @@ const getErrMsg = (err: any): string => {
 
 const VisitorRegistrations: React.FC = () => {
     const { user } = useAuth();
-    const [tab, setTab] = useState<'registrations' | 'transfers'>('registrations');
+    const isLabDirector = user.role === 2;
+    const [tab, setTab] = useState<'registrations' | 'transfers' | 'contactors'>('registrations');
 
     // Registrations
     const [registrations, setRegistrations] = useState<VisitorRegistrationResponse[]>([]);
@@ -127,6 +132,25 @@ const VisitorRegistrations: React.FC = () => {
     // CCCD reveal
     const [showCccd, setShowCccd] = useState(false);
 
+    // ── Contactors state ──────────────────────────────────────────────────────
+    const [contactors, setContactors] = useState<ContactorResponse[]>([]);
+    const [contactorsLoading, setContactorsLoading] = useState(false);
+    const [cEditTarget, setCEditTarget] = useState<ContactorResponse | null>(null);
+    const [cFormMode, setCFormMode] = useState<'external' | 'member'>('external');
+    const [cForm, setCForm] = useState<{ fullName: string; email: string; phone: string }>({ fullName: '', email: '', phone: '' });
+    const [cFormErrors, setCFormErrors] = useState<{ fullName?: string; email?: string; phone?: string }>({});
+    const [cFormSubmitting, setCFormSubmitting] = useState(false);
+    const [cFormError, setCFormError] = useState<string | null>(null);
+    const [cLabMembers, setCLabMembers] = useState<any[]>([]);
+    const [cMembersLoading, setCMembersLoading] = useState(false);
+    const [cMemberSearch, setCMemberSearch] = useState('');
+    const [cMemberOpen, setCMemberOpen] = useState(false);
+    const [cSelectedMember, setCSelectedMember] = useState<any | null>(null);
+    const [cDeleteTarget, setCDeleteTarget] = useState<ContactorResponse | null>(null);
+    const [cDeleteSubmitting, setCDeleteSubmitting] = useState(false);
+    const [cDeleteError, setCDeleteError] = useState<string | null>(null);
+    const cMemberPickerRef = useRef<HTMLDivElement>(null);
+
     const fetchRegistrations = useCallback(async () => {
         setRegLoading(true);
         try {
@@ -151,6 +175,90 @@ const VisitorRegistrations: React.FC = () => {
         fetchRegistrations();
         fetchTransfers();
     }, [fetchRegistrations, fetchTransfers]);
+
+    // ── Contactors logic ──────────────────────────────────────────────────────
+    const fetchContactors = useCallback(async () => {
+        if (!isLabDirector) return;
+        setContactorsLoading(true);
+        try { setContactors(await contactorService.getAll()); }
+        catch { /* ignore */ } finally { setContactorsLoading(false); }
+    }, [isLabDirector]);
+
+    useEffect(() => { if (isLabDirector) fetchContactors(); }, [fetchContactors, isLabDirector]);
+
+    useEffect(() => {
+        if (!isLabDirector) return;
+        setCMembersLoading(true);
+        userService.getAll()
+            .then(all => setCLabMembers(Array.isArray(all) ? all : []))
+            .catch(() => setCLabMembers([]))
+            .finally(() => setCMembersLoading(false));
+    }, [isLabDirector]);
+
+    useEffect(() => {
+        if (!cMemberOpen) return;
+        const handler = (e: MouseEvent) => {
+            if (cMemberPickerRef.current && !cMemberPickerRef.current.contains(e.target as Node))
+                setCMemberOpen(false);
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, [cMemberOpen]);
+
+    const cOpenCreate = () => { setCEditTarget(null); setCForm({ fullName: '', email: '', phone: '' }); setCFormErrors({}); setCFormError(null); setCFormMode('external'); setCSelectedMember(null); setCMemberSearch(''); };
+    const cOpenEdit = (c: ContactorResponse) => { setCEditTarget(c); setCForm({ fullName: c.fullName, email: c.email, phone: c.phone }); setCFormErrors({}); setCFormError(null); };
+    const cSwitchMode = (mode: 'external' | 'member') => { setCFormMode(mode); setCForm({ fullName: '', email: '', phone: '' }); setCFormErrors({}); setCFormError(null); setCSelectedMember(null); setCMemberSearch(''); };
+    const cSelectMember = (m: any) => { setCSelectedMember(m); setCForm(p => ({ ...p, fullName: m.fullName || '', email: m.email || '' })); setCMemberOpen(false); setCMemberSearch(''); };
+
+    const cValidate = (): boolean => {
+        const errs: { fullName?: string; email?: string; phone?: string } = {};
+        if (cFormMode === 'member' && !cEditTarget) {
+            if (!cSelectedMember) { setCFormError('Please select a lab member.'); return false; }
+            if (!cForm.phone.trim()) errs.phone = 'Phone is required';
+            else if (cForm.phone.length > 50) errs.phone = 'Max 50 characters';
+        } else {
+            if (!cForm.fullName.trim()) errs.fullName = 'Full name is required';
+            else if (cForm.fullName.length > 255) errs.fullName = 'Max 255 characters';
+            if (!cEditTarget) {
+                if (!cForm.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cForm.email)) errs.email = 'A valid email is required';
+                else if (cForm.email.length > 255) errs.email = 'Max 255 characters';
+            }
+            if (!cForm.phone.trim()) errs.phone = 'Phone is required';
+            else if (cForm.phone.length > 50) errs.phone = 'Max 50 characters';
+        }
+        setCFormErrors(errs);
+        return Object.keys(errs).length === 0;
+    };
+
+    const cSubmitForm = async () => {
+        if (!cValidate()) return;
+        setCFormSubmitting(true); setCFormError(null);
+        try {
+            if (cEditTarget) {
+                const updated = await contactorService.update(cEditTarget.id, { fullName: cForm.fullName.trim(), phone: cForm.phone.trim() });
+                setContactors(prev => prev.map(c => c.id === updated.id ? updated : c));
+            } else {
+                const created = await contactorService.create({ fullName: cForm.fullName.trim(), email: cForm.email.trim(), phone: cForm.phone.trim() });
+                setContactors(prev => [created, ...prev]);
+            }
+            cOpenCreate();
+        } catch (err: any) {
+            const code = err?.response?.data?.messageCode || err?.response?.data?.MessageCode;
+            if (code === 'US040') setCFormError('This email already exists in the contactor list.');
+            else setCFormError('An error occurred. Please try again.');
+        } finally { setCFormSubmitting(false); }
+    };
+
+    const cSubmitDelete = async () => {
+        if (!cDeleteTarget) return;
+        setCDeleteSubmitting(true); setCDeleteError(null);
+        try {
+            await contactorService.deleteById(cDeleteTarget.id);
+            setContactors(prev => prev.filter(c => c.id !== cDeleteTarget.id));
+            setCDeleteTarget(null);
+        } catch { setCDeleteError('Failed to delete contactor. Please try again.'); }
+        finally { setCDeleteSubmitting(false); }
+    };
 
     // Load detail when detailId changes
     useEffect(() => {
@@ -323,6 +431,7 @@ const VisitorRegistrations: React.FC = () => {
                     {[
                         { key: 'registrations', label: 'Registrations', icon: <List size={14} /> },
                         { key: 'transfers', label: 'Transfer Requests', icon: <GitPullRequest size={14} />, badge: pendingTransferCount },
+                        ...(isLabDirector ? [{ key: 'contactors', label: 'Contactors', icon: <Users size={14} /> }] : []),
                     ].map(t => (
                         <button
                             key={t.key}
@@ -501,6 +610,237 @@ const VisitorRegistrations: React.FC = () => {
                     )
                 )}
             </div>
+
+            {/* ── Tab: Contactors ── */}
+            {tab === 'contactors' && isLabDirector && (
+                <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
+                    {/* Table */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                        {contactorsLoading ? (
+                            <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
+                                <Loader2 size={28} style={{ animation: 'spin 1s linear infinite' }} color="var(--accent-color)" />
+                            </div>
+                        ) : contactors.length === 0 ? (
+                            <div className="empty-state">
+                                <div className="empty-state-icon"><Users size={36} /></div>
+                                <h2>No contactors yet</h2>
+                                <p>Add your first contactor using the form on the right.</p>
+                            </div>
+                        ) : (
+                            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+                                    <thead>
+                                        <tr style={{ background: 'var(--surface-hover)', borderBottom: '1px solid var(--border-color)' }}>
+                                            <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '30%' }}>Full Name</th>
+                                            <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '30%' }}>Email</th>
+                                            <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '20%' }}>Phone</th>
+                                            <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '14%' }}>Added</th>
+                                            <th style={{ padding: '0.75rem 1rem', width: '6%' }}></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {contactors.map((c, idx) => (
+                                            <tr
+                                                key={c.id}
+                                                style={{ borderBottom: idx < contactors.length - 1 ? '1px solid var(--border-light)' : 'none', cursor: 'pointer', transition: 'background 0.1s' }}
+                                                onClick={() => cOpenEdit(c)}
+                                                onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-hover)')}
+                                                onMouseLeave={e => (e.currentTarget.style.background = '')}
+                                            >
+                                                <td style={{ padding: '0.75rem 1rem', fontWeight: 600, fontSize: '0.88rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.fullName}</td>
+                                                <td style={{ padding: '0.75rem 1rem', fontSize: '0.85rem', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><Mail size={13} style={{ flexShrink: 0 }} />{c.email}</span>
+                                                </td>
+                                                <td style={{ padding: '0.75rem 1rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><Phone size={13} style={{ flexShrink: 0 }} />{c.phone}</span>
+                                                </td>
+                                                <td style={{ padding: '0.75rem 1rem', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                                                    {c.createdAt ? new Date(c.createdAt).toLocaleDateString('en-GB') : '—'}
+                                                </td>
+                                                <td style={{ padding: '0.75rem 0.5rem', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+                                                    <button
+                                                        onClick={() => { setCDeleteTarget(c); setCDeleteError(null); }}
+                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', padding: '4px', borderRadius: '4px', display: 'flex', alignItems: 'center' }}
+                                                        title="Delete"
+                                                    >
+                                                        <Trash2 size={15} />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Side Panel */}
+                    <div style={{ width: '340px', flexShrink: 0 }}>
+                        <div className="card" style={{ padding: '1.25rem' }}>
+                            <h3 style={{ margin: '0 0 1rem', fontSize: '0.95rem', fontWeight: 700 }}>{cEditTarget ? 'Edit Contactor' : 'Add Contactor'}</h3>
+
+                            {/* Mode toggle (only for new) */}
+                            {!cEditTarget && (
+                                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+                                    {(['external', 'member'] as const).map(m => (
+                                        <button
+                                            key={m}
+                                            onClick={() => cSwitchMode(m)}
+                                            style={{
+                                                flex: 1, padding: '0.4rem', border: '1px solid', borderRadius: 'var(--radius-sm)',
+                                                fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer', transition: 'all 0.15s',
+                                                borderColor: cFormMode === m ? 'var(--accent-color)' : 'var(--border-color)',
+                                                background: cFormMode === m ? 'var(--accent-color)' : 'transparent',
+                                                color: cFormMode === m ? '#fff' : 'var(--text-primary)',
+                                            }}
+                                        >
+                                            {m === 'external' ? 'External' : 'Lab Member'}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Member picker */}
+                            {cFormMode === 'member' && !cEditTarget && (
+                                <div ref={cMemberPickerRef} style={{ position: 'relative', marginBottom: '0.85rem' }}>
+                                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '4px', color: 'var(--text-secondary)' }}>Lab Member</label>
+                                    <button
+                                        type="button"
+                                        onClick={() => setCMemberOpen(o => !o)}
+                                        style={{
+                                            width: '100%', padding: '0.5rem 0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                            border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', background: '#fff', cursor: 'pointer',
+                                            fontSize: '0.85rem', color: cSelectedMember ? 'var(--text-primary)' : 'var(--text-muted)',
+                                        }}
+                                    >
+                                        {cSelectedMember ? cSelectedMember.fullName : (cMembersLoading ? 'Loading…' : 'Select a member')}
+                                        <ChevronDown size={14} />
+                                    </button>
+                                    {cMemberOpen && (
+                                        <div style={{
+                                            position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50, marginTop: '2px',
+                                            background: '#fff', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)',
+                                            boxShadow: '0 4px 12px rgba(0,0,0,0.1)', maxHeight: '200px', overflow: 'hidden',
+                                        }}>
+                                            <div style={{ padding: '6px', borderBottom: '1px solid var(--border-light)' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 8px', background: 'var(--surface-hover)', borderRadius: 'var(--radius-sm)' }}>
+                                                    <Search size={13} color="var(--text-muted)" />
+                                                    <input
+                                                        autoFocus
+                                                        value={cMemberSearch}
+                                                        onChange={e => setCMemberSearch(e.target.value)}
+                                                        placeholder="Search..."
+                                                        style={{ border: 'none', outline: 'none', background: 'none', fontSize: '0.82rem', width: '100%' }}
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div style={{ overflowY: 'auto', maxHeight: '152px' }} className="custom-scrollbar">
+                                                {cLabMembers
+                                                    .filter(m => (m.fullName || '').toLowerCase().includes(cMemberSearch.toLowerCase()))
+                                                    .map(m => (
+                                                        <div
+                                                            key={m.id}
+                                                            onClick={() => cSelectMember(m)}
+                                                            style={{ padding: '0.5rem 0.75rem', cursor: 'pointer', fontSize: '0.85rem', transition: 'background 0.1s' }}
+                                                            onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-hover)')}
+                                                            onMouseLeave={e => (e.currentTarget.style.background = '')}
+                                                        >
+                                                            <div style={{ fontWeight: 600 }}>{m.fullName}</div>
+                                                            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{m.email}</div>
+                                                        </div>
+                                                    ))}
+                                                {cLabMembers.filter(m => (m.fullName || '').toLowerCase().includes(cMemberSearch.toLowerCase())).length === 0 && (
+                                                    <div style={{ padding: '0.75rem', color: 'var(--text-muted)', fontSize: '0.83rem', textAlign: 'center' }}>No members found</div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Full Name (external or edit mode) */}
+                            {(cFormMode === 'external' || cEditTarget) && (
+                                <div style={{ marginBottom: '0.85rem' }}>
+                                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '4px', color: 'var(--text-secondary)' }}>Full Name <span style={{ color: '#dc2626' }}>*</span></label>
+                                    <input
+                                        value={cForm.fullName}
+                                        onChange={e => setCForm(p => ({ ...p, fullName: e.target.value }))}
+                                        placeholder="Full name"
+                                        style={{
+                                            width: '100%', padding: '0.5rem 0.75rem', border: `1px solid ${cFormErrors.fullName ? '#dc2626' : 'var(--border-color)'}`,
+                                            borderRadius: 'var(--radius-sm)', fontSize: '0.85rem', outline: 'none', boxSizing: 'border-box',
+                                        }}
+                                    />
+                                    {cFormErrors.fullName && <p style={{ margin: '3px 0 0', fontSize: '0.76rem', color: '#dc2626' }}>{cFormErrors.fullName}</p>}
+                                </div>
+                            )}
+
+                            {/* Email (only on create) */}
+                            {!cEditTarget && (
+                                <div style={{ marginBottom: '0.85rem' }}>
+                                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '4px', color: 'var(--text-secondary)' }}>Email <span style={{ color: '#dc2626' }}>*</span></label>
+                                    <input
+                                        value={cForm.email}
+                                        onChange={e => setCForm(p => ({ ...p, email: e.target.value }))}
+                                        disabled={cFormMode === 'member' && !!cSelectedMember}
+                                        placeholder="email@example.com"
+                                        style={{
+                                            width: '100%', padding: '0.5rem 0.75rem',
+                                            border: `1px solid ${cFormErrors.email ? '#dc2626' : 'var(--border-color)'}`,
+                                            borderRadius: 'var(--radius-sm)', fontSize: '0.85rem', outline: 'none', boxSizing: 'border-box',
+                                            background: cFormMode === 'member' && !!cSelectedMember ? 'var(--surface-hover)' : '#fff',
+                                        }}
+                                    />
+                                    {cFormErrors.email && <p style={{ margin: '3px 0 0', fontSize: '0.76rem', color: '#dc2626' }}>{cFormErrors.email}</p>}
+                                </div>
+                            )}
+
+                            {/* Phone */}
+                            <div style={{ marginBottom: '1rem' }}>
+                                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '4px', color: 'var(--text-secondary)' }}>Phone <span style={{ color: '#dc2626' }}>*</span></label>
+                                <input
+                                    value={cForm.phone}
+                                    onChange={e => setCForm(p => ({ ...p, phone: e.target.value }))}
+                                    placeholder="Phone number"
+                                    style={{
+                                        width: '100%', padding: '0.5rem 0.75rem', border: `1px solid ${cFormErrors.phone ? '#dc2626' : 'var(--border-color)'}`,
+                                        borderRadius: 'var(--radius-sm)', fontSize: '0.85rem', outline: 'none', boxSizing: 'border-box',
+                                    }}
+                                />
+                                {cFormErrors.phone && <p style={{ margin: '3px 0 0', fontSize: '0.76rem', color: '#dc2626' }}>{cFormErrors.phone}</p>}
+                            </div>
+
+                            {cFormError && <p style={{ color: '#dc2626', fontSize: '0.82rem', marginBottom: '0.75rem' }}>{cFormError}</p>}
+
+                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                <button
+                                    onClick={cSubmitForm}
+                                    disabled={cFormSubmitting}
+                                    style={{
+                                        flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                                        padding: '0.5rem', border: 'none', borderRadius: 'var(--radius-sm)',
+                                        background: 'var(--accent-color)', color: '#fff', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer',
+                                    }}
+                                >
+                                    {cFormSubmitting ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Plus size={14} />}
+                                    {cEditTarget ? 'Save Changes' : 'Add Contactor'}
+                                </button>
+                                {cEditTarget && (
+                                    <button
+                                        onClick={cOpenCreate}
+                                        style={{
+                                            padding: '0.5rem 0.75rem', border: '1px solid var(--border-color)',
+                                            borderRadius: 'var(--radius-sm)', background: 'transparent', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--text-secondary)',
+                                        }}
+                                    >
+                                        Cancel
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* ════════════════ MODALS ════════════════ */}
 
@@ -828,6 +1168,40 @@ const VisitorRegistrations: React.FC = () => {
                         </div>
                     </div>
                 )}
+            </Modal>
+
+            {/* Delete Contactor Modal */}
+            <Modal
+                isOpen={!!cDeleteTarget}
+                onClose={() => setCDeleteTarget(null)}
+                title="Delete Contactor"
+                maxWidth="400px"
+                variant="danger"
+                disableBackdropClose
+                footer={
+                    <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+                        <button
+                            onClick={() => setCDeleteTarget(null)}
+                            disabled={cDeleteSubmitting}
+                            style={{ padding: '0.5rem 1rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', background: 'transparent', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={cSubmitDelete}
+                            disabled={cDeleteSubmitting}
+                            style={{ padding: '0.5rem 1rem', border: 'none', borderRadius: 'var(--radius-sm)', background: '#dc2626', color: '#fff', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                        >
+                            {cDeleteSubmitting ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Trash2 size={14} />}
+                            Delete
+                        </button>
+                    </div>
+                }
+            >
+                <p style={{ margin: 0, fontSize: '0.9rem', lineHeight: 1.6 }}>
+                    Are you sure you want to delete <strong>{cDeleteTarget?.fullName}</strong>? This action cannot be undone.
+                </p>
+                {cDeleteError && <p style={{ color: '#dc2626', fontSize: '0.82rem', marginTop: '0.75rem' }}>{cDeleteError}</p>}
             </Modal>
         </MainLayout>
     );
