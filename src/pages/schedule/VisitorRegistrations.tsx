@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import MainLayout from '@/layout/MainLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { visitorRegistrationService } from '@/services/visitorRegistrationService';
@@ -9,7 +9,7 @@ import {
 } from '@/types/visitorRegistration';
 import Modal from '@/components/common/Modal';
 import {
-    UserCheck, Clock, CheckCircle2, XCircle, Loader2, Eye,
+    UserCheck, Clock, CheckCircle2, XCircle, Loader2, Eye, EyeOff,
     ArrowRightLeft, CheckCheck, X, Wifi, WifiOff, User, List, GitPullRequest,
 } from 'lucide-react';
 
@@ -123,6 +123,9 @@ const VisitorRegistrations: React.FC = () => {
     const [respondState, setRespondState] = useState<RespondState | null>(null);
     const [respondSubmitting, setRespondSubmitting] = useState(false);
     const [respondError, setRespondError] = useState<string | null>(null);
+
+    // CCCD reveal
+    const [showCccd, setShowCccd] = useState(false);
 
     const fetchRegistrations = useCallback(async () => {
         setRegLoading(true);
@@ -248,7 +251,8 @@ const VisitorRegistrations: React.FC = () => {
 
     const openApprove = (item: VisitorRegistrationResponse) => {
         setApproveError(null);
-        setApproveState({ registrationId: item.id, fullName: item.fullName, appointmentDateTime: item.appointmentDateTime, reason: '', activeFrom: '', durationHours: '' });
+        const apptLocal = item.appointmentDateTime ? new Date(item.appointmentDateTime).toLocaleString('sv-SE', { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }).slice(0, 16) : '';
+        setApproveState({ registrationId: item.id, fullName: item.fullName, appointmentDateTime: item.appointmentDateTime, reason: '', activeFrom: apptLocal, durationHours: '2' });
     };
     const openReject = (item: VisitorRegistrationResponse) => {
         setRejectError(null);
@@ -297,7 +301,7 @@ const VisitorRegistrations: React.FC = () => {
     );
 
     const imgPreviewStyle: React.CSSProperties = {
-        width: '100%', borderRadius: 'var(--radius-sm)', objectFit: 'cover', border: '1px solid var(--border-color)', maxHeight: '180px',
+        width: '100%', borderRadius: 'var(--radius-sm)', objectFit: 'contain', border: '1px solid var(--border-color)', maxHeight: '130px', background: 'var(--surface-hover)',
     };
 
     const pendingTransferCount = transfers.length;
@@ -305,7 +309,7 @@ const VisitorRegistrations: React.FC = () => {
     // ── Render ───────────────────────────────────────────────────────────────
     return (
         <MainLayout role={user.role} userName={user.name}>
-            <div className="page-container">
+            <div className="page-container" style={{ maxWidth: '1600px', margin: '0 auto' }}>
                 {/* Header */}
                 <div className="page-header" style={{ marginBottom: '1.5rem' }}>
                     <div>
@@ -374,12 +378,16 @@ const VisitorRegistrations: React.FC = () => {
                             </div>
                         ) : (
                             <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-                                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
                                     <thead>
                                         <tr style={{ background: 'var(--surface-hover)', borderBottom: '1px solid var(--border-color)' }}>
-                                            {['Visitor', 'Email', 'Appointment', 'Assignee', 'Lab Access', 'Status', ''].map(h => (
-                                                <th key={h} style={{ padding: '0.75rem 1rem', textAlign: 'left', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
-                                            ))}
+                                            <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '14%' }}>Visitor</th>
+                                            <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '16%' }}>Email</th>
+                                            <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '13%' }}>Appointment</th>
+                                            <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '13%' }}>Assignee</th>
+                                            <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '10%' }}>Lab Access</th>
+                                            <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '9%' }}>Status</th>
+                                            <th style={{ padding: '0.75rem 1rem', width: '25%' }}></th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -389,40 +397,40 @@ const VisitorRegistrations: React.FC = () => {
                                                 onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-hover)')}
                                                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                                             >
-                                                <td style={{ padding: '0.85rem 1rem' }}>
+                                                <td style={{ padding: '0.85rem 1rem', overflow: 'hidden' }}>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
                                                         <img src={item.photoUrl} alt={item.fullName} style={{ width: '34px', height: '34px', borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--border-color)', flexShrink: 0 }} />
-                                                        <span style={{ fontWeight: 600, fontSize: '0.88rem' }}>{item.fullName}</span>
+                                                        <span style={{ fontWeight: 600, fontSize: '0.88rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.fullName}</span>
                                                     </div>
                                                 </td>
-                                                <td style={{ padding: '0.85rem 1rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{item.email}</td>
+                                                <td style={{ padding: '0.85rem 1rem', fontSize: '0.85rem', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.email}</td>
                                                 <td style={{ padding: '0.85rem 1rem', fontSize: '0.85rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{formatDt(item.appointmentDateTime)}</td>
-                                                <td style={{ padding: '0.85rem 1rem', fontSize: '0.83rem', color: 'var(--text-secondary)' }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                                        <User size={12} color="var(--text-muted)" />
-                                                        <span>{item.assigneeFullName || item.assigneeEmail}</span>
+                                                <td style={{ padding: '0.85rem 1rem', fontSize: '0.83rem', color: 'var(--text-secondary)', overflow: 'hidden' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', overflow: 'hidden' }}>
+                                                        <User size={12} color="var(--text-muted)" style={{ flexShrink: 0 }} />
+                                                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.assigneeFullName || item.assigneeEmail}</span>
                                                         {item.isAssignee && (
-                                                            <span style={{ fontSize: '0.68rem', background: '#dbeafe', color: '#2563eb', borderRadius: '4px', padding: '1px 5px', fontWeight: 700 }}>You</span>
+                                                            <span style={{ fontSize: '0.68rem', background: '#dbeafe', color: '#2563eb', borderRadius: '4px', padding: '1px 5px', fontWeight: 700, flexShrink: 0 }}>You</span>
                                                         )}
                                                     </div>
                                                 </td>
                                                 <td style={{ padding: '0.85rem 1rem' }}>{labAccessBadge(item.labAccess)}</td>
                                                 <td style={{ padding: '0.85rem 1rem' }}>{statusBadge(item.status)}</td>
                                                 <td style={{ padding: '0.85rem 1rem' }}>
-                                                    <div style={{ display: 'flex', gap: '5px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                                                        <button className="btn btn-secondary" style={{ padding: '3px 9px', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '4px' }} onClick={() => setDetailId(item.id)}>
-                                                            <Eye size={12} /> Details
+                                                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                                                        <button className="btn btn-secondary" style={{ flex: 1, padding: '4px 6px', fontSize: '0.76rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px', whiteSpace: 'nowrap' }} onClick={() => setDetailId(item.id)}>
+                                                            <Eye size={11} /> Details
                                                         </button>
                                                         {item.status === VisitorRegistrationStatus.Pending && item.isAssignee && (
                                                             <>
-                                                                <button className="btn btn-primary" style={{ padding: '3px 9px', fontSize: '0.78rem', background: '#16a34a', borderColor: '#16a34a' }} onClick={() => openApprove(item)}>
+                                                                <button className="btn btn-primary" style={{ flex: 1, padding: '4px 6px', fontSize: '0.76rem', background: '#16a34a', borderColor: '#16a34a', whiteSpace: 'nowrap' }} onClick={() => openApprove(item)}>
                                                                     Approve
                                                                 </button>
-                                                                <button className="btn btn-primary" style={{ padding: '3px 9px', fontSize: '0.78rem', background: '#dc2626', borderColor: '#dc2626' }} onClick={() => openReject(item)}>
+                                                                <button className="btn btn-primary" style={{ flex: 1, padding: '4px 6px', fontSize: '0.76rem', background: '#dc2626', borderColor: '#dc2626', whiteSpace: 'nowrap' }} onClick={() => openReject(item)}>
                                                                     Reject
                                                                 </button>
-                                                                <button className="btn btn-secondary" style={{ padding: '3px 9px', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '4px' }} onClick={() => openTransfer(item)}>
-                                                                    <ArrowRightLeft size={12} /> Transfer
+                                                                <button className="btn btn-secondary" style={{ flex: 1, padding: '4px 6px', fontSize: '0.76rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px', whiteSpace: 'nowrap' }} onClick={() => openTransfer(item)}>
+                                                                    <ArrowRightLeft size={11} /> Transfer
                                                                 </button>
                                                             </>
                                                         )}
@@ -467,9 +475,9 @@ const VisitorRegistrations: React.FC = () => {
                                             onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                                         >
                                             <td style={{ padding: '0.85rem 1rem', fontSize: '0.88rem', fontWeight: 500 }}>{t.fromAssigneeEmail}</td>
-                                            <td style={{ padding: '0.85rem 1rem', fontSize: '0.8rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
-                                                <button className="btn btn-secondary" style={{ padding: '2px 8px', fontSize: '0.76rem' }} onClick={() => setDetailId(t.registrationId)}>
-                                                    {t.registrationId.slice(0, 8)}… <Eye size={11} style={{ marginLeft: '4px' }} />
+                                            <td style={{ padding: '0.85rem 1rem' }}>
+                                                <button className="btn btn-secondary" style={{ padding: '3px 10px', fontSize: '0.76rem', display: 'inline-flex', alignItems: 'center', gap: '5px' }} onClick={() => setDetailId(t.registrationId)}>
+                                                    <Eye size={11} /> View Registration
                                                 </button>
                                             </td>
                                             <td style={{ padding: '0.85rem 1rem', fontSize: '0.85rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{formatDt(t.createdAt)}</td>
@@ -497,83 +505,123 @@ const VisitorRegistrations: React.FC = () => {
             {/* ════════════════ MODALS ════════════════ */}
 
             {/* Detail Modal */}
-            <Modal isOpen={!!detailId} onClose={() => setDetailId(null)} title="Registration Details" maxWidth="620px">
+            <Modal isOpen={!!detailId} onClose={() => { setDetailId(null); setShowCccd(false); }} title="Registration Details" maxWidth="1020px" disableBackdropClose>
                 {detailLoading || !detail ? (
                     <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
                         <Loader2 size={28} style={{ animation: 'spin 1s linear infinite' }} color="var(--accent-color)" />
                     </div>
                 ) : (
-                    <div style={{ padding: '1.25rem 1.75rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                        {/* Photos */}
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                            <div>
-                                <p style={{ margin: '0 0 0.35rem', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Portrait</p>
-                                <img src={detail.photoUrl} alt="Photo" style={imgPreviewStyle} />
+                    <div style={{ padding: '0.85rem 1.75rem', display: 'grid', gridTemplateColumns: (detail.logs && detail.logs.length > 0) || (detail.status === VisitorRegistrationStatus.Pending && detail.isAssignee) ? '1fr 400px' : '1fr', gap: '1.25rem', alignItems: 'start' }}>
+                        {/* Left column */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                            {/* Photos */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                <div>
+                                    <p style={{ margin: '0 0 0.35rem', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Portrait</p>
+                                    <img src={detail.photoUrl} alt="Photo" style={imgPreviewStyle} />
+                                </div>
+                                <div>
+                                    <p style={{ margin: '0 0 0.35rem', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>ID Card</p>
+                                    <div
+                                        style={{ position: 'relative', cursor: 'pointer', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}
+                                        onClick={() => setShowCccd(v => !v)}
+                                        title={showCccd ? 'Click to hide' : 'Click to reveal'}
+                                    >
+                                        <img src={detail.cccdImageUrl} alt="CCCD" style={{ ...imgPreviewStyle, filter: showCccd ? 'none' : 'blur(10px)', transition: 'filter 0.25s' }} />
+                                        {!showCccd && (
+                                            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px', background: 'rgba(0,0,0,0.18)' }}>
+                                                <Eye size={20} color="#fff" />
+                                                <span style={{ fontSize: '0.68rem', color: '#fff', fontWeight: 600, textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>Click to reveal</span>
+                                            </div>
+                                        )}
+                                        {showCccd && (
+                                            <div style={{ position: 'absolute', top: '4px', right: '4px', background: 'rgba(0,0,0,0.45)', borderRadius: '50%', width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                <EyeOff size={12} color="#fff" />
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
+
+                            {/* Visitor info */}
                             <div>
-                                <p style={{ margin: '0 0 0.35rem', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>ID Card</p>
-                                <img src={detail.cccdImageUrl} alt="CCCD" style={imgPreviewStyle} />
+                                <p style={{ margin: '0 0 0.4rem', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Visitor (Requester)</p>
+                                <div style={{ border: '1px solid var(--border-light)', borderRadius: 'var(--radius-sm)', overflow: 'hidden', padding: '0 0.75rem' }}>
+                                    {fieldRow('Full Name',         <strong>{detail.fullName}</strong>)}
+                                    {fieldRow('Email',             detail.email)}
+                                    {fieldRow('Wants to Contact',  detail.contactEmail)}
+                                    {fieldRow('Appointment',       formatDt(detail.appointmentDateTime))}
+                                    {fieldRow('Submitted At',      formatDt(detail.createdAt))}
+                                </div>
                             </div>
+
+                            {/* Assignee / request status info */}
+                            <div>
+                                <p style={{ margin: '0 0 0.4rem', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Request Info</p>
+                                <div style={{ border: '1px solid var(--border-light)', borderRadius: 'var(--radius-sm)', overflow: 'hidden', padding: '0 0.75rem' }}>
+                                    {fieldRow('Assigned To', (
+                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                            {detail.assigneeFullName} <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>({detail.assigneeEmail})</span>
+                                            {detail.isAssignee && <span style={{ fontSize: '0.68rem', background: '#dbeafe', color: '#2563eb', borderRadius: '4px', padding: '1px 5px', fontWeight: 700 }}>You</span>}
+                                        </span>
+                                    ))}
+                                    {fieldRow('Status',     statusBadge(detail.status))}
+                                    {fieldRow('Lab Access', labAccessBadge(detail.labAccess))}
+                                    {detail.reason      && fieldRow('Reason',       detail.reason)}
+                                    {detail.activeFrom  && fieldRow('Active From',  formatDt(detail.activeFrom))}
+                                    {detail.activeUntil && fieldRow('Active Until', formatDt(detail.activeUntil))}
+                                </div>
+                            </div>
+
                         </div>
 
-                        {/* Info */}
-                        <div style={{ border: '1px solid var(--border-light)', borderRadius: 'var(--radius-sm)', overflow: 'hidden', padding: '0 0.75rem' }}>
-                            {fieldRow('Full Name',    <strong>{detail.fullName}</strong>)}
-                            {fieldRow('Visitor Email', detail.email)}
-                            {fieldRow('Contact Email', detail.contactEmail)}
-                            {fieldRow('Appointment',   formatDt(detail.appointmentDateTime))}
-                            {fieldRow('Created At',    formatDt(detail.createdAt))}
-                            {fieldRow('Assignee', (
-                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                                    {detail.assigneeFullName} <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>({detail.assigneeEmail})</span>
-                                    {detail.isAssignee && <span style={{ fontSize: '0.68rem', background: '#dbeafe', color: '#2563eb', borderRadius: '4px', padding: '1px 5px', fontWeight: 700 }}>You</span>}
-                                </span>
-                            ))}
-                            {fieldRow('Status',     statusBadge(detail.status))}
-                            {fieldRow('Lab Access', labAccessBadge(detail.labAccess))}
-                            {detail.reason     && fieldRow('Reason',       detail.reason)}
-                            {detail.activeFrom && fieldRow('Active From',  formatDt(detail.activeFrom))}
-                            {detail.activeUntil && fieldRow('Active Until', formatDt(detail.activeUntil))}
-                        </div>
+                        {/* Right column — Actions + Activity Log */}
+                        {((detail.logs && detail.logs.length > 0) || (detail.status === VisitorRegistrationStatus.Pending && detail.isAssignee)) && (
+                            <div style={{ borderLeft: '1px solid var(--border-light)', paddingLeft: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                {detail.logs && detail.logs.length > 0 && <>
+                                {/* Header + legend */}
+                                <p style={{ margin: '0 0 0.5rem', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Activity Log</p>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 12px', marginBottom: '0.85rem' }}>
+                                    {Object.entries(ACTION_COLORS).map(([key, clr]) => (
+                                        <span key={key} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
+                                            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: clr.color, flexShrink: 0 }} />
+                                            {key.replace(/([A-Z])/g, ' $1').trim()}
+                                        </span>
+                                    ))}
+                                </div>
 
-                        {/* Action buttons */}
-                        {detail.status === VisitorRegistrationStatus.Pending && detail.isAssignee && (
-                            <div style={{ display: 'flex', gap: '0.75rem' }}>
-                                <button className="btn btn-primary" style={{ flex: 1, background: '#16a34a', borderColor: '#16a34a' }}
-                                    onClick={() => { setDetailId(null); openApprove(detail); }}>Approve</button>
-                                <button className="btn btn-primary" style={{ flex: 1, background: '#dc2626', borderColor: '#dc2626' }}
-                                    onClick={() => { setDetailId(null); openReject(detail); }}>Reject</button>
-                                <button className="btn btn-secondary" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
-                                    onClick={() => { setDetailId(null); openTransfer(detail); }}>
-                                    <ArrowRightLeft size={13} /> Transfer
-                                </button>
-                            </div>
-                        )}
-
-                        {/* Logs timeline */}
-                        {detail.logs && detail.logs.length > 0 && (
-                            <div>
-                                <p style={{ margin: '0 0 0.75rem', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Activity Log</p>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                <div className={detail.logs.length >= 2 ? 'custom-scrollbar' : ''} style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', ...(detail.logs.length >= 2 ? { maxHeight: (detail.status === VisitorRegistrationStatus.Pending && detail.isAssignee) ? '220px' : '420px', overflowY: 'auto' } : {}), paddingRight: '4px' }}>
                                     {detail.logs.map(log => {
                                         const clr = ACTION_COLORS[log.actionType] ?? { color: '#64748b', bg: '#f1f5f9' };
                                         return (
-                                            <div key={log.id} style={{ display: 'flex', gap: '0.75rem', padding: '0.6rem 0.85rem', background: 'var(--surface-hover)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-light)' }}>
-                                                <span style={{ background: clr.bg, color: clr.color, borderRadius: '6px', padding: '2px 8px', fontSize: '0.7rem', fontWeight: 700, whiteSpace: 'nowrap', alignSelf: 'flex-start', marginTop: '1px' }}>
-                                                    {log.actionType}
-                                                </span>
+                                            <div key={log.id} style={{ display: 'flex', gap: '0.75rem', padding: '0.75rem 1rem', background: 'var(--surface-hover)', borderRadius: 'var(--radius-sm)', border: `1px solid var(--border-light)`, borderLeft: `3px solid ${clr.color}` }}>
+                                                {/* Dot */}
+                                                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: clr.color, flexShrink: 0, marginTop: '5px' }} />
                                                 <div style={{ flex: 1, minWidth: 0 }}>
-                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                                        <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', fontWeight: 500 }}>{log.actorEmail}</span>
-                                                        <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{formatDt(log.occurredAt)}</span>
+                                                    {/* Action label + time */}
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '3px' }}>
+                                                        <span style={{ fontSize: '0.8rem', fontWeight: 700, color: clr.color }}>
+                                                            {log.actionType.replace(/([A-Z])/g, ' $1').trim()}
+                                                        </span>
+                                                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{formatDt(log.occurredAt)}</span>
                                                     </div>
+                                                    {/* Performed by */}
+                                                    <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                                                        <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Performed by: </span>{log.actorEmail}
+                                                    </p>
                                                     {log.fromAssigneeEmail && log.toAssigneeEmail && (
-                                                        <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>{log.fromAssigneeEmail} → {log.toAssigneeEmail}</p>
+                                                        <p style={{ margin: '3px 0 0', fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+                                                            <span style={{ fontWeight: 500 }}>Transfer: </span>{log.fromAssigneeEmail} → {log.toAssigneeEmail}
+                                                        </p>
                                                     )}
-                                                    {log.reason && <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{log.reason}</p>}
+                                                    {log.reason && (
+                                                        <p style={{ margin: '3px 0 0', fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
+                                                            <span style={{ fontWeight: 500 }}>Reason: </span>{log.reason}
+                                                        </p>
+                                                    )}
                                                     {log.activeFrom && (
-                                                        <p style={{ margin: '2px 0 0', fontSize: '0.76rem', color: 'var(--text-muted)' }}>
-                                                            Access: {formatDt(log.activeFrom)} – {log.activeUntil ? formatDt(log.activeUntil) : '?'}
+                                                        <p style={{ margin: '3px 0 0', fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                                                            <span style={{ fontWeight: 500 }}>Access: </span>{formatDt(log.activeFrom)} – {log.activeUntil ? formatDt(log.activeUntil) : '?'}
                                                         </p>
                                                     )}
                                                 </div>
@@ -581,6 +629,25 @@ const VisitorRegistrations: React.FC = () => {
                                         );
                                     })}
                                 </div>
+                                </>}
+                                {/* Action buttons */}
+                                {detail.status === VisitorRegistrationStatus.Pending && detail.isAssignee && (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                        <p style={{ margin: '0 0 0.25rem', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Actions</p>
+                                        <button className="btn btn-primary" style={{ width: '100%', background: '#16a34a', borderColor: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
+                                            onClick={() => { setDetailId(null); setShowCccd(false); openApprove(detail); }}>
+                                            <CheckCircle2 size={14} /> Approve
+                                        </button>
+                                        <button className="btn btn-primary" style={{ width: '100%', background: '#dc2626', borderColor: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
+                                            onClick={() => { setDetailId(null); setShowCccd(false); openReject(detail); }}>
+                                            <XCircle size={14} /> Reject
+                                        </button>
+                                        <button className="btn btn-secondary" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
+                                            onClick={() => { setDetailId(null); setShowCccd(false); openTransfer(detail); }}>
+                                            <ArrowRightLeft size={13} /> Transfer
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
@@ -594,7 +661,7 @@ const VisitorRegistrations: React.FC = () => {
                 title="Approve Visit Request"
                 variant="success"
                 maxWidth="480px"
-                disableBackdropClose={approveSubmitting}
+                disableBackdropClose
                 footer={
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', padding: '1rem 1.75rem', borderTop: '1px solid var(--border-color)' }}>
                         <button className="btn btn-secondary" onClick={() => setApproveState(null)} disabled={approveSubmitting}>Cancel</button>
@@ -611,14 +678,10 @@ const VisitorRegistrations: React.FC = () => {
                             Approving visit request from <strong>{approveState.fullName}</strong>.
                         </p>
                         <div>
-                            <label style={labelStyle}>Reason <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(optional)</span></label>
-                            <input value={approveState.reason} onChange={e => setApproveState(p => p && ({ ...p, reason: e.target.value }))} maxLength={500} placeholder="Agreed to meet..." style={inputStyle} />
-                        </div>
-                        <div>
                             <label style={labelStyle}>
                                 Lab Access Starts <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(optional — defaults to appointment time)</span>
                             </label>
-                            <input type="datetime-local" value={approveState.activeFrom} onChange={e => setApproveState(p => p && ({ ...p, activeFrom: e.target.value }))} style={inputStyle} />
+                            <input type="datetime-local" value={approveState.activeFrom} min={new Date().toLocaleString('sv-SE', { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }).slice(0, 16)} onChange={e => setApproveState(p => p && ({ ...p, activeFrom: e.target.value }))} style={inputStyle} />
                         </div>
                         <div>
                             <label style={labelStyle}>
@@ -633,6 +696,19 @@ const VisitorRegistrations: React.FC = () => {
                                 style={{ ...inputStyle, borderColor: approveError && !approveState.durationHours ? '#e11d48' : 'var(--border-color)' }}
                             />
                         </div>
+                        <div>
+                            <label style={labelStyle}>Reason <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(optional)</span></label>
+                            <textarea
+                                rows={4}
+                                maxLength={500}
+                                value={approveState.reason}
+                                onChange={e => setApproveState(p => p && ({ ...p, reason: e.target.value }))}
+                                placeholder="Agreed to meet..."
+                                className="custom-scrollbar"
+                                style={{ ...inputStyle, resize: 'none', overflow: 'auto', height: '96px' }}
+                            />
+                            <p style={{ margin: '0.2rem 0 0', fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'right' }}>{approveState.reason.length}/500</p>
+                        </div>
                     </div>
                 )}
             </Modal>
@@ -644,7 +720,7 @@ const VisitorRegistrations: React.FC = () => {
                 title="Reject Visit Request"
                 variant="danger"
                 maxWidth="450px"
-                disableBackdropClose={rejectSubmitting}
+                disableBackdropClose
                 footer={
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', padding: '1rem 1.75rem', borderTop: '1px solid var(--border-color)' }}>
                         <button className="btn btn-secondary" onClick={() => setRejectState(null)} disabled={rejectSubmitting}>Cancel</button>
@@ -662,10 +738,14 @@ const VisitorRegistrations: React.FC = () => {
                         </p>
                         <div>
                             <label style={labelStyle}>Reason <span style={{ color: '#e11d48' }}>(recommended)</span></label>
-                            <textarea rows={3} maxLength={500} value={rejectState.reason}
+                            <textarea
+                                rows={4}
+                                maxLength={500}
+                                value={rejectState.reason}
                                 onChange={e => setRejectState(p => p && ({ ...p, reason: e.target.value }))}
                                 placeholder="Schedule is full..."
-                                style={{ ...inputStyle, resize: 'vertical' as const }}
+                                className="custom-scrollbar"
+                                style={{ ...inputStyle, resize: 'none', overflow: 'auto', height: '96px' }}
                             />
                             <p style={{ margin: '0.2rem 0 0', fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'right' }}>{rejectState.reason.length}/500</p>
                         </div>
@@ -679,7 +759,7 @@ const VisitorRegistrations: React.FC = () => {
                 onClose={() => !transferSubmitting && setTransferState(null)}
                 title="Transfer to Another Assignee"
                 maxWidth="420px"
-                disableBackdropClose={transferSubmitting}
+                disableBackdropClose
                 footer={
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', padding: '1rem 1.75rem', borderTop: '1px solid var(--border-color)' }}>
                         <button className="btn btn-secondary" onClick={() => setTransferState(null)} disabled={transferSubmitting}>Cancel</button>
@@ -714,7 +794,7 @@ const VisitorRegistrations: React.FC = () => {
                 title={respondState?.accept ? 'Accept Transfer Request' : 'Decline Transfer Request'}
                 variant={respondState?.accept ? 'success' : 'danger'}
                 maxWidth="420px"
-                disableBackdropClose={respondSubmitting}
+                disableBackdropClose
                 footer={
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', padding: '1rem 1.75rem', borderTop: '1px solid var(--border-color)' }}>
                         <button className="btn btn-secondary" onClick={() => setRespondState(null)} disabled={respondSubmitting}>Cancel</button>

@@ -27,11 +27,11 @@ export const visitorRegistrationService = {
     },
 
     /**
-     * Get visitor registrations where contactEmail = current user's email.
+     * Get visitor registrations assigned to the current user.
      * Requires JWT auth.
      */
     getMyList: async (): Promise<VisitorRegistrationResponse[]> => {
-        const response = await api.get('/api/visitor-registrations');
+        const response = await api.get('/api/visitor-registrations/assigned-to-me');
         const data = response.data?.data ?? response.data;
         return Array.isArray(data) ? data : [];
     },

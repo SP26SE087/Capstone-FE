@@ -290,7 +290,7 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
             onClose={handleClose}
             title="Book a Meeting"
             maxWidth="720px"
-            maxHeight="680px"
+            maxHeight="780px"
             disableBackdropClose={true}
             footer={
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', padding: '1rem 1.75rem', borderTop: '1px solid var(--border-color)' }}>
@@ -442,9 +442,9 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                                     borderRadius: 'var(--radius-sm)',
                                     textAlign: 'center',
                                     cursor: 'pointer',
-                                    background: photo ? '#f0fdf4' : 'var(--surface-hover)',
+                                    background: photo ? '#f8fafc' : 'var(--surface-hover)',
                                     transition: 'border-color 0.2s',
-                                    height: '150px',
+                                    height: '160px',
                                     overflow: 'hidden',
                                     position: 'relative',
                                     display: 'flex',
@@ -455,7 +455,7 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                             >
                                 {photo && photoPreview ? (
                                     <div style={{ position: 'absolute', inset: 0 }}>
-                                        <img src={photoPreview} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                                        <img src={photoPreview} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#f8fafc', display: 'block' }} />
                                         <button
                                             type="button"
                                             onClick={e => { e.stopPropagation(); setPhoto(null); setPhotoPreview(prev => { if (prev) URL.revokeObjectURL(prev); return null; }); if (photoRef.current) photoRef.current.value = ''; }}
@@ -486,9 +486,9 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                                     borderRadius: 'var(--radius-sm)',
                                     textAlign: 'center',
                                     cursor: cccdExtracting ? 'default' : 'pointer',
-                                    background: cccdImage ? '#f0fdf4' : 'var(--surface-hover)',
+                                    background: cccdImage ? '#f8fafc' : 'var(--surface-hover)',
                                     transition: 'border-color 0.2s',
-                                    height: '150px',
+                                    height: '160px',
                                     overflow: 'hidden',
                                     position: 'relative',
                                     display: 'flex',
@@ -499,7 +499,7 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                             >
                                 {cccdImage && cccdPreview ? (
                                     <div style={{ position: 'absolute', inset: 0 }}>
-                                        <img src={cccdPreview} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                                        <img src={cccdPreview} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#f8fafc', display: 'block' }} />
                                         {/* Loading overlay */}
                                         {cccdExtracting && (
                                             <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
