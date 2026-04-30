@@ -115,7 +115,7 @@ const getInitials = (name: string) => {
 
 // ─── Countdown helper ─────────────────────────────────────────────────────────
 const formatCountdown = (ms: number): string => {
-    if (ms <= 0) return 'ngay bây giờ';
+    if (ms <= 0) return 'just now';
     const h = Math.floor(ms / 3_600_000);
     const m = Math.floor((ms % 3_600_000) / 60_000);
     const s = Math.floor((ms % 60_000) / 1_000);
@@ -506,8 +506,8 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
         }
     };
 
-    const handleOpenTerminal = (_access: ComputeAccess, privateKey: string) => {
-        navigate(`/bookings/${bookingId}/terminal`, { state: { privateKey } });
+    const handleOpenTerminal = (_access: ComputeAccess) => {
+        navigate(`/bookings/${bookingId}/terminal`);
     };
 
     const handleProvision = async () => {
@@ -646,8 +646,8 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                                     }}>
                                         <Timer size={11} />
                                         {booking.status === BookingStatus.Approved
-                                            ? `Bắt đầu sau ${formatCountdown(countdownMs)}`
-                                            : `Còn lại ${formatCountdown(countdownMs)}`}
+                                            ? `Starts in ${formatCountdown(countdownMs)}`
+                                            : `${formatCountdown(countdownMs)} remaining`}
                                     </span>
                                 )}
                             </div>
@@ -683,8 +683,8 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                     <PersonCard
                         label="Borrower"
                         icon={<User size={11} />}
-                        name={booking.userFullName}
-                        email={booking.userEmail}
+                        name={booking.userFullName ?? null}
+                        email={booking.userEmail ?? null}
                         accentColor="#2563eb"
                         accentBg="#eff6ff"
                         accentBorder="#bfdbfe"
@@ -693,8 +693,8 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                     <PersonCard
                         label="Resource Manager"
                         icon={<Shield size={11} />}
-                        name={booking.managerFullName}
-                        email={booking.managerEmail}
+                        name={booking.managerFullName ?? null}
+                        email={booking.managerEmail ?? null}
                         accentColor="#7c3aed"
                         accentBg="#f5f3ff"
                         accentBorder="#e9d5ff"

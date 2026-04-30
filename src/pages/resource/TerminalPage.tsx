@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Terminal, FolderOpen, Loader2, AlertCircle, Clock, Zap } from 'lucide-react';
 import { computeService } from '@/services/computeService';
 import ServerTerminal, { ServerTerminalHandle } from './components/ServerTerminal';
@@ -10,8 +10,6 @@ type Tab = 'terminal' | 'files';
 const TerminalPage: React.FC = () => {
     const { bookingId } = useParams<{ bookingId: string }>();
     const navigate = useNavigate();
-    const { state } = useLocation();
-    const privateKey: string = (state as any)?.privateKey ?? '';
 
     const [token, setToken] = useState('');
     const [wsUrl, setWsUrl] = useState('');
@@ -203,7 +201,6 @@ const TerminalPage: React.FC = () => {
                                 ref={terminalRef}
                                 wsUrl={wsUrl}
                                 token={token}
-                                privateKey={privateKey}
                                 onConnectionChange={setConnected}
                                 style={{ flex: 1, borderRadius: 0, border: 'none' }}
                             />
@@ -213,7 +210,6 @@ const TerminalPage: React.FC = () => {
                                 <TerminalFileManager
                                     bookingId={bookingId!}
                                     terminalToken={token}
-                                    privateKey={privateKey}
                                     active={activeTab === 'files'}
                                     onSendCommand={(cmd) => {
                                         // Send silently over WebSocket, stay on Files tab

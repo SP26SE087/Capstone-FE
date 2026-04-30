@@ -670,16 +670,21 @@ const ResourceBooking: React.FC = () => {
                     <div
                         onClick={() => setViewModalBookingId(null)}
                         style={{
-                            position: 'fixed', inset: 0, zIndex: 100,
+                            position: 'fixed',
+                            top: 'var(--header-height, 54px)',
+                            left: 0, right: 0, bottom: 0,
+                            zIndex: 100,
                             background: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(4px)',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+                            display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+                            padding: '20px 24px 24px',
                             animation: 'bk-fade-in 0.2s ease-out',
                         }}
                     >
                         <div
                             onClick={e => e.stopPropagation()}
                             style={{
-                                width: '100%', maxWidth: 860, maxHeight: '88vh',
+                                width: '100%', maxWidth: 860,
+                                maxHeight: 'calc(100vh - var(--header-height, 54px) - 44px)',
                                 background: '#fff', borderRadius: 16,
                                 boxShadow: '0 24px 48px rgba(0,0,0,0.2), 0 0 0 1px rgba(0,0,0,0.06)',
                                 display: 'flex', flexDirection: 'column',

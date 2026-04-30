@@ -238,11 +238,11 @@ export interface ComputeTier {
 }
 
 export enum ComputeAccessStatus {
-  Pending = 1,
+  Pending = 0,
+  Active = 1,
   Provisioning = 2,
-  Active = 3,
+  Revoked = 3,
   Expired = 4,
-  Revoked = 5,
 }
 
 export interface ComputeAccess {

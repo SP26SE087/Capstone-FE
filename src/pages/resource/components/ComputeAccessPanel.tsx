@@ -1,12 +1,59 @@
 import React, { useState } from 'react';
-import { Server, Terminal, Clock, CheckCircle2, AlertTriangle, Ban, Key, ChevronDown, ChevronUp, Loader2, Upload } from 'lucide-react';
+import { Server, Terminal, Clock, CheckCircle2, AlertTriangle, Ban, Key, ChevronDown, ChevronUp, Loader2, Upload, RefreshCw, Download } from 'lucide-react';
 import { ComputeAccess, ComputeAccessStatus } from '@/types/booking';
 import { ServerAccess, computeService, SubmitPublicKeyRequest } from '@/services/computeService';
 
+// ── Web Crypto RSA key generation ─────────────────────────────────────────────
+async function generateSSHKeyPair(): Promise<{ publicKey: string; privateKeyPem: string }> {
+  const keyPair = await crypto.subtle.generateKey(
+    { name: 'RSASSA-PKCS1-v1_5', modulusLength: 4096, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' },
+    true,
+    ['sign', 'verify'],
+  );
+
+  // Private key → PKCS#8 PEM
+  const pkcs8 = await crypto.subtle.exportKey('pkcs8', keyPair.privateKey);
+  const pkcs8B64 = btoa(String.fromCharCode(...new Uint8Array(pkcs8)));
+  const privateKeyPem = `-----BEGIN PRIVATE KEY-----\n${pkcs8B64.match(/.{1,64}/g)!.join('\n')}\n-----END PRIVATE KEY-----`;
+
+  // Public key → OpenSSH wire format (ssh-rsa AAAA...)
+  const jwk = await crypto.subtle.exportKey('jwk', keyPair.publicKey);
+
+  function uint32(n: number) {
+    return new Uint8Array([(n >> 24) & 0xff, (n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff]);
+  }
+  function sshString(s: string) {
+    const b = new TextEncoder().encode(s);
+    return new Uint8Array([...uint32(b.length), ...b]);
+  }
+  function sshMpint(b64url: string) {
+    const raw = Uint8Array.from(atob(b64url.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
+    const padded = raw[0] & 0x80 ? new Uint8Array([0, ...raw]) : raw;
+    return new Uint8Array([...uint32(padded.length), ...padded]);
+  }
+
+  const wire = new Uint8Array([
+    ...sshString('ssh-rsa'),
+    ...sshMpint(jwk.e!),
+    ...sshMpint(jwk.n!),
+  ]);
+  const publicKey = `ssh-rsa ${btoa(String.fromCharCode(...wire))} labsync-key`;
+
+  return { publicKey, privateKeyPem };
+}
+
+function downloadText(content: string, filename: string) {
+  const blob = new Blob([content], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
 interface ComputeAccessPanelProps {
   bookingId: string;
-  /** Called with the ComputeAccess object when user wants to open terminal */
-  onOpenTerminal: (access: ComputeAccess, privateKey: string) => void;
+  /** Called when user wants to open terminal (private key already submitted to server) */
+  onOpenTerminal: (access: ComputeAccess) => void;
   serverAccess?: ServerAccess | null;
   onAccessChange?: () => void;
 }
@@ -75,21 +122,41 @@ const ComputeAccessPanel: React.FC<ComputeAccessPanelProps> = ({
   const [projectDescription, setProjectDescription] = useState('');
   const [submittingPublicKey, setSubmittingPublicKey] = useState(false);
   const [publicKeyError, setPublicKeyError] = useState<string | null>(null);
+  const [generatingKeys, setGeneratingKeys] = useState(false);
+  const [keyGenerated, setKeyGenerated] = useState(false);
 
-  // ── Private key — stays in browser only ─────────────────────────────
+  // ── Private key — Step 5: submit to server (stored AES-256 encrypted) ─
   const [showPrivateKeyForm, setShowPrivateKeyForm] = useState(false);
   const [privateKey, setPrivateKey] = useState('');
+  const [submittingPrivateKey, setSubmittingPrivateKey] = useState(false);
+  const [privateKeyError, setPrivateKeyError] = useState<string | null>(null);
+  const [privateKeySubmitted, setPrivateKeySubmitted] = useState(false);
 
   const accessConfig = serverAccess ? getAccessStatusConfig(serverAccess.status) : null;
   const isSessionEnded = !!accessConfig && !accessConfig.canConnect
     && serverAccess?.status !== 'Pending'
     && serverAccess?.status !== 'Provisioning';
 
-  const isActive = serverAccess?.status === 'Active' || serverAccess?.accessStatus === 3;
+  const isActive = serverAccess?.status === 'Active' || serverAccess?.accessStatus === 1;
   const needsPublicKey = !serverAccess;
-  // Active = provisioned and ready; user must paste private key in browser to connect
-  const needsPrivateKey = isActive && !privateKey.trim();
-  const canConnect = isActive && !!privateKey.trim();
+  // Active = provisioned and ready; user must submit private key to server before connecting
+  const needsPrivateKey = isActive && !privateKeySubmitted;
+  const canConnect = isActive && privateKeySubmitted;
+
+  const handleGenerateKeys = async () => {
+    setGeneratingKeys(true);
+    setKeyGenerated(false);
+    try {
+      const { publicKey: pub, privateKeyPem } = await generateSSHKeyPair();
+      setPublicKey(pub);
+      downloadText(privateKeyPem, 'labsync_key.pem');
+      setKeyGenerated(true);
+    } catch {
+      setPublicKeyError('Failed to generate key pair. Please use ssh-keygen instead.');
+    } finally {
+      setGeneratingKeys(false);
+    }
+  };
 
   const handleSubmitPublicKey = async () => {
     if (!publicKey.trim()) { setPublicKeyError('SSH public key is required.'); return; }
@@ -115,6 +182,22 @@ const ComputeAccessPanel: React.FC<ComputeAccessPanelProps> = ({
     }
   };
 
+  const handleSubmitPrivateKey = async () => {
+    if (!privateKey.trim()) { setPrivateKeyError('SSH private key is required.'); return; }
+    setSubmittingPrivateKey(true);
+    setPrivateKeyError(null);
+    try {
+      await computeService.submitPrivateKey(bookingId, privateKey.trim());
+      setPrivateKeySubmitted(true);
+      setPrivateKey('');
+      setShowPrivateKeyForm(false);
+    } catch (err: any) {
+      setPrivateKeyError(err.message || 'Failed to submit private key.');
+    } finally {
+      setSubmittingPrivateKey(false);
+    }
+  };
+
   const handleOpenTerminal = () => {
     const access: ComputeAccess = {
       id: bookingId,
@@ -123,7 +206,7 @@ const ComputeAccessPanel: React.FC<ComputeAccessPanelProps> = ({
       tierName: '',
       status: ComputeAccessStatus.Active,
     };
-    onOpenTerminal(access, privateKey.trim());
+    onOpenTerminal(access);
   };
 
   return (
@@ -188,8 +271,8 @@ const ComputeAccessPanel: React.FC<ComputeAccessPanelProps> = ({
                   : needsPublicKey
                     ? 'Submit your SSH public key to request access'
                     : needsPrivateKey
-                      ? 'Server ready — paste your private key to connect'
-                      : 'Private key entered — click to open the terminal'}
+                      ? 'Server ready — submit your private key to connect'
+                      : 'Private key submitted — click to open the terminal'}
           </div>
         </div>
 
@@ -212,7 +295,7 @@ const ComputeAccessPanel: React.FC<ComputeAccessPanelProps> = ({
               style={actionBtnStyle(true, '#10b981')}
             >
               <Upload size={13} />
-              {showPrivateKeyForm ? 'Cancel' : (privateKey.trim() ? 'Change Key' : 'Paste Private Key')}
+              {showPrivateKeyForm ? 'Cancel' : (privateKeySubmitted ? 'Resubmit Key' : 'Submit Private Key')}
               {showPrivateKeyForm ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
             </button>
           )}
@@ -247,8 +330,36 @@ const ComputeAccessPanel: React.FC<ComputeAccessPanelProps> = ({
           <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#38bdf8', marginBottom: 2 }}>
             Submit SSH Public Key
           </div>
-          <div style={{ fontSize: '0.68rem', color: '#64748b' }}>
-            Generate with: <code style={{ color: '#94a3b8' }}>ssh-keygen -t rsa -b 4096 -m PEM -f labsync_key -N ""</code> then paste contents of <code style={{ color: '#94a3b8' }}>labsync_key.pub</code>
+
+          {/* Generate key pair button */}
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '8px 10px', borderRadius: '7px',
+            background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)',
+          }}>
+            <div style={{ fontSize: '0.68rem', color: '#94a3b8' }}>
+              {keyGenerated
+                ? <span style={{ color: '#34d399' }}>✓ Key pair generated — private key downloaded as <code style={{ color: '#a5f3fc' }}>labsync_key.pem</code>. Keep it safe.</span>
+                : 'Generate a key pair automatically in the browser, or paste your own below.'}
+            </div>
+            <button
+              type="button"
+              onClick={handleGenerateKeys}
+              disabled={generatingKeys}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0,
+                padding: '5px 12px', borderRadius: '6px', border: 'none', marginLeft: '10px',
+                background: generatingKeys ? '#334155' : '#6366f1',
+                color: generatingKeys ? '#64748b' : '#fff',
+                cursor: generatingKeys ? 'not-allowed' : 'pointer',
+                fontWeight: 700, fontSize: '0.72rem',
+                boxShadow: generatingKeys ? 'none' : '0 2px 8px rgba(99,102,241,0.4)',
+              }}
+            >
+              {generatingKeys
+                ? <><RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} /> Generating…</>
+                : <><Download size={12} /> {keyGenerated ? 'Regenerate' : 'Generate Key Pair'}</>}
+            </button>
           </div>
 
           <div>
@@ -304,7 +415,7 @@ const ComputeAccessPanel: React.FC<ComputeAccessPanelProps> = ({
         </div>
       )}
 
-      {/* ── Private key form (browser-only, never sent to server) ── */}
+      {/* ── Private key form (Step 5: submit to server, stored encrypted) ── */}
       {showPrivateKeyForm && isActive && (
         <div style={{
           padding: '12px', borderRadius: '8px',
@@ -313,10 +424,12 @@ const ComputeAccessPanel: React.FC<ComputeAccessPanelProps> = ({
           display: 'flex', flexDirection: 'column', gap: '8px',
         }}>
           <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#34d399', marginBottom: 2 }}>
-            Paste SSH Private Key
+            Submit SSH Private Key
           </div>
           <div style={{ fontSize: '0.68rem', color: '#64748b' }}>
-            Your private key <strong style={{ color: '#94a3b8' }}>never leaves your browser</strong> — it is used only in-memory for the WebSocket connection and is never stored or sent to the server.
+            Your private key is sent over HTTPS and stored <strong style={{ color: '#94a3b8' }}>AES-256 encrypted</strong> on the server.
+            It is used only to establish your SSH session and is <strong style={{ color: '#94a3b8' }}>automatically deleted</strong> when the booking ends.
+            {' '}If you used "Generate Key Pair" earlier, open <code style={{ color: '#a5f3fc' }}>labsync_key.pem</code> and paste its contents below.
           </div>
 
           <div>
@@ -331,15 +444,24 @@ const ComputeAccessPanel: React.FC<ComputeAccessPanelProps> = ({
             />
           </div>
 
+          {privateKeyError && (
+            <div style={{ fontSize: '0.72rem', color: '#ef4444', padding: '6px 8px', background: 'rgba(239,68,68,0.1)', borderRadius: '6px' }}>
+              {privateKeyError}
+            </div>
+          )}
+
           <button type="button"
-            onClick={() => { if (privateKey.trim()) setShowPrivateKeyForm(false); }}
-            disabled={!privateKey.trim()}
+            onClick={handleSubmitPrivateKey}
+            disabled={submittingPrivateKey || !privateKey.trim()}
             style={{
-              ...actionBtnStyle(!!privateKey.trim(), '#10b981'),
+              ...actionBtnStyle(!submittingPrivateKey && !!privateKey.trim(), '#10b981'),
               alignSelf: 'flex-end', padding: '7px 18px',
             }}
           >
-            <Upload size={13} /> Use This Key
+            {submittingPrivateKey
+              ? <><Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> Submitting…</>
+              : <><Upload size={13} /> Submit Private Key</>
+            }
           </button>
         </div>
       )}
