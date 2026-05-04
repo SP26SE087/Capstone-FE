@@ -4,14 +4,13 @@
 // =============================================================================
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
-  Resource, Booking, BookingStatus, CreateBookingRequest, ResourceType,
+  Resource, Booking, BookingStatus, CreateBookingRequest,
 } from '@/types/booking';
 import { resourceService } from '@/services/resourceService';
 import { bookingService } from '@/services/bookingService';
 import {
   X, Calendar, Clock, Package, FileText, Check, ChevronLeft, ChevronRight,
-  MapPin, AlertTriangle, AlertCircle, Loader2, Search, Cpu, HardDrive, Box,
-  Monitor, Database, Radio, Microscope,
+  MapPin, AlertTriangle, AlertCircle, Loader2, Search, Cpu, Box, Layers,
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -31,10 +30,7 @@ const DAYS_SHORT = ['Mo','Tu','We','Th','Fr','Sa','Su'];
 
 const DURATION_PRESETS = [
   { label: '1 day',   days: 1 },
-  { label: '2 days',  days: 2 },
   { label: '3 days',  days: 3 },
-  { label: '4 days',  days: 4 },
-  { label: '5 days',  days: 5 },
   { label: '1 week',  days: 7 },
   { label: '2 weeks', days: 14 },
 ];
@@ -63,19 +59,11 @@ interface RtMeta {
 
 function getRtMeta(resource: Resource): RtMeta {
   const name = (resource.resourceTypeName ?? '').toLowerCase();
-  if (name.includes('gpu') || resource.type === ResourceType.GPU)
+  const isCompute = resource.resourceTypeCategory === 2 ||
+    name.includes('server') || name.includes('compute') || name.includes('gpu');
+  if (isCompute)
     return { icon: <Cpu size={14}/>, color: '#7C3AED', bg: '#F5F3FF' };
-  if (name.includes('microscope'))
-    return { icon: <Microscope size={14}/>, color: '#0284C7', bg: '#F0F9FF' };
-  if (name.includes('sensor') || name.includes('lidar') || name.includes('imu'))
-    return { icon: <Radio size={14}/>, color: '#059669', bg: '#ECFDF5' };
-  if (name.includes('station') || name.includes('lab') || resource.type === ResourceType.LabStation)
-    return { icon: <Monitor size={14}/>, color: '#E8720C', bg: '#FFF7ED' };
-  if (name.includes('dataset') || resource.type === ResourceType.Dataset)
-    return { icon: <Database size={14}/>, color: '#64748B', bg: '#F1F5F9' };
-  if (resource.type === ResourceType.Equipment)
-    return { icon: <HardDrive size={14}/>, color: '#DC2626', bg: '#FEF2F2' };
-  return { icon: <Package size={14}/>, color: '#64748B', bg: '#F1F5F9' };
+  return { icon: <Box size={14}/>, color: '#0284C7', bg: '#F0F9FF' };
 }
 
 // ─── Availability helpers ─────────────────────────────────────────────────────
@@ -184,6 +172,7 @@ const ResourcePicker: React.FC<ResourcePickerProps> = ({
   resources, bookings, loading, selectedIds, quantities, onToggle, onQuantityChange, startDate, endDate,
 }) => {
   const [search, setSearch] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<'all' | 'physical' | 'compute'>('all');
   const today = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d; }, []);
 
   const stripDays = useMemo(() =>
@@ -193,12 +182,29 @@ const ResourcePicker: React.FC<ResourcePickerProps> = ({
 
   const grouped = useMemo(() => {
     const q = search.toLowerCase().trim();
-    const filtered = q
+    let filtered = q
       ? resources.filter(r =>
           r.name.toLowerCase().includes(q) ||
           (r.resourceTypeName ?? '').toLowerCase().includes(q) ||
           (r.location ?? '').toLowerCase().includes(q))
       : resources;
+    if (categoryFilter === 'compute') {
+      filtered = filtered.filter(r =>
+        r.resourceTypeCategory === 2 ||
+        (r.resourceTypeName ?? '').toLowerCase().includes('compute') ||
+        (r.resourceTypeName ?? '').toLowerCase().includes('server') ||
+        (r.resourceTypeName ?? '').toLowerCase().includes('gpu')
+      );
+    } else if (categoryFilter === 'physical') {
+      filtered = filtered.filter(r =>
+        r.resourceTypeCategory === 1 ||
+        (r.resourceTypeCategory === undefined && !(
+          (r.resourceTypeName ?? '').toLowerCase().includes('compute') ||
+          (r.resourceTypeName ?? '').toLowerCase().includes('server') ||
+          (r.resourceTypeName ?? '').toLowerCase().includes('gpu')
+        ))
+      );
+    }
     const g: Record<string, Resource[]> = {};
     for (const r of filtered) {
       const key = r.resourceTypeName ?? `Type ${r.type}`;
@@ -206,7 +212,7 @@ const ResourcePicker: React.FC<ResourcePickerProps> = ({
       g[key].push(r);
     }
     return g;
-  }, [resources, search]);
+  }, [resources, search, categoryFilter]);
 
   if (loading) {
     return (
@@ -219,6 +225,30 @@ const ResourcePicker: React.FC<ResourcePickerProps> = ({
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+      {/* Category filter */}
+      <div style={{ display:'flex', gap:6 }}>
+        {([
+          { key: 'all',      label: 'All',             icon: <Layers size={12} />,  activeColor: '#64748b', activeBg: '#f1f5f9' },
+          { key: 'physical', label: 'Physical',         icon: <Box size={12} />,     activeColor: '#0284c7', activeBg: '#e0f2fe' },
+          { key: 'compute',  label: 'Server / Compute', icon: <Cpu size={12} />,     activeColor: '#7c3aed', activeBg: '#f5f3ff' },
+        ] as const).map(opt => {
+          const active = categoryFilter === opt.key;
+          return (
+            <button key={opt.key} type="button" onClick={() => setCategoryFilter(opt.key)}
+              style={{
+                display:'flex', alignItems:'center', gap:5,
+                padding:'5px 12px', borderRadius:20, border:'none', cursor:'pointer',
+                fontSize:'0.75rem', fontWeight: active ? 700 : 500,
+                background: active ? opt.activeBg : '#f8fafc',
+                color: active ? opt.activeColor : '#64748b',
+                boxShadow: active ? `0 0 0 1.5px ${opt.activeColor}55` : 'none',
+                transition:'all 0.15s',
+              }}>
+              {opt.icon} {opt.label}
+            </button>
+          );
+        })}
+      </div>
       {/* Search */}
       <div style={{ position:'relative' }}>
         <Search size={14} style={{ position:'absolute', left:11, top:'50%', transform:'translateY(-50%)', color:'#94a3b8', pointerEvents:'none' }} />
@@ -829,9 +859,9 @@ const SchedulePicker: React.FC<SchedulePickerProps> = ({
               <div style={{ display:'flex', alignItems:'flex-start', gap:10, padding:'10px 12px', background:'#fef2f2', border:'1px solid #fecaca', borderRadius:10 }}>
                 <AlertTriangle size={15} color="#dc2626" style={{ marginTop:1, flexShrink:0 }} />
                 <div>
-                  <div style={{ fontSize:12, fontWeight:800, color:'#dc2626' }}>Conflict detected</div>
+                  <div style={{ fontSize:12, fontWeight:800, color:'#dc2626' }}>Warning</div>
                   <div style={{ fontSize:11, color:'#ef4444', marginTop:2 }}>
-                    {conflictResources.map(r => r.name).join(', ')} already booked in this window
+                    {conflictResources.map(r => r.name).join(', ')} not available on selected dates/times. Please adjust your schedule.
                   </div>
                 </div>
               </div>
@@ -873,9 +903,14 @@ const WeeklyAvailability: React.FC<{ resources: Resource[]; focusDate: Date; boo
 
   return (
     <div>
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
-        <div style={{ fontSize:11, fontWeight:800, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em' }}>
-          Weekly Availability
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8 }}>
+        <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
+          <div style={{ fontSize:11, fontWeight:800, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em' }}>
+            Resource Availability
+          </div>
+          <div style={{ fontSize:10, color:'var(--text-muted)', fontWeight:500 }}>
+            Each cell shows <strong>available / total</strong> units · Orange = pickup · Blue = return
+          </div>
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:6 }}>
           <button type="button" onClick={() => setWeekOffset(o => o - 1)}
@@ -896,73 +931,116 @@ const WeeklyAvailability: React.FC<{ resources: Resource[]; focusDate: Date; boo
         </div>
       </div>
       <div style={{ background:'#fff', border:'1px solid var(--border-color)', borderRadius:14, overflow:'hidden' }}>
-        <div style={{ display:'grid', gridTemplateColumns:'140px repeat(7, 1fr)', borderBottom:'1px solid var(--border-light)', background:'var(--background-color)', padding:'8px 12px' }}>
-          <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)' }}>Resource</div>
+        {/* Header row */}
+        <div style={{ display:'grid', gridTemplateColumns:'160px repeat(7, 1fr)', borderBottom:'2px solid var(--border-color)', background:'var(--background-color)', padding:'8px 12px' }}>
+          <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', alignSelf:'center' }}>Resource</div>
           {weekDays.map((d, i) => {
             const isToday = d.toDateString() === new Date().toDateString();
-            const isFocused = d.toDateString() === focusDate.toDateString();
             const dMid = new Date(d.getFullYear(), d.getMonth(), d.getDate());
             const colIsStart = dMid.getTime() === startMid.getTime();
             const colIsEnd = endMid ? dMid.getTime() === endMid.getTime() : false;
             const colInRange = endMid ? (dMid > startMid && dMid < endMid) : false;
+            const highlight = colIsStart || colIsEnd || colInRange;
             return (
-              <div key={i} style={{ textAlign:'center', fontSize:10, fontWeight: isToday||isFocused||colIsEnd ? 800 : 600, color: colIsEnd ? '#0ea5e9' : colIsStart ? 'var(--accent-color)' : isFocused ? 'var(--accent-color)' : isToday ? 'var(--text-primary)' : colInRange ? 'var(--accent-color)' : 'var(--text-muted)', background: colIsStart ? 'rgba(232,114,12,0.1)' : colIsEnd ? 'rgba(14,165,233,0.1)' : colInRange ? 'rgba(232,114,12,0.05)' : 'transparent', borderRadius:6, padding:'2px 0' }}>
-                <div>{DAYS_SHORT[i]}</div>
-                <div style={{ fontSize:12, marginTop:1 }}>{d.getDate()}</div>
-                {(isFocused || colIsStart || colIsEnd) && <div style={{ width:4, height:4, borderRadius:99, background: colIsEnd ? '#0ea5e9' : 'var(--accent-color)', margin:'2px auto 0' }} />}
+              <div key={i} style={{
+                textAlign:'center', fontSize:10, fontWeight: highlight || isToday ? 800 : 600,
+                color: colIsEnd ? '#0ea5e9' : colIsStart ? 'var(--accent-color)' : isToday && !colInRange ? 'var(--text-primary)' : colInRange ? 'var(--accent-color)' : 'var(--text-muted)',
+                background: colIsStart ? 'rgba(232,114,12,0.12)' : colIsEnd ? 'rgba(14,165,233,0.12)' : colInRange ? 'rgba(232,114,12,0.06)' : 'transparent',
+                borderRadius:6, padding:'3px 0', position:'relative',
+              }}>
+                <div style={{ fontSize:9, textTransform:'uppercase', letterSpacing:'0.04em' }}>{DAYS_SHORT[i]}</div>
+                <div style={{ fontSize:13, marginTop:1 }}>{d.getDate()}</div>
+                {colIsStart && <div style={{ fontSize:8, fontWeight:700, color:'var(--accent-color)', marginTop:1 }}>Pickup</div>}
+                {colIsEnd && <div style={{ fontSize:8, fontWeight:700, color:'#0ea5e9', marginTop:1 }}>Return</div>}
+                {isToday && !colIsStart && !colIsEnd && <div style={{ width:4, height:4, borderRadius:99, background:'var(--text-primary)', margin:'2px auto 0' }} />}
               </div>
             );
           })}
         </div>
-        {resources.map(r => {
+
+        {/* Resource rows */}
+        {resources.map((r, rIdx) => {
           const meta = getRtMeta(r);
           const selectedQty = quantities[r.id] ?? 1;
           const rowTotal = r.totalQuantity ?? r.ids?.length ?? 1;
           return (
-            <div key={r.id} style={{ display:'grid', gridTemplateColumns:'140px repeat(7, 1fr)', padding:'8px 12px', borderBottom:'1px solid var(--border-light)', alignItems:'center' }}>
-              <div style={{ fontSize:11, fontWeight:700, display:'flex', flexDirection:'column', gap:4, overflow:'hidden' }}>
-                <div style={{ display:'flex', alignItems:'center', gap:6, color:meta.color }}>
-                  {meta.icon}
+            <div key={r.id} style={{
+              display:'grid', gridTemplateColumns:'160px repeat(7, 1fr)',
+              padding:'10px 12px',
+              borderBottom: rIdx < resources.length - 1 ? '1px solid var(--border-light)' : 'none',
+              alignItems:'center',
+              background: rIdx % 2 === 1 ? '#fafafa' : '#fff',
+            }}>
+              {/* Resource name + qty control */}
+              <div style={{ fontSize:11, fontWeight:700, display:'flex', flexDirection:'column', gap:5, overflow:'hidden', paddingRight:8 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:5 }}>
+                  <span style={{ color:meta.color, flexShrink:0 }}>{meta.icon}</span>
                   <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', color:'var(--text-primary)', fontSize:11, flex:1, minWidth:0 }}>{r.name}</span>
                 </div>
-                <div style={{ display:'flex', alignItems:'center', gap:4, paddingLeft:18 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:4 }}>
                   <button type="button" onClick={() => onQuantityChange?.(r.id, Math.max(1, selectedQty - 1))}
                     style={{ width:18, height:18, borderRadius:5, border:'1px solid var(--border-color)', background:'#fff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, color:'var(--text-muted)', padding:0, lineHeight:1, flexShrink:0 }}>
                     −
                   </button>
-                  <span style={{ fontSize:11, fontWeight:800, color:'var(--accent-color)', minWidth:16, textAlign:'center' }}>{selectedQty}</span>
+                  <span style={{ fontSize:11, fontWeight:800, color:'var(--accent-color)', minWidth:14, textAlign:'center' }}>{selectedQty}</span>
                   <button type="button" onClick={() => onQuantityChange?.(r.id, Math.min(rowTotal, selectedQty + 1))}
                     style={{ width:18, height:18, borderRadius:5, border:'1px solid var(--border-color)', background:'#fff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, color:'var(--text-muted)', padding:0, lineHeight:1, flexShrink:0 }}>
                     +
                   </button>
-                  <span style={{ fontSize:9, color:'var(--text-muted)', whiteSpace:'nowrap' }}>/ {rowTotal} units</span>
+                  <span style={{ fontSize:9, color:'var(--text-muted)', whiteSpace:'nowrap' }}>of {rowTotal}</span>
                 </div>
               </div>
+
+              {/* Day cells */}
               {weekDays.map((day, i) => {
                 const avail = getDayAvailableCount(r, day, bookings);
                 const total = rowTotal;
                 const dayMid2 = new Date(day.getFullYear(), day.getMonth(), day.getDate());
                 const isRangeStart = dayMid2.getTime() === startMid.getTime();
                 const isRangeEnd = endMid ? dayMid2.getTime() === endMid.getTime() : false;
-                const isFocused = day.toDateString() === focusDate.toDateString();
-                const hasConflictDay = avail < selectedQty;
-                const colorMap: Record<DayStatus, string> = { free:'#10b981', partial:'#f59e0b', full:'#ef4444' };
-                const bgMap: Record<DayStatus, string> = { free:'#ecfdf5', partial:'#fffbeb', full:'#fef2f2' };
-                const status: DayStatus = avail >= total ? 'free' : avail === 0 ? 'full' : 'partial';
-                const cellColor = hasConflictDay ? '#dc2626' : colorMap[status];
+                const colInRange = endMid ? (dayMid2 > startMid && dayMid2 < endMid) : false;
+                const isKeyDay = isRangeStart || isRangeEnd;
+                const hasConflict = avail < selectedQty;
+                const pct = total > 0 ? avail / total : 0;
+
+                // Availability color (green/yellow/red based on stock)
+                const availColor = pct >= 1 ? '#10b981' : pct > 0 ? '#f59e0b' : '#ef4444';
+
+                // Key days use their own accent color; non-key days use availability color
+                const numColor = isRangeStart ? 'var(--accent-color)' : isRangeEnd ? '#0ea5e9' : availColor;
+                const bg = isRangeStart ? 'rgba(232,114,12,0.07)' : isRangeEnd ? 'rgba(14,165,233,0.07)' : colInRange ? 'rgba(232,114,12,0.04)' : pct >= 1 ? '#f0fdf4' : pct > 0 ? '#fffbeb' : '#fef2f2';
+                const borderWidth = isKeyDay ? 2 : 1;
+                const borderColor = isRangeStart ? 'var(--accent-color)' : isRangeEnd ? '#0ea5e9' : !isKeyDay && hasConflict ? '#fca5a5' : `${availColor}44`;
+
                 return (
-                  <div key={i} style={{ display:'flex', justifyContent:'center' }}>
+                  <div key={i} style={{ display:'flex', justifyContent:'center', padding:'0 2px' }}>
                     <div
-                      title={`${day.toLocaleDateString(undefined,{month:'short',day:'numeric'})}: ${avail}/${total} available${hasConflictDay ? ` (need ${selectedQty})` : ''}`}
+                      title={`${day.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})}: ${avail} of ${total} available${hasConflict ? ` — need ${selectedQty}` : ''}`}
                       style={{
-                        width:34, borderRadius:8, padding:'5px 2px',
-                        background: isRangeStart ? 'rgba(232,114,12,0.1)' : isRangeEnd ? 'rgba(14,165,233,0.1)' : bgMap[status],
-                        border: isRangeStart ? '2px solid var(--accent-color)' : isRangeEnd ? '2px solid #0ea5e9' : isFocused ? `2px solid ${colorMap[status]}` : `1px solid ${cellColor}33`,
-                        display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:2,
-                        boxShadow: hasConflictDay ? '0 0 0 1.5px #fca5a5' : 'none',
+                        width:'100%', maxWidth:44, borderRadius:8, padding:'6px 4px 5px',
+                        background: bg,
+                        border: `${borderWidth}px solid ${borderColor}`,
+                        display:'flex', flexDirection:'column', alignItems:'center', gap:3,
+                        position: 'relative',
+                        cursor:'default',
                       }}>
-                      <span style={{ fontSize:13, fontWeight:800, color: cellColor, lineHeight:1 }}>{avail}</span>
-                      <span style={{ fontSize:8, fontWeight:600, color: hasConflictDay ? '#f87171' : `${cellColor}aa`, lineHeight:1, letterSpacing:'0.03em' }}>avail</span>
+                      {/* Conflict badge on key days (small !) */}
+                      {isKeyDay && hasConflict && (
+                        <div style={{
+                          position:'absolute', top:-5, right:-5,
+                          width:14, height:14, borderRadius:99,
+                          background:'#ef4444', border:'1.5px solid #fff',
+                          display:'flex', alignItems:'center', justifyContent:'center',
+                          fontSize:8, fontWeight:900, color:'#fff', lineHeight:1,
+                        }}>!</div>
+                      )}
+                      {/* avail / total */}
+                      <span style={{ fontSize:12, fontWeight:800, color: numColor, lineHeight:1 }}>{avail}</span>
+                      <span style={{ fontSize:9, fontWeight:600, color:`${numColor}99`, lineHeight:1 }}>/ {total}</span>
+                      {/* mini progress bar — availability color always */}
+                      <div style={{ width:'80%', height:3, borderRadius:99, background:`${availColor}22`, overflow:'hidden' }}>
+                        <div style={{ height:'100%', width:`${Math.round(pct*100)}%`, background: availColor, borderRadius:99 }} />
+                      </div>
                     </div>
                   </div>
                 );
@@ -970,6 +1048,19 @@ const WeeklyAvailability: React.FC<{ resources: Resource[]; focusDate: Date; boo
             </div>
           );
         })}
+
+        {/* Footer legend */}
+        <div style={{ display:'flex', gap:14, padding:'7px 14px', background:'var(--background-color)', borderTop:'1px solid var(--border-light)', fontSize:10, fontWeight:600, color:'var(--text-muted)' }}>
+          <span style={{ display:'flex', alignItems:'center', gap:4 }}><span style={{ width:8,height:8,borderRadius:3,background:'#10b981',display:'inline-block' }}/>All free</span>
+          <span style={{ display:'flex', alignItems:'center', gap:4 }}><span style={{ width:8,height:8,borderRadius:3,background:'#f59e0b',display:'inline-block' }}/>Partial</span>
+          <span style={{ display:'flex', alignItems:'center', gap:4 }}><span style={{ width:8,height:8,borderRadius:3,background:'#ef4444',display:'inline-block' }}/>Fully booked</span>
+          <span style={{ display:'flex', alignItems:'center', gap:4, marginLeft:'auto', color:'var(--accent-color)', fontWeight:700 }}>
+            <span style={{ width:8,height:8,borderRadius:2,background:'var(--accent-color)',display:'inline-block' }}/>Pickup day
+          </span>
+          <span style={{ display:'flex', alignItems:'center', gap:4, color:'#0ea5e9', fontWeight:700 }}>
+            <span style={{ width:8,height:8,borderRadius:2,background:'#0ea5e9',display:'inline-block' }}/>Return day
+          </span>
+        </div>
       </div>
     </div>
   );

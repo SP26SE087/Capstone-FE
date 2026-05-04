@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CreateResourceRequest } from '@/types/booking';
 import { resourceService } from '@/services/resourceService';
-import { resourceTypeService, ResourceTypeItem } from '@/services/resourceTypeService';
+import { resourceTypeService, ResourceTypeItem, ResourceTypeCategory } from '@/services/resourceTypeService';
 import { userService } from '@/services/userService';
 import { useAuth } from '@/hooks/useAuth';
 import {
@@ -15,7 +15,8 @@ import {
     Shuffle,
     User,
     Search,
-    Layers
+    Box,
+    Cpu
 } from 'lucide-react';
 import { validateTextField } from '@/utils/validation';
 
@@ -425,41 +426,75 @@ const CreateResourceForm: React.FC<CreateResourceFormProps> = ({
                         {errors.description && <span style={{ fontSize: '0.72rem', color: '#ef4444', marginTop: '4px', display: 'block' }}>{errors.description}</span>}
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-                        <div>
-                            <label style={{ ...labelStyle, fontSize: '0.68rem' }}><Layers size={12} /> Type *</label>
-                            {loadingTypes ? (
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                                    <Loader2 size={14} className="animate-spin" /> Loading types...
+                    <div style={{ marginBottom: '14px' }}>
+                        <label style={{ ...labelStyle, fontSize: '0.68rem' }}>
+                            <Box size={12} /> Type *
+                        </label>
+                        {loadingTypes ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                                <Loader2 size={14} className="animate-spin" /> Loading types...
+                            </div>
+                        ) : (() => {
+                            const physicalTypes = resourceTypes.filter(rt => rt.category === ResourceTypeCategory.Physical || !rt.category);
+                            const serverTypes = resourceTypes.filter(rt => rt.category === ResourceTypeCategory.ServerCompute);
+                            const renderGroup = (
+                                types: ResourceTypeItem[],
+                                label: string,
+                                Icon: React.ElementType,
+                                iconColor: string,
+                                iconBg: string,
+                            ) => types.length === 0 ? null : (
+                                <div style={{ marginBottom: '8px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '5px' }}>
+                                        <div style={{ width: '18px', height: '18px', borderRadius: '5px', background: iconBg, color: iconColor, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                            <Icon size={11} />
+                                        </div>
+                                        <span style={{ fontSize: '0.65rem', fontWeight: 800, color: iconColor, textTransform: 'uppercase' as const, letterSpacing: '0.6px' }}>{label}</span>
+                                    </div>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: '6px' }}>
+                                        {types.map(rt => {
+                                            const isActive = resourceTypeId === rt.id;
+                                            return (
+                                                <button
+                                                    key={rt.id}
+                                                    type="button"
+                                                    onClick={() => { setResourceTypeId(rt.id); setErrors(prev => ({ ...prev, resourceTypeId: '' })); }}
+                                                    style={{
+                                                        display: 'flex', alignItems: 'center', gap: '6px',
+                                                        padding: '6px 11px',
+                                                        borderRadius: '8px',
+                                                        border: isActive ? `2px solid ${iconColor}` : '1.5px solid var(--border-color)',
+                                                        background: isActive ? iconBg : '#fff',
+                                                        color: isActive ? iconColor : 'var(--text-secondary)',
+                                                        cursor: 'pointer',
+                                                        fontSize: '0.78rem',
+                                                        fontWeight: 700,
+                                                        transition: 'all 0.15s',
+                                                        boxShadow: isActive ? `0 0 0 3px ${iconColor}18` : 'none',
+                                                    }}
+                                                >
+                                                    <Icon size={13} />
+                                                    {rt.name}
+                                                    {rt.isActive === false && (
+                                                        <span style={{ fontSize: '0.6rem', color: '#94a3b8', fontWeight: 600 }}>(inactive)</span>
+                                                    )}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
-                            ) : (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                    {resourceTypes.map(rt => (
-                                        <button
-                                            key={rt.id}
-                                            type="button"
-                                            onClick={() => { setResourceTypeId(rt.id); setErrors(prev => ({ ...prev, resourceTypeId: '' })); }}
-                                            style={{
-                                                padding: '7px 10px',
-                                                borderRadius: '8px',
-                                                border: resourceTypeId === rt.id ? '2px solid var(--accent-color)' : '1.5px solid var(--border-color)',
-                                                background: resourceTypeId === rt.id ? 'rgba(232,114,12,0.06)' : '#fff',
-                                                color: resourceTypeId === rt.id ? 'var(--accent-color)' : 'var(--text-secondary)',
-                                                cursor: 'pointer',
-                                                fontSize: '0.75rem',
-                                                fontWeight: 700,
-                                                textAlign: 'left',
-                                                transition: 'all 0.2s'
-                                            }}
-                                        >
-                                            {rt.name}
-                                        </button>
-                                    ))}
+                            );
+                            return (
+                                <div style={{ padding: '10px 12px', background: '#f8fafc', borderRadius: '10px', border: errors.resourceTypeId ? '1.5px solid #ef4444' : '1.5px solid var(--border-color)' }}>
+                                    {renderGroup(physicalTypes, 'Physical', Box, '#0284c7', '#f0f9ff')}
+                                    {renderGroup(serverTypes, 'Server / Compute', Cpu, '#7c3aed', '#f5f3ff')}
                                 </div>
-                            )}
-                            {errors.resourceTypeId && <span style={{ fontSize: '0.72rem', color: '#ef4444', marginTop: '4px', display: 'block' }}>{errors.resourceTypeId}</span>}
-                        </div>
+                            );
+                        })()}
+                        {errors.resourceTypeId && <span style={{ fontSize: '0.72rem', color: '#ef4444', marginTop: '4px', display: 'block' }}>{errors.resourceTypeId}</span>}
+                    </div>
 
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '14px' }}>
                         <div>
                             <label style={{ ...labelStyle, fontSize: '0.68rem' }}><MapPin size={12} /> Location</label>
                             <input

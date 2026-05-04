@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Booking, BookingStatus, BasicResourceResponse } from '@/types/booking';
 import {
     Calendar, Clock, CheckCircle2, XCircle, Loader2,
-    SlidersHorizontal, Zap, MapPin, Minus, Plus, User, ChevronDown, ChevronRight
+    SlidersHorizontal, Zap, Package, MapPin, Minus, Plus, User, ChevronDown, ChevronRight
 } from 'lucide-react';
 
 export interface QuickApproveOpts {
@@ -27,11 +27,11 @@ interface BookingListViewProps {
 
 const STATUS_CFG = {
     [BookingStatus.Pending]:   { label: 'Pending',   color: '#d97706', bg: '#fefce8', border: '#fde68a' },
-    [BookingStatus.Approved]:  { label: 'Approved',  color: '#059669', bg: '#ecfdf5', border: '#a7f3d0' },
+    [BookingStatus.Approved]:  { label: 'Approved',  color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe' },
     [BookingStatus.Rejected]:  { label: 'Rejected',  color: '#dc2626', bg: '#fef2f2', border: '#fecaca' },
     [BookingStatus.Cancelled]: { label: 'Cancelled', color: '#6b7280', bg: '#f3f4f6', border: '#e5e7eb' },
-    [BookingStatus.Completed]: { label: 'Completed', color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe' },
-    [BookingStatus.InUse]:     { label: 'In Use',    color: '#7c3aed', bg: '#f5f3ff', border: '#e9d5ff' },
+    [BookingStatus.Completed]: { label: 'Completed', color: '#6b7280', bg: '#f8fafc', border: '#e5e7eb' },
+    [BookingStatus.InUse]:     { label: 'In Use',    color: '#059669', bg: '#ecfdf5', border: '#a7f3d0' },
 } as const;
 
 const cfg = (status: BookingStatus) =>
@@ -215,28 +215,19 @@ const BookingListView: React.FC<BookingListViewProps> = ({
         const allDone     = group.bookings.every(b =>
             b.status === BookingStatus.Completed || b.status === BookingStatus.Cancelled || b.status === BookingStatus.Rejected
         );
-        const groupAccent = hasPending ? '#f59e0b' : hasInUse ? '#7c3aed' : allDone ? '#94a3b8' : '#059669';
+        const groupAccent = hasPending ? '#f59e0b' : hasInUse ? '#059669' : allDone ? '#94a3b8' : '#059669';
 
         return (
             <div key={group.key} style={{ borderRadius: '10px', border: '1px solid #e2e8f0', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
 
                 {/* Group header */}
                 <div
-                    onClick={() => {
-                        if (group.bookings.length === 1) {
-                            collapsePanel();
-                            onSelect(group.bookings[0]);
-                        } else {
-                            toggleGroupCollapse(group.key);
-                        }
-                    }}
-                    style={{ padding: '8px 12px', borderLeft: `3px solid ${groupAccent}`, background: group.bookings.length === 1 && group.bookings[0].id === selectedId ? '#f0f9ff' : '#fafafa', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', userSelect: 'none' }}
+                    onClick={() => toggleGroupCollapse(group.key)}
+                    style={{ padding: '8px 12px', borderLeft: `3px solid ${groupAccent}`, background: hasPending ? '#fffdf5' : '#fafbfc', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', userSelect: 'none' }}
                 >
-                    {group.bookings.length > 1 && (
-                        <div style={{ color: '#94a3b8', flexShrink: 0, display: 'flex', alignItems: 'center' }}>
-                            {isCollapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
-                        </div>
-                    )}
+                    <div style={{ color: '#94a3b8', flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+                        {isCollapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+                    </div>
 
                     <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap' as const }}>
@@ -248,34 +239,37 @@ const BookingListView: React.FC<BookingListViewProps> = ({
                                     <Zap size={8} /> Urgent
                                 </span>
                             )}
-
+                            {group.bookings.length > 1 && (
+                                <span style={{ fontSize: '0.58rem', fontWeight: 700, color: '#7c3aed', background: '#f5f3ff', border: '1px solid #e9d5ff', padding: '0 5px', borderRadius: '4px', flexShrink: 0 }}>
+                                    {group.bookings.length} items
+                                </span>
+                            )}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.65rem', color: '#64748b', marginTop: '1px', flexWrap: 'wrap' as const }}>
                             <span style={{ display: 'flex', alignItems: 'center', gap: '2px' }}><Calendar size={9} /> {fmtDate(group.startTime)}</span>
                             <span style={{ display: 'flex', alignItems: 'center', gap: '2px' }}><Clock size={9} /> {fmtTime(group.startTime)} – {fmtTime(group.endTime)}</span>
                             {group.userFullName && (
-                                <span style={{ display: 'flex', alignItems: 'center', gap: '2px', color: '#64748b' }}>
+                                <span style={{ display: 'flex', alignItems: 'center', gap: '2px', fontWeight: 600, color: '#2563eb', background: '#eff6ff', padding: '1px 5px', borderRadius: '4px' }}>
                                     <User size={9} /> Borrower: {group.userFullName}
                                 </span>
                             )}
                             {group.managerFullName && (
-                                <span style={{ display: 'flex', alignItems: 'center', gap: '2px', color: '#64748b' }}>
+                                <span style={{ display: 'flex', alignItems: 'center', gap: '2px', fontWeight: 600, color: '#059669', background: '#f0fdf4', padding: '1px 5px', borderRadius: '4px' }}>
                                     <User size={9} /> Manager: {group.managerFullName}
                                 </span>
                             )}
                         </div>
                     </div>
 
-                    {/* Status summary */}
-                    <div style={{ display: 'flex', gap: '4px', flexShrink: 0, flexDirection: 'column', alignItems: 'flex-end' }}>
+                    {/* Status summary pills */}
+                    <div style={{ display: 'flex', gap: '3px', flexShrink: 0, flexWrap: 'wrap' as const, justifyContent: 'flex-end' }}>
                         {(() => {
                             const counts = new Map<BookingStatus, number>();
                             group.bookings.forEach(b => counts.set(b.status, (counts.get(b.status) ?? 0) + 1));
                             return [...counts.entries()].map(([status, count]) => {
                                 const s = cfg(status);
                                 return (
-                                    <span key={status} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.65rem', fontWeight: 700, color: s.color, whiteSpace: 'nowrap' as const }}>
-                                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: s.color, flexShrink: 0, display: 'inline-block' }} />
+                                    <span key={status} style={{ fontSize: '0.58rem', fontWeight: 700, color: s.color, background: s.bg, border: `1px solid ${s.border}`, padding: '1px 6px', borderRadius: '8px', whiteSpace: 'nowrap' as const }}>
                                         {s.label}{count > 1 ? ` ×${count}` : ''}
                                     </span>
                                 );
@@ -331,8 +325,10 @@ const BookingListView: React.FC<BookingListViewProps> = ({
                                             </div>
                                         )}
 
-                                        {/* Status dot */}
-                                        <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: sc.color, flexShrink: 0 }} />
+                                        {/* Status icon */}
+                                        <div style={{ width: '24px', height: '24px', borderRadius: '6px', background: sc.bg, border: `1px solid ${sc.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                            <Package size={11} color={sc.color} />
+                                        </div>
 
                                         {/* Name */}
                                         <div style={{ flex: 1, minWidth: 0 }}>
@@ -340,13 +336,15 @@ const BookingListView: React.FC<BookingListViewProps> = ({
                                                 <span style={{ fontSize: '0.76rem', fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
                                                     {resourceLabel}
                                                 </span>
-
                                                 {booking.isUrgent && (
                                                     <span style={{ fontSize: '0.56rem', fontWeight: 700, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', padding: '0 3px', borderRadius: '3px', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: '1px' }}>
                                                         <Zap size={7} /> Urgent
                                                     </span>
                                                 )}
                                             </div>
+                                            {booking.resourceIds && booking.resourceIds.length > 1 && (
+                                                <div style={{ fontSize: '0.6rem', color: '#94a3b8' }}>{booking.resourceIds.length} units</div>
+                                            )}
                                         </div>
 
                                         {/* Right: action buttons + status badge */}
@@ -367,7 +365,7 @@ const BookingListView: React.FC<BookingListViewProps> = ({
                                                     </button>
                                                 </>
                                             )}
-                                            <span style={{ fontSize: '0.65rem', fontWeight: 700, color: sc.color, flexShrink: 0 }}>
+                                            <span style={{ fontSize: '0.6rem', fontWeight: 700, color: sc.color, background: sc.bg, border: `1px solid ${sc.border}`, padding: '2px 7px', borderRadius: '7px', display: 'inline-flex', alignItems: 'center', gap: '2px', flexShrink: 0 }}>
                                                 {sc.label}
                                             </span>
                                         </div>
@@ -511,7 +509,7 @@ const BookingListView: React.FC<BookingListViewProps> = ({
             )}
             {activeGroups.length > 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    <SectionHeader label="Approved & Active" count={activeGroups.length} color="#059669" bg="#ecfdf5" />
+                    <SectionHeader label="Approved & Active" count={activeGroups.length} color="#1d4ed8" bg="#eff6ff" />
                     {activeGroups.map(renderGroup)}
                 </div>
             )}

@@ -407,9 +407,27 @@ const Schedules: React.FC = () => {
     const inProgressCount = meetings.filter(m => m.status === MeetingStatus.InProgress).length;
     const cancelledCount = meetings.filter(m => m.status === MeetingStatus.Cancelled).length;
 
-    // Timetable events
+    const thisWeekStats = useMemo(() => {
+        const now = new Date();
+        const weekStart = new Date(now);
+        weekStart.setDate(now.getDate() - now.getDay());
+        weekStart.setHours(0, 0, 0, 0);
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 7);
+        const meetingsThisWeek = meetings.filter(m => {
+            const d = new Date(m.startTime);
+            return d >= weekStart && d < weekEnd;
+        }).length;
+        const seminarsThisWeek = seminarMeetings.filter(s => {
+            const d = new Date(s.meetingDate);
+            return d >= weekStart && d < weekEnd;
+        }).length;
+        return { meetingsThisWeek, seminarsThisWeek };
+    }, [meetings, seminarMeetings]);
+
+    // Timetable events — meetings + seminars merged
     const timetableEvents: TimetableEvent[] = useMemo(() => {
-        return displayMeetings.map(m => ({
+        const meetingEvents = displayMeetings.map(m => ({
             id: m.googleCalendarEventId || m.id,
             title: m.title || 'Untitled',
             startTime: m.startTime,
@@ -425,7 +443,26 @@ const Schedules: React.FC = () => {
             recordingUrl: m.recordingUrl || null,
             projectName: m.projectId ? (projectsMap[m.projectId] || null) : null,
         }));
-    }, [displayMeetings, usersMap, projectsMap]);
+
+        const seminarEvents = seminarMeetings.map(s => ({
+            id: s.googleCalendarEventId || s.seminarMeetingId,
+            title: s.title || 'Lab Seminar',
+            startTime: `${s.meetingDate}T${s.startTime}`,
+            endTime: `${s.meetingDate}T${s.endTime}`,
+            meetLink: s.meetingLink,
+            presenter: null,
+            presenterTopic: null,
+            creator: null,
+            description: s.description,
+            guests: [],
+            type: 'seminar' as const,
+            status: null,
+            recordingUrl: s.recordingLink || null,
+            projectName: null,
+        }));
+
+        return [...meetingEvents, ...seminarEvents];
+    }, [displayMeetings, seminarMeetings, usersMap, projectsMap]);
 
     const activeSeminarMeeting = useMemo(() => {
         if (!activePanel || activePanel.type !== 'view') return null;
@@ -457,9 +494,22 @@ const Schedules: React.FC = () => {
                             </div>
                             <h1 style={{ fontSize: '1.8rem', fontWeight: 900, color: '#1e293b', margin: 0, letterSpacing: '-0.02em' }}>Schedules</h1>
                         </div>
-                        <p style={{ color: '#64748b', fontSize: '0.9rem', fontWeight: 500, margin: 0 }}>
+                        <p style={{ color: '#64748b', fontSize: '0.9rem', fontWeight: 500, margin: '0 0 8px' }}>
                             Manage meetings, video calls, and team schedules with Google Meet integration.
                         </p>
+                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '3px 10px', borderRadius: '999px', background: '#eff6ff', border: '1px solid #bfdbfe', fontSize: '0.75rem', fontWeight: 700, color: '#2563eb' }}>
+                                <Video size={11} /> {thisWeekStats.meetingsThisWeek} meeting{thisWeekStats.meetingsThisWeek !== 1 ? 's' : ''} this week
+                            </span>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '3px 10px', borderRadius: '999px', background: '#fff7ed', border: '1px solid #fed7aa', fontSize: '0.75rem', fontWeight: 700, color: '#ea580c' }}>
+                                <Briefcase size={11} /> {thisWeekStats.seminarsThisWeek} seminar{thisWeekStats.seminarsThisWeek !== 1 ? 's' : ''} this week
+                            </span>
+                            {inProgressCount > 0 && (
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '3px 10px', borderRadius: '999px', background: '#fffbeb', border: '1px solid #fde68a', fontSize: '0.75rem', fontWeight: 700, color: '#d97706' }}>
+                                    <Zap size={11} /> {inProgressCount} in progress
+                                </span>
+                            )}
+                        </div>
                     </div>
                 </div>
 

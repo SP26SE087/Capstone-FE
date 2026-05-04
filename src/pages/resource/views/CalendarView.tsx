@@ -181,6 +181,8 @@ function FilterBar({
     const [typeMenuOpen, setTypeMenuOpen] = useState(false);
     const [typeSearch, setTypeSearch] = useState('');
     const typeMenuRef = useRef<HTMLDivElement | null>(null);
+    const [statusMenuOpen, setStatusMenuOpen] = useState(false);
+    const statusMenuRef = useRef<HTMLDivElement | null>(null);
 
     const typeOptions = useMemo(() => {
         const byKey = new Map<string, { label: string; count: number }>();
@@ -229,6 +231,27 @@ function FilterBar({
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [typeMenuOpen]);
+
+    useEffect(() => {
+        if (!statusMenuOpen) return;
+        const handleClickOutside = (event: MouseEvent) => {
+            const target = event.target as Node | null;
+            if (statusMenuRef.current && target && !statusMenuRef.current.contains(target)) {
+                setStatusMenuOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [statusMenuOpen]);
+
+    const STATUS_OPTIONS = [
+        { value: '',  label: 'All statuses', dot: '#cbd5e1', color: '#64748b' },
+        { value: '1', label: 'Pending',       dot: '#f59e0b', color: '#a16207' },
+        { value: '2', label: 'Approved',      dot: '#3b82f6', color: '#1d4ed8' },
+        { value: '5', label: 'In Use',        dot: '#22c55e', color: '#166534' },
+        { value: '6', label: 'Completed',     dot: '#9ca3af', color: '#6b7280' },
+    ];
+    const selectedStatusOpt = STATUS_OPTIONS.find(o => o.value === filterStatus) ?? STATUS_OPTIONS[0];
 
     const toggleType = (label: string) => {
         setFilterTypes(prev => prev.includes(label) ? prev.filter(x => x !== label) : [...prev, label]);
@@ -392,19 +415,56 @@ function FilterBar({
             </div>
 
             <div style={{ width: 1, height: 26, background: '#e2e8f0' }} />
-            <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-                style={{
-                    padding: '7px 12px', fontSize: 14, fontWeight: 600,
-                    border: '1px solid #e2e8f0', borderRadius: 10,
-                    background: '#fff', color: '#1e293b', cursor: 'pointer',
-                    outline: 'none', fontFamily: 'inherit',
-                }}>
-                <option value="">All statuses</option>
-                <option value="1">Pending</option>
-                <option value="2">Approved</option>
-                <option value="5">In use</option>
-                <option value="6">Completed</option>
-            </select>
+            {/* Custom status dropdown */}
+            <div ref={statusMenuRef} style={{ position: 'relative' }}>
+                <button
+                    onClick={() => setStatusMenuOpen(v => !v)}
+                    style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 7,
+                        padding: '7px 12px', fontSize: 13, fontWeight: 700,
+                        background: filterStatus ? '#fff7ed' : '#fff',
+                        color: filterStatus ? selectedStatusOpt.color : '#334155',
+                        border: `1px solid ${filterStatus ? '#fed7aa' : '#e2e8f0'}`,
+                        borderRadius: 999, cursor: 'pointer', outline: 'none',
+                        transition: 'all 0.15s',
+                    }}
+                >
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: selectedStatusOpt.dot, flexShrink: 0 }} />
+                    {selectedStatusOpt.label}
+                    <span style={{ fontSize: 10, color: '#94a3b8', marginLeft: 1 }}>▾</span>
+                </button>
+                {statusMenuOpen && (
+                    <div style={{
+                        position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 50,
+                        background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12,
+                        boxShadow: '0 8px 24px rgba(0,0,0,0.1)', minWidth: 170, overflow: 'hidden',
+                    }}>
+                        {STATUS_OPTIONS.map(opt => {
+                            const active = filterStatus === opt.value;
+                            return (
+                                <button
+                                    key={opt.value}
+                                    onClick={() => { setFilterStatus(opt.value); setStatusMenuOpen(false); }}
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: 9, width: '100%',
+                                        padding: '9px 14px', border: 'none', cursor: 'pointer',
+                                        background: active ? '#fff7ed' : 'transparent',
+                                        color: active ? opt.color : '#334155',
+                                        fontSize: 13, fontWeight: active ? 700 : 500,
+                                        textAlign: 'left', transition: 'background 0.1s',
+                                    }}
+                                    onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = '#f8fafc'; }}
+                                    onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                                >
+                                    <span style={{ width: 9, height: 9, borderRadius: '50%', background: opt.dot, flexShrink: 0 }} />
+                                    {opt.label}
+                                    {active && <span style={{ marginLeft: 'auto', fontSize: 11, color: opt.color }}>✓</span>}
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
             <div style={{ flex: 1 }} />
             <button onClick={onNewBooking} style={{
                 display: 'inline-flex', alignItems: 'center', gap: 8,
@@ -457,9 +517,7 @@ function CalEvent({ booking, resources: _resources, onClick, isStart = true }: {
             style={{
                 display: 'flex', alignItems: 'center', gap: 4,
                 padding: '2px 6px',
-                background: isInUse
-                    ? `repeating-linear-gradient(135deg, ${sMeta?.bg}, ${sMeta?.bg} 7px, #dcfce7 7px, #dcfce7 14px)`
-                    : sMeta?.bg,
+                background: sMeta?.bg,
                 color: sMeta?.color,
                 borderRadius: 4, borderLeft: `3px solid ${sMeta?.color}`,
                 fontSize: 11.5, fontWeight: 600, cursor: 'pointer',
@@ -488,23 +546,8 @@ function CalEvent({ booking, resources: _resources, onClick, isStart = true }: {
                     x
                 </span>
             )}
-            {isInUse && <span className="bk-pulse" style={{ width: 5, height: 5, borderRadius: 99, background: sMeta?.dot, flexShrink: 0 }} />}
             <span style={{ fontWeight: 700, minWidth: 28, flexShrink: 0 }}>{fmtTime(booking.startTime)}</span>
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{booking.title}</span>
-            {isInUse && (
-                <span style={{
-                    fontSize: 9,
-                    fontWeight: 800,
-                    color: '#166534',
-                    border: '1px dashed #86efac',
-                    background: '#f0fdf4',
-                    borderRadius: 5,
-                    padding: '0 4px',
-                    flexShrink: 0,
-                }}>
-                    OUT
-                </span>
-            )}
             {isMultiDay && (
                 <span style={{ fontSize: 9, opacity: 0.7, flexShrink: 0, marginLeft: 2 }}>
                     →{Math.ceil((new Date(booking.endTime).getTime() - new Date(booking.startTime).getTime()) / 86400000)}d

@@ -34,8 +34,8 @@ const badge = (label: string, color: string, bg: string) => (
   }}>{label}</span>
 );
 
-// ─── Embeddable content (no MainLayout) ────────────────────────────────────
-export const ComputeServerContent: React.FC = () => {
+// ─── Main page ───────────────────────────────────────────────────────────────
+const ComputeServerAdmin: React.FC = () => {
   const { addToast } = useToastStore();
   const [tab, setTab] = useState<TabType>('types');
   const [slidePanel, setSlidePanel] = useState<SlidePanel | null>(null);
@@ -99,7 +99,7 @@ export const ComputeServerContent: React.FC = () => {
     : 'Register Compute Server';
 
   return (
-    <>
+    <MainLayout>
       <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
 
         {/* ── Page header ── */}
@@ -299,16 +299,9 @@ export const ComputeServerContent: React.FC = () => {
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 4px; }
       `}</style>
-    </>
+    </MainLayout>
   );
 };
-
-// ─── Page wrapper (with MainLayout) ─────────────────────────────────────────
-const ComputeServerAdmin: React.FC = () => (
-  <MainLayout>
-    <ComputeServerContent />
-  </MainLayout>
-);
 
 // ─── Types list ──────────────────────────────────────────────────────────────
 const TypesList: React.FC<{

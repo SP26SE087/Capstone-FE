@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
     ChevronLeft, ChevronRight, Plus,
     Cpu, Database, Radio, Monitor, Package, FlaskConical, Microscope
@@ -71,7 +71,19 @@ export default function TimelineView({ bookings, resources, onOpenBooking, onNew
 
     const [rangeStart, setRangeStart] = useState(weekStart);
     const [rangeDays, setRangeDays] = useState<7 | 14 | 30>(14);
-    const [filterType, setFilterType] = useState('');
+    const [filterTypes, setFilterTypes] = useState<string[]>([]);
+    const [typeMenuOpen, setTypeMenuOpen] = useState(false);
+    const [typeSearch, setTypeSearch] = useState('');
+    const typeMenuRef = useRef<HTMLDivElement | null>(null);
+
+    useEffect(() => {
+        if (!typeMenuOpen) return;
+        const handler = (e: MouseEvent) => {
+            if (typeMenuRef.current && !typeMenuRef.current.contains(e.target as Node)) setTypeMenuOpen(false);
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, [typeMenuOpen]);
 
     const days = buildDayRange(rangeStart, rangeDays);
     const rangeEnd = new Date(rangeStart);
@@ -82,17 +94,33 @@ export default function TimelineView({ bookings, resources, onOpenBooking, onNew
     const LABEL_W = 220;
     const totalWidth = DAY_WIDTH * rangeDays;
 
-    // Unique resource type names
-    const typeNames = useMemo(() => {
-        const seen = new Set<string>();
-        const out: string[] = [];
-        resources.forEach(r => { if (r.resourceTypeName && !seen.has(r.resourceTypeName)) { seen.add(r.resourceTypeName); out.push(r.resourceTypeName); } });
-        return out;
+    const typeOptions = useMemo(() => {
+        const byKey = new Map<string, { label: string; count: number }>();
+        resources.forEach(r => {
+            const name = r.resourceTypeName?.trim();
+            if (!name) return;
+            const key = name.toLowerCase();
+            const qty = Math.max(r.totalQuantity ?? r.ids?.length ?? 1, 1);
+            const cur = byKey.get(key);
+            if (cur) cur.count += qty; else byKey.set(key, { label: name, count: qty });
+        });
+        return Array.from(byKey.entries())
+            .map(([key, v]) => ({ key, label: v.label, count: v.count }))
+            .sort((a, b) => a.label.localeCompare(b.label));
     }, [resources]);
 
+    const selectedTypeKeys = useMemo(() => new Set(filterTypes.map(t => t.toLowerCase())), [filterTypes]);
+    const filteredTypeOptions = useMemo(() => {
+        const term = typeSearch.trim().toLowerCase();
+        return term ? typeOptions.filter(o => o.label.toLowerCase().includes(term)) : typeOptions;
+    }, [typeOptions, typeSearch]);
+
+    const typeSummary = filterTypes.length === 0 ? 'All types' : filterTypes.length === 1 ? filterTypes[0] : `${filterTypes[0]} +${filterTypes.length - 1}`;
+    const toggleType = (label: string) => setFilterTypes(prev => prev.includes(label) ? prev.filter(x => x !== label) : [...prev, label]);
+
     const visibleResources = useMemo(
-        () => filterType ? resources.filter(r => r.resourceTypeName === filterType) : resources,
-        [resources, filterType]
+        () => filterTypes.length > 0 ? resources.filter(r => r.resourceTypeName && selectedTypeKeys.has(r.resourceTypeName.toLowerCase())) : resources,
+        [resources, filterTypes, selectedTypeKeys]
     );
 
     // Position a booking block in pixels
@@ -159,24 +187,53 @@ export default function TimelineView({ bookings, resources, onOpenBooking, onNew
             </div>
 
             {/* Filter row */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '9px 12px', marginBottom: 14, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12 }}>
-                <span style={{ fontSize: 11, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Filter by type</span>
-                <button onClick={() => setFilterType('')}
-                    style={{ padding: '4px 12px', fontSize: 12, fontWeight: 600, borderRadius: 999, background: !filterType ? '#E8720C' : '#fff', color: !filterType ? '#fff' : '#64748b', border: `1px solid ${!filterType ? '#E8720C' : '#e2e8f0'}`, cursor: 'pointer' }}>
-                    All ({resources.length})
-                </button>
-                {typeNames.map(t => {
-                    const meta = getBookingRtMeta({ title: '', startTime: '', endTime: '', status: BookingStatus.Pending, createdAt: '' } as any, resources.filter(r => r.resourceTypeName === t));
-                    const active = filterType === t;
-                    const count = resources.filter(r => r.resourceTypeName === t).length;
-                    return (
-                        <button key={t} onClick={() => setFilterType(t)}
-                            style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 12px', fontSize: 12, fontWeight: 600, borderRadius: 999, background: active ? meta.bg : '#fff', color: active ? meta.color : '#64748b', border: `1px solid ${active ? meta.color + '55' : '#e2e8f0'}`, cursor: 'pointer' }}>
-                            <RtIcon iconName={meta.iconName} size={12} />
-                            {t} ({count})
-                        </button>
-                    );
-                })}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '12px 14px', marginBottom: 14, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14 }}>
+                <span style={{ fontSize: 13, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Filter</span>
+
+                {/* Type dropdown — same as CalendarView */}
+                <div ref={typeMenuRef} style={{ position: 'relative' }}>
+                    <button
+                        onClick={() => setTypeMenuOpen(v => !v)}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '7px 14px', fontSize: 14, fontWeight: 700, background: filterTypes.length > 0 ? '#eff6ff' : '#fff', color: filterTypes.length > 0 ? '#1d4ed8' : '#334155', border: `1px solid ${filterTypes.length > 0 ? '#bfdbfe' : '#e2e8f0'}`, borderRadius: 999, cursor: 'pointer', maxWidth: 280 }}
+                    >
+                        <Package size={14} />
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{typeSummary}</span>
+                        {filterTypes.length > 0 && (
+                            <span style={{ minWidth: 20, height: 20, borderRadius: 10, padding: '0 6px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: '#1d4ed8', color: '#fff', fontSize: 12, fontWeight: 800, flexShrink: 0 }}>
+                                {filterTypes.length}
+                            </span>
+                        )}
+                    </button>
+
+                    {typeMenuOpen && (
+                        <div style={{ position: 'absolute', top: 'calc(100% + 8px)', left: 0, width: 340, maxWidth: 'calc(100vw - 48px)', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, boxShadow: '0 16px 28px rgba(15,23,42,0.14)', zIndex: 40, overflow: 'hidden' }}>
+                            <div style={{ padding: '10px 12px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                                <div style={{ fontSize: 12, fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Type filter</div>
+                                <button onClick={() => setFilterTypes([])} disabled={filterTypes.length === 0} style={{ border: 'none', background: 'none', cursor: filterTypes.length === 0 ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 700, color: filterTypes.length === 0 ? '#94a3b8' : '#2563eb', padding: 0 }}>Clear</button>
+                            </div>
+                            <div style={{ padding: 10, borderBottom: '1px solid #f1f5f9' }}>
+                                <input value={typeSearch} onChange={e => setTypeSearch(e.target.value)} placeholder="Search type..." style={{ width: '100%', border: '1px solid #e2e8f0', borderRadius: 8, padding: '7px 10px', fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
+                            </div>
+                            <div className="bk-scroll" style={{ maxHeight: 230, overflowY: 'auto', padding: '6px 0' }}>
+                                {filteredTypeOptions.length === 0 ? (
+                                    <div style={{ padding: '14px 12px', fontSize: 13, color: '#94a3b8', textAlign: 'center' }}>No type matched.</div>
+                                ) : filteredTypeOptions.map(opt => {
+                                    const selected = selectedTypeKeys.has(opt.key);
+                                    return (
+                                        <button key={opt.key} onClick={() => toggleType(opt.label)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', border: 'none', borderLeft: selected ? '3px solid #2563eb' : '3px solid transparent', background: selected ? '#eff6ff' : '#fff', cursor: 'pointer', textAlign: 'left' }}>
+                                            <span style={{ width: 16, height: 16, borderRadius: 4, border: `1.5px solid ${selected ? '#2563eb' : '#cbd5e1'}`, background: selected ? '#2563eb' : '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 11, fontWeight: 800, flexShrink: 0 }}>
+                                                {selected ? '✓' : ''}
+                                            </span>
+                                            <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: '#334155' }}>{opt.label}</span>
+                                            <span style={{ fontSize: 12, fontWeight: 700, color: '#64748b' }}>{opt.count}</span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+                </div>
+
                 <div style={{ flex: 1 }} />
                 {/* Legend */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 11, color: '#94a3b8' }}>

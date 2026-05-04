@@ -6,7 +6,7 @@ import { Resource, Booking, BookingStatus, BasicBookingResponse, EquipmentLog, E
 import { bookingService } from '@/services/bookingService';
 import { resourceService } from '@/services/resourceService';
 import { equipmentLogService } from '@/services/equipmentLogService';
-import { resourceTypeService, ResourceTypeItem } from '@/services/resourceTypeService';
+import { resourceTypeService, ResourceTypeItem, ResourceTypeCategory } from '@/services/resourceTypeService';
 import { useToastStore } from '@/store/slices/toastSlice';
 import {
     Search,
@@ -30,10 +30,12 @@ import {
     X,
     Wrench,
     Activity,
-    Server
+    RotateCcw,
+    Box,
+    Cpu
 } from 'lucide-react';
 
-import ResourceListView, { BookingCartItem } from './components/ResourceListView';
+import ResourceListView from './components/ResourceListView';
 import CreateResourceForm from './components/CreateResourceForm';
 import ResourceDetailPanel from './components/ResourceDetailPanel';
 import BookingResourceForm from './components/BookingResourceForm';
@@ -45,14 +47,13 @@ import ConfirmModal from '@/components/common/ConfirmModal';
 import CalendarView from './views/CalendarView';
 import TimelineView from './views/TimelineView';
 import WorkspaceView from './views/WorkspaceView';
-import { ComputeServerContent } from '@/pages/admin/ComputeServerAdmin';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type BookingVariant = 'calendar' | 'timeline' | 'workspace' | 'management';
 type MainTab = 'resources' | 'bookings' | 'logs';
-type ResourceSubTab = 'all' | 'my_managed' | 'types' | 'servers';
+type ResourceSubTab = 'all' | 'my_managed' | 'types';
 type BookingSubTab = 'my' | 'all' | 'managed';
-type TabType = 'resources' | 'my_managed' | 'my_bookings' | 'all_bookings' | 'managed_bookings' | 'equipment_logs' | 'resource_types' | 'compute_servers';
+type TabType = 'resources' | 'my_managed' | 'my_bookings' | 'all_bookings' | 'managed_bookings' | 'equipment_logs' | 'resource_types';
 
 interface ActivePanel {
     id: string;
@@ -90,7 +91,6 @@ const ResourceBooking: React.FC = () => {
         if (mainTab === 'resources') {
             if (resourceSubTab === 'my_managed') return 'my_managed';
             if (resourceSubTab === 'types') return 'resource_types';
-            if (resourceSubTab === 'servers') return 'compute_servers';
             return 'resources';
         }
         if (mainTab === 'bookings') {
@@ -118,15 +118,16 @@ const ResourceBooking: React.FC = () => {
     const [equipmentLogs, setEquipmentLogs] = useState<EquipmentLog[]>([]);
     const [resourceTypes, setResourceTypes] = useState<ResourceTypeItem[]>([]);
     const [loading, setLoading] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
     const [confirmDeleteRtId, setConfirmDeleteRtId] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [filterStatus, setFilterStatus] = useState('');
     const [filterType, setFilterType] = useState('');
     const { addToast } = useToastStore();
     const [activePanel, setActivePanel] = useState<ActivePanel | null>(null);
-    const [bookingCart, setBookingCart] = useState<BookingCartItem[]>([]);
+    const [bookingCart, setBookingCart] = useState<{ resourceId: string; quantity: number }[]>([]);
     const [viewNewBookingOpen, setViewNewBookingOpen] = useState(false);
-    const [viewNewBookingCart, setViewNewBookingCart] = useState<BookingCartItem[]>([]);
+    const [viewNewBookingCart, setViewNewBookingCart] = useState<{ resourceId: string; quantity: number }[]>([]);
 
     const isLabDirector = useMemo(() => {
         if (!user) return false;
@@ -346,6 +347,15 @@ const ResourceBooking: React.FC = () => {
 
     useEffect(() => { fetchData(); }, [fetchData]);
 
+    const handleRefresh = async () => {
+        setRefreshing(true);
+        try {
+            await fetchData();
+        } finally {
+            setRefreshing(false);
+        }
+    };
+
     const showToast = (msg: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => addToast(msg, type);
 
     // Panel handlers
@@ -355,14 +365,21 @@ const ResourceBooking: React.FC = () => {
     const handleViewResource = (resource: Resource) =>
         setActivePanel({ id: `view-res-${resource.id}`, type: 'view_resource', targetId: resource.id, title: resource.name, resource });
 
-    const handleCreateBooking = () => {
+    const handleCreateBooking = (resource?: Resource) => {
+        if (resource) {
+            setBookingCart(prev =>
+                prev.find(i => i.resourceId === resource.id) ? prev : [...prev, { resourceId: resource.id, quantity: 1 }]
+            );
+        }
         setActivePanel(prev =>
             prev?.type === 'create_booking' ? prev : { id: `create-booking-${Date.now()}`, type: 'create_booking', title: 'New Booking' }
         );
     };
 
-    const handleViewBooking = (booking: Booking) =>
-        setActivePanel({ id: `view-booking-${booking.id}`, type: 'view_booking', targetId: booking.id, title: booking.title });
+    const handleViewBooking = (booking: Booking) => {
+        const resolvedId = booking.bookingId || booking.id;
+        if (resolvedId) setViewModalBookingId(resolvedId);
+    };
 
     const handleCreateResourceType = () =>
         setActivePanel({ id: `create-rt-${Date.now()}`, type: 'resource_type_form', title: 'New Resource Type' });
@@ -390,6 +407,7 @@ const ResourceBooking: React.FC = () => {
     const handleViewLog = (log: EquipmentLog) => setActivePanel({ id: `view-log-${log.id}`, type: 'view_log', targetId: log.id, title: log.resourceName, log });
     const handleClosePanel = () => {
         setActivePanel(null);
+        setBookingCart([]);
     };
 
     const handleTitleChange = (newTitle: string) => {
@@ -399,10 +417,7 @@ const ResourceBooking: React.FC = () => {
     const handlePanelSaved = (shouldClose = false, message?: string) => {
         fetchData();
         if (message) showToast(message, 'success');
-        if (shouldClose) {
-            handleClosePanel();
-            setBookingCart([]);
-        }
+        if (shouldClose) handleClosePanel();
     };
 
     const switchMainTab = (tab: MainTab) => {
@@ -519,7 +534,6 @@ const ResourceBooking: React.FC = () => {
     const isBookingTab = activeTab === 'my_bookings' || activeTab === 'all_bookings' || activeTab === 'managed_bookings';
     const isLogTab = activeTab === 'equipment_logs';
     const isResourceTypeTab = activeTab === 'resource_types';
-    const isServerTab = activeTab === 'compute_servers';
 
     const displayResourceTypes = useMemo(() => resourceTypes.filter(rt => {
         const q = searchQuery.toLowerCase();
@@ -650,6 +664,11 @@ const ResourceBooking: React.FC = () => {
                         );
                     })}
                     <div style={{ flex: 1 }} />
+                    {bookingVariant !== 'management' && (
+                        <button onClick={() => { fetchViewData(); }} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 12px', border: '1px solid #e2e8f0', background: 'white', borderRadius: 7, fontSize: '0.78rem', fontWeight: 600, color: '#64748b', cursor: 'pointer' }}>
+                            <RotateCcw size={13} style={{ animation: viewLoading ? 'spin 1s linear infinite' : 'none' }} /> Refresh
+                        </button>
+                    )}
                 </div>
 
                 {/* ── New Booking modal overlay (Calendar / Timeline / Workspace) ── */}
@@ -670,21 +689,16 @@ const ResourceBooking: React.FC = () => {
                     <div
                         onClick={() => setViewModalBookingId(null)}
                         style={{
-                            position: 'fixed',
-                            top: 'var(--header-height, 54px)',
-                            left: 0, right: 0, bottom: 0,
-                            zIndex: 100,
+                            position: 'fixed', inset: 0, zIndex: 100,
                             background: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(4px)',
-                            display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
-                            padding: '20px 24px 24px',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
                             animation: 'bk-fade-in 0.2s ease-out',
                         }}
                     >
                         <div
                             onClick={e => e.stopPropagation()}
                             style={{
-                                width: '100%', maxWidth: 860,
-                                maxHeight: 'calc(100vh - var(--header-height, 54px) - 44px)',
+                                width: 900, height: '82vh',
                                 background: '#fff', borderRadius: 16,
                                 boxShadow: '0 24px 48px rgba(0,0,0,0.2), 0 0 0 1px rgba(0,0,0,0.06)',
                                 display: 'flex', flexDirection: 'column',
@@ -700,9 +714,10 @@ const ResourceBooking: React.FC = () => {
                                         if (message) showToast(message, 'success');
                                         if (shouldClose) setViewModalBookingId(null);
                                         fetchViewData();
+                                        fetchData();
                                     }}
                                     isLabDirector={isLabDirector}
-                                    isManagedView={isLabDirector}
+                                    isManagedView={activeTab === 'managed_bookings' || isLabDirector}
                                 />
                             </div>
                         </div>
@@ -809,16 +824,15 @@ const ResourceBooking: React.FC = () => {
                                                         <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><Layers size={12} /> Resource Types</span>
                                                     </button>
                                                 )}
-                                                {isLabDirector && (
-                                                    <button style={pillStyle(resourceSubTab === 'servers', meta.color)} onClick={() => switchResourceSubTab('servers')}>
-                                                        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><Server size={12} /> Compute Servers</span>
-                                                    </button>
-                                                )}
                                             </>
                                         )}
                                         {mainTab === 'bookings' && (
                                             <>
-                                                <button style={pillStyle(bookingSubTab === 'my', meta.color)} onClick={() => switchBookingSubTab('my')}>My Bookings</button>
+                                                {isLabDirector && (
+                                                    <button style={pillStyle(bookingSubTab === 'all', meta.color)} onClick={() => switchBookingSubTab('all')}>
+                                                        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><ClipboardList size={12} /> All Bookings</span>
+                                                    </button>
+                                                )}
                                                 <button style={pillStyle(bookingSubTab === 'managed', meta.color)} onClick={() => switchBookingSubTab('managed')}>
                                                     <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                                         Managed
@@ -836,11 +850,7 @@ const ResourceBooking: React.FC = () => {
                                                         )}
                                                     </span>
                                                 </button>
-                                                {isLabDirector && (
-                                                    <button style={pillStyle(bookingSubTab === 'all', meta.color)} onClick={() => switchBookingSubTab('all')}>
-                                                        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><ClipboardList size={12} /> All Bookings</span>
-                                                    </button>
-                                                )}
+                                                <button style={pillStyle(bookingSubTab === 'my', meta.color)} onClick={() => switchBookingSubTab('my')}>My Bookings</button>
                                             </>
                                         )}
                                     </div>
@@ -853,7 +863,7 @@ const ResourceBooking: React.FC = () => {
                                                 color: '#fff', cursor: 'pointer', boxShadow: `0 2px 6px ${meta.color}55`
                                             }}><Plus size={14} /> New Type</button>
                                         )}
-                                        {mainTab === 'resources' && !isResourceTypeTab && !isServerTab && isLabDirector && (
+                                        {mainTab === 'resources' && !isResourceTypeTab && isLabDirector && (
                                             <button onClick={handleCreateResource} style={{
                                                 display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700,
                                                 padding: '0 14px', height: '32px', borderRadius: '8px', fontSize: '0.8rem',
@@ -861,20 +871,13 @@ const ResourceBooking: React.FC = () => {
                                                 color: '#fff', cursor: 'pointer', boxShadow: `0 2px 6px ${meta.color}55`
                                             }}><Plus size={14} /> Add Resource</button>
                                         )}
-                                        {mainTab === 'resources' && !isResourceTypeTab && !isServerTab && (
+                                        {mainTab === 'bookings' && (
                                             <button onClick={() => handleCreateBooking()} style={{
                                                 display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700,
                                                 padding: '0 14px', height: '32px', borderRadius: '8px', fontSize: '0.8rem',
                                                 background: '#8b5cf6', border: 'none',
                                                 color: '#fff', cursor: 'pointer', boxShadow: '0 2px 6px #8b5cf655'
-                                            }}>
-                                                <Plus size={14} /> New Booking
-                                                {bookingCart.length > 0 && (
-                                                    <span style={{ marginLeft: '2px', background: '#fff', color: '#7c3aed', borderRadius: '10px', fontSize: '0.65rem', fontWeight: 800, padding: '0 6px', lineHeight: '16px', minWidth: '16px', display: 'inline-block', textAlign: 'center' }}>
-                                                        {bookingCart.length}
-                                                    </span>
-                                                )}
-                                            </button>
+                                            }}><Plus size={14} /> New Booking</button>
                                         )}
                                     </div>
                                 </div>
@@ -883,7 +886,7 @@ const ResourceBooking: React.FC = () => {
                     );
                 })()}
                 {/* Search + filter toolbar + stats in one row */}
-                {!isServerTab && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginBottom: '1rem', flexWrap: 'wrap' as const }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginBottom: '1rem', flexWrap: 'wrap' as const }}>
                     {/* Left: stats chips */}
                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' as const }}>
                         {isResourceTab && !isResourceTypeTab && [
@@ -901,19 +904,33 @@ const ResourceBooking: React.FC = () => {
                                 {s.label}: <span style={{ color: '#1e293b' }}>{s.value}</span>
                             </div>
                         ))}
-                        {isBookingTab && [
-                            { label: 'Total', value: activeTab === 'my_bookings' ? myBookingsTotalCount : bookingListForTab.length, color: '#8b5cf6', icon: <Clock size={13} /> },
-                            { label: 'Pending', value: pendingCount, color: '#f59e0b', icon: <AlertTriangle size={13} /> },
-                        ].map(s => (
-                            <div key={s.label} style={{
-                                display: 'flex', alignItems: 'center', gap: '6px',
-                                padding: '5px 12px', background: '#fff', borderRadius: '8px',
-                                border: '1px solid #e2e8f0', fontSize: '0.78rem', fontWeight: 700, color: '#475569'
-                            }}>
-                                <span style={{ color: s.color }}>{s.icon}</span>
-                                {s.label}: <span style={{ color: '#1e293b' }}>{s.value}</span>
-                            </div>
-                        ))}
+                        {isBookingTab && (() => {
+                            const today = new Date();
+                            today.setHours(0, 0, 0, 0);
+                            const todayEnd = new Date(today); todayEnd.setDate(today.getDate() + 1);
+                            const approvedCount = bookingListForTab.filter(b => b.status === BookingStatus.Approved).length;
+                            const inUseCount = bookingListForTab.filter(b => b.status === BookingStatus.InUse).length;
+                            const todayCount = bookingListForTab.filter(b => {
+                                const s = new Date(b.startTime);
+                                return s >= today && s < todayEnd;
+                            }).length;
+                            return [
+                                { label: 'Total', value: activeTab === 'my_bookings' ? myBookingsTotalCount : bookingListForTab.length, color: '#8b5cf6', icon: <Clock size={13} /> },
+                                { label: 'Pending', value: pendingCount, color: '#f59e0b', icon: <AlertTriangle size={13} /> },
+                                { label: 'Approved', value: approvedCount, color: '#10b981', icon: <CheckCircle2 size={13} /> },
+                                { label: 'In Use', value: inUseCount, color: '#3b82f6', icon: <Activity size={13} /> },
+                                { label: 'Today', value: todayCount, color: '#e8720c', icon: <Calendar size={13} /> },
+                            ].map(s => (
+                                <div key={s.label} style={{
+                                    display: 'flex', alignItems: 'center', gap: '6px',
+                                    padding: '5px 12px', background: '#fff', borderRadius: '8px',
+                                    border: '1px solid #e2e8f0', fontSize: '0.78rem', fontWeight: 700, color: '#475569'
+                                }}>
+                                    <span style={{ color: s.color }}>{s.icon}</span>
+                                    {s.label}: <span style={{ color: '#1e293b' }}>{s.value}</span>
+                                </div>
+                            ));
+                        })()}
                         {isLogTab && (
                             <div style={{
                                 display: 'flex', alignItems: 'center', gap: '6px',
@@ -968,8 +985,16 @@ const ResourceBooking: React.FC = () => {
                             />
                         </div>
                     )}
+                    <button
+                        onClick={handleRefresh}
+                        disabled={refreshing}
+                        style={{ padding: '6px 12px', border: '1px solid #e2e8f0', background: 'white', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', flexShrink: 0 }}
+                    >
+                        <RotateCcw size={13} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
+                        Refresh
+                    </button>
                     </div>
-                </div>}
+                </div>
                 {/* ── Breadcrumb when panel open ── */}
                 {activePanel && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '0.75rem', fontSize: '0.78rem', fontWeight: 600 }}>
@@ -992,11 +1017,11 @@ const ResourceBooking: React.FC = () => {
                 <div style={{ display: 'flex', height: 'calc(100vh - 320px)', minHeight: '560px', background: '#fff', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', overflow: 'hidden' }}>
                     {/* Left: List */}
                     <div style={{
-                        flex: activePanel ? 5 : 10,
+                        flex: (activePanel && activePanel.type !== 'view_booking') ? 5 : 10,
                         display: 'flex', flexDirection: 'column',
                         transition: 'flex 0.35s cubic-bezier(0.4,0,0.2,1)',
                         overflow: 'hidden', minWidth: 0,
-                        borderRight: activePanel ? '1px solid #f1f5f9' : 'none',
+                        borderRight: (activePanel && activePanel.type !== 'view_booking') ? '1px solid #f1f5f9' : 'none',
                     }}>
                         <div style={{ flex: 1, overflowY: 'auto', padding: '12px 12px 12px 12px' }} className="custom-scrollbar">
                             {loading ? (
@@ -1020,9 +1045,8 @@ const ResourceBooking: React.FC = () => {
                                         resources={displayResources}
                                         selectedId={activePanel?.type === 'view_resource' ? activePanel.targetId ?? null : null}
                                         onSelect={handleViewResource}
-                                        onBook={handleViewResource}
-                                        cartItems={bookingCart}
-                                        onCartChange={setBookingCart}
+                                        onBook={handleCreateBooking}
+                                        resourceTypes={resourceTypes}
                                     />
                                 </>
                             ) : isBookingTab ? (
@@ -1124,7 +1148,7 @@ const ResourceBooking: React.FC = () => {
                                     })()}
                                     <BookingListView
                                         bookings={displayBookings}
-                                        selectedId={activePanel?.type === 'view_booking' ? activePanel.targetId ?? null : null}
+                                        selectedId={viewModalBookingId}
                                         onSelect={handleViewBooking}
                                         selectable={bookingSubTab === 'managed'}
                                         selectedIds={bulkSelectedIds}
@@ -1220,8 +1244,13 @@ const ResourceBooking: React.FC = () => {
                                             onMouseEnter={e => (e.currentTarget.style.background = '#f8fafc')}
                                             onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                                         >
-                                            <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#f5f3ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#7c3aed', flexShrink: 0 }}>
-                                                <Layers size={16} />
+                                            <div style={{
+                                                width: '32px', height: '32px', borderRadius: '8px', flexShrink: 0,
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                background: rt.category === ResourceTypeCategory.ServerCompute ? '#f5f3ff' : '#f0f9ff',
+                                                color: rt.category === ResourceTypeCategory.ServerCompute ? '#7c3aed' : '#0284c7',
+                                            }}>
+                                                {rt.category === ResourceTypeCategory.ServerCompute ? <Cpu size={16} /> : <Box size={16} />}
                                             </div>
                                             <div style={{ flex: 1, minWidth: 0 }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1243,16 +1272,12 @@ const ResourceBooking: React.FC = () => {
                                         </div>
                                     ))}
                                 </div>
-                            ) : isServerTab ? (
-                                <div style={{ padding: '8px' }}>
-                                    <ComputeServerContent />
-                                </div>
                             ) : null}
                         </div>
                     </div>
 
-                    {/* Right: Detail / Form Panel */}
-                    {activePanel && (
+                    {/* Right: Detail / Form Panel (not view_booking — that uses modal) */}
+                    {activePanel && activePanel.type !== 'view_booking' && (
                         <div style={{
                             flex: 5, transition: 'flex 0.35s cubic-bezier(0.4,0,0.2,1)',
                             overflow: 'auto', display: 'flex', flexDirection: 'column',
@@ -1274,14 +1299,6 @@ const ResourceBooking: React.FC = () => {
                                     onClose={handleClosePanel} onSaved={handlePanelSaved}
                                     onTitleChange={handleTitleChange}
                                     cartItems={bookingCart} onCartChange={setBookingCart}
-                                />
-                            )}
-                            {activePanel.type === 'view_booking' && activePanel.targetId && (
-                                <BookingDetailPanel
-                                    bookingId={activePanel.targetId} onClose={handleClosePanel}
-                                    onSaved={handlePanelSaved} onTitleChange={handleTitleChange}
-                                    isLabDirector={isLabDirector}
-                                    isManagedView={activeTab === 'managed_bookings'}
                                 />
                             )}
                             {activePanel.type === 'resource_type_form' && (

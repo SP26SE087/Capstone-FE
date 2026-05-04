@@ -88,6 +88,7 @@ const normalize = (item: any): Resource => {
     description: item.description,
     resourceTypeId: item.resourceTypeId,
     resourceTypeName: item.resourceTypeName,
+    resourceTypeCategory: item.resourceTypeCategory,
     modelSeries: item.modelSeries,
     type: (typeof item.type === 'number' ? item.type : toResourceType(item.resourceTypeName)),
     status: item.status,
