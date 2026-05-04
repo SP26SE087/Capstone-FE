@@ -10,12 +10,14 @@ interface ServerTerminalModalProps {
   isOpen: boolean;
   onClose: () => void;
   access: ComputeAccess;
+  privateKey?: string;
 }
 
 const ServerTerminalModal: React.FC<ServerTerminalModalProps> = ({
   isOpen,
   onClose,
   access,
+  privateKey = '',
 }) => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [activeTab, setActiveTab] = useState<'terminal' | 'files'>('terminal');
@@ -34,7 +36,7 @@ const ServerTerminalModal: React.FC<ServerTerminalModalProps> = ({
       try {
         setLoading(true);
         setError(null);
-        const { token: newToken, wsUrl: newWsUrl, expiresAt } = await computeService.getTerminalToken(access.bookingId);
+        const { token: newToken, wsUrl: newWsUrl, expiresAt } = await computeService.getTerminalToken(access.bookingId, privateKey ?? access.privateKey ?? '');
         setToken(newToken);
         setWsUrl(newWsUrl);
         setSessionExpiresAt(expiresAt);
@@ -340,7 +342,7 @@ const ServerTerminalModal: React.FC<ServerTerminalModalProps> = ({
                 onClick={() => {
                   setError(null);
                   setLoading(true);
-                  computeService.getTerminalToken(access.bookingId)
+                  computeService.getTerminalToken(access.bookingId, privateKey ?? access.privateKey ?? '')
                     .then(({ token: t, wsUrl: w, expiresAt }) => {
                       setToken(t); setWsUrl(w); setSessionExpiresAt(expiresAt); setError(null);
                     })

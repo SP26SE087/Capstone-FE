@@ -1,5 +1,6 @@
 import api from './api';
 import { Project } from '@/types';
+import { API_BASE_URL } from './api';
 
 // Mock data to return if API fails or for initial development
 const mockProjects: Project[] = [];
@@ -168,5 +169,39 @@ export const projectService = {
             console.error(`Error fetching projects for user ${email}:`, error);
             throw error;
         }
-    }
+    },
+
+    /** Download blank Excel import template (no auth needed) */
+    downloadTemplate: () => {
+        window.open(`${API_BASE_URL}api/projects/import/template`, '_blank');
+    },
+
+    /** Import projects from an Excel file. Returns { projectsCreated, milestonesCreated, tasksCreated, errors[], projects[] } */
+    importProjects: async (file: File): Promise<any> => {
+        const form = new FormData();
+        form.append('file', file);
+        const res = await api.post('/api/projects/import', form, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        return res.data.data ?? res.data;
+    },
+
+    /** Export a project as an Excel file (triggers download) */
+    exportProject: async (projectId: string): Promise<void> => {
+        const res = await api.get(`/api/projects/${projectId}/export`, {
+            responseType: 'blob',
+        });
+        const url = URL.createObjectURL(res.data);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Project_${projectId}.xlsx`;
+        a.click();
+        URL.revokeObjectURL(url);
+    },
+
+    /** Clone a project with all milestones and tasks shifted to the new start date */
+    cloneProject: async (projectId: string, newName: string, newStartDate: string): Promise<any> => {
+        const res = await api.post(`/api/projects/${projectId}/clone`, { newName, newStartDate });
+        return res.data.data ?? res.data;
+    },
 };

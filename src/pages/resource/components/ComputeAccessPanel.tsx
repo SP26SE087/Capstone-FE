@@ -125,12 +125,10 @@ const ComputeAccessPanel: React.FC<ComputeAccessPanelProps> = ({
   const [generatingKeys, setGeneratingKeys] = useState(false);
   const [keyGenerated, setKeyGenerated] = useState(false);
 
-  // ── Private key — Step 5: submit to server (stored AES-256 encrypted) ─
+  // ── Private key — in-memory only, never sent to server ─
   const [showPrivateKeyForm, setShowPrivateKeyForm] = useState(false);
   const [privateKey, setPrivateKey] = useState('');
-  const [submittingPrivateKey, setSubmittingPrivateKey] = useState(false);
   const [privateKeyError, setPrivateKeyError] = useState<string | null>(null);
-  const [privateKeySubmitted, setPrivateKeySubmitted] = useState(false);
 
   const accessConfig = serverAccess ? getAccessStatusConfig(serverAccess.status) : null;
   const isSessionEnded = !!accessConfig && !accessConfig.canConnect
@@ -139,9 +137,8 @@ const ComputeAccessPanel: React.FC<ComputeAccessPanelProps> = ({
 
   const isActive = serverAccess?.status === 'Active' || serverAccess?.accessStatus === 1;
   const needsPublicKey = !serverAccess;
-  // Active = provisioned and ready; user must submit private key to server before connecting
-  const needsPrivateKey = isActive && !privateKeySubmitted;
-  const canConnect = isActive && privateKeySubmitted;
+  const needsPrivateKey = isActive && !privateKey.trim();
+  const canConnect = isActive && !!privateKey.trim();
 
   const handleGenerateKeys = async () => {
     setGeneratingKeys(true);
@@ -182,20 +179,10 @@ const ComputeAccessPanel: React.FC<ComputeAccessPanelProps> = ({
     }
   };
 
-  const handleSubmitPrivateKey = async () => {
+  const handleConfirmPrivateKey = () => {
     if (!privateKey.trim()) { setPrivateKeyError('SSH private key is required.'); return; }
-    setSubmittingPrivateKey(true);
     setPrivateKeyError(null);
-    try {
-      await computeService.submitPrivateKey(bookingId, privateKey.trim());
-      setPrivateKeySubmitted(true);
-      setPrivateKey('');
-      setShowPrivateKeyForm(false);
-    } catch (err: any) {
-      setPrivateKeyError(err.message || 'Failed to submit private key.');
-    } finally {
-      setSubmittingPrivateKey(false);
-    }
+    setShowPrivateKeyForm(false);
   };
 
   const handleOpenTerminal = () => {
@@ -205,6 +192,7 @@ const ComputeAccessPanel: React.FC<ComputeAccessPanelProps> = ({
       tierId: '',
       tierName: '',
       status: ComputeAccessStatus.Active,
+      privateKey: privateKey.trim(),
     };
     onOpenTerminal(access);
   };
@@ -271,8 +259,8 @@ const ComputeAccessPanel: React.FC<ComputeAccessPanelProps> = ({
                   : needsPublicKey
                     ? 'Submit your SSH public key to request access'
                     : needsPrivateKey
-                      ? 'Server ready — submit your private key to connect'
-                      : 'Private key submitted — click to open the terminal'}
+                      ? 'Server ready — enter your private key to connect'
+                      : 'Private key ready — click to open the terminal'}
           </div>
         </div>
 
@@ -295,7 +283,7 @@ const ComputeAccessPanel: React.FC<ComputeAccessPanelProps> = ({
               style={actionBtnStyle(true, '#10b981')}
             >
               <Upload size={13} />
-              {showPrivateKeyForm ? 'Cancel' : (privateKeySubmitted ? 'Resubmit Key' : 'Submit Private Key')}
+              {showPrivateKeyForm ? 'Cancel' : (privateKey.trim() ? 'Change Key' : 'Enter Private Key')}
               {showPrivateKeyForm ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
             </button>
           )}
@@ -415,7 +403,7 @@ const ComputeAccessPanel: React.FC<ComputeAccessPanelProps> = ({
         </div>
       )}
 
-      {/* ── Private key form (Step 5: submit to server, stored encrypted) ── */}
+      {/* ── Private key — collected in-memory, never sent to server ── */}
       {showPrivateKeyForm && isActive && (
         <div style={{
           padding: '12px', borderRadius: '8px',
@@ -424,11 +412,11 @@ const ComputeAccessPanel: React.FC<ComputeAccessPanelProps> = ({
           display: 'flex', flexDirection: 'column', gap: '8px',
         }}>
           <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#34d399', marginBottom: 2 }}>
-            Submit SSH Private Key
+            Enter SSH Private Key
           </div>
           <div style={{ fontSize: '0.68rem', color: '#64748b' }}>
-            Your private key is sent over HTTPS and stored <strong style={{ color: '#94a3b8' }}>AES-256 encrypted</strong> on the server.
-            It is used only to establish your SSH session and is <strong style={{ color: '#94a3b8' }}>automatically deleted</strong> when the booking ends.
+            Your private key stays <strong style={{ color: '#94a3b8' }}>in memory only</strong> — it is never sent to the server.
+            It is passed directly in the encrypted WebSocket connection.
             {' '}If you used "Generate Key Pair" earlier, open <code style={{ color: '#a5f3fc' }}>labsync_key.pem</code> and paste its contents below.
           </div>
 
@@ -451,17 +439,14 @@ const ComputeAccessPanel: React.FC<ComputeAccessPanelProps> = ({
           )}
 
           <button type="button"
-            onClick={handleSubmitPrivateKey}
-            disabled={submittingPrivateKey || !privateKey.trim()}
+            onClick={handleConfirmPrivateKey}
+            disabled={!privateKey.trim()}
             style={{
-              ...actionBtnStyle(!submittingPrivateKey && !!privateKey.trim(), '#10b981'),
+              ...actionBtnStyle(!!privateKey.trim(), '#10b981'),
               alignSelf: 'flex-end', padding: '7px 18px',
             }}
           >
-            {submittingPrivateKey
-              ? <><Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> Submitting…</>
-              : <><Upload size={13} /> Submit Private Key</>
-            }
+            <Key size={13} /> Confirm Key
           </button>
         </div>
       )}

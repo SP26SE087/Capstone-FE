@@ -258,6 +258,8 @@ export interface ComputeAccess {
   gpuUtilization?: number;
   memoryUsage?: number;
   errorMessage?: string;
+  /** In-memory private key — never persisted, only used for this session */
+  privateKey?: string;
 }
 
 export interface ComputeBookingConfig {

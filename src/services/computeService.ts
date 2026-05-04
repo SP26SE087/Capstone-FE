@@ -71,6 +71,13 @@ function toWsUrl(path: string): string {
   return `${wsBase}${path}`;
 }
 
+function terminalFileHeaders(terminalToken: string, privateKey: string): Record<string, string> {
+  return {
+    Authorization: `Bearer ${terminalToken}`,
+    'X-Private-Key': privateKey,
+  };
+}
+
 function normaliseAccess(raw: any): ServerAccess {
   const code = (raw.accessStatus ?? 0) as ServerAccessStatusCode;
   return {
@@ -130,16 +137,19 @@ export const computeService = {
 
   /**
    * Get terminal WebSocket token — GET /api/terminal/bookings/{bookingId}/token
-   * Prerequisites: booking Approved/InUse, provisioned, private key submitted.
+   * Private key is passed in the WS URL query string (never stored on server).
    */
-  getTerminalToken: async (bookingId: string): Promise<{ token: string; wsUrl: string; expiresAt?: string }> => {
+  getTerminalToken: async (
+    bookingId: string,
+    privateKey: string
+  ): Promise<{ token: string; wsUrl: string; expiresAt?: string }> => {
     try {
       const response = await api.get(`/api/terminal/bookings/${bookingId}/token`);
       const data = response.data.data || response.data;
-      if (!data.wsUrl && data.token) {
-        data.wsUrl = toWsUrl(`/api/terminal/connect?token=${encodeURIComponent(data.token)}`);
-      }
-      return data;
+      const wsUrl = toWsUrl(
+        `/api/terminal/connect?token=${encodeURIComponent(data.token)}&privateKey=${encodeURIComponent(privateKey)}`
+      );
+      return { ...data, wsUrl };
     } catch (err: any) {
       const msg = err.response?.data?.message || err.response?.data?.title || err.message;
       throw new Error(msg || 'Failed to get terminal token');
@@ -154,23 +164,99 @@ export const computeService = {
   },
 
   /**
-   * Step 5 — Submit RSA private key before connecting to the terminal.
-   * POST /api/server-access/bookings/{bookingId}/private-key
-   * Key is AES-256 encrypted on the server and auto-discarded when booking ends.
-   */
-  submitPrivateKey: async (bookingId: string, privateKey: string): Promise<void> => {
-    try {
-      await api.post(`/api/server-access/bookings/${bookingId}/private-key`, { privateKey });
-    } catch (err: any) {
-      const msg = err.response?.data?.message || err.response?.data?.title || err.message;
-      throw new Error(msg || 'Failed to submit private key');
-    }
-  },
-
-  /**
    * Admin: revoke access — POST /api/server-access/bookings/{bookingId}/revoke
    */
   revokeAccess: async (bookingId: string): Promise<void> => {
     await api.post(`/api/server-access/bookings/${bookingId}/revoke`, {});
+  },
+
+  // ── File Manager ──────────────────────────────────────────────────────────
+
+  /** List files/folders at remote path */
+  listFiles: async (
+    bookingId: string,
+    terminalToken: string,
+    privateKey: string,
+    path = '/'
+  ) => {
+    const res = await fetch(
+      `${API_BASE_URL}api/terminal/bookings/${bookingId}/files?path=${encodeURIComponent(path)}`,
+      { headers: terminalFileHeaders(terminalToken, privateKey) }
+    );
+    const json = await res.json();
+    return json.data ?? json;
+  },
+
+  /** Download file or folder (folder → .zip) */
+  downloadFile: async (
+    bookingId: string,
+    terminalToken: string,
+    privateKey: string,
+    remotePath: string
+  ) => {
+    const res = await fetch(
+      `${API_BASE_URL}api/terminal/bookings/${bookingId}/files/download?path=${encodeURIComponent(remotePath)}`,
+      { headers: terminalFileHeaders(terminalToken, privateKey) }
+    );
+    const blob = await res.blob();
+    const fileName = remotePath.split('/').pop() ?? 'download';
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    a.click();
+    URL.revokeObjectURL(url);
+  },
+
+  /** Upload single file */
+  uploadFile: async (
+    bookingId: string,
+    terminalToken: string,
+    privateKey: string,
+    file: File,
+    destinationPath = '/'
+  ) => {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('path', destinationPath);
+    await fetch(`${API_BASE_URL}api/terminal/bookings/${bookingId}/files/upload`, {
+      method: 'POST',
+      headers: terminalFileHeaders(terminalToken, privateKey),
+      body: form,
+    });
+  },
+
+  /** Upload folder preserving structure — use <input webkitdirectory> */
+  uploadFolder: async (
+    bookingId: string,
+    terminalToken: string,
+    privateKey: string,
+    files: FileList,
+    destinationPath = '/'
+  ) => {
+    const form = new FormData();
+    form.append('destination', destinationPath);
+    Array.from(files).forEach(f => {
+      form.append('files', f);
+      form.append('paths', (f as any).webkitRelativePath);
+    });
+    await fetch(`${API_BASE_URL}api/terminal/bookings/${bookingId}/files/upload-folder`, {
+      method: 'POST',
+      headers: terminalFileHeaders(terminalToken, privateKey),
+      body: form,
+    });
+  },
+
+  /** Delete file or folder (recursive) */
+  deleteFile: async (
+    bookingId: string,
+    terminalToken: string,
+    privateKey: string,
+    remotePath: string
+  ) => {
+    await fetch(
+      `${API_BASE_URL}api/terminal/bookings/${bookingId}/files?path=${encodeURIComponent(remotePath)}`,
+      { method: 'DELETE', headers: terminalFileHeaders(terminalToken, privateKey) }
+    );
   },
 };

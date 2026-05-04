@@ -107,4 +107,11 @@ export const visitorRegistrationService = {
         const data = response.data?.data ?? response.data;
         return data as { fullName: string; faceImageBase64: string | null };
     },
+
+    /** Get visitors currently active today (no auth required) */
+    getActiveVisitors: async (): Promise<any[]> => {
+        const response = await api.get('/api/users/visitors/active');
+        const data = response.data?.data ?? response.data;
+        return Array.isArray(data) ? data : [];
+    },
 };

@@ -20,7 +20,8 @@ import {
     Check,
     AlertTriangle,
     Clock,
-    FlaskConical
+    FlaskConical,
+    List
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import ResearchFieldManager from '@/features/projects/components/ResearchFieldManager';
@@ -65,6 +66,8 @@ const Projects: React.FC = () => {
     const [fieldSearch, setFieldSearch] = useState('');
     const [createForm, setCreateForm] = useState({ projectName: '', projectDescription: '', startDate: '', endDate: '' });
     const [createError, setCreateError] = useState<string | null>(null);
+    const [customFields, setCustomFields] = useState<string[]>([]);
+    const [newFieldValue, setNewFieldValue] = useState('');
     const todayVn = getVietnamDateInputValue();
 
     const inputStyle: React.CSSProperties = {
@@ -125,6 +128,8 @@ const Projects: React.FC = () => {
         setSelectedFieldIds([]);
         setFieldSearch('');
         setCreateError(null);
+        setCustomFields([]);
+        setNewFieldValue('');
         if (availableFields.length === 0) {
             const fields = await researchFieldService.getAll();
             setAvailableFields(fields);
@@ -160,7 +165,8 @@ const Projects: React.FC = () => {
                 startDate: toApiDate(startDate),
                 endDate: toApiDate(createForm.endDate),
                 status: 2, // 2 is Inactive/Pending
-                researchFieldIds: selectedFieldIds
+                researchFieldIds: selectedFieldIds,
+                customFields
             });
             setShowPanel(false);
             addToast('Project created successfully!', 'success');
@@ -520,6 +526,60 @@ const Projects: React.FC = () => {
                                         {createError}
                                     </div>
                                 )}
+
+                                <div style={sectionStyle}>
+                                    <label style={labelStyle}><List size={14} /> Custom Fields</label>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                        {customFields.map((field, idx) => (
+                                            <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <input
+                                                    type="text"
+                                                    value={field}
+                                                    onChange={e => {
+                                                        const updated = [...customFields];
+                                                        updated[idx] = e.target.value;
+                                                        setCustomFields(updated);
+                                                    }}
+                                                    style={{ ...inputStyle, flex: 1, padding: '6px 10px' }}
+                                                    placeholder={`Field ${idx + 1}`}
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setCustomFields(customFields.filter((_, i) => i !== idx))}
+                                                    style={{ flexShrink: 0, width: 30, height: 30, borderRadius: '6px', border: '1px solid #fecaca', background: '#fef2f2', color: '#dc2626', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                                >
+                                                    <X size={13} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                                            <input
+                                                type="text"
+                                                value={newFieldValue}
+                                                onChange={e => setNewFieldValue(e.target.value)}
+                                                onKeyDown={e => {
+                                                    if (e.key === 'Enter') {
+                                                        e.preventDefault();
+                                                        const trimmed = newFieldValue.trim();
+                                                        if (trimmed) { setCustomFields(prev => [...prev, trimmed]); setNewFieldValue(''); }
+                                                    }
+                                                }}
+                                                placeholder="Add a field label..."
+                                                style={{ ...inputStyle, flex: 1, padding: '6px 10px' }}
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const trimmed = newFieldValue.trim();
+                                                    if (trimmed) { setCustomFields(prev => [...prev, trimmed]); setNewFieldValue(''); }
+                                                }}
+                                                style={{ flexShrink: 0, height: 32, padding: '0 12px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--primary-color)', color: 'white', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}
+                                            >
+                                                <Plus size={13} /> Add
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
 
                                 <div style={{ display: 'flex', gap: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-color)', marginTop: 'auto' }}>
                                     <button type="button" onClick={() => setShowPanel(false)} className="btn btn-secondary" style={{ flex: 1 }} disabled={submitting}>Cancel</button>
