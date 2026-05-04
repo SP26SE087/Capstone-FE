@@ -155,8 +155,8 @@ const SwapRequests: React.FC<SwapRequestsProps> = ({ usersMap, emailsMap, onActi
             ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     {displayed.map(swap => {
-                        const statusInfo = getSwapStatusInfo(swap.status);
-                        const isPending = isPendingStatus(swap.status);
+                        const statusInfo = getSwapStatusInfo(swap.status ?? '');
+                        const isPending = isPendingStatus(swap.status ?? '');
                         const isResponding = respondingId === swap.swapRequestId;
                         const canRespond = tab === 'incoming' && isPending;
 

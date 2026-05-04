@@ -59,7 +59,7 @@ interface RtMeta {
 
 function getRtMeta(resource: Resource): RtMeta {
   const name = (resource.resourceTypeName ?? '').toLowerCase();
-  const isCompute = resource.resourceTypeCategory === 2 ||
+  const isCompute = (resource.resourceTypeName ?? "").toLowerCase().includes("compute") || (resource.resourceTypeName ?? "").toLowerCase().includes("server") || (resource.resourceTypeName ?? "").toLowerCase().includes("gpu") ||
     name.includes('server') || name.includes('compute') || name.includes('gpu');
   if (isCompute)
     return { icon: <Cpu size={14}/>, color: '#7C3AED', bg: '#F5F3FF' };
@@ -190,15 +190,15 @@ const ResourcePicker: React.FC<ResourcePickerProps> = ({
       : resources;
     if (categoryFilter === 'compute') {
       filtered = filtered.filter(r =>
-        r.resourceTypeCategory === 2 ||
+        (r.resourceTypeName ?? "").toLowerCase().includes("compute") || (r.resourceTypeName ?? "").toLowerCase().includes("server") || (r.resourceTypeName ?? "").toLowerCase().includes("gpu") ||
         (r.resourceTypeName ?? '').toLowerCase().includes('compute') ||
         (r.resourceTypeName ?? '').toLowerCase().includes('server') ||
         (r.resourceTypeName ?? '').toLowerCase().includes('gpu')
       );
     } else if (categoryFilter === 'physical') {
       filtered = filtered.filter(r =>
-        r.resourceTypeCategory === 1 ||
-        (r.resourceTypeCategory === undefined && !(
+        
+        (r.resourceTypeName === undefined && !(
           (r.resourceTypeName ?? '').toLowerCase().includes('compute') ||
           (r.resourceTypeName ?? '').toLowerCase().includes('server') ||
           (r.resourceTypeName ?? '').toLowerCase().includes('gpu')

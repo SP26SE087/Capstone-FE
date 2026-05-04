@@ -93,7 +93,7 @@ const getErrMsg = (err: any): string => {
 
 const VisitorRegistrations: React.FC = () => {
     const { user } = useAuth();
-    const isLabDirector = user.role === 2;
+    const isLabDirector = Number(user.role) === 2;
     const [tab, setTab] = useState<'registrations' | 'transfers' | 'contactors'>('registrations');
 
     // Registrations
@@ -328,7 +328,7 @@ const VisitorRegistrations: React.FC = () => {
                 toAssigneeEmail: transferState.toAssigneeEmail.trim(),
             });
             setTransferState(null);
-            fetchRegistrations(true);
+            fetchRegistrations();
         } catch (err: any) {
             setTransferError(getErrMsg(err));
         } finally {
@@ -347,7 +347,7 @@ const VisitorRegistrations: React.FC = () => {
             await visitorRegistrationService.respondToTransfer(respondState.transfer.id, body);
             setRespondState(null);
             setTransfers(prev => prev.filter(t => t.id !== respondState.transfer.id));
-            fetchRegistrations(true);
+            fetchRegistrations();
         } catch (err: any) {
             setRespondError(getErrMsg(err));
         } finally {

@@ -171,9 +171,15 @@ export const projectService = {
         }
     },
 
-    /** Download blank Excel import template (no auth needed) */
-    downloadTemplate: () => {
-        window.open(`${API_BASE_URL}api/projects/import/template`, '_blank');
+    /** Download blank Excel import template */
+    downloadTemplate: async (): Promise<void> => {
+        const res = await api.get('/api/projects/import/template', { responseType: 'blob' });
+        const url = URL.createObjectURL(res.data);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'project_import_template.xlsx';
+        a.click();
+        URL.revokeObjectURL(url);
     },
 
     /** Import projects from an Excel file. Returns { projectsCreated, milestonesCreated, tasksCreated, errors[], projects[] } */

@@ -64,10 +64,10 @@ const sectionStyle: React.CSSProperties = {
 const getStatusConfig = (status: BookingStatus) => {
     switch (status) {
         case BookingStatus.Pending:   return { label: 'Pending',   color: '#d97706', bg: '#fefce8', border: '#fde68a', icon: <Clock size={14} /> };
-        case BookingStatus.Approved:  return { label: 'Approved',  color: '#059669', bg: '#ecfdf5', border: '#a7f3d0', icon: <CheckCircle2 size={14} /> };
+        case BookingStatus.Approved:  return { label: 'Approved',  color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe', icon: <CheckCircle2 size={14} /> };
         case BookingStatus.Rejected:  return { label: 'Rejected',  color: '#dc2626', bg: '#fef2f2', border: '#fecaca', icon: <XCircle size={14} /> };
         case BookingStatus.Cancelled: return { label: 'Cancelled', color: '#6b7280', bg: '#f3f4f6', border: '#e5e7eb', icon: <XCircle size={14} /> };
-        case BookingStatus.Completed: return { label: 'Completed', color: '#2563eb', bg: '#eff6ff', border: '#bfdbfe', icon: <CheckCircle2 size={14} /> };
+        case BookingStatus.Completed: return { label: 'Completed', color: '#059669', bg: '#ecfdf5', border: '#a7f3d0', icon: <CheckCircle2 size={14} /> };
         case BookingStatus.InUse:     return { label: 'In Use',    color: '#7c3aed', bg: '#f5f3ff', border: '#e9d5ff', icon: <Loader2 size={14} /> };
         default:                      return { label: 'Unknown',   color: '#64748b', bg: '#f8fafc', border: '#e2e8f0', icon: null };
     }
@@ -208,7 +208,7 @@ function FooterBtn({ onClick, icon, label, disabled, ...rest }: FooterBtnProps) 
 }
 
 // ─── PersonCard helper ───────────────────────────────────────────────────────
-function PersonCard({ label, icon, name, email, sub, accentColor, accentBg, accentBorder, placeholder }: {
+function PersonCard({ label, icon, name, email, sub, accentColor, accentBg: _accentBg, accentBorder: _accentBorder, placeholder }: {
     label: string; icon: React.ReactNode;
     name: string | null; email: string | null; sub?: string;
     accentColor: string; accentBg: string; accentBorder: string;
@@ -685,9 +685,9 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                         icon={<User size={11} />}
                         name={booking.userFullName ?? null}
                         email={booking.userEmail ?? null}
-                        accentColor="#2563eb"
-                        accentBg="#eff6ff"
-                        accentBorder="#bfdbfe"
+                        accentColor="#059669"
+                        accentBg="#ecfdf5"
+                        accentBorder="#a7f3d0"
                     />
                     {/* Resource Manager */}
                     <PersonCard
@@ -706,9 +706,9 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                         name={booking.approvedByName ?? null}
                         email={booking.approvedByEmail ?? null}
                         sub={booking.approvedAt ? formatDisplayDate(booking.approvedAt) : undefined}
-                        accentColor={booking.approvedByName ? '#059669' : '#94a3b8'}
-                        accentBg={booking.approvedByName ? '#ecfdf5' : '#f8fafc'}
-                        accentBorder={booking.approvedByName ? '#a7f3d0' : '#e2e8f0'}
+                        accentColor={booking.approvedByName ? '#2563eb' : '#94a3b8'}
+                        accentBg={booking.approvedByName ? '#eff6ff' : '#f8fafc'}
+                        accentBorder={booking.approvedByName ? '#bfdbfe' : '#e2e8f0'}
                         placeholder="Not approved yet"
                     />
                 </div>
@@ -744,9 +744,9 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                         </div>
                     )}
                     {booking.note && (
-                        <div style={{ padding: '12px 16px', background: '#ecfdf5', border: '1px solid #a7f3d0', borderLeft: '4px solid #10b981', borderRadius: 12 }}>
-                            <div style={{ ...labelStyle, color: '#059669', marginBottom: 5 }}><MessageSquare size={12} /> Approval Note</div>
-                            <div style={{ fontSize: '0.83rem', color: '#065f46', lineHeight: 1.6 }}>{booking.note}</div>
+                        <div style={{ padding: '12px 16px', background: '#eff6ff', border: '1px solid #bfdbfe', borderLeft: '4px solid #3b82f6', borderRadius: 12 }}>
+                            <div style={{ ...labelStyle, color: '#2563eb', marginBottom: 5 }}><MessageSquare size={12} /> Approval Note</div>
+                            <div style={{ fontSize: '0.83rem', color: '#1e3a8a', lineHeight: 1.6 }}>{booking.note}</div>
                         </div>
                     )}
                 </div>
@@ -925,20 +925,20 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
 
                 {/* ── Approve form ── */}
                 {showApproveForm && canApproveReject && (
-                    <div style={{ padding: '14px 16px', background: '#f0fdf4', borderBottom: '1px solid #a7f3d0' }}>
-                        <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#059669', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <div style={{ padding: '14px 16px', background: '#eff6ff', borderBottom: '1px solid #bfdbfe' }}>
+                        <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>
                             <CheckCircle2 size={11} /> Approve Booking
                         </div>
                         <textarea
                             autoFocus
                             value={approveNote} onChange={e => setApproveNote(e.target.value)}
                             placeholder="Approval note (optional)..."
-                            style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid #a7f3d0', fontSize: '0.8rem', fontFamily: 'inherit', outline: 'none', minHeight: 52, resize: 'none', background: '#fff', boxSizing: 'border-box', marginBottom: 8 }}
+                            style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid #bfdbfe', fontSize: '0.8rem', fontFamily: 'inherit', outline: 'none', minHeight: 52, resize: 'none', background: '#fff', boxSizing: 'border-box', marginBottom: 8 }}
                         />
                         {bookingResourceIds.length > 0 && (
                             <div style={{ marginBottom: 8 }}>
                                 <button type="button" onClick={() => handleToggleAdjustments(resourceGroups)}
-                                    style={{ fontSize: '0.75rem', fontWeight: 700, color: showAdjustments ? '#059669' : '#64748b', background: showAdjustments ? '#dcfce7' : '#f1f5f9', border: `1px solid ${showAdjustments ? '#a7f3d0' : '#e2e8f0'}`, borderRadius: 8, padding: '4px 12px', cursor: 'pointer' }}>
+                                    style={{ fontSize: '0.75rem', fontWeight: 700, color: showAdjustments ? '#2563eb' : '#64748b', background: showAdjustments ? '#dbeafe' : '#f1f5f9', border: `1px solid ${showAdjustments ? '#bfdbfe' : '#e2e8f0'}`, borderRadius: 8, padding: '4px 12px', cursor: 'pointer' }}>
                                     {showAdjustments ? '− Hide Adjustments' : '+ Adjust Quantities'}
                                 </button>
                                 {showAdjustments && groupKeptQtys && (
@@ -974,7 +974,7 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                         )}
                         <div style={{ display: 'flex', gap: 8 }}>
                             <button onClick={() => handleApprove(resourceGroups)} disabled={actionLoading}
-                                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 16px', borderRadius: 9, border: 'none', background: '#059669', color: '#fff', fontSize: '0.8rem', fontWeight: 700, cursor: actionLoading ? 'not-allowed' : 'pointer', opacity: actionLoading ? 0.7 : 1 }}>
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 16px', borderRadius: 9, border: 'none', background: '#2563eb', color: '#fff', fontSize: '0.8rem', fontWeight: 700, cursor: actionLoading ? 'not-allowed' : 'pointer', opacity: actionLoading ? 0.7 : 1 }}>
                                 {actionLoading ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />} Confirm Approve
                             </button>
                             <button onClick={() => { setShowApproveForm(false); setShowAdjustments(false); setGroupKeptQtys(null); }}
@@ -1009,16 +1009,16 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
 
                 {/* ── Check Out form ── */}
                 {showCheckOutForm && canCheckOut && (
-                    <div style={{ padding: '14px 16px', background: '#eff6ff', borderBottom: '1px solid #bfdbfe' }}>
-                        <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <div style={{ padding: '14px 16px', background: '#f0fdf4', borderBottom: '1px solid #a7f3d0' }}>
+                        <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#059669', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>
                             <LogOut size={11} style={{ transform: 'scaleX(-1)' }} /> Check Out — Record Pickup
                         </div>
                         <textarea autoFocus value={checkOutNote} onChange={e => setCheckOutNote(e.target.value)}
                             placeholder="Note (optional)..."
-                            style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid #bfdbfe', fontSize: '0.8rem', fontFamily: 'inherit', outline: 'none', minHeight: 52, resize: 'none', background: '#fff', boxSizing: 'border-box', marginBottom: 8 }} />
+                            style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid #a7f3d0', fontSize: '0.8rem', fontFamily: 'inherit', outline: 'none', minHeight: 52, resize: 'none', background: '#fff', boxSizing: 'border-box', marginBottom: 8 }} />
                         <div style={{ display: 'flex', gap: 8 }}>
                             <button onClick={handleCheckOut} disabled={actionLoading}
-                                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 16px', borderRadius: 9, border: 'none', background: '#2563eb', color: '#fff', fontSize: '0.8rem', fontWeight: 700, cursor: actionLoading ? 'not-allowed' : 'pointer', opacity: actionLoading ? 0.7 : 1 }}>
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 16px', borderRadius: 9, border: 'none', background: '#059669', color: '#fff', fontSize: '0.8rem', fontWeight: 700, cursor: actionLoading ? 'not-allowed' : 'pointer', opacity: actionLoading ? 0.7 : 1 }}>
                                 {actionLoading ? <Loader2 size={12} className="animate-spin" /> : <LogOut size={12} style={{ transform: 'scaleX(-1)' }} />} Confirm Check Out
                             </button>
                             <button onClick={() => { setShowCheckOutForm(false); setCheckOutNote(''); }}
@@ -1031,16 +1031,16 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
 
                 {/* ── Check In form ── */}
                 {showCheckInForm && canCheckIn && (
-                    <div style={{ padding: '14px 16px', background: '#f0fdf4', borderBottom: '1px solid #a7f3d0' }}>
-                        <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#059669', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <div style={{ padding: '14px 16px', background: '#eff6ff', borderBottom: '1px solid #bfdbfe' }}>
+                        <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>
                             <LogIn size={11} /> Check In — Record Return
                         </div>
                         <textarea autoFocus value={checkInNote} onChange={e => setCheckInNote(e.target.value)}
                             placeholder="Note (optional)..."
-                            style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid #a7f3d0', fontSize: '0.8rem', fontFamily: 'inherit', outline: 'none', minHeight: 52, resize: 'none', background: '#fff', boxSizing: 'border-box', marginBottom: 8 }} />
+                            style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid #bfdbfe', fontSize: '0.8rem', fontFamily: 'inherit', outline: 'none', minHeight: 52, resize: 'none', background: '#fff', boxSizing: 'border-box', marginBottom: 8 }} />
                         <div style={{ display: 'flex', gap: 8 }}>
                             <button onClick={handleCheckIn} disabled={actionLoading}
-                                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 16px', borderRadius: 9, border: 'none', background: '#059669', color: '#fff', fontSize: '0.8rem', fontWeight: 700, cursor: actionLoading ? 'not-allowed' : 'pointer', opacity: actionLoading ? 0.7 : 1 }}>
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 16px', borderRadius: 9, border: 'none', background: '#2563eb', color: '#fff', fontSize: '0.8rem', fontWeight: 700, cursor: actionLoading ? 'not-allowed' : 'pointer', opacity: actionLoading ? 0.7 : 1 }}>
                                 {actionLoading ? <Loader2 size={12} className="animate-spin" /> : <LogIn size={12} />} Confirm Check In
                             </button>
                             <button onClick={() => { setShowCheckInForm(false); setCheckInNote(''); }}
@@ -1081,17 +1081,17 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                                 icon={actionLoading ? <Loader2 size={14} className="animate-spin" /> : <Server size={14} />} label="Provision Server" />
                         )}
                         {!anyFormOpen && canCheckOut && (
-                            <FooterBtn onClick={() => setShowCheckOutForm(true)} variant="primary" color="#2563eb" shadow="rgba(37,99,235,0.22)"
+                            <FooterBtn onClick={() => setShowCheckOutForm(true)} variant="primary" color="#059669" shadow="rgba(5,150,105,0.22)"
                                 icon={<LogOut size={14} style={{ transform: 'scaleX(-1)' }} />} label="Check Out" />
                         )}
                         {!anyFormOpen && canCheckIn && (
-                            <FooterBtn onClick={() => setShowCheckInForm(true)} variant="primary" color="#059669" shadow="rgba(5,150,105,0.22)"
+                            <FooterBtn onClick={() => setShowCheckInForm(true)} variant="primary" color="#2563eb" shadow="rgba(37,99,235,0.22)"
                                 icon={<LogIn size={14} />} label="Check In" />
                         )}
                         {!anyFormOpen && canApproveReject && (
                             <>
                                 <FooterBtn onClick={() => { setShowApproveForm(true); setShowRejectForm(false); setShowCancelForm(false); setShowAdjustForm(false); }}
-                                    variant="primary" color="#059669" shadow="rgba(5,150,105,0.22)"
+                                    variant="primary" color="#2563eb" shadow="rgba(37,99,235,0.22)"
                                     icon={<CheckCircle2 size={14} />} label="Approve" />
                                 <FooterBtn onClick={() => { setShowAdjustForm(true); openAdjustForm(resourceGroups); setShowApproveForm(false); setShowRejectForm(false); setShowCancelForm(false); }}
                                     variant="outline" color="#ea580c" borderColor="#fed7aa"

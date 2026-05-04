@@ -75,7 +75,7 @@ const UserManagement: React.FC = () => {
 
     // Pagination
     const [pageIndex, setPageIndex] = useState(1);
-    const [pageSize, setPageSize] = useState(10);
+    const [pageSize, _setPageSize] = useState(10);
 
     const showToast = (message: string, type: 'success' | 'error' = 'success') => {
         addToast(message, type);

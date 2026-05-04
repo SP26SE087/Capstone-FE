@@ -16,6 +16,7 @@ import InviteMemberForm from './components/InviteMemberForm';
 import FaceScannerModal from './FaceScannerModal';
 import CheckLogPanel from './CheckLogPanel';
 import UserProjectsPanel from './UserProjectsPanel';
+import UserLabTimePanel from './UserLabTimePanel';
 import { SystemRoleEnum, SystemRoleMap } from '@/types/enums';
 import { useToastStore } from '@/store/slices/toastSlice';
 
@@ -32,6 +33,7 @@ const Members: React.FC = () => {
     const [faceScanData, setFaceScanData] = useState<{ studentId: string; userName: string } | null>(null);
     const [checkLogData, setCheckLogData] = useState<{ email: string; studentId: string; userName: string } | null>(null);
     const [projectPanelData, setProjectPanelData] = useState<{ email: string; userName: string } | null>(null);
+    const [labTimePanelData, setLabTimePanelData] = useState<{ userId: string; userName: string } | null>(null);
     const [studentSearchResult, setStudentSearchResult] = useState<any | null>(null);
     const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -118,6 +120,7 @@ const Members: React.FC = () => {
     const isSidePanelOpen = isInviteFormOpen || Boolean(selectedUserId);
     const isCheckLogOpen = Boolean(checkLogData);
     const isProjectPanelOpen = Boolean(projectPanelData);
+    const isLabTimePanelOpen = Boolean(labTimePanelData);
 
     const handleMemberClick = (userId: string) => {
         setSelectedUserId(userId);
@@ -204,10 +207,10 @@ const Members: React.FC = () => {
                 }}>
                     {/* Left Column: Members List */}
                     <div style={{
-                        flex: (isCheckLogOpen || isProjectPanelOpen) ? '0 0 0' : (!isSidePanelOpen ? '1' : '0 0 60%'),
-                        maxWidth: (isCheckLogOpen || isProjectPanelOpen) ? '0' : (!isSidePanelOpen ? '100%' : '60%'),
-                        opacity: (isCheckLogOpen || isProjectPanelOpen) ? 0 : 1,
-                        visibility: (isCheckLogOpen || isProjectPanelOpen) ? 'hidden' : 'visible',
+                        flex: (isCheckLogOpen || isProjectPanelOpen || isLabTimePanelOpen) ? '0 0 0' : (!isSidePanelOpen ? '1' : '0 0 60%'),
+                        maxWidth: (isCheckLogOpen || isProjectPanelOpen || isLabTimePanelOpen) ? '0' : (!isSidePanelOpen ? '100%' : '60%'),
+                        opacity: (isCheckLogOpen || isProjectPanelOpen || isLabTimePanelOpen) ? 0 : 1,
+                        visibility: (isCheckLogOpen || isProjectPanelOpen || isLabTimePanelOpen) ? 'hidden' : 'visible',
                         overflow: 'hidden',
                         transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
                         minWidth: 0
@@ -354,8 +357,8 @@ const Members: React.FC = () => {
 
                     {/* Middle Column: User detail / Invite form */}
                     <div style={{
-                        flex: isSidePanelOpen ? ((isCheckLogOpen || isProjectPanelOpen) ? '0 0 38%' : '0 0 40%') : '0 0 0',
-                        maxWidth: isSidePanelOpen ? ((isCheckLogOpen || isProjectPanelOpen) ? '38%' : '40%') : '0',
+                        flex: isSidePanelOpen ? ((isCheckLogOpen || isProjectPanelOpen || isLabTimePanelOpen) ? '0 0 38%' : '0 0 40%') : '0 0 0',
+                        maxWidth: isSidePanelOpen ? ((isCheckLogOpen || isProjectPanelOpen || isLabTimePanelOpen) ? '38%' : '40%') : '0',
                         transform: isSidePanelOpen ? 'translateX(0)' : 'translateX(50px)',
                         opacity: isSidePanelOpen ? 1 : 0,
                         visibility: isSidePanelOpen ? 'visible' : 'hidden',
@@ -377,7 +380,7 @@ const Members: React.FC = () => {
                                 systemRoleMap={SystemRoleMap}
                                 currentUserId={user.userId}
                                 currentUserEmail={user.email}
-                                onClose={() => { setSelectedUserId(null); setCheckLogData(null); setProjectPanelData(null); }}
+                                onClose={() => { setSelectedUserId(null); setCheckLogData(null); setProjectPanelData(null); setLabTimePanelData(null); }}
                                 onCheckLog={(email, studentId, userName) => {
                                     setProjectPanelData(null);
                                     if (isCheckLogOpen && checkLogData?.email === email) {
@@ -396,6 +399,16 @@ const Members: React.FC = () => {
                                     }
                                 }}
                                 isProjectPanelOpen={isProjectPanelOpen}
+                                onLabTime={(userId, userName) => {
+                                    setCheckLogData(null);
+                                    setProjectPanelData(null);
+                                    if (isLabTimePanelOpen && labTimePanelData?.userId === userId) {
+                                        setLabTimePanelData(null);
+                                    } else {
+                                        setLabTimePanelData({ userId, userName });
+                                    }
+                                }}
+                                isLabTimePanelOpen={isLabTimePanelOpen}
                                 isLabDirector={isLabDirector}
                                 onUpdated={async () => {
                                     const fresh = await fetchMembers();
@@ -417,19 +430,20 @@ const Members: React.FC = () => {
                                     setSelectedUserId(null);
                                     setCheckLogData(null);
                                     setProjectPanelData(null);
+                                    setLabTimePanelData(null);
                                     fetchMembers();
                                 }}
                             />
                         )}
                     </div>
 
-                    {/* Right Column: Check Log / Projects panel */}
+                    {/* Right Column: Check Log / Projects / Lab Time panel */}
                     <div style={{
-                        flex: (isCheckLogOpen || isProjectPanelOpen) ? '0 0 62%' : '0 0 0',
-                        maxWidth: (isCheckLogOpen || isProjectPanelOpen) ? '62%' : '0',
-                        transform: (isCheckLogOpen || isProjectPanelOpen) ? 'translateX(0)' : 'translateX(50px)',
-                        opacity: (isCheckLogOpen || isProjectPanelOpen) ? 1 : 0,
-                        visibility: (isCheckLogOpen || isProjectPanelOpen) ? 'visible' : 'hidden',
+                        flex: (isCheckLogOpen || isProjectPanelOpen || isLabTimePanelOpen) ? '0 0 62%' : '0 0 0',
+                        maxWidth: (isCheckLogOpen || isProjectPanelOpen || isLabTimePanelOpen) ? '62%' : '0',
+                        transform: (isCheckLogOpen || isProjectPanelOpen || isLabTimePanelOpen) ? 'translateX(0)' : 'translateX(50px)',
+                        opacity: (isCheckLogOpen || isProjectPanelOpen || isLabTimePanelOpen) ? 1 : 0,
+                        visibility: (isCheckLogOpen || isProjectPanelOpen || isLabTimePanelOpen) ? 'visible' : 'hidden',
                         transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                         zIndex: 10,
                         minWidth: 0
@@ -448,6 +462,13 @@ const Members: React.FC = () => {
                                 email={projectPanelData.email}
                                 userName={projectPanelData.userName}
                                 onClose={() => setProjectPanelData(null)}
+                            />
+                        )}
+                        {labTimePanelData && (
+                            <UserLabTimePanel
+                                userId={labTimePanelData.userId}
+                                userName={labTimePanelData.userName}
+                                onClose={() => setLabTimePanelData(null)}
                             />
                         )}
                     </div>

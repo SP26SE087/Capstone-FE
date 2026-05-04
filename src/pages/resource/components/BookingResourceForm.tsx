@@ -95,8 +95,7 @@ function computeAvailableForWindow(
 
 // ─── Icons & labels ───────────────────────────────────────────────────────────
 function getResourceCategoryIcon(resource: Resource): React.ReactNode {
-    if (resource.resourceTypeCategory === 2 ||
-        (resource.resourceTypeName ?? '').toLowerCase().includes('compute') ||
+    if ((resource.resourceTypeName ?? '').toLowerCase().includes('compute') ||
         (resource.resourceTypeName ?? '').toLowerCase().includes('server') ||
         (resource.resourceTypeName ?? '').toLowerCase().includes('gpu')) {
         return <Cpu size={13} />;
@@ -106,7 +105,7 @@ function getResourceCategoryIcon(resource: Resource): React.ReactNode {
 
 function getResourceCategoryStyle(resource: Resource, inCart: boolean): { bg: string; color: string } {
     if (inCart) return { bg: '#e0e7ff', color: '#4f46e5' };
-    const isCompute = resource.resourceTypeCategory === 2 ||
+    const isCompute =
         (resource.resourceTypeName ?? '').toLowerCase().includes('compute') ||
         (resource.resourceTypeName ?? '').toLowerCase().includes('server') ||
         (resource.resourceTypeName ?? '').toLowerCase().includes('gpu');
@@ -213,17 +212,14 @@ const BookingResourceForm: React.FC<BookingResourceFormProps> = ({
             : resources;
         if (categoryFilter === 'compute') {
             list = list.filter(r =>
-                r.resourceTypeCategory === 2 ||
                 (r.resourceTypeName ?? '').toLowerCase().includes('compute') ||
                 (r.resourceTypeName ?? '').toLowerCase().includes('server') ||
                 (r.resourceTypeName ?? '').toLowerCase().includes('gpu'));
         } else if (categoryFilter === 'physical') {
             list = list.filter(r =>
-                r.resourceTypeCategory === 1 ||
-                (r.resourceTypeCategory === undefined && !(
-                    (r.resourceTypeName ?? '').toLowerCase().includes('compute') ||
+                !((r.resourceTypeName ?? '').toLowerCase().includes('compute') ||
                     (r.resourceTypeName ?? '').toLowerCase().includes('server') ||
-                    (r.resourceTypeName ?? '').toLowerCase().includes('gpu'))));
+                    (r.resourceTypeName ?? '').toLowerCase().includes('gpu')));
         }
         return list;
     }, [resources, search, categoryFilter]);

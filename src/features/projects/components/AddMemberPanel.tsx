@@ -104,7 +104,7 @@ const AddMemberPanel: React.FC<AddMemberPanelProps> = ({
 
     const filteredUsers = allUsers.filter(u => {
         const role = Number(u.role);
-        if (role === 1 || role === 2) return false; // skip Admin & Lab Director system roles
+        if (role === 1) return false; // skip Admin system role
         if (u.isActive === false) return false; // skip inactive users
         const q = userSearchQuery.toLowerCase();
         return (
@@ -130,6 +130,13 @@ const AddMemberPanel: React.FC<AddMemberPanelProps> = ({
     // Map system role → project role by name (API IDs may be GUIDs, not numeric enums)
     const resolveProjectRoleForUser = (user: any): string | null => {
         const sysRole = Number(user.role);
+        if (sysRole === 2) {
+            // Lab Director system role → Lab Director project role
+            const matched = roles.find((r: any) =>
+                r.name === 'Lab Director' || Number(r.id) === ProjectRoleEnum.LabDirector
+            );
+            if (matched) return matched.id;
+        }
         const targetName = sysRole === 3 ? 'Senior Researcher' : 'Member';
         const matched = roles.find((r: any) =>
             r.name === targetName ||
