@@ -21,7 +21,11 @@ import {
     AlertTriangle,
     Clock,
     FlaskConical,
-    List
+    List,
+    Upload,
+    Download,
+    Copy,
+    FileDown
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import ResearchFieldManager from '@/features/projects/components/ResearchFieldManager';
@@ -70,6 +74,17 @@ const Projects: React.FC = () => {
     const [newFieldValue, setNewFieldValue] = useState('');
     const todayVn = getVietnamDateInputValue();
 
+    // Import
+    const importInputRef = React.useRef<HTMLInputElement>(null);
+    const [importLoading, setImportLoading] = useState(false);
+    const [importErrors, setImportErrors] = useState<string[]>([]);
+
+    // Clone modal
+    const [cloneProjectId, setCloneProjectId] = useState<string | null>(null);
+    const [cloneName, setCloneName] = useState('');
+    const [cloneStartDate, setCloneStartDate] = useState('');
+    const [cloneLoading, setCloneLoading] = useState(false);
+
     const inputStyle: React.CSSProperties = {
         width: '100%',
         padding: '10px 14px',
@@ -117,6 +132,56 @@ const Projects: React.FC = () => {
             console.error('Failed to fetch projects:', error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        e.target.value = '';
+        setImportLoading(true);
+        try {
+            const result = await projectService.importProjects(file);
+            const errors: string[] = result.errors ?? [];
+            if (errors.length > 0) {
+                setImportErrors(errors);
+            } else {
+                addToast(`Imported ${result.projectsCreated ?? 0} project(s) successfully.`, 'success');
+                await fetchProjects();
+            }
+        } catch (err: any) {
+            addToast(err?.response?.data?.message || err.message || 'Import failed.', 'error');
+        } finally {
+            setImportLoading(false);
+        }
+    };
+
+    const handleExport = (projectId: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        projectService.exportProject(projectId).catch(() =>
+            addToast('Export failed.', 'error')
+        );
+    };
+
+    const openClone = (project: Project, e: React.MouseEvent) => {
+        e.stopPropagation();
+        setCloneProjectId(project.projectId);
+        setCloneName(`${project.projectName || ''} (Copy)`);
+        setCloneStartDate(todayVn);
+    };
+
+    const handleClone = async () => {
+        if (!cloneProjectId || !cloneName.trim() || !cloneStartDate) return;
+        setCloneLoading(true);
+        try {
+            await projectService.cloneProject(cloneProjectId, cloneName.trim(), cloneStartDate);
+            addToast('Project cloned successfully.', 'success');
+            setCloneProjectId(null);
+            await fetchProjects();
+        } catch (err: any) {
+            addToast(err?.response?.data?.message || err.message || 'Clone failed.', 'error');
+        } finally {
+            setCloneLoading(false);
         }
     };
 
@@ -214,6 +279,42 @@ const Projects: React.FC = () => {
                             >
                                 <FlaskConical size={18} />
                                 <span style={{ fontSize: '0.82rem', fontWeight: 700 }}>Research Fields</span>
+                            </button>
+                            {/* Download template */}
+                            <button
+                                onClick={() => projectService.downloadTemplate()}
+                                title="Download blank Excel import template"
+                                style={{
+                                    padding: '0.65rem 0.9rem', borderRadius: '12px', fontWeight: 600,
+                                    border: '1.5px solid #64748b', background: 'var(--surface-color)',
+                                    color: '#475569', cursor: 'pointer',
+                                    display: 'flex', alignItems: 'center', gap: '0.45rem',
+                                    transition: 'all 0.15s',
+                                }}
+                                onMouseEnter={e => { e.currentTarget.style.borderColor = '#334155'; e.currentTarget.style.color = '#1e293b'; }}
+                                onMouseLeave={e => { e.currentTarget.style.borderColor = '#64748b'; e.currentTarget.style.color = '#475569'; }}
+                            >
+                                <FileDown size={17} />
+                                <span style={{ fontSize: '0.82rem' }}>Template</span>
+                            </button>
+                            {/* Import Excel */}
+                            <input ref={importInputRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleImport} />
+                            <button
+                                onClick={() => importInputRef.current?.click()}
+                                disabled={importLoading}
+                                title="Import projects from Excel"
+                                style={{
+                                    padding: '0.65rem 0.9rem', borderRadius: '12px', fontWeight: 600,
+                                    border: '1.5px solid #6366f1', background: 'var(--surface-color)',
+                                    color: '#4f46e5', cursor: importLoading ? 'not-allowed' : 'pointer',
+                                    display: 'flex', alignItems: 'center', gap: '0.45rem',
+                                    transition: 'all 0.15s', opacity: importLoading ? 0.6 : 1,
+                                }}
+                                onMouseEnter={e => { if (!importLoading) { e.currentTarget.style.borderColor = '#4338ca'; e.currentTarget.style.color = '#3730a3'; }}}
+                                onMouseLeave={e => { e.currentTarget.style.borderColor = '#6366f1'; e.currentTarget.style.color = '#4f46e5'; }}
+                            >
+                                <Upload size={17} />
+                                <span style={{ fontSize: '0.82rem' }}>{importLoading ? 'Importing…' : 'Import'}</span>
                             </button>
                             <button
                                 onClick={openPanel}
@@ -339,6 +440,24 @@ const Projects: React.FC = () => {
                                                             <span style={{ background: 'var(--accent-bg)', color: 'var(--accent-color)', padding: '3px 9px', borderRadius: '6px', fontSize: '0.65rem', fontWeight: 700 }}>
                                                                 {project.roleName}
                                                             </span>
+                                                        )}
+                                                        {isLabDirector && (
+                                                            <>
+                                                                <button
+                                                                    title="Export to Excel"
+                                                                    onClick={e => handleExport(project.projectId, e)}
+                                                                    style={{ display: 'flex', alignItems: 'center', gap: '3px', padding: '3px 8px', borderRadius: '6px', border: '1px solid #d1fae5', background: '#f0fdf4', color: '#16a34a', cursor: 'pointer', fontSize: '0.65rem', fontWeight: 700 }}
+                                                                >
+                                                                    <Download size={11} /> Export
+                                                                </button>
+                                                                <button
+                                                                    title="Clone project"
+                                                                    onClick={e => openClone(project, e)}
+                                                                    style={{ display: 'flex', alignItems: 'center', gap: '3px', padding: '3px 8px', borderRadius: '6px', border: '1px solid #e0e7ff', background: '#eef2ff', color: '#4f46e5', cursor: 'pointer', fontSize: '0.65rem', fontWeight: 700 }}
+                                                                >
+                                                                    <Copy size={11} /> Clone
+                                                                </button>
+                                                            </>
                                                         )}
                                                     </div>
                                                 </div>
@@ -596,6 +715,86 @@ const Projects: React.FC = () => {
                     <ResearchFieldManager open={showResearchPanel} onClose={() => setShowResearchPanel(false)} />
                 )}
             </div>
+
+            {/* ── Clone project modal ── */}
+            {cloneProjectId && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(4px)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+                    <div style={{ background: '#fff', borderRadius: '16px', padding: '24px', width: '100%', maxWidth: '420px', boxShadow: '0 20px 60px rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <Copy size={18} style={{ color: '#4f46e5' }} />
+                                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>Clone Project</h3>
+                            </div>
+                            <button onClick={() => setCloneProjectId(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={18} /></button>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            <div>
+                                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                    New Project Name <span style={{ color: '#ef4444' }}>*</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    className="form-input"
+                                    value={cloneName}
+                                    onChange={e => setCloneName(e.target.value)}
+                                    placeholder="e.g. My Project (Copy)"
+                                    style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', fontSize: '0.9rem' }}
+                                />
+                            </div>
+                            <div>
+                                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                    New Start Date <span style={{ color: '#ef4444' }}>*</span>
+                                </label>
+                                <input
+                                    type="date"
+                                    className="form-input"
+                                    value={cloneStartDate}
+                                    onChange={e => setCloneStartDate(e.target.value)}
+                                    style={{ width: '100%', padding: '9px 12px', borderRadius: '9px', fontSize: '0.9rem' }}
+                                />
+                            </div>
+                            <p style={{ margin: 0, fontSize: '0.78rem', color: '#64748b', lineHeight: 1.5 }}>
+                                All milestones and tasks will be cloned with dates shifted proportionally from the new start date.
+                            </p>
+                        </div>
+                        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                            <button onClick={() => setCloneProjectId(null)} className="btn btn-secondary" style={{ padding: '8px 16px', fontSize: '0.875rem' }}>Cancel</button>
+                            <button
+                                onClick={handleClone}
+                                disabled={cloneLoading || !cloneName.trim() || !cloneStartDate}
+                                className="btn btn-primary"
+                                style={{ padding: '8px 16px', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+                            >
+                                {cloneLoading ? <><Save size={15} style={{ animation: 'spin 1s linear infinite' }} /> Cloning…</> : <><Copy size={15} /> Clone Project</>}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Import errors modal ── */}
+            {importErrors.length > 0 && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(4px)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+                    <div style={{ background: '#fff', borderRadius: '16px', padding: '24px', width: '100%', maxWidth: '520px', boxShadow: '0 20px 60px rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <AlertTriangle size={18} style={{ color: '#ef4444' }} />
+                                <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#ef4444' }}>Import Failed</h3>
+                            </div>
+                            <button onClick={() => setImportErrors([])} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={18} /></button>
+                        </div>
+                        <p style={{ margin: 0, fontSize: '0.85rem', color: '#64748b' }}>The import was rolled back due to the following errors. Fix them in your Excel file and try again.</p>
+                        <ul style={{ margin: 0, padding: '0 0 0 18px', display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '260px', overflowY: 'auto' }}>
+                            {importErrors.map((err, i) => (
+                                <li key={i} style={{ fontSize: '0.82rem', color: '#dc2626' }}>{err}</li>
+                            ))}
+                        </ul>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                            <button onClick={() => setImportErrors([])} className="btn btn-secondary" style={{ padding: '8px 20px' }}>Close</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </MainLayout>
     );
 };
