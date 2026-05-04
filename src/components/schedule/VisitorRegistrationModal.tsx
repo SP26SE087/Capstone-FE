@@ -208,7 +208,10 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
             fd.append('email', form.Email.trim());
             fd.append('contactorEmail', form.ContactEmail.trim());
             fd.append('appointmentDateTime', new Date(form.AppointmentDateTime).toISOString());
-            fd.append('photo', photo!);
+            const safeName = form.FullName.trim().replace(/\s+/g, '_');
+            const safeDate = new Date(form.AppointmentDateTime).toISOString().slice(0, 16).replace(/:/g, '-');
+            const photoExt = photo!.name.split('.').pop() || 'jpg';
+            fd.append('photo', photo!, `${safeName}_${safeDate}.${photoExt}`);
             fd.append('cccdImage', cccdImage!);
             await visitorRegistrationService.create(fd);
             setSuccess(true);
