@@ -13,8 +13,10 @@ interface Props {
 interface FormState {
     FullName: string;
     Email: string;
+    PhoneNumber: string;
     ContactEmail: string;
     AppointmentDateTime: string;
+    Notes: string;
 }
 
 const ACCEPTED = 'image/jpeg,image/jpg,image/png,image/webp';
@@ -23,9 +25,14 @@ const MAX_SIZE = 10 * 1024 * 1024; // 10 MB
 const emptyForm: FormState = {
     FullName: '',
     Email: '',
+    PhoneNumber: '',
     ContactEmail: '',
     AppointmentDateTime: '',
+    Notes: '',
 };
+
+const PHONE_REGEX = /^(\+[1-9]\d{6,14}|0\d{9})$/;
+const PHONE_ERROR = 'Phone number must be in international format (+84...) or Vietnamese local format (0xxxxxxxxx).';
 
 const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
     const [form, setForm] = useState<FormState>(emptyForm);
@@ -185,12 +192,15 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
         const newErrors: typeof errors = {};
         if (!form.FullName.trim()) newErrors.FullName = 'Full name is required';
         if (!form.Email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.Email)) newErrors.Email = 'Invalid email address';
+        if (!form.PhoneNumber.trim()) newErrors.PhoneNumber = 'Phone number is required';
+        else if (!PHONE_REGEX.test(form.PhoneNumber.trim())) newErrors.PhoneNumber = PHONE_ERROR;
         if (!form.ContactEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.ContactEmail)) newErrors.ContactEmail = 'Invalid contact email address';
         if (!form.AppointmentDateTime) {
             newErrors.AppointmentDateTime = 'Please select an appointment date & time';
         } else if (new Date(form.AppointmentDateTime) <= new Date()) {
             newErrors.AppointmentDateTime = 'Appointment must be in the future';
         }
+        if (form.Notes.length > 1000) newErrors.Notes = 'Notes must not exceed 1000 characters';
         if (!photo) newErrors.photo = 'Please upload your photo';
         if (!cccdImage) newErrors.cccdImage = 'Please upload your ID card photo';
         setErrors(newErrors);
@@ -204,8 +214,10 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
             const fd = new FormData();
             fd.append('fullName', form.FullName.trim());
             fd.append('email', form.Email.trim());
+            fd.append('phoneNumber', form.PhoneNumber.trim());
             fd.append('contactorEmail', form.ContactEmail.trim());
             fd.append('appointmentDateTime', new Date(form.AppointmentDateTime).toISOString());
+            if (form.Notes.trim()) fd.append('notes', form.Notes.trim());
             const safeName = form.FullName.trim().replace(/\s+/g, '_');
             const safeDate = new Date(form.AppointmentDateTime).toISOString().slice(0, 16).replace(/:/g, '-');
             const photoExt = photo!.name.split('.').pop() || 'jpg';
@@ -327,6 +339,13 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                             {errors.Email && <p style={errorStyle}>{errors.Email}</p>}
                         </div>
 
+                        {/* Phone Number */}
+                        <div>
+                            <label style={labelStyle}>Phone Number <span style={{ color: '#e11d48' }}>*</span></label>
+                            <input name="PhoneNumber" type="tel" value={form.PhoneNumber} onChange={handleChange} style={inputStyle(errors.PhoneNumber)} placeholder="0912345678 or +84912345678" maxLength={16} />
+                            {errors.PhoneNumber && <p style={errorStyle}>{errors.PhoneNumber}</p>}
+                        </div>
+
                         {/* Contact Email — select only */}
                         <div ref={contactorRef} style={{ position: 'relative' }}>
                             <label style={labelStyle}>Lab Member <span style={{ color: '#e11d48' }}>*</span></label>
@@ -432,6 +451,22 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                             <label style={labelStyle}>Appointment Date & Time <span style={{ color: '#e11d48' }}>*</span></label>
                             <input name="AppointmentDateTime" type="datetime-local" value={form.AppointmentDateTime} onChange={handleChange} style={inputStyle(errors.AppointmentDateTime)} min={new Date(Date.now() + 60_000).toISOString().slice(0, 16)} />
                             {errors.AppointmentDateTime && <p style={errorStyle}>{errors.AppointmentDateTime}</p>}
+                        </div>
+
+                        {/* Notes */}
+                        <div>
+                            <label style={labelStyle}>Notes <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(optional)</span></label>
+                            <textarea
+                                name="Notes"
+                                value={form.Notes}
+                                onChange={e => { setForm(prev => ({ ...prev, Notes: e.target.value })); if (errors.Notes) setErrors(prev => ({ ...prev, Notes: undefined })); }}
+                                placeholder="Any additional information..."
+                                maxLength={1000}
+                                rows={3}
+                                style={{ ...inputStyle(errors.Notes), resize: 'none', height: 'auto' }}
+                            />
+                            <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '2px 0 0', textAlign: 'right' }}>{form.Notes.length}/1000</p>
+                            {errors.Notes && <p style={errorStyle}>{errors.Notes}</p>}
                         </div>
 
                         <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>

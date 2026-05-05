@@ -245,13 +245,15 @@ const VisitorRegistrations: React.FC = () => {
     const cSelectMember = (m: any) => { setCSelectedMember(m); setCForm(p => ({ ...p, fullName: m.fullName || '', email: m.email || '', phone: m.phoneNumber || m.phone || '' })); setCFormErrors({}); setCMemberOpen(false); setCMemberSearch(''); };
 
     const PHONE_REGEX = /^(\+[1-9]\d{6,14}|0\d{9})$/;
+    const PHONE_ERROR = 'Phone number must be in international format (+84...) or Vietnamese local format (0xxxxxxxxx).';
 
     const cValidate = (): boolean => {
         const errs: { fullName?: string; email?: string; phone?: string } = {};
         if (cFormMode === 'member' && !cEditTarget) {
             if (!cSelectedMember) { setCFormError('Please select a lab member.'); return false; }
             if (!cForm.phone.trim()) errs.phone = 'Phone is required';
-            else if (!PHONE_REGEX.test(cForm.phone.trim())) errs.phone = 'Invalid phone number (e.g. 0912345678 or +84912345678)';
+            else if (cForm.phone.trim().length > 20) errs.phone = 'Phone number must not exceed 20 characters';
+            else if (!PHONE_REGEX.test(cForm.phone.trim())) errs.phone = PHONE_ERROR;
         } else {
             if (!cForm.fullName.trim()) errs.fullName = 'Full name is required';
             else if (cForm.fullName.length > 255) errs.fullName = 'Max 255 characters';
@@ -260,7 +262,8 @@ const VisitorRegistrations: React.FC = () => {
                 else if (cForm.email.length > 255) errs.email = 'Max 255 characters';
             }
             if (!cForm.phone.trim()) errs.phone = 'Phone is required';
-            else if (!PHONE_REGEX.test(cForm.phone.trim())) errs.phone = 'Invalid phone number (e.g. 0912345678 or +84912345678)';
+            else if (cForm.phone.trim().length > 20) errs.phone = 'Phone number must not exceed 20 characters';
+            else if (!PHONE_REGEX.test(cForm.phone.trim())) errs.phone = PHONE_ERROR;
         }
         setCFormErrors(errs);
         return Object.keys(errs).length === 0;
@@ -281,6 +284,7 @@ const VisitorRegistrations: React.FC = () => {
         } catch (err: any) {
             const code = err?.response?.data?.messageCode || err?.response?.data?.MessageCode;
             if (code === 'US040') setCFormError('This email already exists in the contactor list.');
+            else if (err?.response?.status === 404) setCFormError('This email does not belong to any lab member.');
             else setCFormError('An error occurred. Please try again.');
         } finally { setCFormSubmitting(false); }
     };
@@ -827,12 +831,13 @@ const VisitorRegistrations: React.FC = () => {
                                     onChange={e => {
                                         const v = e.target.value;
                                         setCForm(p => ({ ...p, phone: v }));
-                                        if (v.trim() && !PHONE_REGEX.test(v.trim()))
-                                            setCFormErrors(p => ({ ...p, phone: 'Invalid phone number (e.g. 0912345678 or +84912345678)' }));
+                                        if (v.trim() && (v.trim().length > 20 || !PHONE_REGEX.test(v.trim())))
+                                            setCFormErrors(p => ({ ...p, phone: PHONE_ERROR }));
                                         else
                                             setCFormErrors(p => ({ ...p, phone: undefined }));
                                     }}
                                     placeholder="e.g. 0912345678 or +84912345678"
+                                    maxLength={20}
                                     style={{
                                         width: '100%', padding: '0.5rem 0.75rem', border: `1px solid ${cFormErrors.phone ? '#dc2626' : 'var(--border-color)'}`,
                                         borderRadius: 'var(--radius-sm)', fontSize: '0.85rem', outline: 'none', boxSizing: 'border-box',
