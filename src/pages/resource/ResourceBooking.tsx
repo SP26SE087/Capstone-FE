@@ -32,7 +32,8 @@ import {
     Activity,
     RotateCcw,
     Box,
-    Cpu
+    Cpu,
+    Server
 } from 'lucide-react';
 
 import ResourceListView from './components/ResourceListView';
@@ -47,13 +48,14 @@ import ConfirmModal from '@/components/common/ConfirmModal';
 import CalendarView from './views/CalendarView';
 import TimelineView from './views/TimelineView';
 import WorkspaceView from './views/WorkspaceView';
+import { ComputeServerContent } from '@/pages/admin/ComputeServerAdmin';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type BookingVariant = 'calendar' | 'timeline' | 'workspace' | 'management';
 type MainTab = 'resources' | 'bookings' | 'logs';
-type ResourceSubTab = 'all' | 'my_managed' | 'types';
+type ResourceSubTab = 'all' | 'my_managed' | 'types' | 'servers';
 type BookingSubTab = 'my' | 'all' | 'managed';
-type TabType = 'resources' | 'my_managed' | 'my_bookings' | 'all_bookings' | 'managed_bookings' | 'equipment_logs' | 'resource_types';
+type TabType = 'resources' | 'my_managed' | 'my_bookings' | 'all_bookings' | 'managed_bookings' | 'equipment_logs' | 'resource_types' | 'compute_servers';
 
 interface ActivePanel {
     id: string;
@@ -91,6 +93,7 @@ const ResourceBooking: React.FC = () => {
         if (mainTab === 'resources') {
             if (resourceSubTab === 'my_managed') return 'my_managed';
             if (resourceSubTab === 'types') return 'resource_types';
+            if (resourceSubTab === 'servers') return 'compute_servers';
             return 'resources';
         }
         if (mainTab === 'bookings') {
@@ -534,6 +537,7 @@ const ResourceBooking: React.FC = () => {
     const isBookingTab = activeTab === 'my_bookings' || activeTab === 'all_bookings' || activeTab === 'managed_bookings';
     const isLogTab = activeTab === 'equipment_logs';
     const isResourceTypeTab = activeTab === 'resource_types';
+    const isServerTab = activeTab === 'compute_servers';
 
     const displayResourceTypes = useMemo(() => resourceTypes.filter(rt => {
         const q = searchQuery.toLowerCase();
@@ -824,6 +828,11 @@ const ResourceBooking: React.FC = () => {
                                                         <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><Layers size={12} /> Resource Types</span>
                                                     </button>
                                                 )}
+                                                {isLabDirector && (
+                                                    <button style={pillStyle(resourceSubTab === 'servers', meta.color)} onClick={() => switchResourceSubTab('servers')}>
+                                                        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><Server size={12} /> Compute Servers</span>
+                                                    </button>
+                                                )}
                                             </>
                                         )}
                                         {mainTab === 'bookings' && (
@@ -863,7 +872,7 @@ const ResourceBooking: React.FC = () => {
                                                 color: '#fff', cursor: 'pointer', boxShadow: `0 2px 6px ${meta.color}55`
                                             }}><Plus size={14} /> New Type</button>
                                         )}
-                                        {mainTab === 'resources' && !isResourceTypeTab && isLabDirector && (
+                                        {mainTab === 'resources' && !isResourceTypeTab && !isServerTab && isLabDirector && (
                                             <button onClick={handleCreateResource} style={{
                                                 display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700,
                                                 padding: '0 14px', height: '32px', borderRadius: '8px', fontSize: '0.8rem',
@@ -871,7 +880,7 @@ const ResourceBooking: React.FC = () => {
                                                 color: '#fff', cursor: 'pointer', boxShadow: `0 2px 6px ${meta.color}55`
                                             }}><Plus size={14} /> Add Resource</button>
                                         )}
-                                        {mainTab === 'bookings' && (
+                                        {mainTab === 'resources' && !isResourceTypeTab && !isServerTab && (
                                             <button onClick={() => handleCreateBooking()} style={{
                                                 display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700,
                                                 padding: '0 14px', height: '32px', borderRadius: '8px', fontSize: '0.8rem',
@@ -886,7 +895,7 @@ const ResourceBooking: React.FC = () => {
                     );
                 })()}
                 {/* Search + filter toolbar + stats in one row */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginBottom: '1rem', flexWrap: 'wrap' as const }}>
+                {!isServerTab && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginBottom: '1rem', flexWrap: 'wrap' as const }}>
                     {/* Left: stats chips */}
                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' as const }}>
                         {isResourceTab && !isResourceTypeTab && [
@@ -994,7 +1003,7 @@ const ResourceBooking: React.FC = () => {
                         Refresh
                     </button>
                     </div>
-                </div>
+                </div>}
                 {/* ── Breadcrumb when panel open ── */}
                 {activePanel && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '0.75rem', fontSize: '0.78rem', fontWeight: 600 }}>
@@ -1271,6 +1280,10 @@ const ResourceBooking: React.FC = () => {
                                             </div>
                                         </div>
                                     ))}
+                                </div>
+                            ) : isServerTab ? (
+                                <div style={{ padding: '8px' }}>
+                                    <ComputeServerContent />
                                 </div>
                             ) : null}
                         </div>

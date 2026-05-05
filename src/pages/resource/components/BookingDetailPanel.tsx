@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Booking, BookingStatus, BasicResourceResponse, ComputeAccess } from '@/types/booking';
+import { useNavigate } from 'react-router-dom';
+import { Booking, BookingStatus, BasicResourceResponse, ResourceType, ComputeAccess } from '@/types/booking';
 import { bookingService } from '@/services/bookingService';
 import { computeService, ServerAccess } from '@/services/computeService';
 import ComputeAccessPanel from './ComputeAccessPanel';
-import ServerTerminalModal from './ServerTerminalModal';
 import { useAuth } from '@/hooks/useAuth';
 import { useToastStore } from '@/store/slices/toastSlice';
 import {
@@ -266,6 +266,7 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
     isLabDirector: _isLabDirector,
     isManagedView = false
 }) => {
+    const navigate = useNavigate();
     const { user } = useAuth();
     const { addToast } = useToastStore();
     const [booking, setBooking] = useState<Booking | null>(null);
@@ -290,8 +291,6 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
     const [adjustKeptQtys, setAdjustKeptQtys] = useState<Record<string, number>>({});
     
     // Compute access state
-    const [showTerminalModal, setShowTerminalModal] = useState(false);
-    const [selectedComputeAccess, setSelectedComputeAccess] = useState<ComputeAccess | null>(null);
     const [serverAccess, setServerAccess] = useState<ServerAccess | null>(null);
     const [countdownMs, setCountdownMs] = useState<number | null>(null);
     const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -317,8 +316,8 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
     useEffect(() => {
         if (!bookingId || !isServerComputeBooking) return;
         if (booking?.status !== BookingStatus.Approved && booking?.status !== BookingStatus.InUse) return;
-        const interval = setInterval(() => loadBooking(), 60_000);
-        return () => clearInterval(interval);
+        const interval = setInterval(() => loadBooking(true), 60_000);
+        return () => { clearInterval(interval); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [bookingId, isServerComputeBooking, booking?.status]);
 
@@ -352,8 +351,8 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [booking?.status, booking?.startTime, booking?.endTime, isServerComputeBooking]);
 
-    const loadBooking = async () => {
-        setLoading(true);
+    const loadBooking = async (silent = false) => {
+        if (!silent) setLoading(true);
         try {
             const data = await bookingService.getById(bookingId);
             setBooking(data);
@@ -530,11 +529,9 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
         }
     };
 
-    const handleOpenTerminal = (access: ComputeAccess) => {
-        setSelectedComputeAccess(access);
-        setShowTerminalModal(true);
+    const handleOpenTerminal = (_access: ComputeAccess) => {
+        navigate(`/bookings/${bookingId}/terminal`);
     };
-
 
     const totalKept = groupKeptQtys
         ? resourceGroups.reduce((sum, g) => sum + (groupKeptQtys[g.key] ?? g.ids.length), 0)
@@ -1145,17 +1142,6 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                 </div>
             </div>
 
-            {/* Server Terminal Modal */}
-            {showTerminalModal && selectedComputeAccess && (
-                <ServerTerminalModal
-                    isOpen={showTerminalModal}
-                    onClose={() => {
-                        setShowTerminalModal(false);
-                        setSelectedComputeAccess(null);
-                    }}
-                    access={selectedComputeAccess}
-                />
-            )}
         </div>
     );
 };
