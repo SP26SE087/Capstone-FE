@@ -3,7 +3,7 @@ import Modal from '@/components/common/Modal';
 import { visitorRegistrationService } from '@/services/visitorRegistrationService';
 import { contactorService } from '@/services/contactorService';
 import { ContactorResponse } from '@/types/visitorRegistration';
-import { Upload, X, CheckCircle2, Loader2, RefreshCw, Users } from 'lucide-react';
+import { Upload, X, CheckCircle2, Loader2, RefreshCw, ChevronDown } from 'lucide-react';
 
 interface Props {
     isOpen: boolean;
@@ -40,13 +40,22 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
     const [cccdExtractError, setCccdExtractError] = useState<string | null>(null);
     const [contactors, setContactors] = useState<ContactorResponse[]>([]);
     const [contactorLoading, setContactorLoading] = useState(false);
-    const [contactorFetched, setContactorFetched] = useState(false);
     const [contactorOpen, setContactorOpen] = useState(false);
     const [contactorSearch, setContactorSearch] = useState('');
+    const [selectedContactor, setSelectedContactor] = useState<ContactorResponse | null>(null);
 
     const photoRef = useRef<HTMLInputElement>(null);
     const cccdRef = useRef<HTMLInputElement>(null);
     const contactorRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        setContactorLoading(true);
+        contactorService.getAll()
+            .then(data => setContactors(data))
+            .catch(() => {})
+            .finally(() => setContactorLoading(false));
+    }, [isOpen]);
 
     useEffect(() => {
         if (!contactorOpen) return;
@@ -113,6 +122,10 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
             } else {
                 setCccdExtractError('Failed to connect to OCR service. Please try again.');
             }
+            // Clear the image so the user can re-upload a new one
+            setCccdImage(null);
+            setCccdPreview(prev => { if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev); return null; });
+            if (cccdRef.current) cccdRef.current.value = '';
         } finally {
             setCccdExtracting(false);
         }
@@ -122,23 +135,8 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
         if (cccdImage) extractCccdFromFile(cccdImage);
     };
 
-    const handleContactorDropdown = async () => {
-        if (!contactorFetched) {
-            setContactorLoading(true);
-            try {
-                const data = await contactorService.getAll();
-                setContactors(data);
-                setContactorFetched(true);
-            } catch {
-                // silently fail — user can still type manually
-            } finally {
-                setContactorLoading(false);
-            }
-        }
-        setContactorOpen(prev => !prev);
-    };
-
     const handleSelectContactor = (c: ContactorResponse) => {
+        setSelectedContactor(c);
         setForm(prev => ({ ...prev, ContactEmail: c.email }));
         setErrors(prev => ({ ...prev, ContactEmail: undefined }));
         setContactorOpen(false);
@@ -239,6 +237,7 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
         setCccdExtractError(null);
         setContactorOpen(false);
         setContactorSearch('');
+        setSelectedContactor(null);
         setSuccess(false);
         onClose();
     };
@@ -328,34 +327,41 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                             {errors.Email && <p style={errorStyle}>{errors.Email}</p>}
                         </div>
 
-                        {/* Contact Email */}
+                        {/* Contact Email — select only */}
                         <div ref={contactorRef} style={{ position: 'relative' }}>
-                            <label style={labelStyle}>Lab Member's Email <span style={{ color: '#e11d48' }}>*</span></label>
-                            <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                <input name="ContactEmail" type="email" value={form.ContactEmail} onChange={handleChange} style={{ ...inputStyle(errors.ContactEmail), flex: 1 }} placeholder="labmember@aitlab.com" maxLength={255} />
-                                <button
-                                    type="button"
-                                    onClick={handleContactorDropdown}
-                                    style={{
-                                        padding: '0.6rem 0.75rem',
-                                        border: '1px solid var(--border-color)',
-                                        borderRadius: 'var(--radius-sm)',
-                                        background: 'white',
-                                        cursor: 'pointer',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '4px',
-                                        fontSize: '0.83rem',
-                                        color: 'var(--text-secondary)',
-                                        whiteSpace: 'nowrap',
-                                    }}
-                                >
+                            <label style={labelStyle}>Lab Member <span style={{ color: '#e11d48' }}>*</span></label>
+                            <button
+                                type="button"
+                                onClick={() => !contactorLoading && setContactorOpen(prev => !prev)}
+                                style={{
+                                    width: '100%',
+                                    padding: '0.6rem 0.85rem',
+                                    borderRadius: 'var(--radius-sm)',
+                                    border: `1px solid ${errors.ContactEmail ? '#e11d48' : 'var(--border-color)'}`,
+                                    fontSize: '0.9rem',
+                                    background: 'white',
+                                    cursor: contactorLoading ? 'default' : 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: '0.5rem',
+                                    textAlign: 'left',
+                                    boxSizing: 'border-box',
+                                    fontFamily: 'inherit',
+                                    color: selectedContactor ? 'var(--text-primary)' : 'var(--text-muted)',
+                                }}
+                            >
+                                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
                                     {contactorLoading
-                                        ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
-                                        : <Users size={14} />}
-                                    Select
-                                </button>
-                            </div>
+                                        ? 'Loading members...'
+                                        : selectedContactor
+                                            ? `${selectedContactor.fullName} — ${selectedContactor.email}`
+                                            : 'Select a lab member'}
+                                </span>
+                                {contactorLoading
+                                    ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }} />
+                                    : <ChevronDown size={14} style={{ flexShrink: 0, transform: contactorOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />}
+                            </button>
                             {contactorOpen && (
                                 <div style={{
                                     position: 'absolute',
@@ -388,7 +394,7 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                                         );
                                         return filtered.length === 0 ? (
                                             <div style={{ padding: '1rem', textAlign: 'center', fontSize: '0.83rem', color: 'var(--text-muted)' }}>
-                                                No contactors found
+                                                No members found
                                             </div>
                                         ) : filtered.map(c => (
                                             <button
@@ -402,14 +408,14 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                                                     padding: '0.6rem 0.85rem',
                                                     border: 'none',
                                                     borderBottom: '1px solid var(--border-color)',
-                                                    background: 'white',
+                                                    background: selectedContactor?.id === c.id ? 'var(--surface-hover)' : 'white',
                                                     cursor: 'pointer',
                                                     textAlign: 'left',
                                                     gap: '2px',
                                                     boxSizing: 'border-box',
                                                 }}
                                                 onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-hover)')}
-                                                onMouseLeave={e => (e.currentTarget.style.background = 'white')}
+                                                onMouseLeave={e => (e.currentTarget.style.background = selectedContactor?.id === c.id ? 'var(--surface-hover)' : 'white')}
                                             >
                                                 <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>{c.fullName}</span>
                                                 <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{c.email}</span>
@@ -485,11 +491,11 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                             <div
                                 onClick={() => !cccdExtracting && cccdRef.current?.click()}
                                 style={{
-                                    border: `1.5px dashed ${errors.cccdImage ? '#e11d48' : 'var(--border-color)'}`,
+                                    border: `1.5px dashed ${errors.cccdImage ? '#e11d48' : cccdExtractError ? '#f97316' : 'var(--border-color)'}`,
                                     borderRadius: 'var(--radius-sm)',
                                     textAlign: 'center',
                                     cursor: cccdExtracting ? 'default' : 'pointer',
-                                    background: cccdImage ? '#f8fafc' : 'var(--surface-hover)',
+                                    background: cccdImage ? '#f8fafc' : cccdExtractError ? '#fff7ed' : 'var(--surface-hover)',
                                     transition: 'border-color 0.2s',
                                     height: '130px',
                                     overflow: 'hidden',
@@ -502,7 +508,8 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                             >
                                 {cccdImage && cccdPreview ? (
                                     <div style={{ position: 'absolute', inset: 0 }}>
-                                        {/* Loading overlay */}
+                                        <img src={cccdPreview} alt="ID card" style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#f8fafc', display: 'block' }} />
+                                        {/* Spinner overlay while extracting */}
                                         {cccdExtracting && (
                                             <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
                                                 <Loader2 size={22} color="#fff" style={{ animation: 'spin 1s linear infinite' }} />
@@ -519,21 +526,14 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                                                 <X size={13} color="#fff" />
                                             </button>
                                         )}
-                                        {/* Load Data button — pinned at bottom of image */}
-                                        {!cccdExtracting && (
-                                            <button
-                                                type="button"
-                                                onClick={e => { e.stopPropagation(); handleExtractCccd(); }}
-                                                style={{ position: 'absolute', bottom: 0, left: 0, right: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', padding: '6px 8px', background: 'rgba(37,99,235,0.88)', border: 'none', color: '#fff', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer', letterSpacing: '0.01em' }}
-                                            >
-                                                <RefreshCw size={12} /> Load Data from ID Card
-                                            </button>
-                                        )}
+                                        <span style={{ position: 'absolute', bottom: '4px', left: '4px', right: '4px', fontSize: '0.68rem', color: '#fff', background: 'rgba(0,0,0,0.5)', borderRadius: '3px', padding: '1px 4px', textAlign: 'center', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{cccdImage.name}</span>
                                     </div>
                                 ) : (
                                     <>
-                                        <Upload size={20} color="var(--text-muted)" />
-                                        <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>Upload to auto-fill form</p>
+                                        <Upload size={20} color={cccdExtractError ? '#f97316' : 'var(--text-muted)'} />
+                                        <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: cccdExtractError ? '#f97316' : 'var(--text-muted)', fontWeight: cccdExtractError ? 600 : undefined }}>
+                                            {cccdExtractError ? 'Click to upload again' : 'Upload to auto-fill form'}
+                                        </p>
                                         <p style={{ margin: '2px 0 0', fontSize: '0.72rem', color: 'var(--text-muted)' }}>jpg/png/webp, max 10 MB</p>
                                     </>
                                 )}
