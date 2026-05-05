@@ -33,7 +33,7 @@ const Sidebar: React.FC = () => {
         { icon: <Briefcase size={20} />, label: 'My Projects', path: '/projects', onNavClick: undefined },
         { icon: <CheckSquare size={20} />, label: 'Tasks', path: '/tasks', onNavClick: undefined },
         { icon: <Users size={20} />, label: 'Members', path: '/members', onNavClick: undefined },
-        { icon: <BarChart2 size={20} />, label: 'Reports', path: '/reports', onNavClick: undefined },
+        { icon: <BarChart2 size={20} />, label: 'Weekly Reports', path: '/reports', onNavClick: undefined },
         { icon: <FileText size={20} />, label: 'Paper Submission', path: '/papers', onNavClick: undefined },
         { icon: <Calendar size={20} />, label: 'Schedules', path: '/schedules', onNavClick: closeAINote },
         { icon: <UserCheck size={20} />, label: 'Register Visitors', path: '/visitor-registrations', onNavClick: undefined },
