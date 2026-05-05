@@ -26,15 +26,21 @@ const REG_STATUS = {
 };
 
 const ACTION_COLORS: Record<string, { color: string; bg: string }> = {
-    Assigned:          { color: '#2563eb', bg: '#dbeafe' },
-    TransferRequested: { color: '#d97706', bg: '#fef3c7' },
-    TransferAccepted:  { color: '#16a34a', bg: '#dcfce7' },
-    TransferRejected:  { color: '#dc2626', bg: '#fee2e2' },
-    Approved:          { color: '#16a34a', bg: '#dcfce7' },
-    Rejected:          { color: '#dc2626', bg: '#fee2e2' },
-    LabAccessOpened:   { color: '#0891b2', bg: '#cffafe' },
-    LabAccessClosed:   { color: '#64748b', bg: '#f1f5f9' },
+    Assigned:          { color: '#16a34a', bg: '#f0fdf4' },  // green — positive action
+    TransferRequested: { color: '#64748b', bg: '#f1f5f9' },  // slate — neutral/pending
+    TransferAccepted:  { color: '#16a34a', bg: '#f0fdf4' },  // green — accepted
+    TransferRejected:  { color: '#dc2626', bg: '#fee2e2' },  // red — rejected
+    Approved:          { color: '#16a34a', bg: '#f0fdf4' },  // green — approved
+    Rejected:          { color: '#dc2626', bg: '#fee2e2' },  // red — rejected
+    LabAccessOpened:   { color: '#16a34a', bg: '#f0fdf4' },  // green — opened
+    LabAccessClosed:   { color: '#64748b', bg: '#f1f5f9' },  // slate — closed
 };
+
+const ACTION_LEGEND = [
+    { color: '#16a34a', label: 'Assigned / Approved / Transfer Accepted / Lab Opened' },
+    { color: '#64748b', label: 'Transfer Requested / Lab Closed' },
+    { color: '#dc2626', label: 'Rejected' },
+];
 
 // ─── Modal state types ─────────────────────────────────────────────────────────
 
@@ -151,6 +157,16 @@ const VisitorRegistrations: React.FC = () => {
     const [cDeleteError, setCDeleteError] = useState<string | null>(null);
     const cMemberPickerRef = useRef<HTMLDivElement>(null);
 
+    // Transfer contactor dropdown
+    const [transferEmailError, setTransferEmailError] = useState<string | null>(null);
+    const [transferContactorOpen, setTransferContactorOpen] = useState(false);
+    const transferContactorRef = useRef<HTMLDivElement>(null);
+    const [transferMode, setTransferMode] = useState<'contactor' | 'member'>('contactor');
+    const [transferMemberOpen, setTransferMemberOpen] = useState(false);
+    const [transferMemberSearch, setTransferMemberSearch] = useState('');
+    const [transferContactorSearch, setTransferContactorSearch] = useState('');
+    const transferMemberPickerRef = useRef<HTMLDivElement>(null);
+
     const fetchRegistrations = useCallback(async () => {
         setRegLoading(true);
         try {
@@ -178,22 +194,20 @@ const VisitorRegistrations: React.FC = () => {
 
     // ── Contactors logic ──────────────────────────────────────────────────────
     const fetchContactors = useCallback(async () => {
-        if (!isLabDirector) return;
         setContactorsLoading(true);
         try { setContactors(await contactorService.getAll()); }
         catch { /* ignore */ } finally { setContactorsLoading(false); }
-    }, [isLabDirector]);
+    }, []);
 
-    useEffect(() => { if (isLabDirector) fetchContactors(); }, [fetchContactors, isLabDirector]);
+    useEffect(() => { fetchContactors(); }, [fetchContactors]);
 
     useEffect(() => {
-        if (!isLabDirector) return;
         setCMembersLoading(true);
         userService.getAll()
             .then(all => setCLabMembers(Array.isArray(all) ? all : []))
             .catch(() => setCLabMembers([]))
             .finally(() => setCMembersLoading(false));
-    }, [isLabDirector]);
+    }, []);
 
     useEffect(() => {
         if (!cMemberOpen) return;
@@ -205,17 +219,39 @@ const VisitorRegistrations: React.FC = () => {
         return () => document.removeEventListener('mousedown', handler);
     }, [cMemberOpen]);
 
+    useEffect(() => {
+        if (!transferContactorOpen) return;
+        const handler = (e: MouseEvent) => {
+            if (transferContactorRef.current && !transferContactorRef.current.contains(e.target as Node))
+                setTransferContactorOpen(false);
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, [transferContactorOpen]);
+
+    useEffect(() => {
+        if (!transferMemberOpen) return;
+        const handler = (e: MouseEvent) => {
+            if (transferMemberPickerRef.current && !transferMemberPickerRef.current.contains(e.target as Node))
+                setTransferMemberOpen(false);
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, [transferMemberOpen]);
+
     const cOpenCreate = () => { setCEditTarget(null); setCForm({ fullName: '', email: '', phone: '' }); setCFormErrors({}); setCFormError(null); setCFormMode('external'); setCSelectedMember(null); setCMemberSearch(''); };
     const cOpenEdit = (c: ContactorResponse) => { setCEditTarget(c); setCForm({ fullName: c.fullName, email: c.email, phone: c.phone }); setCFormErrors({}); setCFormError(null); };
     const cSwitchMode = (mode: 'external' | 'member') => { setCFormMode(mode); setCForm({ fullName: '', email: '', phone: '' }); setCFormErrors({}); setCFormError(null); setCSelectedMember(null); setCMemberSearch(''); };
-    const cSelectMember = (m: any) => { setCSelectedMember(m); setCForm(p => ({ ...p, fullName: m.fullName || '', email: m.email || '' })); setCMemberOpen(false); setCMemberSearch(''); };
+    const cSelectMember = (m: any) => { setCSelectedMember(m); setCForm(p => ({ ...p, fullName: m.fullName || '', email: m.email || '', phone: m.phoneNumber || m.phone || '' })); setCFormErrors({}); setCMemberOpen(false); setCMemberSearch(''); };
+
+    const PHONE_REGEX = /^(\+[1-9]\d{6,14}|0\d{9})$/;
 
     const cValidate = (): boolean => {
         const errs: { fullName?: string; email?: string; phone?: string } = {};
         if (cFormMode === 'member' && !cEditTarget) {
             if (!cSelectedMember) { setCFormError('Please select a lab member.'); return false; }
             if (!cForm.phone.trim()) errs.phone = 'Phone is required';
-            else if (cForm.phone.length > 50) errs.phone = 'Max 50 characters';
+            else if (!PHONE_REGEX.test(cForm.phone.trim())) errs.phone = 'Invalid phone number (e.g. 0912345678 or +84912345678)';
         } else {
             if (!cForm.fullName.trim()) errs.fullName = 'Full name is required';
             else if (cForm.fullName.length > 255) errs.fullName = 'Max 255 characters';
@@ -224,7 +260,7 @@ const VisitorRegistrations: React.FC = () => {
                 else if (cForm.email.length > 255) errs.email = 'Max 255 characters';
             }
             if (!cForm.phone.trim()) errs.phone = 'Phone is required';
-            else if (cForm.phone.length > 50) errs.phone = 'Max 50 characters';
+            else if (!PHONE_REGEX.test(cForm.phone.trim())) errs.phone = 'Invalid phone number (e.g. 0912345678 or +84912345678)';
         }
         setCFormErrors(errs);
         return Object.keys(errs).length === 0;
@@ -317,8 +353,9 @@ const VisitorRegistrations: React.FC = () => {
     // ── Transfer ─────────────────────────────────────────────────────────────
     const submitTransfer = async () => {
         if (!transferState) return;
-        if (!transferState.toAssigneeEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(transferState.toAssigneeEmail)) {
-            setTransferError('Please enter a valid email address');
+        const email = transferState.toAssigneeEmail.trim();
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            setTransferEmailError('Please enter a valid email address');
             return;
         }
         setTransferSubmitting(true);
@@ -368,6 +405,12 @@ const VisitorRegistrations: React.FC = () => {
     };
     const openTransfer = (item: VisitorRegistrationResponse) => {
         setTransferError(null);
+        setTransferEmailError(null);
+        setTransferContactorOpen(false);
+        setTransferMemberOpen(false);
+        setTransferMemberSearch('');
+        setTransferContactorSearch('');
+        setTransferMode('contactor');
         setTransferState({ registrationId: item.id, fullName: item.fullName, toAssigneeEmail: '' });
     };
 
@@ -496,7 +539,7 @@ const VisitorRegistrations: React.FC = () => {
                                             <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '13%' }}>Assignee</th>
                                             <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '10%' }}>Lab Access</th>
                                             <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '9%' }}>Status</th>
-                                            <th style={{ padding: '0.75rem 1rem', width: '25%' }}></th>
+                                            <th style={{ padding: '0.75rem 1rem', textAlign: 'center', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '25%' }}>Action</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -527,7 +570,7 @@ const VisitorRegistrations: React.FC = () => {
                                                 <td style={{ padding: '0.85rem 1rem' }}>{statusBadge(item.status)}</td>
                                                 <td style={{ padding: '0.85rem 1rem' }}>
                                                     <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                                                        <button className="btn btn-secondary" style={{ flex: 1, padding: '4px 6px', fontSize: '0.76rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px', whiteSpace: 'nowrap' }} onClick={() => setDetailId(item.id)}>
+                                                        <button className="btn btn-secondary" style={{ width: '72px', flexShrink: 0, padding: '4px 6px', fontSize: '0.76rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px', whiteSpace: 'nowrap' }} onClick={() => setDetailId(item.id)}>
                                                             <Eye size={11} /> Details
                                                         </button>
                                                         {item.status === VisitorRegistrationStatus.Pending && item.isAssignee && (
@@ -675,7 +718,7 @@ const VisitorRegistrations: React.FC = () => {
                     </div>
 
                     {/* Side Panel */}
-                    <div style={{ width: '340px', flexShrink: 0 }}>
+                    <div style={{ width: '400px', flexShrink: 0 }}>
                         <div className="card" style={{ padding: '1.25rem' }}>
                             <h3 style={{ margin: '0 0 1rem', fontSize: '0.95rem', fontWeight: 700 }}>{cEditTarget ? 'Edit Contactor' : 'Add Contactor'}</h3>
 
@@ -800,8 +843,15 @@ const VisitorRegistrations: React.FC = () => {
                                 <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '4px', color: 'var(--text-secondary)' }}>Phone <span style={{ color: '#dc2626' }}>*</span></label>
                                 <input
                                     value={cForm.phone}
-                                    onChange={e => setCForm(p => ({ ...p, phone: e.target.value }))}
-                                    placeholder="Phone number"
+                                    onChange={e => {
+                                        const v = e.target.value;
+                                        setCForm(p => ({ ...p, phone: v }));
+                                        if (v.trim() && !PHONE_REGEX.test(v.trim()))
+                                            setCFormErrors(p => ({ ...p, phone: 'Invalid phone number (e.g. 0912345678 or +84912345678)' }));
+                                        else
+                                            setCFormErrors(p => ({ ...p, phone: undefined }));
+                                    }}
+                                    placeholder="e.g. 0912345678 or +84912345678"
                                     style={{
                                         width: '100%', padding: '0.5rem 0.75rem', border: `1px solid ${cFormErrors.phone ? '#dc2626' : 'var(--border-color)'}`,
                                         borderRadius: 'var(--radius-sm)', fontSize: '0.85rem', outline: 'none', boxSizing: 'border-box',
@@ -921,11 +971,11 @@ const VisitorRegistrations: React.FC = () => {
                                 {detail.logs && detail.logs.length > 0 && <>
                                 {/* Header + legend */}
                                 <p style={{ margin: '0 0 0.5rem', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Activity Log</p>
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 12px', marginBottom: '0.85rem' }}>
-                                    {Object.entries(ACTION_COLORS).map(([key, clr]) => (
-                                        <span key={key} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
-                                            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: clr.color, flexShrink: 0 }} />
-                                            {key.replace(/([A-Z])/g, ' $1').trim()}
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '0.85rem' }}>
+                                    {ACTION_LEGEND.map(({ color, label }) => (
+                                        <span key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
+                                            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: color, flexShrink: 0 }} />
+                                            {label}
                                         </span>
                                     ))}
                                 </div>
@@ -1031,9 +1081,17 @@ const VisitorRegistrations: React.FC = () => {
                             <input
                                 type="number" min={2} max={24}
                                 value={approveState.durationHours}
-                                onChange={e => setApproveState(p => p && ({ ...p, durationHours: e.target.value }))}
+                                onChange={e => {
+                                    const v = e.target.value;
+                                    setApproveState(p => p && ({ ...p, durationHours: v }));
+                                    const dh = parseInt(v, 10);
+                                    if (!v || isNaN(dh) || dh < 2 || dh > 24)
+                                        setApproveError('Duration must be between 2 and 24 hours');
+                                    else
+                                        setApproveError(null);
+                                }}
                                 placeholder="e.g. 4"
-                                style={{ ...inputStyle, borderColor: approveError && !approveState.durationHours ? '#e11d48' : 'var(--border-color)' }}
+                                style={{ ...inputStyle, borderColor: approveError && (!approveState.durationHours || parseInt(approveState.durationHours,10) < 2 || parseInt(approveState.durationHours,10) > 24) ? '#e11d48' : 'var(--border-color)' }}
                             />
                         </div>
                         <div>
@@ -1098,7 +1156,8 @@ const VisitorRegistrations: React.FC = () => {
                 isOpen={!!transferState}
                 onClose={() => !transferSubmitting && setTransferState(null)}
                 title="Transfer to Another Assignee"
-                maxWidth="420px"
+                maxWidth="500px"
+                maxHeight="580px"
                 disableBackdropClose
                 footer={
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', padding: '1rem 1.75rem', borderTop: '1px solid var(--border-color)' }}>
@@ -1115,13 +1174,159 @@ const VisitorRegistrations: React.FC = () => {
                         <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
                             Transfer the visit request from <strong>{transferState.fullName}</strong> to another lab member. They will need to accept.
                         </p>
+
+                        {/* Mode toggle */}
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            {(['contactor', 'member'] as const).map(m => (
+                                <button key={m} type="button"
+                                    onClick={() => { setTransferMode(m); setTransferState(p => p && ({ ...p, toAssigneeEmail: '' })); setTransferEmailError(null); setTransferContactorOpen(false); setTransferMemberOpen(false); setTransferMemberSearch(''); setTransferContactorSearch(''); }}
+                                    style={{
+                                        flex: 1, padding: '0.4rem', border: '1px solid', borderRadius: 'var(--radius-sm)',
+                                        fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer', transition: 'all 0.15s',
+                                        borderColor: transferMode === m ? 'var(--accent-color)' : 'var(--border-color)',
+                                        background: transferMode === m ? 'var(--accent-color)' : 'transparent',
+                                        color: transferMode === m ? '#fff' : 'var(--text-primary)',
+                                    }}
+                                >
+                                    {m === 'contactor' ? 'Contactor' : 'Lab Member'}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Contactor picker */}
+                        {transferMode === 'contactor' && (
+                            <div ref={transferContactorRef} style={{ position: 'relative' }}>
+                                <label style={labelStyle}>Select Contactor <span style={{ color: '#e11d48' }}>*</span></label>
+                                <button type="button"
+                                    onClick={() => setTransferContactorOpen(o => !o)}
+                                    style={{
+                                        width: '100%', padding: '0.55rem 0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                        border: `1px solid ${transferEmailError ? '#e11d48' : 'var(--border-color)'}`, borderRadius: 'var(--radius-sm)',
+                                        background: '#fff', cursor: 'pointer', fontSize: '0.9rem', fontFamily: 'inherit',
+                                        color: transferState.toAssigneeEmail ? 'var(--text-primary)' : 'var(--text-muted)',
+                                    }}
+                                >
+                                    <span>{transferState.toAssigneeEmail
+                                        ? (contactors.find(c => c.email === transferState.toAssigneeEmail)?.fullName || transferState.toAssigneeEmail)
+                                        : (contactorsLoading ? 'Loading…' : 'Select a contactor…')}</span>
+                                    <ChevronDown size={14} />
+                                </button>
+                                {transferContactorOpen && (
+                                    <div style={{
+                                        position: 'absolute', top: 'calc(100% + 2px)', left: 0, right: 0, zIndex: 100,
+                                        background: '#fff', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)',
+                                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)', maxHeight: '200px', overflow: 'hidden',
+                                    }}>
+                                        <div style={{ padding: '6px', borderBottom: '1px solid var(--border-light)' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 8px', background: 'var(--surface-hover)', borderRadius: 'var(--radius-sm)' }}>
+                                                <Search size={13} color="var(--text-muted)" />
+                                                <input autoFocus value={transferContactorSearch}
+                                                    onChange={e => setTransferContactorSearch(e.target.value)}
+                                                    placeholder="Search…"
+                                                    style={{ border: 'none', outline: 'none', background: 'none', fontSize: '0.82rem', width: '100%' }}
+                                                />
+                                            </div>
+                                        </div>
+                                        <div style={{ overflowY: 'auto', maxHeight: '152px' }} className="custom-scrollbar">
+                                            {contactors.filter(c => {
+                                                const q = transferContactorSearch.toLowerCase();
+                                                return !q || c.fullName.toLowerCase().includes(q) || c.email.toLowerCase().includes(q);
+                                            }).map(c => (
+                                                <div key={c.id}
+                                                    onClick={() => { setTransferState(p => p && ({ ...p, toAssigneeEmail: c.email })); setTransferEmailError(null); setTransferContactorOpen(false); setTransferContactorSearch(''); }}
+                                                    style={{ padding: '0.5rem 0.75rem', cursor: 'pointer', fontSize: '0.85rem', borderBottom: '1px solid var(--border-light)' }}
+                                                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-hover)')}
+                                                    onMouseLeave={e => (e.currentTarget.style.background = '')}
+                                                >
+                                                    <div style={{ fontWeight: 600 }}>{c.fullName}</div>
+                                                    <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>{c.email}</div>
+                                                </div>
+                                            ))}
+                                            {contactors.filter(c => { const q = transferContactorSearch.toLowerCase(); return !q || c.fullName.toLowerCase().includes(q) || c.email.toLowerCase().includes(q); }).length === 0 && (
+                                                <div style={{ padding: '0.75rem', color: 'var(--text-muted)', fontSize: '0.83rem', textAlign: 'center' }}>No contactors found</div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Lab Member picker */}
+                        {transferMode === 'member' && (
+                            <div ref={transferMemberPickerRef} style={{ position: 'relative' }}>
+                                <label style={labelStyle}>Select Lab Member <span style={{ color: '#e11d48' }}>*</span></label>
+                                <button type="button"
+                                    onClick={() => setTransferMemberOpen(o => !o)}
+                                    style={{
+                                        width: '100%', padding: '0.55rem 0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                        border: `1px solid ${transferEmailError ? '#e11d48' : 'var(--border-color)'}`, borderRadius: 'var(--radius-sm)',
+                                        background: '#fff', cursor: 'pointer', fontSize: '0.9rem', fontFamily: 'inherit',
+                                        color: transferState.toAssigneeEmail ? 'var(--text-primary)' : 'var(--text-muted)',
+                                    }}
+                                >
+                                    <span>{transferState.toAssigneeEmail
+                                        ? (cLabMembers.find(m => m.email === transferState.toAssigneeEmail)?.fullName || transferState.toAssigneeEmail)
+                                        : (cMembersLoading ? 'Loading…' : 'Select a member…')}</span>
+                                    <ChevronDown size={14} />
+                                </button>
+                                {transferMemberOpen && (
+                                    <div style={{
+                                        position: 'absolute', top: 'calc(100% + 2px)', left: 0, right: 0, zIndex: 100,
+                                        background: '#fff', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)',
+                                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)', maxHeight: '200px', overflow: 'hidden',
+                                    }}>
+                                        <div style={{ padding: '6px', borderBottom: '1px solid var(--border-light)' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 8px', background: 'var(--surface-hover)', borderRadius: 'var(--radius-sm)' }}>
+                                                <Search size={13} color="var(--text-muted)" />
+                                                <input autoFocus value={transferMemberSearch}
+                                                    onChange={e => setTransferMemberSearch(e.target.value)}
+                                                    placeholder="Search…"
+                                                    style={{ border: 'none', outline: 'none', background: 'none', fontSize: '0.82rem', width: '100%' }}
+                                                />
+                                            </div>
+                                        </div>
+                                        <div style={{ overflowY: 'auto', maxHeight: '152px' }} className="custom-scrollbar">
+                                            {cLabMembers.filter(m => {
+                                                const q = transferMemberSearch.toLowerCase();
+                                                return !q || (m.fullName || '').toLowerCase().includes(q) || (m.email || '').toLowerCase().includes(q);
+                                            }).map(m => (
+                                                <div key={m.id}
+                                                    onClick={() => { setTransferState(p => p && ({ ...p, toAssigneeEmail: m.email })); setTransferEmailError(null); setTransferMemberOpen(false); setTransferMemberSearch(''); }}
+                                                    style={{ padding: '0.5rem 0.75rem', cursor: 'pointer', fontSize: '0.85rem', borderBottom: '1px solid var(--border-light)' }}
+                                                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-hover)')}
+                                                    onMouseLeave={e => (e.currentTarget.style.background = '')}
+                                                >
+                                                    <div style={{ fontWeight: 600 }}>{m.fullName}</div>
+                                                    <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>{m.email}</div>
+                                                </div>
+                                            ))}
+                                            {cLabMembers.filter(m => { const q = transferMemberSearch.toLowerCase(); return !q || (m.fullName || '').toLowerCase().includes(q) || (m.email || '').toLowerCase().includes(q); }).length === 0 && (
+                                                <div style={{ padding: '0.75rem', color: 'var(--text-muted)', fontSize: '0.83rem', textAlign: 'center' }}>No members found</div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Manual email input */}
                         <div>
                             <label style={labelStyle}>Recipient Email <span style={{ color: '#e11d48' }}>*</span></label>
-                            <input type="email" value={transferState.toAssigneeEmail}
-                                onChange={e => setTransferState(p => p && ({ ...p, toAssigneeEmail: e.target.value }))}
+                            <input
+                                type="email"
+                                value={transferState.toAssigneeEmail}
+                                onChange={e => {
+                                    const v = e.target.value;
+                                    setTransferState(p => p && ({ ...p, toAssigneeEmail: v }));
+                                    if (v.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()))
+                                        setTransferEmailError('Please enter a valid email address');
+                                    else
+                                        setTransferEmailError(null);
+                                }}
                                 placeholder="colleague@lab.vn"
-                                style={inputStyle}
+                                style={{ ...inputStyle, borderColor: transferEmailError ? '#e11d48' : 'var(--border-color)' }}
                             />
+                            {transferEmailError && <p style={{ margin: '3px 0 0', fontSize: '0.76rem', color: '#e11d48' }}>{transferEmailError}</p>}
                         </div>
                     </div>
                 )}
