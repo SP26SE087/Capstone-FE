@@ -142,7 +142,7 @@ const VisitorRegistrations: React.FC = () => {
     const [contactors, setContactors] = useState<ContactorResponse[]>([]);
     const [contactorsLoading, setContactorsLoading] = useState(false);
     const [cEditTarget, setCEditTarget] = useState<ContactorResponse | null>(null);
-    const [cFormMode, setCFormMode] = useState<'external' | 'member'>('external');
+    const [cFormMode, setCFormMode] = useState<'external' | 'member'>('member');
     const [cForm, setCForm] = useState<{ fullName: string; email: string; phone: string }>({ fullName: '', email: '', phone: '' });
     const [cFormErrors, setCFormErrors] = useState<{ fullName?: string; email?: string; phone?: string }>({});
     const [cFormSubmitting, setCFormSubmitting] = useState(false);
@@ -239,7 +239,7 @@ const VisitorRegistrations: React.FC = () => {
         return () => document.removeEventListener('mousedown', handler);
     }, [transferMemberOpen]);
 
-    const cOpenCreate = () => { setCEditTarget(null); setCForm({ fullName: '', email: '', phone: '' }); setCFormErrors({}); setCFormError(null); setCFormMode('external'); setCSelectedMember(null); setCMemberSearch(''); };
+    const cOpenCreate = () => { setCEditTarget(null); setCForm({ fullName: '', email: '', phone: '' }); setCFormErrors({}); setCFormError(null); setCFormMode('member'); setCSelectedMember(null); setCMemberSearch(''); };
     const cOpenEdit = (c: ContactorResponse) => { setCEditTarget(c); setCForm({ fullName: c.fullName, email: c.email, phone: c.phone }); setCFormErrors({}); setCFormError(null); };
     const cSwitchMode = (mode: 'external' | 'member') => { setCFormMode(mode); setCForm({ fullName: '', email: '', phone: '' }); setCFormErrors({}); setCFormError(null); setCSelectedMember(null); setCMemberSearch(''); };
     const cSelectMember = (m: any) => { setCSelectedMember(m); setCForm(p => ({ ...p, fullName: m.fullName || '', email: m.email || '', phone: m.phoneNumber || m.phone || '' })); setCFormErrors({}); setCMemberOpen(false); setCMemberSearch(''); };
@@ -722,26 +722,7 @@ const VisitorRegistrations: React.FC = () => {
                         <div className="card" style={{ padding: '1.25rem' }}>
                             <h3 style={{ margin: '0 0 1rem', fontSize: '0.95rem', fontWeight: 700 }}>{cEditTarget ? 'Edit Contactor' : 'Add Contactor'}</h3>
 
-                            {/* Mode toggle (only for new) */}
-                            {!cEditTarget && (
-                                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
-                                    {(['external', 'member'] as const).map(m => (
-                                        <button
-                                            key={m}
-                                            onClick={() => cSwitchMode(m)}
-                                            style={{
-                                                flex: 1, padding: '0.4rem', border: '1px solid', borderRadius: 'var(--radius-sm)',
-                                                fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer', transition: 'all 0.15s',
-                                                borderColor: cFormMode === m ? 'var(--accent-color)' : 'var(--border-color)',
-                                                background: cFormMode === m ? 'var(--accent-color)' : 'transparent',
-                                                color: cFormMode === m ? '#fff' : 'var(--text-primary)',
-                                            }}
-                                        >
-                                            {m === 'external' ? 'External' : 'Lab Member'}
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
+
 
                             {/* Member picker */}
                             {cFormMode === 'member' && !cEditTarget && (
@@ -801,8 +782,8 @@ const VisitorRegistrations: React.FC = () => {
                                 </div>
                             )}
 
-                            {/* Full Name (external or edit mode) */}
-                            {(cFormMode === 'external' || cEditTarget) && (
+                            {/* Full Name (edit mode only) */}
+                            {cEditTarget && (
                                 <div style={{ marginBottom: '0.85rem' }}>
                                     <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '4px', color: 'var(--text-secondary)' }}>Full Name <span style={{ color: '#dc2626' }}>*</span></label>
                                     <input
@@ -1157,7 +1138,7 @@ const VisitorRegistrations: React.FC = () => {
                 onClose={() => !transferSubmitting && setTransferState(null)}
                 title="Transfer to Another Assignee"
                 maxWidth="500px"
-                maxHeight="580px"
+                maxHeight="520px"
                 disableBackdropClose
                 footer={
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', padding: '1rem 1.75rem', borderTop: '1px solid var(--border-color)' }}>
@@ -1309,25 +1290,7 @@ const VisitorRegistrations: React.FC = () => {
                             </div>
                         )}
 
-                        {/* Manual email input */}
-                        <div>
-                            <label style={labelStyle}>Recipient Email <span style={{ color: '#e11d48' }}>*</span></label>
-                            <input
-                                type="email"
-                                value={transferState.toAssigneeEmail}
-                                onChange={e => {
-                                    const v = e.target.value;
-                                    setTransferState(p => p && ({ ...p, toAssigneeEmail: v }));
-                                    if (v.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()))
-                                        setTransferEmailError('Please enter a valid email address');
-                                    else
-                                        setTransferEmailError(null);
-                                }}
-                                placeholder="colleague@lab.vn"
-                                style={{ ...inputStyle, borderColor: transferEmailError ? '#e11d48' : 'var(--border-color)' }}
-                            />
-                            {transferEmailError && <p style={{ margin: '3px 0 0', fontSize: '0.76rem', color: '#e11d48' }}>{transferEmailError}</p>}
-                        </div>
+
                     </div>
                 )}
             </Modal>
