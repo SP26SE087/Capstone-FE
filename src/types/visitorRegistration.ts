@@ -36,6 +36,8 @@ export interface VisitorRegistrationResponse {
     assigneeFullName: string;
     isAssignee: boolean | null;
     labAccess: boolean;
+    phoneNumber: string | null;
+    notes: string | null;
     reason: string | null;
     activeFrom: string | null;
     activeUntil: string | null;

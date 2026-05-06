@@ -1,7 +1,9 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Modal from '@/components/common/Modal';
 import { visitorRegistrationService } from '@/services/visitorRegistrationService';
-import { Upload, X, CheckCircle2, Loader2, RefreshCw } from 'lucide-react';
+import { contactorService } from '@/services/contactorService';
+import { ContactorResponse } from '@/types/visitorRegistration';
+import { Upload, X, CheckCircle2, Loader2, RefreshCw, ChevronDown } from 'lucide-react';
 
 interface Props {
     isOpen: boolean;
@@ -11,8 +13,10 @@ interface Props {
 interface FormState {
     FullName: string;
     Email: string;
+    PhoneNumber: string;
     ContactEmail: string;
     AppointmentDateTime: string;
+    Notes: string;
 }
 
 const ACCEPTED = 'image/jpeg,image/jpg,image/png,image/webp';
@@ -21,9 +25,14 @@ const MAX_SIZE = 10 * 1024 * 1024; // 10 MB
 const emptyForm: FormState = {
     FullName: '',
     Email: '',
+    PhoneNumber: '',
     ContactEmail: '',
     AppointmentDateTime: '',
+    Notes: '',
 };
+
+const PHONE_REGEX = /^(\+[1-9]\d{6,14}|0\d{9})$/;
+const PHONE_ERROR = 'Phone number must be in international format (+84...) or Vietnamese local format (0xxxxxxxxx).';
 
 const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
     const [form, setForm] = useState<FormState>(emptyForm);
@@ -36,9 +45,35 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
     const [cccdPreview, setCccdPreview] = useState<string | null>(null);
     const [cccdExtracting, setCccdExtracting] = useState(false);
     const [cccdExtractError, setCccdExtractError] = useState<string | null>(null);
+    const [contactors, setContactors] = useState<ContactorResponse[]>([]);
+    const [contactorLoading, setContactorLoading] = useState(false);
+    const [contactorOpen, setContactorOpen] = useState(false);
+    const [contactorSearch, setContactorSearch] = useState('');
+    const [selectedContactor, setSelectedContactor] = useState<ContactorResponse | null>(null);
 
     const photoRef = useRef<HTMLInputElement>(null);
     const cccdRef = useRef<HTMLInputElement>(null);
+    const contactorRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        setContactorLoading(true);
+        contactorService.getAll()
+            .then(data => setContactors(data))
+            .catch(() => {})
+            .finally(() => setContactorLoading(false));
+    }, [isOpen]);
+
+    useEffect(() => {
+        if (!contactorOpen) return;
+        const handleOutside = (e: MouseEvent) => {
+            if (contactorRef.current && !contactorRef.current.contains(e.target as Node)) {
+                setContactorOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleOutside);
+        return () => document.removeEventListener('mousedown', handleOutside);
+    }, [contactorOpen]);
 
     const toTitleCase = (str: string) =>
         str.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
@@ -94,6 +129,10 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
             } else {
                 setCccdExtractError('Failed to connect to OCR service. Please try again.');
             }
+            // Clear the image so the user can re-upload a new one
+            setCccdImage(null);
+            setCccdPreview(prev => { if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev); return null; });
+            if (cccdRef.current) cccdRef.current.value = '';
         } finally {
             setCccdExtracting(false);
         }
@@ -101,6 +140,14 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
 
     const handleExtractCccd = () => {
         if (cccdImage) extractCccdFromFile(cccdImage);
+    };
+
+    const handleSelectContactor = (c: ContactorResponse) => {
+        setSelectedContactor(c);
+        setForm(prev => ({ ...prev, ContactEmail: c.email }));
+        setErrors(prev => ({ ...prev, ContactEmail: undefined }));
+        setContactorOpen(false);
+        setContactorSearch('');
     };
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -145,12 +192,15 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
         const newErrors: typeof errors = {};
         if (!form.FullName.trim()) newErrors.FullName = 'Full name is required';
         if (!form.Email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.Email)) newErrors.Email = 'Invalid email address';
+        if (!form.PhoneNumber.trim()) newErrors.PhoneNumber = 'Phone number is required';
+        else if (!PHONE_REGEX.test(form.PhoneNumber.trim())) newErrors.PhoneNumber = PHONE_ERROR;
         if (!form.ContactEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.ContactEmail)) newErrors.ContactEmail = 'Invalid contact email address';
         if (!form.AppointmentDateTime) {
             newErrors.AppointmentDateTime = 'Please select an appointment date & time';
         } else if (new Date(form.AppointmentDateTime) <= new Date()) {
             newErrors.AppointmentDateTime = 'Appointment must be in the future';
         }
+        if (form.Notes.length > 1000) newErrors.Notes = 'Notes must not exceed 1000 characters';
         if (!photo) newErrors.photo = 'Please upload your photo';
         if (!cccdImage) newErrors.cccdImage = 'Please upload your ID card photo';
         setErrors(newErrors);
@@ -164,9 +214,14 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
             const fd = new FormData();
             fd.append('fullName', form.FullName.trim());
             fd.append('email', form.Email.trim());
+            fd.append('phoneNumber', form.PhoneNumber.trim());
             fd.append('contactorEmail', form.ContactEmail.trim());
             fd.append('appointmentDateTime', new Date(form.AppointmentDateTime).toISOString());
-            fd.append('photo', photo!);
+            if (form.Notes.trim()) fd.append('notes', form.Notes.trim());
+            const safeName = form.FullName.trim().replace(/\s+/g, '_');
+            const safeDate = new Date(form.AppointmentDateTime).toISOString().slice(0, 16).replace(/:/g, '-');
+            const photoExt = photo!.name.split('.').pop() || 'jpg';
+            fd.append('photo', photo!, `${safeName}_${safeDate}.${photoExt}`);
             fd.append('cccdImage', cccdImage!);
             await visitorRegistrationService.create(fd);
             setSuccess(true);
@@ -192,6 +247,9 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
         if (cccdPreview) { URL.revokeObjectURL(cccdPreview); setCccdPreview(null); }
         setErrors({});
         setCccdExtractError(null);
+        setContactorOpen(false);
+        setContactorSearch('');
+        setSelectedContactor(null);
         setSuccess(false);
         onClose();
     };
@@ -246,7 +304,7 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
             onClose={handleClose}
             title="Book a Meeting"
             maxWidth="720px"
-            maxHeight="680px"
+            maxHeight="640px"
             disableBackdropClose={true}
             footer={
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', padding: '1rem 1.75rem', borderTop: '1px solid var(--border-color)' }}>
@@ -257,7 +315,7 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                 </div>
             }
         >
-            <div style={{ padding: '1.25rem 1.75rem' }}>
+            <div style={{ padding: '0.85rem 1.75rem' }}>
                 {errors.general && (
                     <div style={{ background: '#fff1f2', border: '1px solid #fecdd3', borderRadius: 'var(--radius-sm)', padding: '0.75rem 1rem', color: '#e11d48', fontSize: '0.88rem', marginBottom: '1rem' }}>
                         {errors.general}
@@ -266,7 +324,7 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
                     {/* Left column — text fields */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                         {/* Full Name */}
                         <div>
                             <label style={labelStyle}>Full Name <span style={{ color: '#e11d48' }}>*</span></label>
@@ -281,10 +339,110 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                             {errors.Email && <p style={errorStyle}>{errors.Email}</p>}
                         </div>
 
-                        {/* Contact Email */}
+                        {/* Phone Number */}
                         <div>
-                            <label style={labelStyle}>Lab Member's Email <span style={{ color: '#e11d48' }}>*</span></label>
-                            <input name="ContactEmail" type="email" value={form.ContactEmail} onChange={handleChange} style={inputStyle(errors.ContactEmail)} placeholder="labmember@aitlab.com" maxLength={255} />
+                            <label style={labelStyle}>Phone Number <span style={{ color: '#e11d48' }}>*</span></label>
+                            <input name="PhoneNumber" type="tel" value={form.PhoneNumber} onChange={handleChange} style={inputStyle(errors.PhoneNumber)} placeholder="0912345678 or +84912345678" maxLength={16} />
+                            {errors.PhoneNumber && <p style={errorStyle}>{errors.PhoneNumber}</p>}
+                        </div>
+
+                        {/* Contact Email — select only */}
+                        <div ref={contactorRef} style={{ position: 'relative' }}>
+                            <label style={labelStyle}>Lab Member <span style={{ color: '#e11d48' }}>*</span></label>
+                            <button
+                                type="button"
+                                onClick={() => !contactorLoading && setContactorOpen(prev => !prev)}
+                                style={{
+                                    width: '100%',
+                                    padding: '0.6rem 0.85rem',
+                                    borderRadius: 'var(--radius-sm)',
+                                    border: `1px solid ${errors.ContactEmail ? '#e11d48' : 'var(--border-color)'}`,
+                                    fontSize: '0.9rem',
+                                    background: 'white',
+                                    cursor: contactorLoading ? 'default' : 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: '0.5rem',
+                                    textAlign: 'left',
+                                    boxSizing: 'border-box',
+                                    fontFamily: 'inherit',
+                                    color: selectedContactor ? 'var(--text-primary)' : 'var(--text-muted)',
+                                }}
+                            >
+                                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+                                    {contactorLoading
+                                        ? 'Loading members...'
+                                        : selectedContactor
+                                            ? `${selectedContactor.fullName} — ${selectedContactor.email}`
+                                            : 'Select a lab member'}
+                                </span>
+                                {contactorLoading
+                                    ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }} />
+                                    : <ChevronDown size={14} style={{ flexShrink: 0, transform: contactorOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />}
+                            </button>
+                            {contactorOpen && (
+                                <div style={{
+                                    position: 'absolute',
+                                    top: '100%',
+                                    left: 0,
+                                    right: 0,
+                                    zIndex: 100,
+                                    background: 'white',
+                                    border: '1px solid var(--border-color)',
+                                    borderRadius: 'var(--radius-sm)',
+                                    boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+                                    maxHeight: '200px',
+                                    overflowY: 'auto',
+                                    marginTop: '4px',
+                                }}>
+                                    <div style={{ padding: '0.5rem', borderBottom: '1px solid var(--border-color)', position: 'sticky', top: 0, background: 'white' }}>
+                                        <input
+                                            type="text"
+                                            placeholder="Search by name or email..."
+                                            value={contactorSearch}
+                                            onChange={e => setContactorSearch(e.target.value)}
+                                            style={{ ...inputStyle(), fontSize: '0.83rem', padding: '0.4rem 0.65rem' }}
+                                            autoFocus
+                                        />
+                                    </div>
+                                    {(() => {
+                                        const filtered = contactors.filter(c =>
+                                            c.fullName.toLowerCase().includes(contactorSearch.toLowerCase()) ||
+                                            c.email.toLowerCase().includes(contactorSearch.toLowerCase())
+                                        );
+                                        return filtered.length === 0 ? (
+                                            <div style={{ padding: '1rem', textAlign: 'center', fontSize: '0.83rem', color: 'var(--text-muted)' }}>
+                                                No members found
+                                            </div>
+                                        ) : filtered.map(c => (
+                                            <button
+                                                key={c.id}
+                                                type="button"
+                                                onClick={() => handleSelectContactor(c)}
+                                                style={{
+                                                    display: 'flex',
+                                                    flexDirection: 'column',
+                                                    width: '100%',
+                                                    padding: '0.6rem 0.85rem',
+                                                    border: 'none',
+                                                    borderBottom: '1px solid var(--border-color)',
+                                                    background: selectedContactor?.id === c.id ? 'var(--surface-hover)' : 'white',
+                                                    cursor: 'pointer',
+                                                    textAlign: 'left',
+                                                    gap: '2px',
+                                                    boxSizing: 'border-box',
+                                                }}
+                                                onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-hover)')}
+                                                onMouseLeave={e => (e.currentTarget.style.background = selectedContactor?.id === c.id ? 'var(--surface-hover)' : 'white')}
+                                            >
+                                                <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>{c.fullName}</span>
+                                                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{c.email}</span>
+                                            </button>
+                                        ));
+                                    })()}
+                                </div>
+                            )}
                             {errors.ContactEmail && <p style={errorStyle}>{errors.ContactEmail}</p>}
                         </div>
 
@@ -295,13 +453,29 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                             {errors.AppointmentDateTime && <p style={errorStyle}>{errors.AppointmentDateTime}</p>}
                         </div>
 
+                        {/* Notes */}
+                        <div>
+                            <label style={labelStyle}>Notes <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(optional)</span></label>
+                            <textarea
+                                name="Notes"
+                                value={form.Notes}
+                                onChange={e => { setForm(prev => ({ ...prev, Notes: e.target.value })); if (errors.Notes) setErrors(prev => ({ ...prev, Notes: undefined })); }}
+                                placeholder="Any additional information..."
+                                maxLength={1000}
+                                rows={3}
+                                style={{ ...inputStyle(errors.Notes), resize: 'none', height: 'auto' }}
+                            />
+                            <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '2px 0 0', textAlign: 'right' }}>{form.Notes.length}/1000</p>
+                            {errors.Notes && <p style={errorStyle}>{errors.Notes}</p>}
+                        </div>
+
                         <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
                             Your information will be sent to the Lab member for review. You will receive an email notification with the result.
                         </p>
                     </div>
 
                     {/* Right column — photo uploads */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                         {/* Photo */}
                         <div>
                             <label style={labelStyle}>Your Photo <span style={{ color: '#e11d48' }}>*</span></label>
@@ -312,9 +486,9 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                                     borderRadius: 'var(--radius-sm)',
                                     textAlign: 'center',
                                     cursor: 'pointer',
-                                    background: photo ? '#f0fdf4' : 'var(--surface-hover)',
+                                    background: photo ? '#f8fafc' : 'var(--surface-hover)',
                                     transition: 'border-color 0.2s',
-                                    height: '150px',
+                                    height: '130px',
                                     overflow: 'hidden',
                                     position: 'relative',
                                     display: 'flex',
@@ -325,7 +499,7 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                             >
                                 {photo && photoPreview ? (
                                     <div style={{ position: 'absolute', inset: 0 }}>
-                                        <img src={photoPreview} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                                        <img src={photoPreview} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#f8fafc', display: 'block' }} />
                                         <button
                                             type="button"
                                             onClick={e => { e.stopPropagation(); setPhoto(null); setPhotoPreview(prev => { if (prev) URL.revokeObjectURL(prev); return null; }); if (photoRef.current) photoRef.current.value = ''; }}
@@ -352,13 +526,13 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                             <div
                                 onClick={() => !cccdExtracting && cccdRef.current?.click()}
                                 style={{
-                                    border: `1.5px dashed ${errors.cccdImage ? '#e11d48' : 'var(--border-color)'}`,
+                                    border: `1.5px dashed ${errors.cccdImage ? '#e11d48' : cccdExtractError ? '#f97316' : 'var(--border-color)'}`,
                                     borderRadius: 'var(--radius-sm)',
                                     textAlign: 'center',
                                     cursor: cccdExtracting ? 'default' : 'pointer',
-                                    background: cccdImage ? '#f0fdf4' : 'var(--surface-hover)',
+                                    background: cccdImage ? '#f8fafc' : cccdExtractError ? '#fff7ed' : 'var(--surface-hover)',
                                     transition: 'border-color 0.2s',
-                                    height: '150px',
+                                    height: '130px',
                                     overflow: 'hidden',
                                     position: 'relative',
                                     display: 'flex',
@@ -369,8 +543,8 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                             >
                                 {cccdImage && cccdPreview ? (
                                     <div style={{ position: 'absolute', inset: 0 }}>
-                                        <img src={cccdPreview} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                                        {/* Loading overlay */}
+                                        <img src={cccdPreview} alt="ID card" style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#f8fafc', display: 'block' }} />
+                                        {/* Spinner overlay while extracting */}
                                         {cccdExtracting && (
                                             <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
                                                 <Loader2 size={22} color="#fff" style={{ animation: 'spin 1s linear infinite' }} />
@@ -387,21 +561,14 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                                                 <X size={13} color="#fff" />
                                             </button>
                                         )}
-                                        {/* Load Data button — pinned at bottom of image */}
-                                        {!cccdExtracting && (
-                                            <button
-                                                type="button"
-                                                onClick={e => { e.stopPropagation(); handleExtractCccd(); }}
-                                                style={{ position: 'absolute', bottom: 0, left: 0, right: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', padding: '6px 8px', background: 'rgba(37,99,235,0.88)', border: 'none', color: '#fff', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer', letterSpacing: '0.01em' }}
-                                            >
-                                                <RefreshCw size={12} /> Load Data from ID Card
-                                            </button>
-                                        )}
+                                        <span style={{ position: 'absolute', bottom: '4px', left: '4px', right: '4px', fontSize: '0.68rem', color: '#fff', background: 'rgba(0,0,0,0.5)', borderRadius: '3px', padding: '1px 4px', textAlign: 'center', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{cccdImage.name}</span>
                                     </div>
                                 ) : (
                                     <>
-                                        <Upload size={20} color="var(--text-muted)" />
-                                        <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>Upload to auto-fill form</p>
+                                        <Upload size={20} color={cccdExtractError ? '#f97316' : 'var(--text-muted)'} />
+                                        <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: cccdExtractError ? '#f97316' : 'var(--text-muted)', fontWeight: cccdExtractError ? 600 : undefined }}>
+                                            {cccdExtractError ? 'Click to upload again' : 'Upload to auto-fill form'}
+                                        </p>
                                         <p style={{ margin: '2px 0 0', fontSize: '0.72rem', color: 'var(--text-muted)' }}>jpg/png/webp, max 10 MB</p>
                                     </>
                                 )}

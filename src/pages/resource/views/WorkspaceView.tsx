@@ -147,7 +147,7 @@ function KanbanColumn({ title, items, color, accent, icon: Icon, onOpen, onAppro
 }
 
 // ─── Right rail ───────────────────────────────────────────────────────────────
-function RightRail({ bookings, resources, onOpen, onNewBooking }: {
+function RightRail({ bookings, resources, onOpen, onNewBooking: _onNewBooking }: {
     bookings: Booking[]; resources: Resource[];
     onOpen: (b: Booking) => void; onNewBooking: () => void;
 }) {
@@ -271,7 +271,7 @@ function RightRail({ bookings, resources, onOpen, onNewBooking }: {
 }
 
 // ─── KPI strip ────────────────────────────────────────────────────────────────
-function KpiStrip({ bookings }: { bookings: Booking[] }) {
+function _KpiStrip({ bookings }: { bookings: Booking[] }) {
     const kpis = [
         { label: 'Pending',   value: bookings.filter(b => b.status === BookingStatus.Pending).length,   icon: AlertCircle,  color: STATUS_META[BookingStatus.Pending].color,   bg: STATUS_META[BookingStatus.Pending].bg },
         { label: 'Approved',  value: bookings.filter(b => b.status === BookingStatus.Approved).length,  icon: CheckCircle2, color: STATUS_META[BookingStatus.Approved].color,  bg: STATUS_META[BookingStatus.Approved].bg },

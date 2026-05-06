@@ -130,11 +130,14 @@ const TerminalFileManager: React.FC<TerminalFileManagerProps> = ({ bookingId, te
   const [newMenuOpen, setNewMenuOpen] = useState(false);
   const [hoveredPath, setHoveredPath] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
   const newMenuRef = useRef<HTMLDivElement>(null);
 
   const baseUrl = (API_BASE_URL || '').replace(/\/$/, '');
   const filesBase = `${baseUrl}/api/terminal/bookings/${bookingId}/files`;
-  const authHeader = { Authorization: `Bearer ${terminalToken}` };
+  const authHeader = {
+    Authorization: `Bearer ${terminalToken}`,
+  };
 
   // -- Lazy init: only start on first active=true --------
   useEffect(() => {
@@ -209,6 +212,42 @@ const TerminalFileManager: React.FC<TerminalFileManagerProps> = ({ bookingId, te
     } finally {
       setUploadProgress(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }, [filesBase, terminalToken, currentPath, listDir]);
+
+  // -- Folder Upload ------------------------------------
+  const doFolderUpload = useCallback(async (files: FileList) => {
+    setUploadProgress(0);
+    const formData = new FormData();
+    const dest = currentPath.endsWith('/') ? currentPath : currentPath + '/';
+    formData.append('destination', dest);
+    for (const file of Array.from(files)) {
+      formData.append('files', file);
+      formData.append('paths', (file as any).webkitRelativePath || file.name);
+    }
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', `${filesBase}/upload-folder`);
+        xhr.setRequestHeader('Authorization', `Bearer ${terminalToken}`);
+        xhr.upload.onprogress = e => { if (e.lengthComputable) setUploadProgress(Math.round(e.loaded / e.total * 100)); };
+        xhr.onload = () => {
+          if (xhr.status === 401) reject(new Error('Token expired.'));
+          else if (xhr.status >= 200 && xhr.status < 300) resolve();
+          else {
+            try { reject(new Error(JSON.parse(xhr.responseText)?.message || `Upload failed (${xhr.status})`)); }
+            catch { reject(new Error(`Upload failed (${xhr.status})`)); }
+          }
+        };
+        xhr.onerror = () => reject(new Error('Folder upload failed -- network error'));
+        xhr.send(formData);
+      });
+      await listDir(currentPath);
+    } catch (err: any) {
+      setError(err.message || 'Folder upload failed');
+    } finally {
+      setUploadProgress(null);
+      if (folderInputRef.current) folderInputRef.current.value = '';
     }
   }, [filesBase, terminalToken, currentPath, listDir]);
 
@@ -372,11 +411,26 @@ const TerminalFileManager: React.FC<TerminalFileManagerProps> = ({ bookingId, te
               >
                 <span style={{ color: '#0ea5e9' }}><Upload size={13} /></span> Upload File
               </button>
+              <button onClick={() => { folderInputRef.current?.click(); setNewMenuOpen(false); }} style={{
+                display: 'flex', alignItems: 'center', gap: '10px',
+                width: '100%', padding: '8px 13px', background: 'none', border: 'none',
+                color: '#e2e8f0', cursor: 'pointer', fontSize: '0.8rem', textAlign: 'left',
+                transition: 'background 0.1s',
+              }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+              >
+                <span style={{ color: '#a78bfa' }}><FolderOpen size={13} /></span> Upload Folder
+              </button>
             </div>
           )}
         </div>
         <input ref={fileInputRef} type="file" style={{ display: 'none' }}
           onChange={e => { if (e.target.files?.[0]) doUpload(e.target.files[0], currentPath); }} />
+        <input ref={folderInputRef} type="file" style={{ display: 'none' }}
+          // @ts-ignore — webkitdirectory is non-standard but widely supported
+          webkitdirectory=""
+          onChange={e => { if (e.target.files?.length) doFolderUpload(e.target.files); }} />
       </div>
 
       {/* Upload progress bar */}

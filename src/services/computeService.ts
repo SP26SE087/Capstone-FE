@@ -20,14 +20,47 @@ const MOCK_TIERS: ComputeTier[] = [
   },
 ];
 
-/** Status values returned by GET /api/server-access/bookings/{bookingId} */
-export type ServerAccessStatus = 'Pending' | 'Provisioning' | 'Active' | 'Provisioned' | 'Expired' | 'Revoked';
+/**
+ * Numeric accessStatus values from GET /api/server-access/bookings/{bookingId}
+ * 0 = Pending, 1 = Active, 2 = Provisioning, 3 = Revoked, 4 = Expired
+ */
+export type ServerAccessStatusCode = 0 | 1 | 2 | 3 | 4;
+export type ServerAccessStatus = 'Pending' | 'Provisioning' | 'Active' | 'Expired' | 'Revoked';
+
+const STATUS_MAP: Record<ServerAccessStatusCode, ServerAccessStatus> = {
+  0: 'Pending',
+  1: 'Active',
+  2: 'Provisioning',
+  3: 'Revoked',
+  4: 'Expired',
+};
 
 export interface ServerAccess {
+  id: string;
   bookingId: string;
+  linuxUsername: string | null;
+  isProvisioned: boolean;
+  /** Normalised string status derived from numeric accessStatus */
   status: ServerAccessStatus;
-  provisionedAt?: string;
-  expiresAt?: string;
+  accessStatus: ServerAccessStatusCode;
+  requestedGpuCount: number | null;
+  requestedCpuCores: number | null;
+  requestedRamGb: number | null;
+  dockerImage: string | null;
+  projectDescription: string | null;
+  provisionedAt: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SubmitPublicKeyRequest {
+  sshPublicKey: string;
+  requestedGpuCount?: number;
+  requestedCpuCores?: number;
+  requestedRamGb?: number;
+  dockerImage?: string;
+  projectDescription?: string;
 }
 
 /** Build a wss:// URL from the API base URL (or explicit terminal WS base) */
@@ -36,6 +69,22 @@ function toWsUrl(path: string): string {
   const base = (explicitBase || API_BASE_URL || '').replace(/\/$/, '');
   const wsBase = base.replace(/^https:\/\//, 'wss://').replace(/^http:\/\//, 'ws://');
   return `${wsBase}${path}`;
+}
+
+function terminalFileHeaders(terminalToken: string, privateKey: string): Record<string, string> {
+  return {
+    Authorization: `Bearer ${terminalToken}`,
+    'X-Private-Key': privateKey,
+  };
+}
+
+function normaliseAccess(raw: any): ServerAccess {
+  const code = (raw.accessStatus ?? 0) as ServerAccessStatusCode;
+  return {
+    ...raw,
+    accessStatus: code,
+    status: STATUS_MAP[code] ?? 'Pending',
+  };
 }
 
 export const computeService = {
@@ -59,27 +108,27 @@ export const computeService = {
   },
 
   /**
-   * Submit access request — POST /api/server-access/bookings/{bookingId}
-   * Call when user wants to access a provisioned compute server booking.
+   * Step 2 — Submit RSA public key + resource request after creating a booking.
+   * POST /api/server-access/bookings/{bookingId}
    */
-  requestAccess: async (bookingId: string): Promise<ServerAccess> => {
+  submitPublicKey: async (bookingId: string, req: SubmitPublicKeyRequest): Promise<ServerAccess> => {
     try {
-      const response = await api.post(`/api/server-access/bookings/${bookingId}`, {});
-      return response.data.data || response.data;
+      const response = await api.post(`/api/server-access/bookings/${bookingId}`, req);
+      return normaliseAccess(response.data.data || response.data);
     } catch (err: any) {
       const msg = err.response?.data?.message || err.response?.data?.title || err.message;
-      throw new Error(msg || 'Request failed');
+      throw new Error(msg || 'Failed to submit public key');
     }
   },
 
   /**
-   * Get access status — GET /api/server-access/bookings/{bookingId}
+   * Get server access status — GET /api/server-access/bookings/{bookingId}
    * Returns null when no access request exists (404).
    */
   getAccessStatus: async (bookingId: string): Promise<ServerAccess | null> => {
     try {
       const response = await api.get(`/api/server-access/bookings/${bookingId}`);
-      return response.data.data || response.data;
+      return normaliseAccess(response.data.data || response.data);
     } catch (err: any) {
       if (err.response?.status === 404) return null;
       throw err;
@@ -88,18 +137,19 @@ export const computeService = {
 
   /**
    * Get terminal WebSocket token — GET /api/terminal/bookings/{bookingId}/token
-   * Response: { token, expiresAt } — wsUrl is constructed from API_BASE_URL.
-   * Requires booking to be in Approved status.
+   * Private key is passed in the WS URL query string (never stored on server).
    */
-  getTerminalToken: async (bookingId: string): Promise<{ token: string; wsUrl: string; expiresAt?: string }> => {
+  getTerminalToken: async (
+    bookingId: string,
+    privateKey: string
+  ): Promise<{ token: string; wsUrl: string; expiresAt?: string }> => {
     try {
       const response = await api.get(`/api/terminal/bookings/${bookingId}/token`);
       const data = response.data.data || response.data;
-      // Backend returns { token, expiresAt } — construct wsUrl from base URL
-      if (!data.wsUrl && data.token) {
-        data.wsUrl = toWsUrl(`/api/terminal/connect?token=${encodeURIComponent(data.token)}`);
-      }
-      return data;
+      const wsUrl = toWsUrl(
+        `/api/terminal/connect?token=${encodeURIComponent(data.token)}&privateKey=${encodeURIComponent(privateKey)}`
+      );
+      return { ...data, wsUrl };
     } catch (err: any) {
       const msg = err.response?.data?.message || err.response?.data?.title || err.message;
       throw new Error(msg || 'Failed to get terminal token');
@@ -107,8 +157,7 @@ export const computeService = {
   },
 
   /**
-   * Admin: provision SSH credentials — POST /api/server-access/bookings/{bookingId}/provision
-   * SSH credentials are encrypted server-side; the frontend never receives them.
+   * Admin: provision Linux user on server — POST /api/server-access/bookings/{bookingId}/provision
    */
   provisionAccess: async (bookingId: string): Promise<void> => {
     await api.post(`/api/server-access/bookings/${bookingId}/provision`, {});
@@ -119,5 +168,95 @@ export const computeService = {
    */
   revokeAccess: async (bookingId: string): Promise<void> => {
     await api.post(`/api/server-access/bookings/${bookingId}/revoke`, {});
+  },
+
+  // ── File Manager ──────────────────────────────────────────────────────────
+
+  /** List files/folders at remote path */
+  listFiles: async (
+    bookingId: string,
+    terminalToken: string,
+    privateKey: string,
+    path = '/'
+  ) => {
+    const res = await fetch(
+      `${API_BASE_URL}api/terminal/bookings/${bookingId}/files?path=${encodeURIComponent(path)}`,
+      { headers: terminalFileHeaders(terminalToken, privateKey) }
+    );
+    const json = await res.json();
+    return json.data ?? json;
+  },
+
+  /** Download file or folder (folder → .zip) */
+  downloadFile: async (
+    bookingId: string,
+    terminalToken: string,
+    privateKey: string,
+    remotePath: string
+  ) => {
+    const res = await fetch(
+      `${API_BASE_URL}api/terminal/bookings/${bookingId}/files/download?path=${encodeURIComponent(remotePath)}`,
+      { headers: terminalFileHeaders(terminalToken, privateKey) }
+    );
+    const blob = await res.blob();
+    const fileName = remotePath.split('/').pop() ?? 'download';
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    a.click();
+    URL.revokeObjectURL(url);
+  },
+
+  /** Upload single file */
+  uploadFile: async (
+    bookingId: string,
+    terminalToken: string,
+    privateKey: string,
+    file: File,
+    destinationPath = '/'
+  ) => {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('path', destinationPath);
+    await fetch(`${API_BASE_URL}api/terminal/bookings/${bookingId}/files/upload`, {
+      method: 'POST',
+      headers: terminalFileHeaders(terminalToken, privateKey),
+      body: form,
+    });
+  },
+
+  /** Upload folder preserving structure — use <input webkitdirectory> */
+  uploadFolder: async (
+    bookingId: string,
+    terminalToken: string,
+    privateKey: string,
+    files: FileList,
+    destinationPath = '/'
+  ) => {
+    const form = new FormData();
+    form.append('destination', destinationPath);
+    Array.from(files).forEach(f => {
+      form.append('files', f);
+      form.append('paths', (f as any).webkitRelativePath);
+    });
+    await fetch(`${API_BASE_URL}api/terminal/bookings/${bookingId}/files/upload-folder`, {
+      method: 'POST',
+      headers: terminalFileHeaders(terminalToken, privateKey),
+      body: form,
+    });
+  },
+
+  /** Delete file or folder (recursive) */
+  deleteFile: async (
+    bookingId: string,
+    terminalToken: string,
+    privateKey: string,
+    remotePath: string
+  ) => {
+    await fetch(
+      `${API_BASE_URL}api/terminal/bookings/${bookingId}/files?path=${encodeURIComponent(remotePath)}`,
+      { method: 'DELETE', headers: terminalFileHeaders(terminalToken, privateKey) }
+    );
   },
 };

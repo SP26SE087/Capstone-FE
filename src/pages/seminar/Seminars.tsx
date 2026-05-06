@@ -19,7 +19,6 @@ import {
     CheckCircle2,
     FileText,
     Users,
-    RotateCcw,
     ChevronsUpDown,
     ChevronsDownUp
 } from 'lucide-react';
@@ -101,7 +100,6 @@ const Seminars: React.FC = () => {
         (localStorage.getItem('seminar_viewMode') as 'list' | 'timetable') || 'list'
     );
     const [allExpanded, setAllExpanded] = useState<boolean | undefined>(undefined);
-    const [refreshing, setRefreshing] = useState(false);
     const [aiSummaryBySeminarMeetingId, setAiSummaryBySeminarMeetingId] = useState<Record<string, boolean>>({});
     const aiSummaryCacheRef = useRef<Record<string, boolean>>({});
 
@@ -276,15 +274,6 @@ const Seminars: React.FC = () => {
             setMeetings([]);
         } finally {
             setLoading(false);
-        }
-    };
-
-    const handleRefresh = async () => {
-        setRefreshing(true);
-        try {
-            await fetchSeminars();
-        } finally {
-            setRefreshing(false);
         }
     };
 
@@ -476,20 +465,6 @@ const Seminars: React.FC = () => {
                             Manage recurring seminars, session schedules, and presenter rotations.
                         </p>
                     </div>
-                    <button
-                        onClick={handleRefresh}
-                        disabled={refreshing}
-                        title="Refresh"
-                        style={{
-                            padding: '6px 8px', border: '1px solid #e2e8f0', background: 'white',
-                            borderRadius: '8px', display: 'flex', alignItems: 'center',
-                            cursor: refreshing ? 'not-allowed' : 'pointer',
-                            color: '#64748b', flexShrink: 0,
-                            opacity: refreshing ? 0.5 : 1, transition: 'opacity 0.2s',
-                        }}
-                    >
-                        <RotateCcw size={14} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
-                    </button>
                 </div>
 
                 {/* Search Bar */}

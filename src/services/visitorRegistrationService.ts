@@ -27,11 +27,11 @@ export const visitorRegistrationService = {
     },
 
     /**
-     * Get visitor registrations where contactEmail = current user's email.
+     * Get visitor registrations assigned to the current user.
      * Requires JWT auth.
      */
     getMyList: async (): Promise<VisitorRegistrationResponse[]> => {
-        const response = await api.get('/api/visitor-registrations');
+        const response = await api.get('/api/visitor-registrations/assigned-to-me');
         const data = response.data?.data ?? response.data;
         return Array.isArray(data) ? data : [];
     },
@@ -106,5 +106,12 @@ export const visitorRegistrationService = {
         });
         const data = response.data?.data ?? response.data;
         return data as { fullName: string; faceImageBase64: string | null };
+    },
+
+    /** Get visitors currently active today (no auth required) */
+    getActiveVisitors: async (): Promise<any[]> => {
+        const response = await api.get('/api/users/visitors/active');
+        const data = response.data?.data ?? response.data;
+        return Array.isArray(data) ? data : [];
     },
 };

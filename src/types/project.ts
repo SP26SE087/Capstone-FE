@@ -6,6 +6,7 @@ export interface Project {
     endDate: string | null;
     status: ProjectStatus;
     researchFields: ResearchField[];
+    customFields?: string[];
     members?: ProjectMember[];
     membersCount?: number;
     totalTasks?: number;

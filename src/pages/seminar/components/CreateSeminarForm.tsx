@@ -169,7 +169,7 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
         }
     };
 
-    const updatePresenterTopic = (email: string, topic: string) => {
+    const _updatePresenterTopic = (email: string, topic: string) => {
         setPresenters(prev => prev.map(p =>
             p.email?.toLowerCase() === email.toLowerCase()
                 ? { ...p, topic: topic || null }

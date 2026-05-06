@@ -73,12 +73,12 @@ const ServerTerminal = forwardRef<ServerTerminalHandle, ServerTerminalProps>(fun
     setError(null);
 
     try {
-      // Create WebSocket with token in URL or as subprotocol
+      // Build WS URL: inject token + private key as query params
       const url = new URL(wsUrl);
       if (!url.searchParams.get('token') && token) {
         url.searchParams.set('token', token);
       }
-      
+
       const ws = new WebSocket(url.toString());
       ws.binaryType = 'arraybuffer';
       wsRef.current = ws;
