@@ -191,6 +191,7 @@ const TerminalFileManager: React.FC<TerminalFileManagerProps> = ({ bookingId, te
 
   // -- Upload helper -------------------------------------
   const doUpload = useCallback(async (file: File, destPath: string) => {
+    if (file.size === 0) { setError('Cannot upload an empty file (0 bytes).'); return; }
     setUploadProgress(0);
     const formData = new FormData();
     const uploadPath = destPath.endsWith('/') ? destPath : destPath + '/';
