@@ -193,12 +193,13 @@ const TerminalFileManager: React.FC<TerminalFileManagerProps> = ({ bookingId, te
   const doUpload = useCallback(async (file: File, destPath: string) => {
     setUploadProgress(0);
     const formData = new FormData();
-    formData.append('file', file);
     const uploadPath = destPath.endsWith('/') ? destPath : destPath + '/';
+    formData.append('file', file);
+    formData.append('path', uploadPath);
     try {
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        xhr.open('POST', `${filesBase}/upload?path=${encodeURIComponent(uploadPath)}`);
+        xhr.open('POST', `${filesBase}/upload`);
         xhr.setRequestHeader('Authorization', `Bearer ${terminalToken}`);
         xhr.setRequestHeader('X-Private-Key', privateKey.replace(/\n/g, '\\n'));
         xhr.upload.onprogress = e => { if (e.lengthComputable) setUploadProgress(Math.round(e.loaded / e.total * 100)); };
@@ -220,13 +221,15 @@ const TerminalFileManager: React.FC<TerminalFileManagerProps> = ({ bookingId, te
       setUploadProgress(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
-  }, [filesBase, terminalToken, currentPath, listDir]);
+  }, [filesBase, terminalToken, privateKey, currentPath, listDir]);
 
   // -- Folder Upload ------------------------------------
   const doFolderUpload = useCallback(async (files: FileList) => {
+    if (!files.length) return;
     setUploadProgress(0);
-    const formData = new FormData();
     const dest = currentPath.endsWith('/') ? currentPath : currentPath + '/';
+    const formData = new FormData();
+    formData.append('destination', dest);
     for (const file of Array.from(files)) {
       formData.append('files', file);
       formData.append('paths', (file as any).webkitRelativePath || file.name);
@@ -234,7 +237,7 @@ const TerminalFileManager: React.FC<TerminalFileManagerProps> = ({ bookingId, te
     try {
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        xhr.open('POST', `${filesBase}/upload-folder?destination=${encodeURIComponent(dest)}`);
+        xhr.open('POST', `${filesBase}/upload-folder`);
         xhr.setRequestHeader('Authorization', `Bearer ${terminalToken}`);
         xhr.setRequestHeader('X-Private-Key', privateKey.replace(/\n/g, '\\n'));
         xhr.upload.onprogress = e => { if (e.lengthComputable) setUploadProgress(Math.round(e.loaded / e.total * 100)); };
@@ -256,7 +259,7 @@ const TerminalFileManager: React.FC<TerminalFileManagerProps> = ({ bookingId, te
       setUploadProgress(null);
       if (folderInputRef.current) folderInputRef.current.value = '';
     }
-  }, [filesBase, terminalToken, currentPath, listDir]);
+  }, [filesBase, terminalToken, privateKey, currentPath, listDir]);
 
   // -- Download ------------------------------------------
   const handleDownload = async (entry: SftpEntry) => {
@@ -300,7 +303,6 @@ const TerminalFileManager: React.FC<TerminalFileManagerProps> = ({ bookingId, te
   const handleCreateFolder = (name: string) => {
     setCreating(null);
     const folderPath = (currentPath.endsWith('/') ? currentPath : currentPath + '/') + name;
-    // onSendCommand switches to terminal tab, runs mkdir, then switches back and refreshes
     if (onSendCommand) {
       onSendCommand(`mkdir -p ${folderPath}\n`);
     }
