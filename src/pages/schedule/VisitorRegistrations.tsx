@@ -925,9 +925,11 @@ const VisitorRegistrations: React.FC = () => {
                                 <div style={{ border: '1px solid var(--border-light)', borderRadius: 'var(--radius-sm)', overflow: 'hidden', padding: '0 0.75rem' }}>
                                     {fieldRow('Full Name',         <strong>{detail.fullName}</strong>)}
                                     {fieldRow('Email',             detail.email)}
+                                    {detail.phoneNumber && fieldRow('Phone Number',    detail.phoneNumber)}
                                     {fieldRow('Wants to Contact',  detail.contactEmail)}
                                     {fieldRow('Appointment',       formatDt(detail.appointmentDateTime))}
                                     {fieldRow('Submitted At',      formatDt(detail.createdAt))}
+                                    {detail.notes && fieldRow('Notes', detail.notes)}
                                 </div>
                             </div>
 
