@@ -929,7 +929,6 @@ const VisitorRegistrations: React.FC = () => {
                                     {fieldRow('Wants to Contact',  detail.contactEmail)}
                                     {fieldRow('Appointment',       formatDt(detail.appointmentDateTime))}
                                     {fieldRow('Submitted At',      formatDt(detail.createdAt))}
-                                    {detail.notes && fieldRow('Notes', detail.notes)}
                                 </div>
                             </div>
 
@@ -1008,6 +1007,15 @@ const VisitorRegistrations: React.FC = () => {
                                     })}
                                 </div>
                                 </>}
+                                {/* Notes */}
+                                {detail.notes && (
+                                    <div>
+                                        <p style={{ margin: '0 0 0.4rem', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Notes</p>
+                                        <div style={{ background: 'var(--surface-hover)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-sm)', padding: '0.6rem 0.85rem', fontSize: '0.85rem', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                                            {detail.notes}
+                                        </div>
+                                    </div>
+                                )}
                                 {/* Action buttons */}
                                 {detail.status === VisitorRegistrationStatus.Pending && detail.isAssignee && (
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
