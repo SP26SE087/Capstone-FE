@@ -22,17 +22,17 @@ const MOCK_TIERS: ComputeTier[] = [
 
 /**
  * Numeric accessStatus values from GET /api/server-access/bookings/{bookingId}
- * 0 = Pending, 1 = Active, 2 = Provisioning, 3 = Revoked, 4 = Expired
+ * 1 = Pending, 2 = Provisioning, 3 = Active, 4 = Expired, 5 = Revoked
  */
-export type ServerAccessStatusCode = 0 | 1 | 2 | 3 | 4;
+export type ServerAccessStatusCode = 1 | 2 | 3 | 4 | 5;
 export type ServerAccessStatus = 'Pending' | 'Provisioning' | 'Active' | 'Expired' | 'Revoked';
 
 const STATUS_MAP: Record<ServerAccessStatusCode, ServerAccessStatus> = {
-  0: 'Pending',
-  1: 'Active',
+  1: 'Pending',
   2: 'Provisioning',
-  3: 'Revoked',
+  3: 'Active',
   4: 'Expired',
+  5: 'Revoked',
 };
 
 export interface ServerAccess {
@@ -79,7 +79,7 @@ function terminalFileHeaders(terminalToken: string, privateKey: string): Record<
 }
 
 function normaliseAccess(raw: any): ServerAccess {
-  const code = (raw.accessStatus ?? 0) as ServerAccessStatusCode;
+  const code = (raw.accessStatus ?? 1) as ServerAccessStatusCode;
   return {
     ...raw,
     accessStatus: code,

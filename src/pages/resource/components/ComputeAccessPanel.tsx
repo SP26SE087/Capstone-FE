@@ -135,7 +135,7 @@ const ComputeAccessPanel: React.FC<ComputeAccessPanelProps> = ({
     && serverAccess?.status !== 'Pending'
     && serverAccess?.status !== 'Provisioning';
 
-  const isActive = serverAccess?.status === 'Active' || serverAccess?.accessStatus === 1;
+  const isActive = serverAccess?.status === 'Active' || serverAccess?.accessStatus === ComputeAccessStatus.Active;
   const needsPublicKey = !serverAccess;
   const needsPrivateKey = isActive && !privateKey.trim();
   const canConnect = isActive && !!privateKey.trim();
