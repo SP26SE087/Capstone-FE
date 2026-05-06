@@ -139,7 +139,7 @@ const TerminalFileManager: React.FC<TerminalFileManagerProps> = ({ bookingId, te
   // Replace actual newlines with literal \n as required by the X-Private-Key header spec
   const authHeader = {
     Authorization: `Bearer ${terminalToken}`,
-    'X-Private-Key': privateKey,
+    'X-Private-Key': privateKey.replace(/\n/g, '\\n'),
   };
 
   // -- Lazy init: only start on first active=true --------
@@ -201,7 +201,7 @@ const TerminalFileManager: React.FC<TerminalFileManagerProps> = ({ bookingId, te
         const xhr = new XMLHttpRequest();
         xhr.open('POST', `${filesBase}/upload`);
         xhr.setRequestHeader('Authorization', `Bearer ${terminalToken}`);
-        xhr.setRequestHeader('X-Private-Key', privateKey);
+        xhr.setRequestHeader('X-Private-Key', privateKey.replace(/\n/g, '\\n'));
         xhr.upload.onprogress = e => { if (e.lengthComputable) setUploadProgress(Math.round(e.loaded / e.total * 100)); };
         xhr.onload = () => {
           if (xhr.status === 401) reject(new Error('Token expired.'));
@@ -237,9 +237,9 @@ const TerminalFileManager: React.FC<TerminalFileManagerProps> = ({ bookingId, te
     try {
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-          xhr.open('POST', `${filesBase}/upload-folder`);
+        xhr.open('POST', `${filesBase}/upload-folder`);
         xhr.setRequestHeader('Authorization', `Bearer ${terminalToken}`);
-        xhr.setRequestHeader('X-Private-Key', privateKey);
+        xhr.setRequestHeader('X-Private-Key', privateKey.replace(/\n/g, '\\n'));
         xhr.upload.onprogress = e => { if (e.lengthComputable) setUploadProgress(Math.round(e.loaded / e.total * 100)); };
         xhr.onload = () => {
           if (xhr.status === 401) reject(new Error('Token expired.'));
