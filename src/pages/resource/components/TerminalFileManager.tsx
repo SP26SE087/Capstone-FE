@@ -194,11 +194,11 @@ const TerminalFileManager: React.FC<TerminalFileManagerProps> = ({ bookingId, te
     setUploadProgress(0);
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('path', destPath.endsWith('/') ? destPath : destPath + '/');
+    const uploadPath = destPath.endsWith('/') ? destPath : destPath + '/';
     try {
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        xhr.open('POST', `${filesBase}/upload`);
+        xhr.open('POST', `${filesBase}/upload?path=${encodeURIComponent(uploadPath)}`);
         xhr.setRequestHeader('Authorization', `Bearer ${terminalToken}`);
         xhr.setRequestHeader('X-Private-Key', privateKey.replace(/\n/g, '\\n'));
         xhr.upload.onprogress = e => { if (e.lengthComputable) setUploadProgress(Math.round(e.loaded / e.total * 100)); };
@@ -227,7 +227,6 @@ const TerminalFileManager: React.FC<TerminalFileManagerProps> = ({ bookingId, te
     setUploadProgress(0);
     const formData = new FormData();
     const dest = currentPath.endsWith('/') ? currentPath : currentPath + '/';
-    formData.append('destination', dest);
     for (const file of Array.from(files)) {
       formData.append('files', file);
       formData.append('paths', (file as any).webkitRelativePath || file.name);
@@ -235,7 +234,7 @@ const TerminalFileManager: React.FC<TerminalFileManagerProps> = ({ bookingId, te
     try {
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        xhr.open('POST', `${filesBase}/upload-folder`);
+        xhr.open('POST', `${filesBase}/upload-folder?destination=${encodeURIComponent(dest)}`);
         xhr.setRequestHeader('Authorization', `Bearer ${terminalToken}`);
         xhr.setRequestHeader('X-Private-Key', privateKey.replace(/\n/g, '\\n'));
         xhr.upload.onprogress = e => { if (e.lengthComputable) setUploadProgress(Math.round(e.loaded / e.total * 100)); };

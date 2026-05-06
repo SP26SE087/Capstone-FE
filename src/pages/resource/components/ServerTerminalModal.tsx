@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { X, Maximize2, Minimize2, Copy, Check, Zap, Clock, Terminal, FolderOpen } from 'lucide-react';
 import { ComputeAccess } from '@/types/booking';
 import { computeService } from '@/services/computeService';
-import ServerTerminal from './ServerTerminal';
+import ServerTerminal, { ServerTerminalHandle } from './ServerTerminal';
 import TerminalFileManager from './TerminalFileManager';
 
 interface ServerTerminalModalProps {
@@ -23,6 +23,8 @@ const ServerTerminalModal: React.FC<ServerTerminalModalProps> = ({
   const [activeTab, setActiveTab] = useState<'terminal' | 'files'>('terminal');
   const [token, setToken] = useState<string>('');
   const [wsUrl, setWsUrl] = useState<string>('');
+  const terminalRef = useRef<ServerTerminalHandle>(null);
+  const fileManagerRefreshRef = useRef<(() => void) | null>(null);
   const [sessionExpiresAt, setSessionExpiresAt] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -360,6 +362,7 @@ const ServerTerminalModal: React.FC<ServerTerminalModalProps> = ({
               {/* Terminal tab */}
               <div style={{ display: activeTab === 'terminal' ? 'flex' : 'none', flex: 1, flexDirection: 'column', overflow: 'hidden' }}>
                 <ServerTerminal
+                  ref={terminalRef}
                   wsUrl={wsUrl}
                   token={token}
                   onConnectionChange={setConnected}
@@ -372,6 +375,12 @@ const ServerTerminalModal: React.FC<ServerTerminalModalProps> = ({
                   bookingId={access.bookingId}
                   terminalToken={token}
                   privateKey={privateKey ?? access.privateKey ?? ''}
+                  active={activeTab === 'files'}
+                  onSendCommand={(cmd) => {
+                    terminalRef.current?.sendCommand(cmd);
+                    setTimeout(() => fileManagerRefreshRef.current?.(), 1500);
+                  }}
+                  onRegisterRefresh={(fn) => { fileManagerRefreshRef.current = fn; }}
                 />
               </div>
             </div>
