@@ -16,6 +16,7 @@ interface SftpEntry {
 interface TerminalFileManagerProps {
   bookingId: string;
   terminalToken: string;
+  privateKey: string;
   /** Only initialise (fetch) the first time this becomes true — lazy loading */
   active?: boolean;
   /** Send a shell command through the live terminal WebSocket */
@@ -116,7 +117,7 @@ const InlineInput: React.FC<{
   );
 };
 
-const TerminalFileManager: React.FC<TerminalFileManagerProps> = ({ bookingId, terminalToken, active, onSendCommand, onRegisterRefresh }) => {
+const TerminalFileManager: React.FC<TerminalFileManagerProps> = ({ bookingId, terminalToken, privateKey, active, onSendCommand, onRegisterRefresh }) => {
   const [initialized, setInitialized] = useState(false);
   const [currentPath, setCurrentPath] = useState('/home');
   const [entries, setEntries] = useState<SftpEntry[]>([]);
@@ -137,6 +138,7 @@ const TerminalFileManager: React.FC<TerminalFileManagerProps> = ({ bookingId, te
   const filesBase = `${baseUrl}/api/terminal/bookings/${bookingId}/files`;
   const authHeader = {
     Authorization: `Bearer ${terminalToken}`,
+    'X-Private-Key': privateKey,
   };
 
   // -- Lazy init: only start on first active=true --------
@@ -194,6 +196,7 @@ const TerminalFileManager: React.FC<TerminalFileManagerProps> = ({ bookingId, te
         const xhr = new XMLHttpRequest();
         xhr.open('POST', `${filesBase}/upload`);
         xhr.setRequestHeader('Authorization', `Bearer ${terminalToken}`);
+        xhr.setRequestHeader('X-Private-Key', privateKey);
         xhr.upload.onprogress = e => { if (e.lengthComputable) setUploadProgress(Math.round(e.loaded / e.total * 100)); };
         xhr.onload = () => {
           if (xhr.status === 401) reject(new Error('Token expired.'));
@@ -230,6 +233,7 @@ const TerminalFileManager: React.FC<TerminalFileManagerProps> = ({ bookingId, te
         const xhr = new XMLHttpRequest();
         xhr.open('POST', `${filesBase}/upload-folder`);
         xhr.setRequestHeader('Authorization', `Bearer ${terminalToken}`);
+        xhr.setRequestHeader('X-Private-Key', privateKey);
         xhr.upload.onprogress = e => { if (e.lengthComputable) setUploadProgress(Math.round(e.loaded / e.total * 100)); };
         xhr.onload = () => {
           if (xhr.status === 401) reject(new Error('Token expired.'));

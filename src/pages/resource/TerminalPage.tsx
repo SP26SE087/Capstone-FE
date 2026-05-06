@@ -212,6 +212,7 @@ const TerminalPage: React.FC = () => {
                                 <TerminalFileManager
                                     bookingId={bookingId!}
                                     terminalToken={token}
+                                    privateKey={privateKey}
                                     active={activeTab === 'files'}
                                     onSendCommand={(cmd) => {
                                         // Send silently over WebSocket, stay on Files tab
