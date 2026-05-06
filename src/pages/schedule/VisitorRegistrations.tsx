@@ -954,7 +954,7 @@ const VisitorRegistrations: React.FC = () => {
 
                         {/* Right column — Actions + Activity Log */}
                         {((detail.logs && detail.logs.length > 0) || (detail.status === VisitorRegistrationStatus.Pending && detail.isAssignee)) && (
-                            <div style={{ borderLeft: '1px solid var(--border-light)', paddingLeft: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            <div style={{ borderLeft: '1px solid var(--border-light)', paddingLeft: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', justifyContent: 'space-between' }}>
                                 {detail.logs && detail.logs.length > 0 && <>
                                 {/* Header + legend */}
                                 <p style={{ margin: '0 0 0.5rem', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Activity Log</p>
@@ -1009,28 +1009,28 @@ const VisitorRegistrations: React.FC = () => {
                                 </>}
                                 {/* Notes */}
                                 {detail.notes && (
-                                    <div>
-                                        <p style={{ margin: '0 0 0.4rem', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Notes</p>
-                                        <div style={{ background: 'var(--surface-hover)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-sm)', padding: '0.6rem 0.85rem', fontSize: '0.85rem', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                                        <p style={{ margin: '0 0 0.4rem', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0 }}>Notes</p>
+                                        <div className="custom-scrollbar" style={{ background: 'var(--surface-hover)', border: '1px solid var(--border-light)', borderRadius: 'var(--radius-sm)', padding: '0.6rem 0.85rem', fontSize: '0.85rem', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', minHeight: '80px', maxHeight: '160px', overflowY: 'auto' }}>
                                             {detail.notes}
                                         </div>
                                     </div>
                                 )}
                                 {/* Action buttons */}
                                 {detail.status === VisitorRegistrationStatus.Pending && detail.isAssignee && (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                        <p style={{ margin: '0 0 0.25rem', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Actions</p>
-                                        <button className="btn btn-primary" style={{ width: '100%', background: '#16a34a', borderColor: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', flexShrink: 0 }}>
+                                        <p style={{ margin: '0 0 0.25rem', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Actions</p>
+                                        <button className="btn btn-primary" style={{ width: '100%', background: '#16a34a', borderColor: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', padding: '5px 10px', fontSize: '0.78rem' }}
                                             onClick={() => { setDetailId(null); setShowCccd(false); openApprove(detail); }}>
-                                            <CheckCircle2 size={14} /> Approve
+                                            <CheckCircle2 size={12} /> Approve
                                         </button>
-                                        <button className="btn btn-primary" style={{ width: '100%', background: '#dc2626', borderColor: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
+                                        <button className="btn btn-primary" style={{ width: '100%', background: '#dc2626', borderColor: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', padding: '5px 10px', fontSize: '0.78rem' }}
                                             onClick={() => { setDetailId(null); setShowCccd(false); openReject(detail); }}>
-                                            <XCircle size={14} /> Reject
+                                            <XCircle size={12} /> Reject
                                         </button>
-                                        <button className="btn btn-secondary" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
+                                        <button className="btn btn-secondary" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', padding: '5px 10px', fontSize: '0.78rem' }}
                                             onClick={() => { setDetailId(null); setShowCccd(false); openTransfer(detail); }}>
-                                            <ArrowRightLeft size={13} /> Transfer
+                                            <ArrowRightLeft size={11} /> Transfer
                                         </button>
                                     </div>
                                 )}
