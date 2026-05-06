@@ -165,7 +165,10 @@ const TerminalFileManager: React.FC<TerminalFileManagerProps> = ({ bookingId, te
     try {
       const res = await fetch(`${filesBase}?path=${encodeURIComponent(path)}`, { headers: authHeader });
       if (res.status === 401) throw new Error('Token expired -- please reopen the terminal.');
-      if (!res.ok) throw new Error(`Server error (${res.status})`);
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.message || `Server error (${res.status})`);
+      }
       const json = await res.json();
       const data: SftpEntry[] = Array.isArray(json) ? json : (Array.isArray(json?.data) ? json.data : []);
       setEntries(data);
