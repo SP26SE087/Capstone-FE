@@ -157,6 +157,20 @@ export const computeService = {
   },
 
   /**
+   * Step 5 — User submits their RSA private key before connecting.
+   * POST /api/server-access/bookings/{bookingId}/private-key
+   * The key is AES-256 encrypted server-side and auto-discarded when booking ends.
+   */
+  submitPrivateKey: async (bookingId: string, privateKey: string): Promise<void> => {
+    try {
+      await api.post(`/api/server-access/bookings/${bookingId}/private-key`, { privateKey });
+    } catch (err: any) {
+      const msg = err.response?.data?.message || err.response?.data?.title || err.message;
+      throw new Error(msg || 'Failed to submit private key');
+    }
+  },
+
+  /**
    * Admin: provision Linux user on server — POST /api/server-access/bookings/{bookingId}/provision
    */
   provisionAccess: async (bookingId: string): Promise<void> => {
