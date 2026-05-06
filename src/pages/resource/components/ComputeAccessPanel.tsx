@@ -125,11 +125,10 @@ const ComputeAccessPanel: React.FC<ComputeAccessPanelProps> = ({
   const [generatingKeys, setGeneratingKeys] = useState(false);
   const [keyGenerated, setKeyGenerated] = useState(false);
 
-  // ── Private key — submitted to server encrypted, auto-discarded when booking ends ─
+  // ── Private key — kept in memory, passed as X-Private-Key header on each file request ─
   const [showPrivateKeyForm, setShowPrivateKeyForm] = useState(false);
   const [privateKey, setPrivateKey] = useState('');
   const [privateKeyError, setPrivateKeyError] = useState<string | null>(null);
-  const [submittingPrivateKey, setSubmittingPrivateKey] = useState(false);
 
   const accessConfig = serverAccess ? getAccessStatusConfig(serverAccess.status) : null;
   const isSessionEnded = !!accessConfig && !accessConfig.canConnect
@@ -180,18 +179,10 @@ const ComputeAccessPanel: React.FC<ComputeAccessPanelProps> = ({
     }
   };
 
-  const handleConfirmPrivateKey = async () => {
+  const handleConfirmPrivateKey = () => {
     if (!privateKey.trim()) { setPrivateKeyError('SSH private key is required.'); return; }
     setPrivateKeyError(null);
-    setSubmittingPrivateKey(true);
-    try {
-      await computeService.submitPrivateKey(bookingId, privateKey.trim());
-      setShowPrivateKeyForm(false);
-    } catch (err: any) {
-      setPrivateKeyError(err.message || 'Failed to submit private key. Please try again.');
-    } finally {
-      setSubmittingPrivateKey(false);
-    }
+    setShowPrivateKeyForm(false);
   };
 
   const handleOpenTerminal = () => {
@@ -424,8 +415,8 @@ const ComputeAccessPanel: React.FC<ComputeAccessPanelProps> = ({
             Enter SSH Private Key
           </div>
           <div style={{ fontSize: '0.68rem', color: '#64748b' }}>
-            Your private key is <strong style={{ color: '#94a3b8' }}>AES-256 encrypted</strong> and stored server-side only for the duration of this session.
-            It is automatically discarded when the booking ends.
+            Your private key stays <strong style={{ color: '#94a3b8' }}>in memory only</strong> — it is never stored on the server.
+            It is sent as an encrypted header with each file request.
             {' '}If you used "Generate Key Pair" earlier, open <code style={{ color: '#a5f3fc' }}>labsync_key.pem</code> and paste its contents below.
           </div>
 
@@ -449,15 +440,13 @@ const ComputeAccessPanel: React.FC<ComputeAccessPanelProps> = ({
 
           <button type="button"
             onClick={handleConfirmPrivateKey}
-            disabled={!privateKey.trim() || submittingPrivateKey}
+            disabled={!privateKey.trim()}
             style={{
-              ...actionBtnStyle(!!privateKey.trim() && !submittingPrivateKey, '#10b981'),
+              ...actionBtnStyle(!!privateKey.trim(), '#10b981'),
               alignSelf: 'flex-end', padding: '7px 18px',
             }}
           >
-            {submittingPrivateKey
-              ? <><Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> Submitting…</>
-              : <><Key size={13} /> Submit Key</>}
+            <Key size={13} /> Confirm Key
           </button>
         </div>
       )}

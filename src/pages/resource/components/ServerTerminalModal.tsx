@@ -371,6 +371,7 @@ const ServerTerminalModal: React.FC<ServerTerminalModalProps> = ({
                 <TerminalFileManager
                   bookingId={access.bookingId}
                   terminalToken={token}
+                  privateKey={privateKey ?? access.privateKey ?? ''}
                 />
               </div>
             </div>
