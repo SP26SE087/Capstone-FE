@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import MainLayout from '@/layout/MainLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { visitorRegistrationService } from '@/services/visitorRegistrationService';
@@ -15,6 +15,7 @@ import {
     UserCheck, Clock, CheckCircle2, XCircle, Loader2, Eye, EyeOff,
     ArrowRightLeft, CheckCheck, X, Wifi, WifiOff, User, List, GitPullRequest,
     Users, Mail, Phone, Plus, Trash2, ChevronDown, Search,
+    ChevronLeft, ChevronRight, CalendarDays,
 } from 'lucide-react';
 
 // ─── Status configs ────────────────────────────────────────────────────────────
@@ -41,6 +42,9 @@ const ACTION_LEGEND = [
     { color: '#64748b', label: 'Transfer Requested / Lab Closed' },
     { color: '#dc2626', label: 'Rejected' },
 ];
+
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const DAY_NAMES = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 
 // ─── Modal state types ─────────────────────────────────────────────────────────
 
@@ -396,6 +400,52 @@ const VisitorRegistrations: React.FC = () => {
         }
     };
 
+    // ── Calendar (registrations view) ────────────────────────────────────────
+    const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
+    const [calYear, setCalYear] = useState(() => new Date().getFullYear());
+    const [calMonth, setCalMonth] = useState(() => new Date().getMonth());
+    const [selectedCalDay, setSelectedCalDay] = useState<number | null>(null);
+    const [selectedRegId, setSelectedRegId] = useState<string | null>(null);
+
+    const calendarMap = useMemo(() => {
+        const map = new Map<number, VisitorRegistrationResponse[]>();
+        for (const r of registrations) {
+            const d = new Date(r.appointmentDateTime);
+            if (isNaN(d.getTime()) || d.getFullYear() !== calYear || d.getMonth() !== calMonth) continue;
+            const day = d.getDate();
+            if (!map.has(day)) map.set(day, []);
+            map.get(day)!.push(r);
+        }
+        return map;
+    }, [registrations, calYear, calMonth]);
+
+    const calendarCells = useMemo(() => {
+        const firstDow = (new Date(calYear, calMonth, 1).getDay() + 6) % 7;
+        const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+        const cells: (number | null)[] = [];
+        for (let i = 0; i < firstDow; i++) cells.push(null);
+        for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+        while (cells.length % 7 !== 0) cells.push(null);
+        return cells;
+    }, [calYear, calMonth]);
+
+    const todayY = new Date().getFullYear();
+    const todayM = new Date().getMonth();
+    const todayD = new Date().getDate();
+
+    const prevMonth = () => {
+        setSelectedCalDay(null); setSelectedRegId(null);
+        if (calMonth === 0) { setCalMonth(11); setCalYear(y => y - 1); }
+        else setCalMonth(m => m - 1);
+    };
+    const nextMonth = () => {
+        setSelectedCalDay(null); setSelectedRegId(null);
+        if (calMonth === 11) { setCalMonth(0); setCalYear(y => y + 1); }
+        else setCalMonth(m => m + 1);
+    };
+
+    const selectedReg = selectedRegId ? registrations.find(r => r.id === selectedRegId) ?? null : null;
+
     // ── UI helpers ───────────────────────────────────────────────────────────
 
     const openApprove = (item: VisitorRegistrationResponse) => {
@@ -461,6 +511,170 @@ const VisitorRegistrations: React.FC = () => {
 
     const pendingTransferCount = transfers.length;
 
+    // ── Calendar render helpers ───────────────────────────────────────────────
+
+    const renderRegCard = (item: VisitorRegistrationResponse) => {
+        const isSelected = selectedRegId === item.id;
+        const cfg = REG_STATUS[item.status];
+        return (
+            <div
+                key={item.id}
+                onClick={() => setSelectedRegId(isSelected ? null : item.id)}
+                style={{
+                    display: 'flex', alignItems: 'center', gap: '12px',
+                    padding: '0.7rem 0.9rem', borderRadius: '10px',
+                    border: isSelected ? '2px solid var(--accent-color)' : '1px solid #e2e8f0',
+                    background: isSelected ? '#f0f7ff' : 'white',
+                    cursor: 'pointer', transition: 'all 0.2s',
+                    boxShadow: isSelected ? '0 4px 12px rgba(99,102,241,0.12)' : '0 1px 4px rgba(0,0,0,0.04)',
+                    position: 'relative', overflow: 'hidden',
+                }}
+            >
+                {isSelected && <div style={{ position: 'absolute', top: 0, left: 0, width: '3px', height: '100%', background: 'var(--accent-color)' }} />}
+                <img src={item.photoUrl} alt={item.fullName} style={{ width: '38px', height: '38px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #e2e8f0', flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: '0.88rem', color: isSelected ? 'var(--accent-color)' : '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {item.fullName}
+                    </div>
+                    <div style={{ fontSize: '0.76rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px', overflow: 'hidden' }}>
+                        <Mail size={11} style={{ flexShrink: 0 }} />
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.email}</span>
+                    </div>
+                </div>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: cfg.bg, color: cfg.color, borderRadius: '999px', padding: '3px 8px', fontSize: '0.7rem', fontWeight: 700, flexShrink: 0 }}>
+                    {cfg.icon} {cfg.label}
+                </span>
+            </div>
+        );
+    };
+
+    const renderInlinePanel = (item: VisitorRegistrationResponse) => (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '0.85rem 1rem', background: 'white', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                <img src={item.photoUrl} alt={item.fullName} style={{ width: '52px', height: '52px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #e2e8f0', flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 800, fontSize: '1rem', color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.fullName}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '5px', flexWrap: 'wrap' }}>
+                        {statusBadge(item.status)}
+                        {labAccessBadge(item.labAccess)}
+                    </div>
+                </div>
+                <button
+                    className="btn btn-secondary"
+                    style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 12px', fontSize: '0.8rem' }}
+                    onClick={() => setDetailId(item.id)}
+                >
+                    <Eye size={13} /> Details
+                </button>
+            </div>
+            {/* Info fields */}
+            <div className="card" style={{ padding: '0.15rem 1rem' }}>
+                {fieldRow('Email', item.email)}
+                {item.phoneNumber && fieldRow('Phone', item.phoneNumber)}
+                {fieldRow('Appointment', <span style={{ fontWeight: 600, color: 'var(--accent-color)' }}>{formatDt(item.appointmentDateTime)}</span>)}
+                {fieldRow('Wants to Contact', item.contactEmail)}
+                {fieldRow('Assigned To', (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                        {item.assigneeFullName || item.assigneeEmail}
+                        {item.isAssignee && <span style={{ fontSize: '0.68rem', background: '#dbeafe', color: '#2563eb', borderRadius: '4px', padding: '1px 5px', fontWeight: 700 }}>You</span>}
+                    </span>
+                ))}
+                {item.reason && fieldRow('Reason', item.reason)}
+                {item.activeFrom && fieldRow('Active From', formatDt(item.activeFrom))}
+                {item.activeUntil && fieldRow('Active Until', formatDt(item.activeUntil))}
+                {fieldRow('Submitted', <span style={{ color: 'var(--text-muted)' }}>{formatDt(item.createdAt)}</span>)}
+            </div>
+            {/* Action buttons */}
+            {item.status === VisitorRegistrationStatus.Pending && item.isAssignee && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                    <button className="btn btn-primary" style={{ width: '100%', background: '#16a34a', borderColor: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', padding: '6px 10px', fontSize: '0.82rem' }} onClick={() => openApprove(item)}>
+                        <CheckCircle2 size={13} /> Approve
+                    </button>
+                    <button className="btn btn-primary" style={{ width: '100%', background: '#dc2626', borderColor: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', padding: '6px 10px', fontSize: '0.82rem' }} onClick={() => openReject(item)}>
+                        <XCircle size={13} /> Reject
+                    </button>
+                    <button className="btn btn-secondary" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', padding: '6px 10px', fontSize: '0.82rem' }} onClick={() => openTransfer(item)}>
+                        <ArrowRightLeft size={12} /> Transfer
+                    </button>
+                </div>
+            )}
+        </div>
+    );
+
+    const renderCalendar = () => (
+        <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', padding: '8px 12px', background: 'white', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                <button onClick={prevMonth} style={{ border: 'none', background: '#f1f5f9', borderRadius: '7px', width: '30px', height: '30px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569' }}>
+                    <ChevronLeft size={15} />
+                </button>
+                <span style={{ fontWeight: 800, fontSize: '0.9rem', color: '#1e293b' }}>
+                    {MONTH_NAMES[calMonth]} {calYear}
+                    <span style={{ marginLeft: '8px', fontSize: '0.72rem', fontWeight: 600, color: '#94a3b8' }}>
+                        ({[...calendarMap.values()].reduce((s, a) => s + a.length, 0)} registration{[...calendarMap.values()].reduce((s, a) => s + a.length, 0) !== 1 ? 's' : ''})
+                    </span>
+                </span>
+                <button onClick={nextMonth} style={{ border: 'none', background: '#f1f5f9', borderRadius: '7px', width: '30px', height: '30px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569' }}>
+                    <ChevronRight size={15} />
+                </button>
+            </div>
+            <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: '1px solid #f1f5f9' }}>
+                    {DAY_NAMES.map(d => (
+                        <div key={d} style={{ padding: '8px 0', textAlign: 'center', fontSize: '0.68rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{d}</div>
+                    ))}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
+                    {calendarCells.map((day, idx) => {
+                        if (!day) return (
+                            <div key={idx} style={{ minHeight: '72px', borderRight: (idx + 1) % 7 !== 0 ? '1px solid #f8fafc' : 'none', borderBottom: '1px solid #f8fafc', background: '#fafafa' }} />
+                        );
+                        const isToday = day === todayD && calYear === todayY && calMonth === todayM;
+                        const dayRegs = calendarMap.get(day) || [];
+                        const isSelected = selectedCalDay === day;
+                        return (
+                            <div
+                                key={idx}
+                                onClick={() => { setSelectedCalDay(day); setSelectedRegId(null); }}
+                                onMouseEnter={e => { e.currentTarget.style.background = isSelected ? '#eff6ff' : '#f0f4ff'; }}
+                                onMouseLeave={e => { e.currentTarget.style.background = isSelected ? '#eff6ff' : dayRegs.length > 0 ? '#f8faff' : 'white'; }}
+                                style={{
+                                    minHeight: '64px', padding: '6px',
+                                    borderRight: (idx + 1) % 7 !== 0 ? '1px solid #f1f5f9' : 'none',
+                                    borderBottom: '1px solid #f1f5f9',
+                                    background: isSelected ? '#eff6ff' : dayRegs.length > 0 ? '#f8faff' : 'white',
+                                    outline: isSelected ? '2px solid var(--accent-color)' : 'none',
+                                    outlineOffset: '-2px',
+                                    transition: 'background 0.12s', cursor: 'pointer',
+                                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px',
+                                }}
+                            >
+                                <span style={{
+                                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                    width: '28px', height: '28px', borderRadius: '50%',
+                                    fontSize: '0.82rem', fontWeight: isToday ? 800 : (dayRegs.length > 0 ? 700 : 400),
+                                    background: isToday ? 'var(--accent-color)' : 'transparent',
+                                    color: isToday ? '#fff' : dayRegs.length > 0 ? '#1e293b' : '#94a3b8',
+                                }}>
+                                    {day}
+                                </span>
+                                {dayRegs.length > 0 && (
+                                    <div style={{ display: 'flex', gap: '3px', alignItems: 'center', justifyContent: 'center' }}>
+                                        {dayRegs.slice(0, 3).map((r, i) => {
+                                            const cfg = REG_STATUS[r.status];
+                                            return <div key={i} style={{ width: '6px', height: '6px', borderRadius: '50%', background: cfg.color, flexShrink: 0 }} />;
+                                        })}
+                                        {dayRegs.length > 3 && <span style={{ fontSize: '0.55rem', color: '#94a3b8', fontWeight: 700 }}>+{dayRegs.length - 3}</span>}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        </div>
+    );
+
     // ── Render ───────────────────────────────────────────────────────────────
     return (
         <MainLayout role={user.role} userName={user.name}>
@@ -503,100 +717,191 @@ const VisitorRegistrations: React.FC = () => {
                 {/* ── Tab: Registrations ── */}
                 {tab === 'registrations' && (
                     <>
-                        {/* Stats */}
-                        {!regLoading && registrations.length > 0 && (
-                            <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-                                {([VisitorRegistrationStatus.Pending, VisitorRegistrationStatus.Approved, VisitorRegistrationStatus.Rejected] as VisitorRegistrationStatus[]).map(status => {
-                                    const count = registrations.filter(r => r.status === status).length;
-                                    const cfg = REG_STATUS[status];
-                                    return (
-                                        <div key={status} className="card" style={{ padding: '0.75rem 1.25rem', display: 'flex', alignItems: 'center', gap: '10px', minWidth: '130px' }}>
-                                            <span style={{ background: cfg.bg, color: cfg.color, borderRadius: '50%', width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{cfg.icon}</span>
-                                            <div>
-                                                <p style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-primary)' }}>{count}</p>
-                                                <p style={{ margin: 0, fontSize: '0.73rem', color: 'var(--text-muted)' }}>{cfg.label}</p>
+                        {/* View mode toggle + stats row */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                            {!regLoading && registrations.length > 0 && (
+                                <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                                    {([VisitorRegistrationStatus.Pending, VisitorRegistrationStatus.Approved, VisitorRegistrationStatus.Rejected] as VisitorRegistrationStatus[]).map(status => {
+                                        const count = registrations.filter(r => r.status === status).length;
+                                        const cfg = REG_STATUS[status];
+                                        return (
+                                            <div key={status} className="card" style={{ padding: '0.6rem 1rem', display: 'flex', alignItems: 'center', gap: '8px', minWidth: '110px' }}>
+                                                <span style={{ background: cfg.bg, color: cfg.color, borderRadius: '50%', width: '26px', height: '26px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{cfg.icon}</span>
+                                                <div>
+                                                    <p style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)' }}>{count}</p>
+                                                    <p style={{ margin: 0, fontSize: '0.72rem', color: 'var(--text-muted)' }}>{cfg.label}</p>
+                                                </div>
                                             </div>
-                                        </div>
-                                    );
-                                })}
+                                        );
+                                    })}
+                                </div>
+                            )}
+                            {/* View toggle */}
+                            <div style={{ display: 'flex', gap: '4px', background: '#f1f5f9', padding: '3px', borderRadius: '9px', flexShrink: 0, marginLeft: 'auto' }}>
+                                <button
+                                    onClick={() => setViewMode('list')}
+                                    style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 12px', borderRadius: '6px', border: 'none', background: viewMode === 'list' ? 'white' : 'transparent', color: viewMode === 'list' ? 'var(--accent-color)' : '#64748b', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', boxShadow: viewMode === 'list' ? '0 1px 4px rgba(0,0,0,0.08)' : 'none', transition: 'all 0.15s' }}
+                                >
+                                    <List size={14} /> List
+                                </button>
+                                <button
+                                    onClick={() => setViewMode('calendar')}
+                                    style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 12px', borderRadius: '6px', border: 'none', background: viewMode === 'calendar' ? 'white' : 'transparent', color: viewMode === 'calendar' ? 'var(--accent-color)' : '#64748b', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', boxShadow: viewMode === 'calendar' ? '0 1px 4px rgba(0,0,0,0.08)' : 'none', transition: 'all 0.15s' }}
+                                >
+                                    <CalendarDays size={14} /> Calendar
+                                </button>
                             </div>
+                        </div>
+
+                        {/* ── List view ── */}
+                        {viewMode === 'list' && (
+                            regLoading ? (
+                                <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
+                                    <Loader2 size={32} style={{ animation: 'spin 1s linear infinite' }} color="var(--accent-color)" />
+                                </div>
+                            ) : registrations.length === 0 ? (
+                                <div className="empty-state">
+                                    <div className="empty-state-icon"><UserCheck size={36} /></div>
+                                    <h2>No registrations yet</h2>
+                                    <p>When someone requests a visit with you, it will appear here.</p>
+                                </div>
+                            ) : (
+                                <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+                                        <thead>
+                                            <tr style={{ background: 'var(--surface-hover)', borderBottom: '1px solid var(--border-color)' }}>
+                                                <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '14%' }}>Visitor</th>
+                                                <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '16%' }}>Email</th>
+                                                <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '13%' }}>Appointment</th>
+                                                <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '13%' }}>Assignee</th>
+                                                <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '10%' }}>Lab Access</th>
+                                                <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '9%' }}>Status</th>
+                                                <th style={{ padding: '0.75rem 1rem', textAlign: 'center', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '25%' }}>Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {registrations.map((item, idx) => (
+                                                <tr key={item.id}
+                                                    style={{ borderBottom: idx < registrations.length - 1 ? '1px solid var(--border-light)' : 'none', transition: 'background 0.15s' }}
+                                                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-hover)')}
+                                                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                                                >
+                                                    <td style={{ padding: '0.85rem 1rem', overflow: 'hidden' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
+                                                            <img src={item.photoUrl} alt={item.fullName} style={{ width: '34px', height: '34px', borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--border-color)', flexShrink: 0 }} />
+                                                            <span style={{ fontWeight: 600, fontSize: '0.88rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.fullName}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td style={{ padding: '0.85rem 1rem', fontSize: '0.85rem', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.email}</td>
+                                                    <td style={{ padding: '0.85rem 1rem', fontSize: '0.85rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{formatDt(item.appointmentDateTime)}</td>
+                                                    <td style={{ padding: '0.85rem 1rem', fontSize: '0.83rem', color: 'var(--text-secondary)', overflow: 'hidden' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', overflow: 'hidden' }}>
+                                                            <User size={12} color="var(--text-muted)" style={{ flexShrink: 0 }} />
+                                                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.assigneeFullName || item.assigneeEmail}</span>
+                                                            {item.isAssignee && (
+                                                                <span style={{ fontSize: '0.68rem', background: '#dbeafe', color: '#2563eb', borderRadius: '4px', padding: '1px 5px', fontWeight: 700, flexShrink: 0 }}>You</span>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    <td style={{ padding: '0.85rem 1rem' }}>{labAccessBadge(item.labAccess)}</td>
+                                                    <td style={{ padding: '0.85rem 1rem' }}>{statusBadge(item.status)}</td>
+                                                    <td style={{ padding: '0.85rem 1rem' }}>
+                                                        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                                                            <button className="btn btn-secondary" style={{ width: '72px', flexShrink: 0, padding: '4px 6px', fontSize: '0.76rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px', whiteSpace: 'nowrap' }} onClick={() => setDetailId(item.id)}>
+                                                                <Eye size={11} /> Details
+                                                            </button>
+                                                            {item.status === VisitorRegistrationStatus.Pending && item.isAssignee && (
+                                                                <>
+                                                                    <button className="btn btn-primary" style={{ flex: 1, padding: '4px 6px', fontSize: '0.76rem', background: '#16a34a', borderColor: '#16a34a', whiteSpace: 'nowrap' }} onClick={() => openApprove(item)}>
+                                                                        Approve
+                                                                    </button>
+                                                                    <button className="btn btn-primary" style={{ flex: 1, padding: '4px 6px', fontSize: '0.76rem', background: '#dc2626', borderColor: '#dc2626', whiteSpace: 'nowrap' }} onClick={() => openReject(item)}>
+                                                                        Reject
+                                                                    </button>
+                                                                    <button className="btn btn-secondary" style={{ flex: 1, padding: '4px 6px', fontSize: '0.76rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px', whiteSpace: 'nowrap' }} onClick={() => openTransfer(item)}>
+                                                                        <ArrowRightLeft size={11} /> Transfer
+                                                                    </button>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )
                         )}
 
-                        {regLoading ? (
-                            <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
-                                <Loader2 size={32} style={{ animation: 'spin 1s linear infinite' }} color="var(--accent-color)" />
-                            </div>
-                        ) : registrations.length === 0 ? (
-                            <div className="empty-state">
-                                <div className="empty-state-icon"><UserCheck size={36} /></div>
-                                <h2>No registrations yet</h2>
-                                <p>When someone requests a visit with you, it will appear here.</p>
-                            </div>
-                        ) : (
-                            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
-                                    <thead>
-                                        <tr style={{ background: 'var(--surface-hover)', borderBottom: '1px solid var(--border-color)' }}>
-                                            <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '14%' }}>Visitor</th>
-                                            <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '16%' }}>Email</th>
-                                            <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '13%' }}>Appointment</th>
-                                            <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '13%' }}>Assignee</th>
-                                            <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '10%' }}>Lab Access</th>
-                                            <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '9%' }}>Status</th>
-                                            <th style={{ padding: '0.75rem 1rem', textAlign: 'center', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '25%' }}>Action</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {registrations.map((item, idx) => (
-                                            <tr key={item.id}
-                                                style={{ borderBottom: idx < registrations.length - 1 ? '1px solid var(--border-light)' : 'none', transition: 'background 0.15s' }}
-                                                onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-hover)')}
-                                                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                                            >
-                                                <td style={{ padding: '0.85rem 1rem', overflow: 'hidden' }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
-                                                        <img src={item.photoUrl} alt={item.fullName} style={{ width: '34px', height: '34px', borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--border-color)', flexShrink: 0 }} />
-                                                        <span style={{ fontWeight: 600, fontSize: '0.88rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.fullName}</span>
-                                                    </div>
-                                                </td>
-                                                <td style={{ padding: '0.85rem 1rem', fontSize: '0.85rem', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.email}</td>
-                                                <td style={{ padding: '0.85rem 1rem', fontSize: '0.85rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{formatDt(item.appointmentDateTime)}</td>
-                                                <td style={{ padding: '0.85rem 1rem', fontSize: '0.83rem', color: 'var(--text-secondary)', overflow: 'hidden' }}>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', overflow: 'hidden' }}>
-                                                        <User size={12} color="var(--text-muted)" style={{ flexShrink: 0 }} />
-                                                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.assigneeFullName || item.assigneeEmail}</span>
-                                                        {item.isAssignee && (
-                                                            <span style={{ fontSize: '0.68rem', background: '#dbeafe', color: '#2563eb', borderRadius: '4px', padding: '1px 5px', fontWeight: 700, flexShrink: 0 }}>You</span>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                                <td style={{ padding: '0.85rem 1rem' }}>{labAccessBadge(item.labAccess)}</td>
-                                                <td style={{ padding: '0.85rem 1rem' }}>{statusBadge(item.status)}</td>
-                                                <td style={{ padding: '0.85rem 1rem' }}>
-                                                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                                                        <button className="btn btn-secondary" style={{ width: '72px', flexShrink: 0, padding: '4px 6px', fontSize: '0.76rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px', whiteSpace: 'nowrap' }} onClick={() => setDetailId(item.id)}>
-                                                            <Eye size={11} /> Details
-                                                        </button>
-                                                        {item.status === VisitorRegistrationStatus.Pending && item.isAssignee && (
-                                                            <>
-                                                                <button className="btn btn-primary" style={{ flex: 1, padding: '4px 6px', fontSize: '0.76rem', background: '#16a34a', borderColor: '#16a34a', whiteSpace: 'nowrap' }} onClick={() => openApprove(item)}>
-                                                                    Approve
-                                                                </button>
-                                                                <button className="btn btn-primary" style={{ flex: 1, padding: '4px 6px', fontSize: '0.76rem', background: '#dc2626', borderColor: '#dc2626', whiteSpace: 'nowrap' }} onClick={() => openReject(item)}>
-                                                                    Reject
-                                                                </button>
-                                                                <button className="btn btn-secondary" style={{ flex: 1, padding: '4px 6px', fontSize: '0.76rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px', whiteSpace: 'nowrap' }} onClick={() => openTransfer(item)}>
-                                                                    <ArrowRightLeft size={11} /> Transfer
-                                                                </button>
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
+                        {/* ── Calendar view ── */}
+                        {viewMode === 'calendar' && (
+                            regLoading ? (
+                                <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
+                                    <Loader2 size={32} style={{ animation: 'spin 1s linear infinite' }} color="var(--accent-color)" />
+                                </div>
+                            ) : (
+                                <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
+                                    {/* Left: Calendar */}
+                                    <div style={{ flex: 5, minWidth: 0, maxHeight: 'calc(100vh - 280px)', overflowY: 'auto' }} className="custom-scrollbar">
+                                        {renderCalendar()}
+                                    </div>
+
+                                    {/* Right: Day list */}
+                                    {selectedCalDay !== null && !selectedRegId && (() => {
+                                        const dayRegs = calendarMap.get(selectedCalDay) || [];
+                                        return (
+                                            <div style={{ flex: 5, minWidth: 0, maxHeight: 'calc(100vh - 280px)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 14px', flexShrink: 0, background: 'white', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                                                    <div style={{ width: '3px', height: '18px', borderRadius: '2px', background: 'var(--accent-color)', flexShrink: 0 }} />
+                                                    <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#1e293b' }}>
+                                                        {selectedCalDay} {MONTH_NAMES[calMonth]} {calYear}
+                                                    </span>
+                                                    <span style={{ fontSize: '0.68rem', fontWeight: 700, background: '#ede9fe', color: '#7c3aed', padding: '2px 8px', borderRadius: '20px' }}>
+                                                        {dayRegs.length} registration{dayRegs.length !== 1 ? 's' : ''}
+                                                    </span>
+                                                </div>
+                                                <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }} className="custom-scrollbar">
+                                                    {dayRegs.length === 0 ? (
+                                                        <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#94a3b8' }}>
+                                                            <CalendarDays size={36} style={{ opacity: 0.3, marginBottom: '8px' }} />
+                                                            <p style={{ fontSize: '0.82rem' }}>No registrations on this day</p>
+                                                        </div>
+                                                    ) : dayRegs.map(r => renderRegCard(r))}
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
+
+                                    {/* Right: Inline detail panel */}
+                                    {selectedRegId !== null && selectedReg && (
+                                        <div style={{ flex: 5, minWidth: 0, maxHeight: 'calc(100vh - 280px)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }} className="custom-scrollbar">
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 14px', background: 'white', borderRadius: '10px', border: '1px solid #e2e8f0', flexShrink: 0 }}>
+                                                <button
+                                                    onClick={() => setSelectedRegId(null)}
+                                                    style={{ display: 'flex', alignItems: 'center', gap: '5px', border: 'none', background: 'none', cursor: 'pointer', color: '#64748b', fontWeight: 600, fontSize: '0.8rem', padding: '2px 0' }}
+                                                >
+                                                    <ChevronLeft size={14} /> Back to list
+                                                </button>
+                                                <span style={{ marginLeft: 'auto', fontSize: '0.72rem', fontWeight: 600, color: '#94a3b8' }}>
+                                                    {selectedCalDay} {MONTH_NAMES[calMonth]} {calYear}
+                                                </span>
+                                            </div>
+                                            {renderInlinePanel(selectedReg)}
+                                        </div>
+                                    )}
+
+                                    {/* Empty state */}
+                                    {selectedCalDay === null && !selectedRegId && (
+                                        <div style={{ flex: 5, minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '320px', background: 'white', borderRadius: '12px', border: '1px dashed #e2e8f0' }}>
+                                            <div style={{ textAlign: 'center', color: '#94a3b8' }}>
+                                                <CalendarDays size={40} style={{ opacity: 0.25, marginBottom: '12px' }} />
+                                                <p style={{ fontSize: '0.85rem', fontWeight: 600, margin: 0 }}>Select a day to view registrations</p>
+                                                <p style={{ fontSize: '0.75rem', margin: '4px 0 0' }}>Click any date on the calendar</p>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )
                         )}
                     </>
                 )}
