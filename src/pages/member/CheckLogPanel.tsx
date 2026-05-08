@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ClipboardList, Loader2, X, Clock, RefreshCw } from 'lucide-react';
+import { ClipboardList, Loader2, X, Clock } from 'lucide-react';
 import { userService } from '@/services/userService';
 import { useToastStore } from '@/store/slices/toastSlice';
 import { useAuth } from '@/hooks/useAuth';
@@ -80,17 +80,6 @@ const CheckLogPanel: React.FC<CheckLogPanelProps> = ({ email, studentId, userNam
                     </h3>
                 </div>
                 <div style={{ display: 'flex', gap: '4px' }}>
-                    <button
-                        onClick={fetchLogs}
-                        style={{
-                            background: 'none', border: 'none', cursor: 'pointer',
-                            color: 'var(--text-muted)', padding: '4px', borderRadius: '50%',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center'
-                        }}
-                        title="Refresh"
-                    >
-                        <RefreshCw size={14} />
-                    </button>
                     <button
                         onClick={onClose}
                         style={{

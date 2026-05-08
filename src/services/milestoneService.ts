@@ -113,8 +113,8 @@ export const milestoneService = {
         }
     },
 
-    generateAIMilestones: async (projectId: string, durationMonths: number): Promise<any[]> => {
-        const response = await api.post(`/api/projects/${projectId}/ai/milestones`, { durationMonths });
+    generateAIMilestones: async (projectId: string, startDate: string, endDate: string): Promise<any[]> => {
+        const response = await api.post(`/api/projects/${projectId}/ai/milestones`, { startDate, endDate });
         return response.data.data || response.data || [];
     },
 

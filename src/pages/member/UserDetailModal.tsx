@@ -20,9 +20,11 @@ interface UserDetailModalProps {
     onUpdated?: () => void;
     onViewProjects?: (email: string, userName: string) => void;
     isProjectPanelOpen?: boolean;
+    onLabTime?: (userId: string, userName: string) => void;
+    isLabTimePanelOpen?: boolean;
 }
 
-const UserDetailModal: React.FC<UserDetailModalProps> = ({ onClose, userId, systemRoleMap, currentUserId, currentUserEmail, onCheckLog, isCheckLogOpen, isLabDirector, onDeleted, onUpdated, onViewProjects, isProjectPanelOpen }) => {
+const UserDetailModal: React.FC<UserDetailModalProps> = ({ onClose, userId, systemRoleMap, currentUserId, currentUserEmail, onCheckLog, isCheckLogOpen, isLabDirector, onDeleted, onUpdated, onViewProjects, isProjectPanelOpen, onLabTime, isLabTimePanelOpen }) => {
     const [userData, setUserData] = useState<any>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -32,6 +34,8 @@ const UserDetailModal: React.FC<UserDetailModalProps> = ({ onClose, userId, syst
     const [editForm, setEditForm] = useState({ fullName: '', studentId: '', phoneNumber: '', orcid: '', googleScholarUrl: '', githubUrl: '' });
     const [fieldErrors, setFieldErrors] = useState({ fullName: '', studentId: '', phoneNumber: '', orcid: '', googleScholarUrl: '', githubUrl: '' });
     const [saving, setSaving] = useState(false);
+
+    // (Lab Time is now handled by UserLabTimePanel in the parent)
 
     const validate = {
         fullName: (v: string) => validateSpecialChars(v) ? `Full name: ${validateSpecialChars(v)}` : '',
@@ -363,6 +367,27 @@ const UserDetailModal: React.FC<UserDetailModalProps> = ({ onClose, userId, syst
                                 {isProjectPanelOpen ? 'Viewing Projects' : 'View Projects'}
                             </button>
                         )}
+
+                        {/* Lab Time button */}
+                        {onLabTime && (() => {
+                            const targetUserId = userData?.userId || userData?.id;
+                            return (
+                                <button
+                                    onClick={() => onLabTime(targetUserId, name)}
+                                    style={{
+                                        width: '100%', padding: '8px', borderRadius: '10px', border: 'none', cursor: 'pointer',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                                        fontSize: '0.78rem', fontWeight: 700,
+                                        background: isLabTimePanelOpen ? 'var(--primary-color)' : 'var(--surface-hover)',
+                                        color: isLabTimePanelOpen ? '#fff' : 'var(--text-primary)',
+                                        transition: 'all 0.2s'
+                                    }}
+                                >
+                                    <Clock size={14} />
+                                    {isLabTimePanelOpen ? 'Viewing Lab Time' : 'Lab Time'}
+                                </button>
+                            );
+                        })()}
 
                         {canEditProfile && (
                             <button

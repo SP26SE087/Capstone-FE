@@ -26,7 +26,7 @@ import {
     Plus, Search, ExternalLink, X, Loader2, Trash2,
     Send, Edit2, Link as LinkIcon, FileText, CheckCircle2, XCircle,
     Clock, Filter, Target, Briefcase, BookOpen, FileCheck, RefreshCw, Gavel, Upload,
-    Sparkles, Zap, RotateCcw, Camera, Globe, ChevronDown, Eye
+    Sparkles, Zap, Camera, Globe, ChevronDown, Eye
 } from 'lucide-react';
 
 const STATUS_COLOR: Record<SubmissionStatus, string> = {
@@ -135,8 +135,6 @@ const PaperSubmissions: React.FC = () => {
     // Semantic search
     const [semanticResults, setSemanticResults] = useState<PaperSubmissionResponse[] | null>(null);
     const [isSemanticLoading, setIsSemanticLoading] = useState(false);
-    const [refreshing, setRefreshing] = useState(false);
-
     const [projects, setProjects] = useState<any[]>([]);
     const [projectMembers, setProjectMembers] = useState<any[]>([]);
     const [membersLoading, setMembersLoading] = useState(false);
@@ -325,15 +323,6 @@ const PaperSubmissions: React.FC = () => {
             setPapers([]);
         } finally {
             setLoading(false);
-        }
-    };
-
-    const handleRefreshPapers = async () => {
-        setRefreshing(true);
-        try {
-            await loadPapers(pageIndex);
-        } finally {
-            setRefreshing(false);
         }
     };
 
@@ -1435,14 +1424,6 @@ const PaperSubmissions: React.FC = () => {
                         </div>
                     </div>
                     <div style={{ marginLeft: '1rem', paddingBottom: '2px', display: 'flex', gap: '8px', alignItems: 'center' }}>
-                        <button
-                            onClick={handleRefreshPapers}
-                            disabled={refreshing}
-                            style={{ padding: '6px 12px', border: '1px solid #e2e8f0', background: 'white', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', height: '42px' }}
-                        >
-                            <RotateCcw size={13} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
-                            Refresh
-                        </button>
                         <button
                             onClick={openCreate}
                             className="btn btn-primary"

@@ -83,7 +83,8 @@ const ProjectDetails: React.FC = () => {
         projectDescription: '',
         startDate: '',
         endDate: '',
-        status: ProjectStatus.Active
+        status: ProjectStatus.Active,
+        customFields: [] as string[]
     });
     const [isStatusConfirmOpen, setIsStatusConfirmOpen] = useState(false);
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
@@ -129,7 +130,8 @@ const ProjectDetails: React.FC = () => {
                     projectDescription: mappedProject.projectDescription || (mappedProject as any).description || '',
                     startDate: !isDefaultDate(mappedProject.startDate) ? new Date(mappedProject.startDate!).toISOString().split('T')[0] : '',
                     endDate: !isDefaultDate(mappedProject.endDate) ? new Date(mappedProject.endDate!).toISOString().split('T')[0] : '',
-                    status: mappedProject.status
+                    status: mappedProject.status,
+                    customFields: mappedProject.customFields || []
                 });
                 setSelectedFieldIds(mappedProject.researchFields?.map(f => f.researchFieldId) || []);
             }
@@ -487,7 +489,8 @@ const ProjectDetails: React.FC = () => {
                 projectDescription: formData.projectDescription,
                 startDate: toApiDate(formData.startDate),
                 endDate: toApiDate(formData.endDate),
-                researchFieldIds: selectedFieldIds.filter(fid => fid && fid !== 'null')
+                researchFieldIds: selectedFieldIds.filter(fid => fid && fid !== 'null'),
+                customFields: formData.customFields
             });
             showToast('Project updated successfully!', 'success');
             await fetchData();
@@ -868,6 +871,8 @@ const ProjectDetails: React.FC = () => {
                                 submitting={submitting}
                                 canDeleteProject={canDeleteProject}
                                 setIsDeleteConfirmOpen={setIsDeleteConfirmOpen}
+                                customFields={formData.customFields}
+                                onCustomFieldsChange={(fields) => setFormData(prev => ({ ...prev, customFields: fields }))}
                                 latestMilestoneDueDate={
                                     milestones.length > 0
                                         ? new Date(Math.max(...milestones.map(m => new Date(m.dueDate).getTime()))).toISOString().split('T')[0]

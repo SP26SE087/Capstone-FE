@@ -1,11 +1,11 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
-    ChevronLeft, ChevronRight, Plus,
+    ChevronLeft, ChevronRight,
     Cpu, Database, Radio, Monitor, Package, FlaskConical, Microscope
 } from 'lucide-react';
 import { Booking, Resource, BookingStatus } from '@/types/booking';
 import {
-    STATUS_META, getBookingRtMeta, fmtTime, fmtDate, fmtFullDate, sameDay, initials,
+    STATUS_META, getBookingRtMeta, fmtTime, fmtDate, fmtFullDate, sameDay,
 } from './bookingViewUtils';
 
 // ─── Icon by name ─────────────────────────────────────────────────────────────

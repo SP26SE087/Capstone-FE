@@ -5,7 +5,8 @@ import { useToastStore } from '@/store/slices/toastSlice';
 import MainLayout from '@/layout/MainLayout';
 import { researchFieldService, CreateResearchFieldRequest, UpdateResearchFieldRequest } from '@/services/researchFieldService';
 import { ResearchField, ResearchFieldStatus } from '@/types/project';
-import { Plus, Pencil, Trash2, X, Check, FlaskConical, Loader2 } from 'lucide-react';
+import { cameraService } from '@/services/cameraService';
+import { Plus, Pencil, Trash2, X, Check, FlaskConical, Loader2, Camera, Save } from 'lucide-react';
 
 type ModalMode = 'add' | 'edit' | null;
 
@@ -26,6 +27,13 @@ const ConfigurationPage: React.FC = () => {
     const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
     const [deleteLoading, setDeleteLoading] = useState(false);
 
+    // Camera gestures
+    const GESTURE_OPTIONS = ['Open_Palm', 'Victory', 'Thumb_Up', 'Thumb_Down', 'Closed_Fist', 'Pointing_Up', 'ILoveYou', 'None'];
+    const [gestureCheckin, setGestureCheckin] = useState('Thumb_Up');
+    const [gestureCheckout, setGestureCheckout] = useState('Victory');
+    const [gestureLoading, setGestureLoading] = useState(true);
+    const [gestureSaving, setGestureSaving] = useState(false);
+
     const showToast = (message: string, type: 'success' | 'error' = 'success') => {
         addToast(message, type);
     };
@@ -44,6 +52,16 @@ const ConfigurationPage: React.FC = () => {
     };
 
     useEffect(() => { fetchFields(); }, []);
+
+    useEffect(() => {
+        cameraService.getGestures()
+            .then(data => {
+                if (data.mapping?.checkin) setGestureCheckin(data.mapping.checkin);
+                if (data.mapping?.checkout) setGestureCheckout(data.mapping.checkout);
+            })
+            .catch(() => { /* camera server may not be running locally */ })
+            .finally(() => setGestureLoading(false));
+    }, []);
 
     const openAdd = () => {
         setFormName('');
@@ -136,8 +154,7 @@ const ConfigurationPage: React.FC = () => {
                 </div>
 
                 {/* Research Fields Section */}
-                <div className="card" style={{ padding: '24px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+                <div className="card" style={{ padding: '24px' }}>                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                             <FlaskConical size={20} style={{ color: 'var(--accent-color)' }} />
                             <div>
@@ -204,6 +221,77 @@ const ConfigurationPage: React.FC = () => {
                                 ))}
                             </tbody>
                         </table>
+                    )}
+                </div>
+
+                {/* Camera Gestures Section */}
+                <div className="card" style={{ padding: '24px', marginTop: '24px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <Camera size={20} style={{ color: 'var(--accent-color)' }} />
+                            <div>
+                                <h2 style={{ fontSize: '1rem', fontWeight: 600, margin: 0 }}>Camera Gestures</h2>
+                                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>
+                                    Map hand gestures to check-in and check-out actions.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {gestureLoading ? (
+                        <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)' }}>
+                            <Loader2 size={22} style={{ animation: 'spin 1s linear infinite' }} />
+                        </div>
+                    ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '400px' }}>
+                            <div>
+                                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px', color: 'var(--text-muted)' }}>
+                                    Check-in Gesture
+                                </label>
+                                <select
+                                    value={gestureCheckin}
+                                    onChange={e => setGestureCheckin(e.target.value)}
+                                    className="form-input"
+                                    style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', fontSize: '0.875rem' }}
+                                >
+                                    {GESTURE_OPTIONS.map(g => <option key={g} value={g}>{g.replace(/_/g, ' ')}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px', color: 'var(--text-muted)' }}>
+                                    Check-out Gesture
+                                </label>
+                                <select
+                                    value={gestureCheckout}
+                                    onChange={e => setGestureCheckout(e.target.value)}
+                                    className="form-input"
+                                    style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', fontSize: '0.875rem' }}
+                                >
+                                    {GESTURE_OPTIONS.map(g => <option key={g} value={g}>{g.replace(/_/g, ' ')}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <button
+                                    className="btn btn-primary"
+                                    disabled={gestureSaving}
+                                    onClick={async () => {
+                                        setGestureSaving(true);
+                                        try {
+                                            await cameraService.setGestures({ checkin: gestureCheckin, checkout: gestureCheckout });
+                                            showToast('Gesture mapping saved.');
+                                        } catch {
+                                            showToast('Failed to save gestures.', 'error');
+                                        } finally {
+                                            setGestureSaving(false);
+                                        }
+                                    }}
+                                    style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.875rem', padding: '8px 16px' }}
+                                >
+                                    {gestureSaving ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={15} />}
+                                    Save Gestures
+                                </button>
+                            </div>
+                        </div>
                     )}
                 </div>
             </div>

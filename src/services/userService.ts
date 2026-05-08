@@ -184,4 +184,22 @@ export const userService = {
         const response = await api.post('/api/users/checking-log', { studentId, checkingTime });
         return response.data.data || response.data;
     },
+
+    getLabTime: async (userId: string, period: 'day' | 'week' | 'month', date?: string): Promise<any> => {
+        const params = new URLSearchParams({ period });
+        if (date) params.set('date', date);
+        const res = await api.get(`/api/users/${userId}/lab-time?${params}`);
+        return res.data.data ?? res.data;
+    },
+
+    getLabTimeRange: async (
+        userId: string,
+        period: 'day' | 'week' | 'month',
+        from: string,
+        to: string
+    ): Promise<any[]> => {
+        const params = new URLSearchParams({ period, from, to });
+        const res = await api.get(`/api/users/${userId}/lab-time/range?${params}`);
+        return res.data.data ?? res.data;
+    },
 };

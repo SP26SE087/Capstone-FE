@@ -25,7 +25,7 @@ function groupResources(resources: BasicResourceResponse[]): ResGroup[] {
 }
 
 // ─── Lucide icon by name (subset used in RT_META) ───────────────────────────
-function RtIcon({ iconName, size = 13 }: { iconName: string; size?: number }) {
+function _RtIcon({ iconName, size = 13 }: { iconName: string; size?: number }) {
     const map: Record<string, React.ElementType> = {
         cpu: Cpu, microscope: Microscope, radio: Radio,
         monitor: Monitor, 'flask-conical': FlaskConical, database: Database, package: Package,
@@ -160,7 +160,7 @@ function getBookingTypeNames(booking: Booking, resources: Resource[]): string[] 
     });
 
     if (names.size === 0 && booking.resourceId) {
-        const resource = resources.find(r => r.id === booking.resourceId || r.ids?.includes(booking.resourceId));
+        const resource = resources.find(r => r.id === booking.resourceId || r.ids?.includes(booking.resourceId ?? ''));
         if (resource?.resourceTypeName?.trim()) names.add(resource.resourceTypeName.trim());
     }
 
@@ -247,8 +247,8 @@ function FilterBar({
     const STATUS_OPTIONS = [
         { value: '',  label: 'All statuses', dot: '#cbd5e1', color: '#64748b' },
         { value: '1', label: 'Pending',       dot: '#f59e0b', color: '#a16207' },
-        { value: '2', label: 'Approved',      dot: '#3b82f6', color: '#1d4ed8' },
-        { value: '5', label: 'In Use',        dot: '#22c55e', color: '#166534' },
+        { value: '2', label: 'Approved',      dot: '#22c55e', color: '#166534' },
+        { value: '5', label: 'In Use',        dot: '#3b82f6', color: '#1d4ed8' },
         { value: '6', label: 'Completed',     dot: '#9ca3af', color: '#6b7280' },
     ];
     const selectedStatusOpt = STATUS_OPTIONS.find(o => o.value === filterStatus) ?? STATUS_OPTIONS[0];
@@ -278,9 +278,9 @@ function FilterBar({
                         padding: '7px 14px',
                         fontSize: 14,
                         fontWeight: 700,
-                        background: filterTypes.length > 0 ? '#eff6ff' : '#fff',
-                        color: filterTypes.length > 0 ? '#1d4ed8' : '#334155',
-                        border: `1px solid ${filterTypes.length > 0 ? '#bfdbfe' : '#e2e8f0'}`,
+                        background: filterTypes.length > 0 ? '#f0fdf4' : '#fff',
+                        color: filterTypes.length > 0 ? '#166534' : '#334155',
+                        border: `1px solid ${filterTypes.length > 0 ? '#bbf7d0' : '#e2e8f0'}`,
                         borderRadius: 999,
                         cursor: 'pointer',
                         maxWidth: 280,
@@ -297,7 +297,7 @@ function FilterBar({
                             display: 'inline-flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            background: '#1d4ed8',
+                            background: '#166534',
                             color: '#fff',
                             fontSize: 12,
                             fontWeight: 800,
@@ -333,7 +333,7 @@ function FilterBar({
                                     cursor: filterTypes.length === 0 ? 'not-allowed' : 'pointer',
                                     fontSize: 12,
                                     fontWeight: 700,
-                                    color: filterTypes.length === 0 ? '#94a3b8' : '#2563eb',
+                                    color: filterTypes.length === 0 ? '#94a3b8' : '#16a34a',
                                     padding: 0,
                                 }}
                             >
@@ -377,8 +377,8 @@ function FilterBar({
                                                 gap: 10,
                                                 padding: '8px 12px',
                                                 border: 'none',
-                                                borderLeft: selected ? '3px solid #2563eb' : '3px solid transparent',
-                                                background: selected ? '#eff6ff' : '#fff',
+                                                borderLeft: selected ? '3px solid #16a34a' : '3px solid transparent',
+                                                background: selected ? '#f0fdf4' : '#fff',
                                                 cursor: 'pointer',
                                                 textAlign: 'left',
                                             }}
@@ -387,8 +387,8 @@ function FilterBar({
                                                 width: 16,
                                                 height: 16,
                                                 borderRadius: 4,
-                                                border: `1.5px solid ${selected ? '#2563eb' : '#cbd5e1'}`,
-                                                background: selected ? '#2563eb' : '#fff',
+                                                border: `1.5px solid ${selected ? '#16a34a' : '#cbd5e1'}`,
+                                                background: selected ? '#16a34a' : '#fff',
                                                 display: 'inline-flex',
                                                 alignItems: 'center',
                                                 justifyContent: 'center',
@@ -482,7 +482,7 @@ function CalEvent({ booking, resources: _resources, onClick, isStart = true }: {
     booking: Booking; resources: Resource[]; onClick: (b: Booking) => void; isStart?: boolean;
 }) {
     const isPending = booking.status === BookingStatus.Pending;
-    const isInUse = booking.status === BookingStatus.InUse;
+    const _isInUse = booking.status === BookingStatus.InUse;
     const isRejectedLike = booking.status === BookingStatus.Rejected || booking.status === BookingStatus.Cancelled;
     const sMeta = STATUS_META[booking.status];
     const isMultiDay = !sameDay(new Date(booking.startTime), new Date(booking.endTime));
@@ -726,10 +726,10 @@ function DaySidebar({ selectedDate, bookings, resources, onOpenBooking }: {
                                                             <span style={{ fontWeight: 700 }}>Booking title: </span>{b.title}
                                                         </div>
                                                         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 5 }}>
-                                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 7px', background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', borderRadius: 999, fontSize: 10.5, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 7px', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: 999, fontSize: 10.5, fontWeight: 700, whiteSpace: 'nowrap' }}>
                                                                 ↑ {fmtTime(b.startTime)}
                                                             </span>
-                                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 7px', background: '#eff6ff', color: '#2563eb', border: '1px solid #bfdbfe', borderRadius: 999, fontSize: 10.5, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 7px', background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', borderRadius: 999, fontSize: 10.5, fontWeight: 700, whiteSpace: 'nowrap' }}>
                                                                 ↓ {fmtTime(b.endTime)}
                                                             </span>
                                                             {resourceTypeName && (
@@ -851,10 +851,10 @@ function PendingQueue({ bookings, resources, onApprove, onReject, onAdjust, onOp
     const canConfirm    = !actionLoading && (activeAction?.type === 'approve' || !!actionReason.trim());
 
     // Per-action panel styling
-    const panelBg      = activeAction?.type === 'approve' ? '#f0fdf4' : activeAction?.type === 'reject' ? '#fef2f2' : '#fff7ed';
-    const panelBorder  = activeAction?.type === 'approve' ? '#bbf7d0' : activeAction?.type === 'reject' ? '#fecaca' : '#fed7aa';
-    const panelLabel   = activeAction?.type === 'approve' ? '#166534' : activeAction?.type === 'reject' ? '#991b1b' : '#92400E';
-    const confirmBg    = (isAllZero || activeAction?.type === 'reject') ? '#dc2626' : activeAction?.type === 'approve' ? '#16a34a' : '#ea580c';
+    const panelBg      = activeAction?.type === 'approve' ? '#eff6ff' : activeAction?.type === 'reject' ? '#fef2f2' : '#fff7ed';
+    const panelBorder  = activeAction?.type === 'approve' ? '#bfdbfe' : activeAction?.type === 'reject' ? '#fecaca' : '#fed7aa';
+    const panelLabel   = activeAction?.type === 'approve' ? '#1d4ed8' : activeAction?.type === 'reject' ? '#991b1b' : '#92400E';
+    const confirmBg    = (isAllZero || activeAction?.type === 'reject') ? '#dc2626' : activeAction?.type === 'approve' ? '#2563eb' : '#ea580c';
     const confirmLabel = activeAction?.type === 'approve' ? 'Confirm Approve' : (isAllZero || activeAction?.type === 'reject') ? 'Confirm Reject' : 'Confirm Adjust';
     const textareaLabel = activeAction?.type === 'approve' ? 'Approval note (optional)' : isAllZero ? 'Rejection reason (all resources removed) *' : activeAction?.type === 'reject' ? 'Rejection reason *' : 'Adjustment reason *';
     const textareaPlaceholder = activeAction?.type === 'approve' ? 'Add an approval note... (optional)' : activeAction?.type === 'reject' ? 'Enter rejection reason...' : isAllZero ? 'Explain why you are rejecting this booking...' : 'Explain why resources are being adjusted...';
@@ -876,7 +876,7 @@ function PendingQueue({ bookings, resources, onApprove, onReject, onAdjust, onOp
                 {pending.slice(0, 6).map(b => {
                     const label = getBookingResourceLabel(b, resources);
                     const activeType = activeAction?.id === b.id ? activeAction.type : null;
-                    const cardBorder = activeType === 'approve' ? '#16a34a' : activeType === 'reject' ? '#dc2626' : activeType === 'adjust' ? '#f97316' : '#e2e8f0';
+                    const cardBorder = activeType === 'approve' ? '#2563eb' : activeType === 'reject' ? '#dc2626' : activeType === 'adjust' ? '#f97316' : '#e2e8f0';
                     return (
                         <div
                             key={b.id}
@@ -914,7 +914,7 @@ function PendingQueue({ bookings, resources, onApprove, onReject, onAdjust, onOp
                                     <X size={12} /> Reject
                                 </button>
                                 <button onClick={e => { e.stopPropagation(); openAction(b, 'approve'); }}
-                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', background: activeType === 'approve' ? '#15803d' : '#059669', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', background: activeType === 'approve' ? '#1d4ed8' : '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
                                     <Check size={12} /> Approve
                                 </button>
                             </div>

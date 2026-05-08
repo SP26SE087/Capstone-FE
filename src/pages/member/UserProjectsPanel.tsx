@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Briefcase, Loader2, X, RefreshCw, Users } from 'lucide-react';
+import { Briefcase, Loader2, X, Users } from 'lucide-react';
 import { projectService } from '@/services/projectService';
 import { useToastStore } from '@/store/slices/toastSlice';
 
@@ -82,13 +82,6 @@ const UserProjectsPanel: React.FC<UserProjectsPanelProps> = ({ email, userName, 
                     )}
                 </div>
                 <div style={{ display: 'flex', gap: '4px' }}>
-                    <button onClick={fetchProjects} title="Refresh" style={{
-                        background: 'none', border: 'none', cursor: 'pointer',
-                        color: 'var(--text-muted)', padding: '4px', borderRadius: '50%',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center'
-                    }}>
-                        <RefreshCw size={14} />
-                    </button>
                     <button onClick={onClose} title="Close" style={{
                         background: 'none', border: 'none', cursor: 'pointer',
                         color: 'var(--text-muted)', padding: '4px', borderRadius: '50%',

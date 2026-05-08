@@ -56,7 +56,7 @@ const initialState = {
     source: null as 'schedule' | 'seminar' | null,
 };
 
-export const useTranscriptionStore = create<TranscriptionStoreState>((set, get) => ({
+export const useTranscriptionStore = create<TranscriptionStoreState>((set, _get) => ({
     ...initialState,
 
     setTranscription: (t) => set({ transcription: t }),

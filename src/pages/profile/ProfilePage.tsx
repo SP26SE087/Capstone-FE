@@ -9,7 +9,7 @@ import { SystemRoleMap } from '@/types/enums';
 import {
     Eye, Edit3, Save, User, Mail, Shield, Calendar,
     Loader2, CheckCircle, Phone,
-    Link as LinkIcon, GraduationCap, RefreshCw, Info
+    Link as LinkIcon, GraduationCap, RefreshCw, Info, Clock, ChevronDown
 } from 'lucide-react';
 
 const ProfilePage: React.FC = () => {
@@ -25,6 +25,12 @@ const ProfilePage: React.FC = () => {
 
     const [editData, setEditData] = useState({ fullName: '', studentId: '', phoneNumber: '', orcid: '', googleScholarUrl: '', githubUrl: '' });
     const [fieldErrors, setFieldErrors] = useState({ studentId: '', phoneNumber: '', orcid: '', googleScholarUrl: '', githubUrl: '' });
+
+    // Lab time
+    const [labTimePeriod, setLabTimePeriod] = useState<'day' | 'week' | 'month'>('day');
+    const [labTimeDate, setLabTimeDate] = useState(() => new Date().toISOString().slice(0, 10));
+    const [labTimeData, setLabTimeData] = useState<any>(null);
+    const [labTimeLoading, setLabTimeLoading] = useState(false);
 
     // Keep backward-compat alias used in JSX below
     const studentIdError = fieldErrors.studentId;
@@ -514,6 +520,98 @@ const ProfilePage: React.FC = () => {
                             </div>
                         </div>
                     </div>
+
+                    {/* Lab Time */}
+                    <div className="card" style={{ padding: '1.75rem', marginBottom: 0 }}>
+                        <h4 style={{ margin: '0 0 1.25rem 0', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <Clock size={13} /> Lab Time
+                        </h4>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginBottom: '16px' }}>
+                            <select
+                                value={labTimePeriod}
+                                onChange={e => setLabTimePeriod(e.target.value as 'day' | 'week' | 'month')}
+                                className="form-input"
+                                style={{ padding: '7px 10px', borderRadius: '8px', fontSize: '0.85rem', width: 'auto' }}
+                            >
+                                <option value="day">Day</option>
+                                <option value="week">Week</option>
+                                <option value="month">Month</option>
+                            </select>
+                            <input
+                                type="date"
+                                value={labTimeDate}
+                                onChange={e => setLabTimeDate(e.target.value)}
+                                className="form-input"
+                                style={{ padding: '7px 10px', borderRadius: '8px', fontSize: '0.85rem', width: 'auto' }}
+                            />
+                            <button
+                                className="btn btn-primary"
+                                disabled={labTimeLoading}
+                                onClick={async () => {
+                                    if (!authUser.userId) return;
+                                    setLabTimeLoading(true);
+                                    try {
+                                        const data = await userService.getLabTime(authUser.userId, labTimePeriod, labTimeDate);
+                                        setLabTimeData(data);
+                                    } catch {
+                                        setLabTimeData(null);
+                                    } finally {
+                                        setLabTimeLoading(false);
+                                    }
+                                }}
+                                style={{ padding: '7px 16px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+                            >
+                                {labTimeLoading ? <Loader2 size={14} className="animate-spin" /> : <ChevronDown size={14} />}
+                                {labTimeLoading ? 'Loading…' : 'Fetch'}
+                            </button>
+                        </div>
+
+                        {labTimeData && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                                    <div style={{ padding: '10px 18px', background: 'var(--accent-bg)', borderRadius: '10px', textAlign: 'center' }}>
+                                        <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--accent-color)' }}>{Number(labTimeData.totalHours ?? 0).toFixed(1)}</div>
+                                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>Total Hours</div>
+                                    </div>
+                                    <div style={{ padding: '10px 18px', background: '#f0fdf4', borderRadius: '10px', textAlign: 'center' }}>
+                                        <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#16a34a' }}>{labTimeData.sessions?.length ?? 0}</div>
+                                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>Sessions</div>
+                                    </div>
+                                    <div style={{ padding: '10px 18px', background: '#f8fafc', borderRadius: '10px', textAlign: 'center' }}>
+                                        <div style={{ fontSize: '1rem', fontWeight: 700, color: '#475569' }}>{labTimeData.period ?? '—'}</div>
+                                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>Period</div>
+                                    </div>
+                                </div>
+                                {labTimeData.sessions?.length > 0 && (
+                                    <div style={{ overflowX: 'auto' }}>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+                                            <thead>
+                                                <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
+                                                    <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 700, color: 'var(--text-muted)', fontSize: '0.72rem', textTransform: 'uppercase' as const }}>Check In</th>
+                                                    <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 700, color: 'var(--text-muted)', fontSize: '0.72rem', textTransform: 'uppercase' as const }}>Check Out</th>
+                                                    <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 700, color: 'var(--text-muted)', fontSize: '0.72rem', textTransform: 'uppercase' as const }}>Duration</th>
+                                                    <th style={{ textAlign: 'center', padding: '6px 10px', fontWeight: 700, color: 'var(--text-muted)', fontSize: '0.72rem', textTransform: 'uppercase' as const }}>Inferred</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {labTimeData.sessions.map((s: any, i: number) => (
+                                                    <tr key={i} style={{ borderBottom: '1px solid var(--border-light)' }}>
+                                                        <td style={{ padding: '8px 10px' }}>{s.checkIn ? new Date(s.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</td>
+                                                        <td style={{ padding: '8px 10px' }}>{s.checkOut ? new Date(s.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : <span style={{ color: '#94a3b8' }}>Active</span>}</td>
+                                                        <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600 }}>{Math.round(s.durationMinutes ?? 0)} min</td>
+                                                        <td style={{ padding: '8px 10px', textAlign: 'center' }}>
+                                                            {s.isInferred ? <span style={{ fontSize: '0.7rem', background: '#fef3c7', color: '#d97706', padding: '2px 7px', borderRadius: '4px', fontWeight: 700 }}>Inferred</span> : '—'}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
                 </div>
             </div>
 

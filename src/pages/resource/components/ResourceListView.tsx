@@ -22,7 +22,7 @@ const ResourceListView: React.FC<ResourceListViewProps> = ({
     resources,
     selectedId,
     onSelect,
-    onBook,
+    onBook: _onBook,
     isSplit: _isSplit = false,
     resourceTypes = [],
 }) => {

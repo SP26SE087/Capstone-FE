@@ -3,7 +3,7 @@ import MainLayout from '@/layout/MainLayout';
 import { taskService } from '@/services';
 import { Task } from '@/types';
 import { useAuth } from '@/hooks/useAuth';
-import { RotateCcw } from 'lucide-react';
+
 import TaskFilters from './components/TaskFilters';
 import TaskTable from './components/TaskTable';
 import TaskDetailPanel from './components/TaskDetailPanel';
@@ -21,18 +21,6 @@ const Tasks: React.FC = () => {
     const [endDateFilter, setEndDateFilter] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
-    const [refreshing, setRefreshing] = useState(false);
-
-    const handleRefresh = async () => {
-        setRefreshing(true);
-        try {
-            const data = await taskService.getPriorityTasks();
-            setTasks(data || []);
-        } finally {
-            setRefreshing(false);
-        }
-    };
-
     const fetchTasks = async () => {
         setLoading(true);
         try {
@@ -75,14 +63,6 @@ const Tasks: React.FC = () => {
                         <h1>My Tasks in Lab</h1>
                         <p>Track and update your research activities and deadlines.</p>
                     </div>
-                    <button
-                        onClick={handleRefresh}
-                        disabled={refreshing}
-                        style={{ padding: '6px 12px', border: '1px solid #e2e8f0', background: 'white', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
-                    >
-                        <RotateCcw size={13} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
-                        Refresh
-                    </button>
                 </div>
 
                 <TaskFilters

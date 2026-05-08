@@ -13,7 +13,6 @@ import {
     CheckCircle2,
     Circle,
     Clock,
-    RotateCcw,
 } from 'lucide-react';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -94,7 +93,6 @@ const LabProjects: React.FC = () => {
     const { user } = useAuth();
     const [projects, setProjects]     = useState<PublicProject[]>([]);
     const [loading, setLoading]       = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState<number | 'All'>('All');
     const [selected, setSelected]     = useState<PublicProject | null>(null);
@@ -108,20 +106,6 @@ const LabProjects: React.FC = () => {
             // handled in service
         } finally {
             setLoading(false);
-        }
-    };
-
-    const handleRefresh = async () => {
-        setRefreshing(true);
-        try {
-            const data = await projectService.getPublic();
-            setProjects(data);
-            if (selected) {
-                const updated = data.find((p: PublicProject) => p.projectId === selected.projectId);
-                setSelected(updated ?? null);
-            }
-        } finally {
-            setRefreshing(false);
         }
     };
 
@@ -187,24 +171,6 @@ const LabProjects: React.FC = () => {
                             </button>
                         ))}
                     </div>
-
-                    <div style={{ width: '1px', height: '22px', background: 'var(--border-color)', flexShrink: 0 }} />
-
-                    <button
-                        onClick={handleRefresh}
-                        disabled={refreshing}
-                        style={{
-                            height: '36px', padding: '0 12px', borderRadius: '10px',
-                            border: '1px solid var(--border-color)', background: 'white',
-                            cursor: refreshing ? 'not-allowed' : 'pointer',
-                            display: 'flex', alignItems: 'center', gap: '6px',
-                            color: 'var(--text-secondary)', opacity: refreshing ? 0.6 : 1,
-                            flexShrink: 0, fontSize: '0.8rem', fontWeight: 600, transition: 'all 0.15s',
-                        }}
-                    >
-                        <RotateCcw size={14} className={refreshing ? 'animate-spin' : ''} />
-                        Refresh
-                    </button>
 
                     <span style={{ marginLeft: 'auto', fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, flexShrink: 0 }}>
                         {filtered.length} project{filtered.length !== 1 ? 's' : ''}

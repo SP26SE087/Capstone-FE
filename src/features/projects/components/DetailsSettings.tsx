@@ -1,6 +1,6 @@
 import React from 'react';
 import { validateSpecialChars } from '@/utils/validation';
-import { ChevronDown, Briefcase, Save, Search, Calendar, Trash2, Lock } from 'lucide-react';
+import { ChevronDown, Briefcase, Save, Search, Calendar, Trash2, Lock, Plus, X, List } from 'lucide-react';
 import { Project, ResearchField, ProjectStatus } from '@/types';
 
 interface DetailsSettingsProps {
@@ -20,13 +20,17 @@ interface DetailsSettingsProps {
     setIsDeleteConfirmOpen: (open: boolean) => void;
     latestMilestoneDueDate?: string;
     earliestMilestoneStartDate?: string;
+    customFields?: string[];
+    onCustomFieldsChange?: (fields: string[]) => void;
 }
 
 const DetailsSettings: React.FC<DetailsSettingsProps> = ({
     isArchived, isReadOnly: permissionReadOnly, isAdmin, formData, handleStatusChange, handleInputChange,
     project, availableFields, selectedFieldIds, toggleField, handleSubmit, submitting,
-    canDeleteProject, setIsDeleteConfirmOpen, latestMilestoneDueDate, earliestMilestoneStartDate
+    canDeleteProject, setIsDeleteConfirmOpen, latestMilestoneDueDate, earliestMilestoneStartDate,
+    customFields = [], onCustomFieldsChange
 }) => {
+    const [newFieldValue, setNewFieldValue] = React.useState('');
     // Local state for field searching and edit mode
     const [fieldSearchTerm, setFieldSearchTerm] = React.useState('');
     const [isEditing, setIsEditing] = React.useState(false);
@@ -221,6 +225,78 @@ const DetailsSettings: React.FC<DetailsSettingsProps> = ({
                             <p style={{ fontSize: '0.75rem', fontWeight: 600, color: '#dc2626', marginTop: '4px' }}>
                                 {localFieldErrors.projectDescription}
                             </p>
+                        )}
+                    </div>
+                </div>
+
+                {/* Custom Fields */}
+                <div style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '1.5rem', marginBottom: '1.5rem' }}>
+                    <h4 style={{ margin: '0 0 1rem', fontSize: '0.85rem', fontWeight: 750, textTransform: 'uppercase', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <List size={14} /> Custom Fields
+                    </h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {customFields.map((field, idx) => (
+                            <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                {isEditing ? (
+                                    <>
+                                        <input
+                                            className="form-input"
+                                            type="text"
+                                            value={field}
+                                            onChange={e => {
+                                                const updated = [...customFields];
+                                                updated[idx] = e.target.value;
+                                                onCustomFieldsChange?.(updated);
+                                            }}
+                                            style={{ flex: 1, fontSize: '0.85rem', padding: '6px 10px' }}
+                                            placeholder={`Field ${idx + 1}`}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => onCustomFieldsChange?.(customFields.filter((_, i) => i !== idx))}
+                                            style={{ flexShrink: 0, width: 28, height: 28, borderRadius: '6px', border: '1px solid #fecaca', background: '#fef2f2', color: '#dc2626', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                        >
+                                            <X size={13} />
+                                        </button>
+                                    </>
+                                ) : (
+                                    <span style={{ fontSize: '0.85rem', padding: '4px 10px', background: 'var(--background-light)', borderRadius: '6px', border: '1px solid var(--border-light)', color: 'var(--text-primary)', flex: 1 }}>
+                                        {field}
+                                    </span>
+                                )}
+                            </div>
+                        ))}
+                        {isEditing && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                                <input
+                                    className="form-input"
+                                    type="text"
+                                    value={newFieldValue}
+                                    onChange={e => setNewFieldValue(e.target.value)}
+                                    onKeyDown={e => {
+                                        if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            const trimmed = newFieldValue.trim();
+                                            if (trimmed) { onCustomFieldsChange?.([...customFields, trimmed]); setNewFieldValue(''); }
+                                        }
+                                    }}
+                                    placeholder="New field label..."
+                                    style={{ flex: 1, fontSize: '0.85rem', padding: '6px 10px' }}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const trimmed = newFieldValue.trim();
+                                        if (trimmed) { onCustomFieldsChange?.([...customFields, trimmed]); setNewFieldValue(''); }
+                                    }}
+                                    style={{ flexShrink: 0, height: 32, padding: '0 12px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--primary-color)', color: 'white', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}
+                                >
+                                    <Plus size={13} /> Add
+                                </button>
+                            </div>
+                        )}
+                        {!isEditing && customFields.length === 0 && (
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>No custom fields defined</span>
                         )}
                     </div>
                 </div>

@@ -110,7 +110,8 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
 }) => {
     // ─── AI Planning State ───────────────────────────────────────────────────
     const [aiMilestonePanelOpen, setAiMilestonePanelOpen] = React.useState(false);
-    const [aiDuration, setAiDuration] = React.useState(3);
+    const [aiStartDate, setAiStartDate] = React.useState<string>('');
+    const [aiEndDate, setAiEndDate] = React.useState<string>('');
     const [generatingAIMilestones, setGeneratingAIMilestones] = React.useState(false);
     const [generatingAITasks, setGeneratingAITasks] = React.useState(false);
     const [aiMilestoneDrafts, setAiMilestoneDrafts] = React.useState<AIMilestoneDraft[]>([]);
@@ -123,9 +124,17 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
 
     const handleGenerateAIMilestones = async () => {
         if (!projectId || generatingAIMilestones) return;
+        if (!aiStartDate || !aiEndDate) {
+            showToast('Please select both Start Date and End Date.', 'error');
+            return;
+        }
+        if (aiStartDate >= aiEndDate) {
+            showToast('Start Date must be before End Date.', 'error');
+            return;
+        }
         setGeneratingAIMilestones(true);
         try {
-            const results = await milestoneService.generateAIMilestones(projectId, aiDuration);
+            const results = await milestoneService.generateAIMilestones(projectId, aiStartDate, aiEndDate);
             const list = Array.isArray(results) ? results : [];
             if (list.length === 0) {
                 showToast('AI found no suggestions for this project.', 'warning');
@@ -227,6 +236,7 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
     const pStartFormatted = projectStartDate ? projectStartDate.split('T')[0] : today;
     const pEndFormatted = projectEndDate ? projectEndDate.split('T')[0] : '';
     const [formTab, setFormTab] = React.useState<FormTab>('view');
+    const [showTaskPanel, setShowTaskPanel] = React.useState(false);
     const [refreshingMilestones, setRefreshingMilestones] = React.useState(false);
     const [draftTasks, setDraftTasks] = React.useState<TaskDraft[]>([]);
     const [confirmState, setConfirmState] = React.useState<{
@@ -511,6 +521,7 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
     React.useEffect(() => {
         if (activeMilestone && (editingMilestoneId || activeMilestone.milestoneId)) {
             setFormTab('view');
+            setShowTaskPanel(false);
             if (activeMilestone.status === MilestoneStatus.Completed || activeMilestone.status === MilestoneStatus.Cancelled) {
                 setTaskTab('current');
             }
@@ -557,6 +568,7 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
     }, [formTab, newMilestoneData, activeMilestone]);
 
     const protectedCancelEdit = () => {
+        setShowTaskPanel(false);
         if (formTab !== 'add') {
             if (hasUnsavedChanges()) {
                 setConfirmState({
@@ -566,7 +578,7 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                     confirmLabel: 'Discard',
                     cancelLabel: 'Stay',
                     variant: 'warning',
-                    onConfirm: () => onCancelEdit()
+                    onConfirm: () => { setShowTaskPanel(false); onCancelEdit(); }
                 });
                 return;
             }
@@ -1021,8 +1033,9 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                 })()}
             </div>
 
-            <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'stretch', position: 'relative', transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)', flex: 1, minHeight: 0 }}>
-                <div style={{ flex: viewMode === 'roadmap' ? 7 : 0, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '1.25rem', opacity: viewMode === 'roadmap' ? 1 : 0, pointerEvents: viewMode === 'roadmap' ? 'auto' : 'none', transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)', width: viewMode === 'roadmap' ? 'auto' : 0, overflow: 'hidden', minHeight: 0 }}>
+            <div style={{ display: 'flex', gap: '1.25rem', flex: 1, minHeight: 0 }}>
+                {/* LEFT: Milestone List */}
+                {!showTaskPanel && <div style={{ flex: 5, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '1rem', minHeight: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '0.5rem', borderBottom: '2px solid #1e293b', width: '100%' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                             <Target size={18} style={{ color: '#1e293b' }} />
@@ -1030,14 +1043,24 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                         </div>
                         {canManageMilestones && !isArchived && (
                             <button
-                                onClick={() => setAiMilestonePanelOpen(prev => !prev)}
+                                onClick={() => {
+                                    const next = !aiMilestonePanelOpen;
+                                    setAiMilestonePanelOpen(next);
+                                    if (next) {
+                                        if (editingMilestoneId) onCancelEdit();
+                                        setAiStartDate(projectStartDate ? projectStartDate.split('T')[0] : '');
+                                        setAiEndDate(projectEndDate ? projectEndDate.split('T')[0] : '');
+                                    } else {
+                                        setAiMilestoneDrafts([]);
+                                    }
+                                }}
                                 title="Let AI generate milestones for this project"
                                 style={{
                                     display: 'inline-flex', alignItems: 'center', gap: '6px',
                                     padding: '5px 12px', borderRadius: '8px',
-                                    border: `1.5px solid ${aiMilestonePanelOpen ? '#7c3aed' : '#c4b5fd'}`,
-                                    background: aiMilestonePanelOpen ? '#7c3aed' : '#faf5ff',
-                                    color: aiMilestonePanelOpen ? 'white' : '#7c3aed',
+                                    border: `1.5px solid ${aiMilestonePanelOpen ? 'var(--primary-color)' : '#e2e8f0'}`,
+                                    background: aiMilestonePanelOpen ? 'var(--primary-color)' : 'white',
+                                    color: aiMilestonePanelOpen ? 'white' : '#475569',
                                     fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer',
                                     transition: 'all 0.2s ease'
                                 }}
@@ -1047,193 +1070,6 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                             </button>
                         )}
                     </div>
-                    {/* ─── AI Milestone Generator Panel ─────────────────────────────── */}
-                    {aiMilestonePanelOpen && canManageMilestones && !isArchived && (
-                        <div style={{
-                            background: 'linear-gradient(135deg, #fdf4ff 0%, #eff6ff 100%)',
-                            border: '1.5px solid #c4b5fd', borderRadius: '16px',
-                            padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.85rem',
-                            boxShadow: '0 4px 20px rgba(124, 58, 237, 0.08)'
-                        }}>
-                            {/* Header */}
-                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-                                <div style={{ width: 32, height: 32, borderRadius: 10, background: '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                    <Sparkles size={15} color="white" />
-                                </div>
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                    <div style={{ fontSize: '0.82rem', fontWeight: 800, color: '#4c1d95', marginBottom: '2px' }}>AI Milestone Generator</div>
-                                    <div style={{ fontSize: '0.72rem', color: '#6b21a8', lineHeight: 1.5 }}>
-                                        {aiMilestoneDrafts.length > 0
-                                            ? `${aiMilestoneDrafts.filter(d => !d._saved).length} suggestion${aiMilestoneDrafts.filter(d => !d._saved).length !== 1 ? 's' : ''} remaining — accept or dismiss each one.`
-                                            : 'AI analyses your project and suggests milestones. Review before saving.'}
-                                    </div>
-                                </div>
-                                <button
-                                    onClick={() => { setAiMilestonePanelOpen(false); setAiMilestoneDrafts([]); }}
-                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#a78bfa', padding: '2px', flexShrink: 0, display: 'flex', alignItems: 'center' }}
-                                    title="Close and discard suggestions"
-                                >
-                                    <X size={14} />
-                                </button>
-                            </div>
-
-                            {/* Draft review list */}
-                            {aiMilestoneDrafts.length > 0 ? (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '340px', overflowY: 'auto' }} className="custom-scrollbar">
-                                    {aiMilestoneDrafts.map(draft => (
-                                        <div key={draft._key} style={{
-                                            background: draft._saved ? '#f0fdf4' : 'white',
-                                            border: `1.5px solid ${draft._saved ? '#bbf7d0' : '#e9d5ff'}`,
-                                            borderRadius: '12px', padding: '10px 12px',
-                                            display: 'flex', flexDirection: 'column', gap: '6px',
-                                            opacity: draft._saved ? 0.6 : 1,
-                                            transition: 'opacity 0.2s'
-                                        }}>
-                                            {/* Name row */}
-                                            {draft._editing ? (
-                                                <input
-                                                    type="text" value={draft._name}
-                                                    onChange={e => setAiMilestoneDrafts(prev => prev.map(d => d._key === draft._key ? { ...d, _name: e.target.value } : d))}
-                                                    style={{ width: '100%', padding: '4px 8px', borderRadius: '6px', border: '1px solid #c4b5fd', fontSize: '0.78rem', fontWeight: 700, outline: 'none', boxSizing: 'border-box' }}
-                                                />
-                                            ) : (
-                                                <div style={{ fontSize: '0.78rem', fontWeight: 700, color: draft._saved ? '#15803d' : '#4c1d95', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                    {draft._saved && <CheckCircle2 size={12} style={{ color: '#16a34a', flexShrink: 0 }} />}
-                                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{draft.name}</span>
-                                                </div>
-                                            )}
-                                            {/* Description row */}
-                                            {draft._editing ? (
-                                                <textarea
-                                                    value={draft._description}
-                                                    onChange={e => setAiMilestoneDrafts(prev => prev.map(d => d._key === draft._key ? { ...d, _description: e.target.value } : d))}
-                                                    style={{ width: '100%', padding: '4px 8px', borderRadius: '6px', border: '1px solid #c4b5fd', fontSize: '0.72rem', minHeight: '44px', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }}
-                                                />
-                                            ) : (
-                                                draft.description && (
-                                                    <div style={{ fontSize: '0.68rem', color: '#64748b', lineHeight: 1.4, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any }}>
-                                                        {draft.description}
-                                                    </div>
-                                                )
-                                            )}
-                                            {/* Date row */}
-                                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                                                {draft._editing ? (
-                                                    <>
-                                                        <input type="date" value={draft._startDate}
-                                                            onChange={e => setAiMilestoneDrafts(prev => prev.map(d => d._key === draft._key ? { ...d, _startDate: e.target.value } : d))}
-                                                            style={{ flex: 1, padding: '3px 6px', borderRadius: '6px', border: '1px solid #c4b5fd', fontSize: '0.65rem', outline: 'none' }}
-                                                        />
-                                                        <span style={{ color: '#a78bfa', fontSize: '0.65rem' }}>→</span>
-                                                        <input type="date" value={draft._dueDate}
-                                                            onChange={e => setAiMilestoneDrafts(prev => prev.map(d => d._key === draft._key ? { ...d, _dueDate: e.target.value } : d))}
-                                                            style={{ flex: 1, padding: '3px 6px', borderRadius: '6px', border: '1px solid #c4b5fd', fontSize: '0.65rem', outline: 'none' }}
-                                                        />
-                                                    </>
-                                                ) : (
-                                                    <div style={{ fontSize: '0.65rem', color: '#7c3aed', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                        <Calendar size={10} />
-                                                        {draft._startDate} → {draft._dueDate}
-                                                    </div>
-                                                )}
-                                            </div>
-                                            {/* Action buttons */}
-                                            {!draft._saved && (
-                                                <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', marginTop: '2px' }}>
-                                                    <button
-                                                        onClick={() => setAiMilestoneDrafts(prev => prev.map(d => d._key === draft._key ? { ...d, _editing: !d._editing } : d))}
-                                                        disabled={draft._saving}
-                                                        style={{ padding: '4px 10px', borderRadius: '7px', border: '1px solid #c4b5fd', background: draft._editing ? '#7c3aed' : 'white', color: draft._editing ? 'white' : '#7c3aed', fontSize: '0.65rem', fontWeight: 700, cursor: 'pointer' }}
-                                                    >
-                                                        {draft._editing ? 'Done' : 'Edit'}
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleDismissAIMilestone(draft._key)}
-                                                        disabled={draft._saving}
-                                                        style={{ padding: '4px 10px', borderRadius: '7px', border: '1px solid #fca5a5', background: '#fff1f1', color: '#ef4444', fontSize: '0.65rem', fontWeight: 700, cursor: 'pointer' }}
-                                                    >
-                                                        Skip
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleAcceptAIMilestone(draft)}
-                                                        disabled={draft._saving}
-                                                        style={{ padding: '4px 12px', borderRadius: '7px', border: 'none', background: draft._saving ? '#a78bfa' : '#7c3aed', color: 'white', fontSize: '0.65rem', fontWeight: 700, cursor: draft._saving ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
-                                                    >
-                                                        {draft._saving ? <Clock size={11} className="animate-spin-slow" /> : <CheckCircle2 size={11} />}
-                                                        {draft._saving ? 'Saving...' : 'Accept'}
-                                                    </button>
-                                                </div>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                /* Duration slider — shown only when no drafts yet */
-                                <div>
-                                    <label style={{ fontSize: '0.62rem', fontWeight: 800, color: '#7c3aed', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: '8px' }}>
-                                        Planning horizon: <span style={{ fontSize: '0.85rem', color: '#4c1d95' }}>{aiDuration} month{aiDuration !== 1 ? 's' : ''}</span>
-                                    </label>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                        <span style={{ fontSize: '0.65rem', color: '#a78bfa', fontWeight: 700 }}>1</span>
-                                        <input
-                                            type="range" min={1} max={6} value={aiDuration}
-                                            onChange={e => setAiDuration(Number(e.target.value))}
-                                            disabled={generatingAIMilestones}
-                                            style={{ flex: 1, accentColor: '#7c3aed', cursor: generatingAIMilestones ? 'not-allowed' : 'pointer' }}
-                                        />
-                                        <span style={{ fontSize: '0.65rem', color: '#a78bfa', fontWeight: 700 }}>6</span>
-                                    </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
-                                        {[1,2,3,4,5,6].map(n => (
-                                            <button
-                                                key={n}
-                                                onClick={() => !generatingAIMilestones && setAiDuration(n)}
-                                                style={{
-                                                    width: 24, height: 24, borderRadius: '6px',
-                                                    border: `1.5px solid ${aiDuration === n ? '#7c3aed' : '#ddd6fe'}`,
-                                                    background: aiDuration === n ? '#7c3aed' : 'white',
-                                                    color: aiDuration === n ? 'white' : '#7c3aed',
-                                                    fontSize: '0.65rem', fontWeight: 800, cursor: generatingAIMilestones ? 'not-allowed' : 'pointer',
-                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                    transition: 'all 0.15s'
-                                                }}
-                                            >{n}</button>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Footer buttons — only when no drafts */}
-                            {aiMilestoneDrafts.length === 0 && (
-                                <div style={{ display: 'flex', gap: '8px' }}>
-                                    <button
-                                        onClick={() => setAiMilestonePanelOpen(false)}
-                                        disabled={generatingAIMilestones}
-                                        style={{ flex: 1, padding: '8px', borderRadius: '10px', border: '1.5px solid #ddd6fe', background: 'white', color: '#7c3aed', fontSize: '0.78rem', fontWeight: 700, cursor: generatingAIMilestones ? 'not-allowed' : 'pointer', opacity: generatingAIMilestones ? 0.5 : 1 }}
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        onClick={handleGenerateAIMilestones}
-                                        disabled={generatingAIMilestones}
-                                        style={{
-                                            flex: 2, padding: '8px 14px', borderRadius: '10px', border: 'none',
-                                            background: generatingAIMilestones ? '#a78bfa' : '#7c3aed',
-                                            color: 'white', fontSize: '0.78rem', fontWeight: 700,
-                                            cursor: generatingAIMilestones ? 'not-allowed' : 'pointer',
-                                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px',
-                                            transition: 'background 0.2s'
-                                        }}
-                                    >
-                                        {generatingAIMilestones
-                                            ? <><Clock size={13} className="animate-spin-slow" />Generating...</>
-                                            : <><Sparkles size={13} />Suggest Milestones</>
-                                        }
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-                    )}
                     <div style={{ display: 'flex', gap: '10px', background: 'white', padding: '1rem', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
                         <div style={{ position: 'relative', flex: 1 }}>
                             <Search size={16} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
@@ -1276,23 +1112,82 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                             />
                         ))}
                     </div>
-                </div>
+                </div>}
 
-                {(editingMilestoneId || (!isArchived && canManageMilestones)) && (
-                    <div style={{ flex: 3, display: 'flex', flexDirection: 'column', gap: '0.8rem', transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)', minWidth: '310px', minHeight: 0 }}>
-                        {!!editingMilestoneId ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingBottom: '0.5rem', borderBottom: '2px solid #1e293b', width: '100%' }}>
-                                    {formTab === 'edit' ? <Edit3 size={16} style={{ color: '#1e293b' }} /> : <Target size={16} style={{ color: '#1e293b' }} />}
-                                    <h4 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 800, color: '#1e293b', textTransform: 'uppercase' }}>{formTab === 'edit' ? 'Edit Milestone' : 'Detail Milestone'}</h4>
-                                </div>
-                                <div style={{ display: 'flex', background: '#f1f5f9', padding: '4px', borderRadius: '12px', border: '1px solid #e2e8f0', height: '36px', boxSizing: 'border-box' }}>
-                                    <button onClick={() => setFormTab('view')} style={{ ...tabStyle, flex: 1, height: '100%', ...(formTab === 'view' ? activeTabStyle : inactiveTabStyle) }}>View</button>
-                                    {(canManageMilestones && activeMilestone?.status === MilestoneStatus.NotStarted) && (
-                                        <button onClick={handleSwitchToEdit} style={{ ...tabStyle, flex: 1, height: '100%', ...(formTab === 'edit' ? activeTabStyle : inactiveTabStyle) }}>Edit</button>
+                {/* RIGHT: Context Panel */}
+                {(editingMilestoneId || aiMilestonePanelOpen || (canManageMilestones && !isArchived)) && (
+                    <div style={{ flex: 4, display: 'flex', flexDirection: 'column', gap: '0.8rem', minWidth: '310px', minHeight: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingBottom: '0.5rem', borderBottom: '2px solid #1e293b', width: '100%' }}>
+                            {aiMilestonePanelOpen && !editingMilestoneId ? <Sparkles size={16} style={{ color: '#1e293b' }} /> : editingMilestoneId && formTab === 'edit' ? <Edit3 size={16} style={{ color: '#1e293b' }} /> : editingMilestoneId ? <Target size={16} style={{ color: '#1e293b' }} /> : <Plus size={16} style={{ color: '#1e293b' }} />}
+                            <h4 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 800, color: '#1e293b', textTransform: 'uppercase', flex: 1 }}>
+                                {editingMilestoneId ? (formTab === 'edit' ? 'Edit Milestone' : 'Milestone Detail') : aiMilestonePanelOpen ? 'AI Milestone Generator' : 'New Milestone'}
+                            </h4>
+                            {aiMilestonePanelOpen && !editingMilestoneId && (
+                                <button onClick={() => { setAiMilestonePanelOpen(false); setAiMilestoneDrafts([]); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: '2px', display: 'flex', alignItems: 'center' }}>
+                                    <X size={14} />
+                                </button>
+                            )}
+                        </div>
+                        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.8rem' }} className="custom-scrollbar">
+                            {/* CASE 1: AI Milestone Generator */}
+                            {aiMilestonePanelOpen && !editingMilestoneId && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                                    <div style={{ fontSize: '0.72rem', color: '#64748b', lineHeight: 1.5 }}>
+                                        {aiMilestoneDrafts.length > 0 ? `${aiMilestoneDrafts.filter(d => !d._saved).length} suggestion${aiMilestoneDrafts.filter(d => !d._saved).length !== 1 ? 's' : ''} remaining — accept or dismiss each one.` : 'AI analyses your project and suggests milestones. Review before saving.'}
+                                    </div>
+                                    {aiMilestoneDrafts.length > 0 ? (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                            {aiMilestoneDrafts.map(draft => (
+                                                <div key={draft._key} style={{ background: draft._saved ? '#f0fdf4' : 'white', border: `1px solid ${draft._saved ? '#bbf7d0' : '#e2e8f0'}`, borderRadius: '12px', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: '6px', opacity: draft._saved ? 0.6 : 1, transition: 'opacity 0.2s' }}>
+                                                    {draft._editing ? (<input type="text" value={draft._name} onChange={e => setAiMilestoneDrafts(prev => prev.map(d => d._key === draft._key ? { ...d, _name: e.target.value } : d))} style={{ width: '100%', padding: '4px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.78rem', fontWeight: 700, outline: 'none', boxSizing: 'border-box' }} />) : (<div style={{ fontSize: '0.78rem', fontWeight: 700, color: draft._saved ? '#15803d' : '#1e293b', display: 'flex', alignItems: 'center', gap: '6px' }}>{draft._saved && <CheckCircle2 size={12} style={{ color: '#16a34a', flexShrink: 0 }} />}<span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{draft.name}</span></div>)}
+                                                    {draft._editing ? (<textarea value={draft._description} onChange={e => setAiMilestoneDrafts(prev => prev.map(d => d._key === draft._key ? { ...d, _description: e.target.value } : d))} style={{ width: '100%', padding: '4px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.72rem', minHeight: '44px', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }} />) : (draft.description && <div style={{ fontSize: '0.68rem', color: '#64748b', lineHeight: 1.4, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any }}>{draft.description}</div>)}
+                                                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                                        {draft._editing ? (<><input type="date" value={draft._startDate} onChange={e => setAiMilestoneDrafts(prev => prev.map(d => d._key === draft._key ? { ...d, _startDate: e.target.value } : d))} style={{ flex: 1, padding: '3px 6px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.65rem', outline: 'none' }} /><span style={{ color: '#94a3b8', fontSize: '0.65rem' }}>→</span><input type="date" value={draft._dueDate} onChange={e => setAiMilestoneDrafts(prev => prev.map(d => d._key === draft._key ? { ...d, _dueDate: e.target.value } : d))} style={{ flex: 1, padding: '3px 6px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.65rem', outline: 'none' }} /></>) : (<div style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}><Calendar size={10} />{draft._startDate} → {draft._dueDate}</div>)}
+                                                    </div>
+                                                    {!draft._saved && (<div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', marginTop: '2px' }}><button onClick={() => setAiMilestoneDrafts(prev => prev.map(d => d._key === draft._key ? { ...d, _editing: !d._editing } : d))} disabled={draft._saving} style={{ padding: '4px 10px', borderRadius: '7px', border: '1px solid #e2e8f0', background: draft._editing ? 'var(--primary-color)' : 'white', color: draft._editing ? 'white' : '#475569', fontSize: '0.65rem', fontWeight: 700, cursor: 'pointer' }}>{draft._editing ? 'Done' : 'Edit'}</button><button onClick={() => handleDismissAIMilestone(draft._key)} disabled={draft._saving} style={{ padding: '4px 10px', borderRadius: '7px', border: '1px solid #fca5a5', background: '#fff1f1', color: '#ef4444', fontSize: '0.65rem', fontWeight: 700, cursor: 'pointer' }}>Skip</button><button onClick={() => handleAcceptAIMilestone(draft)} disabled={draft._saving} style={{ padding: '4px 12px', borderRadius: '7px', border: 'none', background: draft._saving ? '#94a3b8' : 'var(--primary-color)', color: 'white', fontSize: '0.65rem', fontWeight: 700, cursor: draft._saving ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>{draft._saving ? <Clock size={11} className="animate-spin-slow" /> : <CheckCircle2 size={11} />}{draft._saving ? 'Saving...' : 'Accept'}</button></div>)}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div style={{ background: 'white', padding: '1rem', borderRadius: '14px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', padding: '0.5rem 0.65rem', background: '#f0f9ff', borderRadius: '8px', border: '1px solid #e0f2fe' }}>
+                                                <Calendar size={11} style={{ color: '#0369a1', marginTop: '1px', flexShrink: 0 }} />
+                                                <span style={{ fontSize: '0.68rem', color: '#075985', lineHeight: 1.5 }}>
+                                                    Planning range — AI will distribute milestones within this period
+                                                </span>
+                                            </div>
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                                                <div>
+                                                    <label style={{ fontSize: '0.62rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: '6px' }}>Start Date</label>
+                                                    <input type="date" value={aiStartDate} onChange={e => setAiStartDate(e.target.value)} min={today} max={aiEndDate || undefined} disabled={generatingAIMilestones} style={{ width: '100%', padding: '6px 8px', borderRadius: '8px', border: '1.5px solid #e2e8f0', fontSize: '0.78rem', color: '#1e293b', background: 'white', cursor: generatingAIMilestones ? 'not-allowed' : 'text', boxSizing: 'border-box' }} />
+                                                </div>
+                                                <div>
+                                                    <label style={{ fontSize: '0.62rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: '6px' }}>End Date</label>
+                                                    <input type="date" value={aiEndDate} onChange={e => setAiEndDate(e.target.value)} min={aiStartDate || today} disabled={generatingAIMilestones} style={{ width: '100%', padding: '6px 8px', borderRadius: '8px', border: '1.5px solid #e2e8f0', fontSize: '0.78rem', color: '#1e293b', background: 'white', cursor: generatingAIMilestones ? 'not-allowed' : 'text', boxSizing: 'border-box' }} />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                    {aiMilestoneDrafts.length === 0 && (
+                                        <div style={{ display: 'flex', gap: '8px' }}>
+                                            <button onClick={() => setAiMilestonePanelOpen(false)} disabled={generatingAIMilestones} style={{ flex: 1, padding: '8px', borderRadius: '10px', border: '1.5px solid #e2e8f0', background: 'white', color: '#475569', fontSize: '0.78rem', fontWeight: 700, cursor: generatingAIMilestones ? 'not-allowed' : 'pointer', opacity: generatingAIMilestones ? 0.5 : 1 }}>Cancel</button>
+                                            <button onClick={handleGenerateAIMilestones} disabled={generatingAIMilestones} style={{ flex: 2, padding: '8px 14px', borderRadius: '10px', border: 'none', background: generatingAIMilestones ? '#94a3b8' : 'var(--primary-color)', color: 'white', fontSize: '0.78rem', fontWeight: 700, cursor: generatingAIMilestones ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px', transition: 'background 0.2s' }}>
+                                                {generatingAIMilestones ? <><Clock size={13} className="animate-spin-slow" />Generating...</> : <><Sparkles size={13} />Suggest Milestones</>}
+                                            </button>
+                                        </div>
                                     )}
                                 </div>
-                                <div style={{ background: 'white', padding: '1.25rem', borderRadius: '20px', border: '1px solid #e2e8f0', boxShadow: '0 8px 30px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto', flex: 1, minHeight: 0 }} className="custom-scrollbar">
+                            )}
+                            {/* CASE 2: Milestone detail/edit + task management */}
+                            {!!editingMilestoneId && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                                    <div style={{ display: 'flex', background: '#f1f5f9', padding: '4px', borderRadius: '12px', border: '1px solid #e2e8f0', height: '36px', boxSizing: 'border-box' }}>
+                                        <button onClick={() => setFormTab('view')} style={{ ...tabStyle, flex: 1, height: '100%', ...(formTab === 'view' ? activeTabStyle : inactiveTabStyle) }}>View</button>
+                                        {(canManageMilestones && activeMilestone?.status === MilestoneStatus.NotStarted) && (
+                                            <button onClick={handleSwitchToEdit} style={{ ...tabStyle, flex: 1, height: '100%', ...(formTab === 'edit' ? activeTabStyle : inactiveTabStyle) }}>Edit</button>
+                                        )}
+                                    </div>
+                                    <div style={{ background: 'white', padding: '1.25rem', borderRadius: '20px', border: '1px solid #e2e8f0', boxShadow: '0 8px 30px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                     {formTab === 'view' && activeMilestone ? (
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                             <div><label style={labelStyle}>Name</label><div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#1e293b' }}>{activeMilestone.name}</div></div>
@@ -1303,6 +1198,13 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                             <div><label style={labelStyle}>Goal</label><div style={{ fontSize: '0.8rem', color: '#475569', lineHeight: 1.5, background: '#f8fafc', padding: '0.85rem', borderRadius: '12px', wordBreak: 'break-word', overflowWrap: 'break-word', whiteSpace: 'pre-wrap' }}>{activeMilestone.description || "No goal defined."}</div></div>
                                             <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                                                     {renderMilestoneActions(activeMilestone)}
+                                                <button
+                                                    onClick={() => setShowTaskPanel(v => !v)}
+                                                    style={{ ...btnPrimary, width: '100%', padding: '0.75rem', background: showTaskPanel ? '#1e293b' : 'var(--primary-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                                                >
+                                                    <Target size={15} />
+                                                    {showTaskPanel ? 'Hide Tasks' : `View Tasks (${milestoneTasks.length})`}
+                                                </button>
                                                 <button onClick={protectedCancelEdit} style={{ ...btnSecondary, width: '100%', padding: '0.75rem' }}>{cancelBtnLabel}</button>
                                             </div>
                                         </div>
@@ -1360,103 +1262,60 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                             </div>
                                         </>
                                     )}
+                                    </div>
                                 </div>
-                            </div>
-                        ) : canManageMilestones ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingBottom: '0.5rem', borderBottom: '2px solid var(--primary-color)', width: 'fit-content' }}>
-                                    <Plus size={16} />
-                                    <h4 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 800, color: '#1e293b', textTransform: 'uppercase' }}>New Milestone</h4>
-                                </div>
-                                <div style={{ background: 'white', padding: '1.25rem', borderRadius: '20px', border: '1px solid #e2e8f0', boxShadow: '0 8px 30px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '1rem', overflowY: 'auto', flex: 1, minHeight: 0 }} className="custom-scrollbar">
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}><label style={labelStyle}>Name</label><input type="text" placeholder="Enter name..." value={newMilestoneData.name} onChange={(e) => handleMilestoneDataChange('name', e.target.value)} style={{ ...inputStyle, padding: '0.75rem' }} /></div>
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
-                                        <div>
-                                            <label style={labelStyle}>Start</label>
-                                            <input
-                                                type="date"
-                                                min={pStartFormatted}
-                                                max={pEndFormatted || undefined}
-                                                value={newMilestoneData.startDate}
-                                                onChange={(e) => handleNewStartDateChange(e.target.value)}
-                                                style={{ ...inputStyle, padding: '0.65rem' }}
-                                            />
+                            )}
+                            {/* CASE 3: Add new milestone */}
+                            {!editingMilestoneId && !aiMilestonePanelOpen && canManageMilestones && !isArchived && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                                    <div style={{ background: 'white', padding: '1.25rem', borderRadius: '20px', border: '1px solid #e2e8f0', boxShadow: '0 8px 30px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}><label style={labelStyle}>Name</label><input type="text" placeholder="Enter name..." value={newMilestoneData.name} onChange={(e) => handleMilestoneDataChange('name', e.target.value)} style={{ ...inputStyle, padding: '0.75rem' }} /></div>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
+                                            <div><label style={labelStyle}>Start</label><input type="date" min={pStartFormatted} max={pEndFormatted || undefined} value={newMilestoneData.startDate} onChange={(e) => handleNewStartDateChange(e.target.value)} style={{ ...inputStyle, padding: '0.65rem' }} /></div>
+                                            <div><label style={labelStyle}>Due</label><input type="date" min={newMilestoneData.startDate || pStartFormatted} max={pEndFormatted || undefined} value={newMilestoneData.dueDate} onChange={(e) => handleMilestoneDataChange('dueDate', e.target.value)} style={{ ...inputStyle, padding: '0.65rem' }} /></div>
                                         </div>
-                                        <div>
-                                            <label style={labelStyle}>Due</label>
-                                            <input
-                                                type="date"
-                                                min={newMilestoneData.startDate || pStartFormatted}
-                                                max={pEndFormatted || undefined}
-                                                value={newMilestoneData.dueDate}
-                                                onChange={(e) => handleMilestoneDataChange('dueDate', e.target.value)}
-                                                style={{ ...inputStyle, padding: '0.65rem' }}
-                                            />
+                                        <div><label style={labelStyle}>Goal</label><textarea placeholder="Description..." value={newMilestoneData.description} onChange={(e) => handleMilestoneDataChange('description', e.target.value)} style={{ ...inputStyle, minHeight: '80px', padding: '0.75rem' }} /></div>
+                                        <div style={{ display: 'flex', gap: '0.6rem', marginTop: '0.5rem' }}>
+                                            <button onClick={protectedCancelEdit} disabled={isMilestoneSaving} style={{ ...btnSecondary, flex: 1, padding: '0.75rem', opacity: isMilestoneSaving ? 0.7 : 1 }}>Cancel</button>
+                                            <button onClick={handleQuickMilestoneSave} disabled={!newMilestoneData.name || isMilestoneSaving} style={{ ...btnPrimary, flex: 1, padding: '0.75rem', opacity: (!newMilestoneData.name || isMilestoneSaving) ? 0.5 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                                                {isMilestoneSaving ? <><Clock className="animate-spin-slow" size={16} />Creating...</> : 'Create Milestone'}
+                                            </button>
                                         </div>
                                     </div>
-                                    <div>
-                                        <label style={labelStyle}>Goal</label>
-                                        <textarea placeholder="Description..." value={newMilestoneData.description} onChange={(e) => handleMilestoneDataChange('description', e.target.value)} style={{ ...inputStyle, minHeight: '80px', padding: '0.75rem' }} />
-                                    </div>
-                                    <div style={{ display: 'flex', gap: '0.6rem', marginTop: '0.5rem' }}>
-                                        <button onClick={protectedCancelEdit} disabled={isMilestoneSaving} style={{ ...btnSecondary, flex: 1, padding: '0.75rem', opacity: isMilestoneSaving ? 0.7 : 1 }}>{cancelBtnLabel}</button>
-                                        <button 
-                                            onClick={handleQuickMilestoneSave} 
-                                            disabled={!newMilestoneData.name || isMilestoneSaving} 
-                                            style={{ 
-                                                ...btnPrimary, 
-                                                flex: 1, 
-                                                padding: '0.75rem', 
-                                                opacity: (!newMilestoneData.name || isMilestoneSaving) ? 0.5 : 1,
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                gap: '8px'
-                                            }}
-                                        >
-                                           {isMilestoneSaving ? (
-                                                <>
-                                                    <Clock className="animate-spin-slow" size={16} />
-                                                    Creating...
-                                                </>
-                                            ) : 'Create Milestone'}
-                                        </button>
-                                    </div>
+                                    {latestMilestoneDate && (
+                                        <div style={{ display: 'flex', gap: '8px', padding: '0.85rem 1rem', background: '#f0f9ff', borderRadius: '14px', border: '1px solid #e0f2fe' }}>
+                                            <Info size={16} style={{ color: '#0369a1', marginTop: '2px', flexShrink: 0 }} />
+                                            <div style={{ fontSize: '0.75rem', color: '#075985' }}>Last milestone ends on <strong>{formatDate(latestMilestoneDate)}</strong>.</div>
+                                        </div>
+                                    )}
                                 </div>
-                            </div>
-                        ) : null}
-
-                        {latestMilestoneDate && (
-                            <div style={{ display: 'flex', gap: '8px', padding: '0.85rem 1rem', background: '#f0f9ff', borderRadius: '14px', border: '1px solid #e0f2fe' }}>
-                                <Info size={16} style={{ color: '#0369a1', marginTop: '2px', flexShrink: 0 }} />
-                                <div style={{ fontSize: '0.75rem', color: '#075985' }}>Last milestone ends on <strong>{formatDate(latestMilestoneDate)}</strong>.</div>
-                            </div>
-                        )}
+                            )}
+                        </div>
                     </div>
                 )}
-
-                <div style={{ flex: viewMode === 'detail' ? 7 : 0, display: 'flex', flexDirection: 'column', gap: '1rem', opacity: viewMode === 'detail' ? 1 : 0, pointerEvents: viewMode === 'detail' ? 'auto' : 'none', transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)', width: viewMode === 'detail' ? 'auto' : 0, overflow: 'hidden', minHeight: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', paddingBottom: '0.5rem', borderBottom: '2px solid #1e293b', width: '100%', overflow: 'hidden', minWidth: 0 }}>
-                        <Target size={16} style={{ color: '#1e293b', flexShrink: 0 }} />
-                        <h4 style={{ margin: '0 0 0 8px', fontSize: '0.85rem', fontWeight: 800, color: '#1e293b', textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>Milestone Tasks: {header.name}</h4>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '4px', background: '#f1f5f9', padding: '4px', borderRadius: '12px', border: '1px solid #e2e8f0', height: '36px', boxSizing: 'border-box' }}>
-                        <button
-                            onClick={() => setTaskTab('current')}
-                            style={{ ...tabStyle, flex: 1, height: '100%', fontSize: '0.7rem', borderRadius: '8px', ...(taskTab === 'current' ? activeTabStyle : inactiveTabStyle) }}
-                        >
-                            Current ({milestoneTasks.length})
-                        </button>
-                        {!isArchived && activeMilestone?.status !== MilestoneStatus.Completed && activeMilestone?.status !== MilestoneStatus.Cancelled && (
+                {/* TASK COLUMN */}
+                {!!editingMilestoneId && showTaskPanel && (
+                    <div style={{ flex: 7, display: 'flex', flexDirection: 'column', gap: '1rem', minHeight: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', paddingBottom: '0.5rem', borderBottom: '2px solid #1e293b', width: '100%', overflow: 'hidden', minWidth: 0 }}>
+                            <Target size={16} style={{ color: '#1e293b', flexShrink: 0 }} />
+                            <h4 style={{ margin: '0 0 0 8px', fontSize: '0.85rem', fontWeight: 800, color: '#1e293b', textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>Milestone Tasks: {header.name}</h4>
+                        </div>
+                        <div style={{ display: 'flex', gap: '4px', background: '#f1f5f9', padding: '4px', borderRadius: '12px', border: '1px solid #e2e8f0', height: '36px', boxSizing: 'border-box' }}>
                             <button
-                                onClick={() => setTaskTab('draft')}
-                                style={{ ...tabStyle, flex: 1, height: '100%', fontSize: '0.7rem', borderRadius: '8px', ...(taskTab === 'draft' ? activeTabStyle : inactiveTabStyle) }}
+                                onClick={() => setTaskTab('current')}
+                                style={{ ...tabStyle, flex: 1, height: '100%', fontSize: '0.7rem', borderRadius: '8px', ...(taskTab === 'current' ? activeTabStyle : inactiveTabStyle) }}
                             >
-                                Draft ({currentDrafts.length})
+                                Current ({milestoneTasks.length})
                             </button>
-                        )}
-                    </div>
+                            {!isArchived && activeMilestone?.status !== MilestoneStatus.Completed && activeMilestone?.status !== MilestoneStatus.Cancelled && (
+                                <button
+                                    onClick={() => setTaskTab('draft')}
+                                    style={{ ...tabStyle, flex: 1, height: '100%', fontSize: '0.7rem', borderRadius: '8px', ...(taskTab === 'draft' ? activeTabStyle : inactiveTabStyle) }}
+                                >
+                                    Draft ({currentDrafts.length})
+                                </button>
+                            )}
+                        </div>
 
                     <div style={{ flex: 1, background: 'white', borderRadius: '24px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 4px 24px rgba(0,0,0,0.02)', minHeight: 0 }}>
                         <div style={{ padding: '0.6rem 1.25rem', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc' }}>
@@ -1472,9 +1331,9 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                         style={{
                                             display: 'inline-flex', alignItems: 'center', gap: '6px',
                                             padding: '7px 13px', borderRadius: '10px',
-                                            border: '1.5px solid #c4b5fd',
-                                            background: generatingAITasks ? '#a78bfa' : '#faf5ff',
-                                            color: generatingAITasks ? 'white' : '#7c3aed',
+                                            border: '1.5px solid #e2e8f0',
+                                            background: generatingAITasks ? '#94a3b8' : 'white',
+                                            color: generatingAITasks ? 'white' : '#475569',
                                             fontSize: '0.75rem', fontWeight: 700,
                                             cursor: generatingAITasks ? 'not-allowed' : 'pointer',
                                             transition: 'all 0.2s ease', opacity: generatingAITasks ? 0.8 : 1
@@ -1807,7 +1666,7 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                         <div style={{ textAlign: 'center', padding: '4rem 2rem', color: '#94a3b8' }}>
                                             <Plus size={32} style={{ color: '#cbd5e1', marginBottom: '1.5rem' }} />
                                             <h5 style={{ color: '#1e293b', fontSize: '1rem', fontWeight: 800 }}>Drafting Workspace</h5>
-                                            <p style={{ fontSize: '0.8rem' }}>Plan tasks manually with "New Task", or use the <strong style={{ color: '#7c3aed' }}>AI Tasks</strong> button to get AI suggestions here.</p>
+                                            <p style={{ fontSize: '0.8rem' }}>Plan tasks manually with "New Task", or use the <strong>AI Tasks</strong> button to get AI suggestions here.</p>
                                         </div>
                                     )}
                                 </div>
@@ -2217,6 +2076,7 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                         </div>
                     </div>
                 </div>
+                )}
             </div>
 
             {confirmState.isOpen && (() => {

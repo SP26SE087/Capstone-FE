@@ -22,7 +22,6 @@ export interface Resource {
   description?: string;
   resourceTypeId?: string;
   resourceTypeName?: string;
-  resourceTypeCategory?: number; // 1 = Physical, 2 = ServerCompute
   modelSeries?: string;
   type: ResourceType;
   status?: ResourceStatus;
@@ -259,6 +258,8 @@ export interface ComputeAccess {
   gpuUtilization?: number;
   memoryUsage?: number;
   errorMessage?: string;
+  /** In-memory private key — never persisted, only used for this session */
+  privateKey?: string;
 }
 
 export interface ComputeBookingConfig {
