@@ -26,10 +26,23 @@ export const setupInterceptors = (axiosInstance: any) => {
     });
 
     // Request interceptor to add the auth token to headers
+    // Login endpoints must NOT receive a stale token from a previous session —
+    // doing so causes the backend to associate the new login with the old user.
+    const LOGIN_ENDPOINTS = ['/api/auth/google', '/api/auth/google-code'];
+
     axiosInstance.interceptors.request.use(
         (config: any) => {
+            const isLoginEndpoint = LOGIN_ENDPOINTS.some(
+                (url) => config.url && config.url.includes(url)
+            );
             const token = sessionStorage.getItem('token');
-            if (token && token !== 'undefined' && token !== 'null' && !config.headers.Authorization) {
+            if (
+                token &&
+                token !== 'undefined' &&
+                token !== 'null' &&
+                !config.headers.Authorization &&
+                !isLoginEndpoint
+            ) {
                 config.headers.Authorization = `Bearer ${token}`;
             }
             return config;
