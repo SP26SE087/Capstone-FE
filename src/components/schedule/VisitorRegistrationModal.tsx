@@ -76,7 +76,9 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
     }, [contactorOpen]);
 
     const toTitleCase = (str: string) =>
-        str.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+        str.toLowerCase().split(/\s+/).map(word =>
+            word.length > 0 ? word.charAt(0).toUpperCase() + word.slice(1) : word
+        ).join(' ');
 
     const extractCccdFromFile = async (file: File) => {
         setCccdExtracting(true);
