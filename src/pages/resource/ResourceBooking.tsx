@@ -535,6 +535,7 @@ const ResourceBooking: React.FC = () => {
     const isBookingTab = activeTab === 'my_bookings' || activeTab === 'all_bookings' || activeTab === 'managed_bookings';
     const isLogTab = activeTab === 'equipment_logs';
     const isResourceTypeTab = activeTab === 'resource_types';
+    const isServerTab = false;
 
     const displayResourceTypes = useMemo(() => resourceTypes.filter(rt => {
         const q = searchQuery.toLowerCase();
@@ -872,7 +873,7 @@ const ResourceBooking: React.FC = () => {
                                                 color: '#fff', cursor: 'pointer', boxShadow: `0 2px 6px ${meta.color}55`
                                             }}><Plus size={14} /> Add Resource</button>
                                         )}
-                                        {mainTab === 'resources' && !isResourceTypeTab && (
+                                        {mainTab === 'resources' && !isResourceTypeTab && !isServerTab && (
                                             <button onClick={() => handleCreateBooking()} style={{
                                                 display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700,
                                                 padding: '0 14px', height: '32px', borderRadius: '8px', fontSize: '0.8rem',
