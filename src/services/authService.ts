@@ -1,4 +1,4 @@
-import api from './api';
+import api, { authApi } from './api';
 
 export interface AuthResponse {
     userId: string;
@@ -21,7 +21,7 @@ const AUTH_KEYS = {
 
 export const authService = {
     async loginWithGoogle(idToken: string): Promise<AuthResponse> {
-        const response = await api.post('/api/auth/google', { idToken });
+        const response = await authApi.post('/api/auth/google', { idToken });
         const authData: AuthResponse = response.data.data || response.data;
 
         try {
@@ -43,7 +43,7 @@ export const authService = {
     },
 
     async loginWithCode(code: string, redirectUri: string): Promise<AuthResponse> {
-        const response = await api.post('/api/auth/google-code', { code, redirectUri });
+        const response = await authApi.post('/api/auth/google-code', { code, redirectUri });
         const rawData = response.data.data || response.data;
         
         // Map fields robustly (handle PascalCase and camelCase)
@@ -167,7 +167,7 @@ export const authService = {
 
     async hydrateProfile(authData: AuthResponse): Promise<AuthResponse> {
         try {
-            const res = await api.get(`/api/users/me?_t=${Date.now()}`, {
+            const res = await authApi.get(`/api/users/me?_t=${Date.now()}`, {
                 headers: { Authorization: `Bearer ${authData.jwtToken}` }
             });
             const data = res.data.data || res.data;

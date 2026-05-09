@@ -190,4 +190,36 @@ const handleSessionExpired = () => {
 // Apply interceptors
 setupInterceptors(api);
 
+/**
+ * A clean axios instance for authentication endpoints (login, register).
+ * It intentionally has NO request interceptor that injects session tokens,
+ * preventing stale tokens from a previous user's session from contaminating
+ * a new login request. Only the response envelope-unwrapping is applied.
+ */
+export const authApi = axios.create({
+    baseURL: API_BASE_URL,
+    headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+    },
+    timeout: 30000,
+});
+
+// Only unwrap the API envelope — no token injection, no refresh logic.
+authApi.interceptors.response.use(
+    (response: any) => {
+        if (response.data && typeof response.data === 'object' && 'success' in response.data && 'data' in response.data) {
+            response.data = response.data.data;
+        }
+        return response;
+    },
+    (error: any) => {
+        if (error.response?.data?.message) {
+            error.message = error.response.data.message;
+        }
+        return Promise.reject(error);
+    }
+);
+
 export default api;
