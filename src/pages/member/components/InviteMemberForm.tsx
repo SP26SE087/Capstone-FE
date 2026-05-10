@@ -15,12 +15,14 @@ const InviteMemberForm: React.FC<InviteMemberFormProps> = ({ onSuccess, onCancel
     const [loading, setLoading] = useState(false);
     const [errors, setErrors] = useState<{ email?: string; phone?: string; general?: string }>({});
 
-    // Filter out Admin role from the list
+    // Filter out roles that should not be assignable from this form
     const availableRoles = Object.entries(SystemRoleMap)
         .filter(([key]) => {
             const numKey = Number(key);
-            // Only include numeric keys (enums) and exclude Admin (1)
-            return !isNaN(numKey) && numKey !== SystemRoleEnum.Admin;
+            // Only include numeric keys (enums) and exclude Admin + Guest
+            return !isNaN(numKey) &&
+                numKey !== SystemRoleEnum.Admin &&
+                numKey !== SystemRoleEnum.Guest;
         });
 
     const validate = () => {

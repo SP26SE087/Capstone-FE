@@ -13,6 +13,7 @@ interface UserDetailModalProps {
     systemRoleMap: Record<number | string, string>;
     currentUserId?: string;
     currentUserEmail?: string;
+    currentUserRole?: number | string;
     onCheckLog: (email: string, studentId: string, userName: string) => void;
     isCheckLogOpen: boolean;
     isLabDirector?: boolean;
@@ -24,12 +25,16 @@ interface UserDetailModalProps {
     isLabTimePanelOpen?: boolean;
 }
 
-const UserDetailModal: React.FC<UserDetailModalProps> = ({ onClose, userId, systemRoleMap, currentUserId, currentUserEmail, onCheckLog, isCheckLogOpen, isLabDirector, onDeleted, onUpdated, onViewProjects, isProjectPanelOpen, onLabTime, isLabTimePanelOpen }) => {
+const normalizeRoleToken = (role: unknown) => String(role ?? '').trim().toLowerCase().replace(/\s+/g, '');
+
+const UserDetailModal: React.FC<UserDetailModalProps> = ({ onClose, userId, systemRoleMap, currentUserId, currentUserEmail, currentUserRole, onCheckLog, isCheckLogOpen, isLabDirector, onDeleted, onUpdated, onViewProjects, isProjectPanelOpen, onLabTime, isLabTimePanelOpen }) => {
     const [userData, setUserData] = useState<any>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [showActivateConfirm, setShowActivateConfirm] = useState(false);
     const [deleting, setDeleting] = useState(false);
+    const [activating, setActivating] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [editForm, setEditForm] = useState({ fullName: '', studentId: '', phoneNumber: '', orcid: '', googleScholarUrl: '', githubUrl: '' });
     const [fieldErrors, setFieldErrors] = useState({ fullName: '', studentId: '', phoneNumber: '', orcid: '', googleScholarUrl: '', githubUrl: '' });
@@ -132,6 +137,7 @@ const UserDetailModal: React.FC<UserDetailModalProps> = ({ onClose, userId, syst
         setDeleting(true);
         try {
             await userService.updateUser(userId, { isActive: false });
+            addToast('Member deactivated successfully.', 'success');
             setShowDeleteConfirm(false);
             onDeleted?.();
             onClose();
@@ -141,6 +147,23 @@ const UserDetailModal: React.FC<UserDetailModalProps> = ({ onClose, userId, syst
             addToast(msg, 'error');
         } finally {
             setDeleting(false);
+        }
+    };
+
+    const handleActivate = async () => {
+        const userId = userData?.userId || userData?.id;
+        if (!userId) return;
+        setActivating(true);
+        try {
+            await userService.updateUser(userId, { isActive: true });
+            addToast('Member activated successfully.', 'success');
+            onUpdated?.();
+            await fetchUserDetails();
+        } catch (err: any) {
+            const msg = err?.response?.data?.message || err?.message || 'Failed to activate user.';
+            addToast(msg, 'error');
+        } finally {
+            setActivating(false);
         }
     };
 
@@ -156,11 +179,25 @@ const UserDetailModal: React.FC<UserDetailModalProps> = ({ onClose, userId, syst
     const myId = String(currentUserId || '').trim().toLowerCase();
     const myEmail = String(currentUserEmail || '').trim().toLowerCase();
     const isSelfProfile = (selectedId && myId && selectedId === myId) || (selectedEmail && myEmail && selectedEmail === myEmail);
-    const targetRole = userData?.role;
+    const normalizedCurrentRole = normalizeRoleToken(currentUserRole);
+    const canCurrentUserEdit =
+        Boolean(isLabDirector) ||
+        Number(currentUserRole) === SystemRoleEnum.LabDirector ||
+        normalizedCurrentRole === 'labdirector';
+
+    const targetRoleRaw = userData?.role ?? userData?.Role;
+    const targetRoleNameRaw = userData?.roleName ?? userData?.RoleName;
+    const normalizedTargetRole = normalizeRoleToken(targetRoleRaw);
+    const normalizedTargetRoleName = normalizeRoleToken(targetRoleNameRaw);
     const isTargetPrivileged =
-        targetRole === SystemRoleEnum.Admin || targetRole === SystemRoleEnum.LabDirector ||
-        targetRole === 'Admin' || targetRole === 'LabDirector' || targetRole === 'Lab Director';
-    const canEditProfile = isLabDirector && !isSelfProfile && !isTargetPrivileged;
+        Number(targetRoleRaw) === SystemRoleEnum.Admin ||
+        Number(targetRoleRaw) === SystemRoleEnum.LabDirector ||
+        normalizedTargetRole === 'admin' ||
+        normalizedTargetRole === 'labdirector' ||
+        normalizedTargetRoleName === 'admin' ||
+        normalizedTargetRoleName === 'labdirector';
+
+    const canEditProfile = canCurrentUserEdit && !isSelfProfile && !isTargetPrivileged;
 
     return (
         <div style={{
@@ -261,19 +298,44 @@ const UserDetailModal: React.FC<UserDetailModalProps> = ({ onClose, userId, syst
 
                     {isEditing ? (
                         /* ── Edit Form ── */
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            <Section label="Edit Profile">
-                                {([
-                                    { key: 'fullName', label: 'Full Name', placeholder: 'Full name' },
-                                    { key: 'studentId', label: 'Student ID', placeholder: 'e.g. SE123456' },
-                                    { key: 'phoneNumber', label: 'Phone', placeholder: 'e.g. 0912345678' },
-                                    { key: 'orcid', label: 'ORCID', placeholder: 'xxxx-xxxx-xxxx-xxxx' },
-                                    { key: 'googleScholarUrl', label: 'Scholar URL', placeholder: 'Google Scholar link' },
-                                    { key: 'githubUrl', label: 'GitHub URL', placeholder: 'GitHub profile link' },
-                                ] as const).map(({ key, label, placeholder }) => (
-                                    <div key={key} style={{ padding: '6px 10px', borderBottom: '1px solid var(--border-light)' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                            <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', minWidth: '70px', flexShrink: 0 }}>{label}</span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            <div style={{
+                                background: 'linear-gradient(180deg, #f8fafc 0%, #ffffff 100%)',
+                                border: '1px solid #e2e8f0',
+                                borderRadius: '14px',
+                                overflow: 'hidden'
+                            }}>
+                                <div style={{
+                                    padding: '10px 12px',
+                                    borderBottom: '1px solid #e2e8f0',
+                                    background: '#f8fafc'
+                                }}>
+                                    <p style={{ margin: 0, fontSize: '0.68rem', fontWeight: 800, letterSpacing: '0.08em', color: '#64748b', textTransform: 'uppercase' }}>
+                                        Edit Profile
+                                    </p>
+                                    <p style={{ margin: '4px 0 0 0', fontSize: '0.75rem', color: '#475569', fontWeight: 600 }}>
+                                        Update member information and research links
+                                    </p>
+                                </div>
+
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '10px' }}>
+                                    {([
+                                        { key: 'fullName', label: 'Full Name', placeholder: 'Full name' },
+                                        { key: 'studentId', label: 'Student ID', placeholder: 'e.g. SE123456' },
+                                        { key: 'phoneNumber', label: 'Phone', placeholder: 'e.g. 0912345678' },
+                                        { key: 'orcid', label: 'ORCID', placeholder: 'xxxx-xxxx-xxxx-xxxx' },
+                                        { key: 'googleScholarUrl', label: 'Scholar URL', placeholder: 'Google Scholar link' },
+                                        { key: 'githubUrl', label: 'GitHub URL', placeholder: 'GitHub profile link' },
+                                    ] as const).map(({ key, label, placeholder }) => (
+                                        <div key={key} style={{
+                                            padding: '8px 10px',
+                                            border: `1px solid ${fieldErrors[key] ? '#fecaca' : '#e2e8f0'}`,
+                                            background: fieldErrors[key] ? '#fef2f2' : '#ffffff',
+                                            borderRadius: '10px'
+                                        }}>
+                                            <label style={{ display: 'block', marginBottom: '6px', fontSize: '0.68rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                                {label}
+                                            </label>
                                             <input
                                                 value={editForm[key]}
                                                 onChange={e => {
@@ -282,28 +344,39 @@ const UserDetailModal: React.FC<UserDetailModalProps> = ({ onClose, userId, syst
                                                     setFieldError(key, validate[key](v.trim()));
                                                 }}
                                                 placeholder={placeholder}
-                                                style={{ flex: 1, fontSize: '0.75rem', border: `1px solid ${fieldErrors[key] ? '#ef4444' : 'var(--border-color)'}`, borderRadius: '6px', padding: '4px 8px', background: 'var(--card-bg)', color: 'var(--text-primary)', outline: 'none' }}
+                                                style={{
+                                                    width: '100%',
+                                                    fontSize: '0.78rem',
+                                                    border: `1px solid ${fieldErrors[key] ? '#fca5a5' : '#cbd5e1'}`,
+                                                    borderRadius: '8px',
+                                                    padding: '8px 10px',
+                                                    background: '#f8fafc',
+                                                    color: 'var(--text-primary)',
+                                                    outline: 'none',
+                                                    boxSizing: 'border-box'
+                                                }}
                                             />
+                                            {fieldErrors[key] && (
+                                                <p style={{ margin: '6px 0 0 0', fontSize: '0.68rem', color: '#dc2626', fontWeight: 700 }}>{fieldErrors[key]}</p>
+                                            )}
                                         </div>
-                                        {fieldErrors[key] && (
-                                            <p style={{ margin: '3px 0 0 78px', fontSize: '0.68rem', color: '#ef4444', fontWeight: 600 }}>{fieldErrors[key]}</p>
-                                        )}
-                                    </div>
-                                ))}
-                            </Section>
-                            <div style={{ display: 'flex', gap: '6px' }}>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '8px' }}>
                                 <button
                                     onClick={handleSaveProfile}
                                     disabled={saving}
-                                    style={{ flex: 1, padding: '8px', borderRadius: '10px', border: 'none', cursor: saving ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '0.78rem', fontWeight: 700, background: 'var(--primary-color)', color: '#fff' }}
+                                    style={{ flex: 1, padding: '9px', borderRadius: '10px', border: 'none', cursor: saving ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 800, background: '#2563eb', color: '#fff', boxShadow: '0 6px 16px rgba(37,99,235,0.25)' }}
                                 >
                                     {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                                    {saving ? 'Saving…' : 'Save'}
+                                    {saving ? 'Saving…' : 'Save Changes'}
                                 </button>
                                 <button
                                     onClick={() => { setIsEditing(false); setFieldErrors({ fullName: '', studentId: '', phoneNumber: '', orcid: '', googleScholarUrl: '', githubUrl: '' }); }}
                                     disabled={saving}
-                                    style={{ flex: 1, padding: '8px', borderRadius: '10px', border: '1px solid var(--border-color)', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700, background: 'var(--surface-hover)', color: 'var(--text-primary)' }}
+                                    style={{ flex: 1, padding: '9px', borderRadius: '10px', border: '1px solid #cbd5e1', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 700, background: '#f8fafc', color: '#334155' }}
                                 >
                                     Cancel
                                 </button>
@@ -409,22 +482,41 @@ const UserDetailModal: React.FC<UserDetailModalProps> = ({ onClose, userId, syst
                     )}
 
                     {isLabDirector && !isSelfProfile && !isEditing && (
-                        <button
-                            onClick={() => setShowDeleteConfirm(true)}
-                            disabled={deleting}
-                            style={{
-                                width: '100%', padding: '8px', borderRadius: '10px', cursor: 'pointer',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-                                fontSize: '0.78rem', fontWeight: 700, marginTop: '6px',
-                                background: '#fef2f2', color: '#ef4444',
-                                border: '1.5px solid #fecaca', transition: 'all 0.2s'
-                            }}
-                            onMouseEnter={e => { e.currentTarget.style.background = '#fee2e2'; }}
-                            onMouseLeave={e => { e.currentTarget.style.background = '#fef2f2'; }}
-                        >
-                            {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                            Deactivate Member
-                        </button>
+                        isActive ? (
+                            <button
+                                onClick={() => setShowDeleteConfirm(true)}
+                                disabled={deleting || activating}
+                                style={{
+                                    width: '100%', padding: '8px', borderRadius: '10px', cursor: 'pointer',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                                    fontSize: '0.78rem', fontWeight: 700, marginTop: '6px',
+                                    background: '#fef2f2', color: '#ef4444',
+                                    border: '1.5px solid #fecaca', transition: 'all 0.2s'
+                                }}
+                                onMouseEnter={e => { e.currentTarget.style.background = '#fee2e2'; }}
+                                onMouseLeave={e => { e.currentTarget.style.background = '#fef2f2'; }}
+                            >
+                                {deleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                                Deactivate Member
+                            </button>
+                        ) : (
+                            <button
+                                onClick={() => setShowActivateConfirm(true)}
+                                disabled={activating || deleting}
+                                style={{
+                                    width: '100%', padding: '8px', borderRadius: '10px', cursor: 'pointer',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                                    fontSize: '0.78rem', fontWeight: 700, marginTop: '6px',
+                                    background: '#ecfdf5', color: '#16a34a',
+                                    border: '1.5px solid #86efac', transition: 'all 0.2s'
+                                }}
+                                onMouseEnter={e => { e.currentTarget.style.background = '#dcfce7'; }}
+                                onMouseLeave={e => { e.currentTarget.style.background = '#ecfdf5'; }}
+                            >
+                                {activating ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
+                                Activate Member
+                            </button>
+                        )
                     )}
                 </div>
             ) : null}
@@ -438,6 +530,20 @@ const UserDetailModal: React.FC<UserDetailModalProps> = ({ onClose, userId, syst
                 confirmText="Deactivate"
                 cancelText="Cancel"
                 variant="danger"
+            />
+
+            <ConfirmModal
+                isOpen={showActivateConfirm}
+                onClose={() => setShowActivateConfirm(false)}
+                onConfirm={async () => {
+                    setShowActivateConfirm(false);
+                    await handleActivate();
+                }}
+                title="Activate Member"
+                message={`Activate ${name || 'this user'}? They will be able to access the system again.`}
+                confirmText="Activate"
+                cancelText="Cancel"
+                variant="success"
             />
         </div>
     );

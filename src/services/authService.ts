@@ -34,7 +34,7 @@ export const authService = {
             authData.userId = payload.sub || payload.nameid || payload['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'];
             authData.jwtToken = token;
         } catch (err) {
-            console.error('Lỗi khi lấy userId từ token:', err);
+            console.error('Error fetching userId from token:', err);
         }
 
         const hydrated = await this.hydrateProfile(authData);
@@ -85,7 +85,7 @@ export const authService = {
             }).join('')));
             authData.userId = payload.sub || payload.nameid || payload['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'];
         } catch (err) {
-            console.error('Lỗi khi lấy userId từ token sau loginWithCode:', err);
+            console.error('Error fetching userId from token after loginWithCode:', err);
         }
 
         const hydrated = await this.hydrateProfile(authData);
@@ -105,7 +105,7 @@ export const authService = {
             }).join('')));
             authData.userId = payload.sub || payload.nameid || payload['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'];
         } catch (err) {
-            console.error('Lỗi khi lấy userId trong lúc refresh token:', err);
+            console.error('Error fetching userId during token refresh:', err);
         }
 
         const hydrated = await this.hydrateProfile(authData);
@@ -175,7 +175,7 @@ export const authService = {
 
             if (isActive === false) {
                 this.clearAuthData();
-                throw new Error('Tài khoản đã bị vô hiệu hóa. Vui lòng liên hệ quản trị viên.');
+                throw new Error('Account has been deactivated. Please contact administrator.');
             }
 
             return {
@@ -206,8 +206,8 @@ export const authService = {
                 isActive,
             };
         } catch (err) {
-            // Nếu lấy profile thất bại, trả lại authData hiện có
-            console.warn('Không thể đồng bộ profile sau đăng nhập:', err);
+            // If profile fetch fails, return current authData
+            console.warn('Unable to sync profile after login:', err);
             return authData;
         }
     },

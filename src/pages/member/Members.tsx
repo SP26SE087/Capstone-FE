@@ -37,9 +37,10 @@ const Members: React.FC = () => {
     const [studentSearchResult, setStudentSearchResult] = useState<any | null>(null);
     const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    const isLabDirector = user.role === 'Lab Director' || 
-                         user.role === 'LabDirector' || 
-                         Number(user.role) === SystemRoleEnum.LabDirector;
+    const normalizedCurrentRole = String(user.role ?? '').trim().toLowerCase().replace(/\s+/g, '');
+    const isLabDirector =
+        normalizedCurrentRole === 'labdirector' ||
+        Number(user.role) === SystemRoleEnum.LabDirector;
     
     const { addToast } = useToastStore();
     const fetchMembers = async () => {
@@ -380,6 +381,7 @@ const Members: React.FC = () => {
                                 systemRoleMap={SystemRoleMap}
                                 currentUserId={user.userId}
                                 currentUserEmail={user.email}
+                                currentUserRole={user.role}
                                 onClose={() => { setSelectedUserId(null); setCheckLogData(null); setProjectPanelData(null); setLabTimePanelData(null); }}
                                 onCheckLog={(email, studentId, userName) => {
                                     setProjectPanelData(null);
@@ -426,7 +428,6 @@ const Members: React.FC = () => {
                                     });
                                 }}
                                 onDeleted={() => {
-                                    addToast('User deleted successfully.', 'success');
                                     setSelectedUserId(null);
                                     setCheckLogData(null);
                                     setProjectPanelData(null);
