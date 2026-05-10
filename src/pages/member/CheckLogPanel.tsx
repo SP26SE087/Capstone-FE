@@ -43,7 +43,7 @@ const CheckLogPanel: React.FC<CheckLogPanelProps> = ({ email, studentId, userNam
     const formatDateTime = (raw: string) => {
         if (!raw) return '—';
         try {
-            return new Date(raw).toLocaleString('vi-VN', {
+            return new Date(raw).toLocaleString('en-US', {
                 day: '2-digit', month: '2-digit', year: 'numeric',
                 hour: '2-digit', minute: '2-digit'
             });

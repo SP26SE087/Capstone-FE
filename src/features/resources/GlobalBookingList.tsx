@@ -104,7 +104,7 @@ const GlobalBookingList: React.FC<GlobalBookingListProps> = ({ bookings, loading
                     </td>
                   )}
                   <td style={{ padding: '1rem', textAlign: 'center' }}>
-                    <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#475569' }}>{new Date(booking.startTime).toLocaleDateString()}</div>
+                    <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#475569' }}>{new Date(booking.startTime).toLocaleDateString('en-US')}</div>
                     <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>{new Date(booking.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                   </td>
                   <td style={{ padding: '1rem', textAlign: 'center' }}>

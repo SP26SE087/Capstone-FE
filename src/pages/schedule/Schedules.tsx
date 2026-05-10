@@ -35,7 +35,12 @@ import { useToastStore } from '@/store/slices/toastSlice';
 import ScheduleList from './components/ScheduleList';
 import SchedulePanel from './components/SchedulePanel';
 import TranscriptionPanel from './components/TranscriptionPanel';
-import WeeklyTimetable, { TimetableEvent } from '@/components/common/WeeklyTimetable';
+import {
+    BookingStyleMonthGrid,
+    BookingStyleMonthNav,
+    BookingStyleMonthGridEvent,
+    sameDay,
+} from '@/components/common/BookingStyleMonthCalendar';
 
 type ListTabType = 'my_meetings' | 'my_invited_meetings';
 
@@ -100,6 +105,13 @@ const Schedules: React.FC = () => {
     const { addToast } = useToastStore();
     const [viewMode, setViewMode] = useState<'list' | 'timetable'>(() => {
         return (localStorage.getItem('schedule_viewMode') as 'list' | 'timetable') || 'list';
+    });
+    const [calYear, setCalYear] = useState(() => new Date().getFullYear());
+    const [calMonth, setCalMonth] = useState(() => new Date().getMonth());
+    const [selectedCalDate, setSelectedCalDate] = useState(() => {
+        const d = new Date();
+        d.setHours(0, 0, 0, 0);
+        return d;
     });
 
     // Semantic search
@@ -426,22 +438,31 @@ const Schedules: React.FC = () => {
     }, [meetings, seminarMeetings]);
 
     // Timetable events — meetings + seminars merged
-    const timetableEvents: TimetableEvent[] = useMemo(() => {
+    const meetingByEventId = useMemo(() => {
+        return new Map(
+            meetings.map(m => [String(m.googleCalendarEventId || m.id), m] as const)
+        );
+    }, [meetings]);
+
+    const timetableEvents: BookingStyleMonthGridEvent[] = useMemo(() => {
         const meetingEvents = displayMeetings.map(m => ({
             id: m.googleCalendarEventId || m.id,
             title: m.title || 'Untitled',
             startTime: m.startTime,
             endTime: m.endTime,
-            meetLink: m.googleMeetLink,
-            presenter: m.currentPresenter?.name || m.currentPresenter?.email || null,
-            presenterTopic: m.currentPresenter?.topic || null,
-            creator: usersMap[m.createdBy] || m.createdBy,
-            description: m.description,
-            guests: m.attendees?.map(a => a.displayName || a.email).filter(Boolean) || [],
-            type: 'meeting' as const,
-            status: m.status !== undefined ? String(m.status) : null,
-            recordingUrl: m.recordingUrl || null,
-            projectName: m.projectId ? (projectsMap[m.projectId] || null) : null,
+            color: '#6366f1',
+            meta: {
+                type: 'meeting',
+                meetLink: m.googleMeetLink,
+                presenter: m.currentPresenter?.name || m.currentPresenter?.email || null,
+                presenterTopic: m.currentPresenter?.topic || null,
+                creator: usersMap[m.createdBy] || m.createdBy,
+                description: m.description,
+                guests: m.attendees?.map(a => a.displayName || a.email).filter(Boolean) || [],
+                status: m.status !== undefined ? String(m.status) : null,
+                recordingUrl: m.recordingUrl || null,
+                projectName: m.projectId ? (projectsMap[m.projectId] || null) : null,
+            },
         }));
 
         const seminarEvents = seminarMeetings.map(s => ({
@@ -449,20 +470,35 @@ const Schedules: React.FC = () => {
             title: s.title || 'Lab Seminar',
             startTime: `${s.meetingDate}T${s.startTime}`,
             endTime: `${s.meetingDate}T${s.endTime}`,
-            meetLink: s.meetingLink,
-            presenter: null,
-            presenterTopic: null,
-            creator: null,
-            description: s.description,
-            guests: [],
-            type: 'seminar' as const,
-            status: null,
-            recordingUrl: s.recordingLink || null,
-            projectName: null,
+            color: '#e8720c',
+            meta: {
+                type: 'seminar',
+                meetLink: s.meetingLink,
+                description: s.description,
+                recordingUrl: s.recordingLink || null,
+                location: s.location || null,
+            },
         }));
 
         return [...meetingEvents, ...seminarEvents];
     }, [displayMeetings, seminarMeetings, usersMap, projectsMap]);
+
+    const selectedDayEvents = useMemo(() => {
+        return timetableEvents
+            .filter(evt => {
+                const d = new Date(evt.startTime);
+                if (isNaN(d.getTime())) return false;
+                return sameDay(d, selectedCalDate);
+            })
+            .slice()
+            .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+    }, [timetableEvents, selectedCalDate]);
+
+    const fmtHm = (iso: string) => {
+        const d = new Date(iso);
+        if (isNaN(d.getTime())) return '';
+        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    };
 
     const activeSeminarMeeting = useMemo(() => {
         if (!activePanel || activePanel.type !== 'view') return null;
@@ -729,14 +765,164 @@ const Schedules: React.FC = () => {
 
                 {/* Main Content */}
                 {viewMode === 'timetable' ? (
-                    <div style={{ height: 'calc(100vh - 280px)', minHeight: '700px' }}>
-                        <WeeklyTimetable
-                            events={timetableEvents}
-                            onEventClick={(evt) => {
-                                const m = meetings.find(mm => (mm.googleCalendarEventId || mm.id) === evt.id);
-                                if (m) setTimetableModal(m);
-                            }}
-                        />
+                    <div style={{ height: 'calc(100vh - 280px)', minHeight: '700px', display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                            <div>
+                                <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em' }}>Schedule Timetable</div>
+                                <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>Monthly overview — click a day to see items.</div>
+                            </div>
+                            <BookingStyleMonthNav year={calYear} month={calMonth} setMonth={setCalMonth} setYear={setCalYear} />
+                        </div>
+
+                        <div style={{ display: 'flex', gap: 14, flex: 1, minHeight: 0 }}>
+                            <BookingStyleMonthGrid
+                                year={calYear}
+                                month={calMonth}
+                                events={timetableEvents}
+                                selectedDate={selectedCalDate}
+                                onSelectDate={(d) => {
+                                    const next = new Date(d);
+                                    next.setHours(0, 0, 0, 0);
+                                    setSelectedCalDate(next);
+                                }}
+                                onEventClick={(evt) => {
+                                    const start = new Date(evt.startTime);
+                                    if (!isNaN(start.getTime())) {
+                                        start.setHours(0, 0, 0, 0);
+                                        setSelectedCalDate(start);
+                                    }
+
+                                    const meeting = meetingByEventId.get(evt.id);
+                                    if (meeting) setTimetableModal(meeting);
+                                }}
+                            />
+
+                            <div className="bk-card" style={{ width: 300, flexShrink: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                                <div style={{ padding: '14px 16px', borderBottom: '1px solid #f1f5f9' }}>
+                                    <div style={{ fontSize: 11, fontWeight: 800, color: '#E8720C', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                                        {sameDay(selectedCalDate, new Date()) ? 'Today' : 'Selected day'}
+                                    </div>
+                                    <div style={{ fontSize: 17, fontWeight: 800, marginTop: 2, letterSpacing: '-0.01em' }}>
+                                        {selectedCalDate.toLocaleDateString('en-GB', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                                    </div>
+                                    <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+                                        {selectedDayEvents.length} item{selectedDayEvents.length !== 1 ? 's' : ''}
+                                    </div>
+                                </div>
+
+                                <div className="bk-scroll" style={{ overflow: 'auto', flex: 1 }}>
+                                    <div style={{ padding: '14px 16px 10px' }}>
+                                        <div style={{ fontSize: 10, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Items</div>
+                                        {selectedDayEvents.length === 0 ? (
+                                            <div style={{ fontSize: 12, color: '#94a3b8' }}>Nothing scheduled on this day.</div>
+                                        ) : (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                                {selectedDayEvents.map(evt => {
+                                                    const meta = (evt.meta ?? {}) as any;
+                                                    const type = String(meta.type || 'meeting');
+                                                    const projectName = meta.projectName as string | null | undefined;
+                                                    const presenter = meta.presenter as string | null | undefined;
+                                                    const startLabel = fmtHm(evt.startTime);
+                                                    const endLabel = evt.endTime ? fmtHm(evt.endTime) : '';
+                                                    const isMeeting = type === 'meeting';
+
+                                                    return (
+                                                        <div
+                                                            key={evt.id}
+                                                            onClick={() => {
+                                                                if (!isMeeting) return;
+                                                                const meeting = meetingByEventId.get(evt.id);
+                                                                if (meeting) setTimetableModal(meeting);
+                                                            }}
+                                                            style={{
+                                                                padding: '10px 12px',
+                                                                background: '#fff',
+                                                                border: '1px solid #e2e8f0',
+                                                                borderLeft: `4px solid ${evt.color ?? '#E8720C'}`,
+                                                                borderRadius: 8,
+                                                                cursor: isMeeting ? 'pointer' : 'default',
+                                                                transition: 'all 0.15s',
+                                                                opacity: isMeeting ? 1 : 0.92,
+                                                            }}
+                                                            onMouseEnter={e => { if (isMeeting) e.currentTarget.style.background = '#f8fafc'; }}
+                                                            onMouseLeave={e => { if (isMeeting) e.currentTarget.style.background = '#fff'; }}
+                                                        >
+                                                            <div style={{ display: 'flex', alignItems: 'start', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
+                                                                <div style={{ fontSize: 13.5, fontWeight: 800, lineHeight: 1.3, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{evt.title}</div>
+                                                                {(startLabel || endLabel) && (
+                                                                    <div style={{
+                                                                        fontSize: 11.5,
+                                                                        fontWeight: 800,
+                                                                        color: '#334155',
+                                                                        background: '#f8fafc',
+                                                                        border: '1px solid #e2e8f0',
+                                                                        borderRadius: 999,
+                                                                        padding: '1px 8px',
+                                                                        whiteSpace: 'nowrap',
+                                                                    }}>
+                                                                        {startLabel}{endLabel ? ` - ${endLabel}` : ''}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+
+                                                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                                                <span style={{
+                                                                    display: 'inline-flex',
+                                                                    alignItems: 'center',
+                                                                    gap: 4,
+                                                                    padding: '2px 8px',
+                                                                    borderRadius: 999,
+                                                                    fontSize: 10.5,
+                                                                    fontWeight: 800,
+                                                                    border: `1px solid ${isMeeting ? '#c7d2fe' : '#fed7aa'}`,
+                                                                    background: isMeeting ? '#eef2ff' : '#fff7ed',
+                                                                    color: isMeeting ? '#4f46e5' : '#ea580c',
+                                                                    whiteSpace: 'nowrap',
+                                                                }}>
+                                                                    {isMeeting ? 'MEETING' : 'SEMINAR'}
+                                                                </span>
+                                                                {projectName && (
+                                                                    <span style={{
+                                                                        display: 'inline-flex',
+                                                                        alignItems: 'center',
+                                                                        padding: '2px 8px',
+                                                                        borderRadius: 999,
+                                                                        fontSize: 10.5,
+                                                                        fontWeight: 800,
+                                                                        border: '1px solid #e2e8f0',
+                                                                        background: '#f8fafc',
+                                                                        color: '#334155',
+                                                                        whiteSpace: 'nowrap',
+                                                                    }}>
+                                                                        {projectName}
+                                                                    </span>
+                                                                )}
+                                                                {presenter && (
+                                                                    <span style={{
+                                                                        display: 'inline-flex',
+                                                                        alignItems: 'center',
+                                                                        padding: '2px 8px',
+                                                                        borderRadius: 999,
+                                                                        fontSize: 10.5,
+                                                                        fontWeight: 800,
+                                                                        border: '1px solid #e2e8f0',
+                                                                        background: '#fff',
+                                                                        color: '#475569',
+                                                                        whiteSpace: 'nowrap',
+                                                                    }}>
+                                                                        {presenter}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 ) : (
                     <div style={{ display: 'flex', gap: '1.5rem', height: 'calc(100vh - 340px)', minHeight: '650px' }}>

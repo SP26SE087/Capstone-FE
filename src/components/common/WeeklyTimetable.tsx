@@ -455,7 +455,7 @@ const WeeklyTimetable: React.FC<WeeklyTimetableProps> = ({
                     <button
                         onClick={goToUpcoming}
                         disabled={!upcomingEvent}
-                        title={upcomingEvent ? `Jump to ${new Date(upcomingEvent.startTime).toLocaleString()}` : 'No upcoming meetings'}
+                        title={upcomingEvent ? `Jump to ${new Date(upcomingEvent.startTime).toLocaleString('en-US')}` : 'No upcoming meetings'}
                         style={{
                             height: '32px',
                             padding: '0 12px',

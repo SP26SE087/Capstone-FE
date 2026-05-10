@@ -1758,8 +1758,8 @@ const PaperSubmissions: React.FC = () => {
                                         {[
                                             { label: 'Conference / Journal', value: selectedPaper.conferenceName },
                                             { label: 'Project', value: getProjectName(selectedPaper.projectId) },
-                                            { label: 'Deadline', value: selectedPaper.submissionDeadline ? new Date(selectedPaper.submissionDeadline).toLocaleDateString() : '—' },
-                                            { label: 'Created', value: new Date(selectedPaper.createdAt).toLocaleDateString() },
+                                            { label: 'Deadline', value: selectedPaper.submissionDeadline ? new Date(selectedPaper.submissionDeadline).toLocaleDateString('en-US') : '—' },
+                                            { label: 'Created', value: new Date(selectedPaper.createdAt).toLocaleDateString('en-US') },
                                         ].map(item => (
                                             <div key={item.label} style={{ background: '#f8fafc', borderRadius: '10px', padding: '10px 12px', border: '1px solid #e2e8f0' }}>
                                                 <div style={{ fontSize: '0.62rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' as const, letterSpacing: '0.6px', marginBottom: '4px' }}>{item.label}</div>

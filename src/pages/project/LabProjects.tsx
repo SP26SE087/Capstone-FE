@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import MainLayout from '@/layout/MainLayout';
 import { projectService } from '@/services';
 import { useAuth } from '@/hooks/useAuth';
+import AppSelect from '@/components/common/AppSelect';
 import {
     Search,
     Calendar,
@@ -129,6 +130,16 @@ const LabProjects: React.FC = () => {
         { value: 5, label: 'Cancelled' },
     ];
 
+    const handleStatusChange = (value: string) => {
+        if (!value || value === 'All') {
+            setStatusFilter('All');
+            return;
+        }
+
+        const parsed = Number(value);
+        setStatusFilter(Number.isNaN(parsed) ? 'All' : parsed);
+    };
+
     return (
         <MainLayout role={user.role} userName={user.name}>
             <div className="page-container">
@@ -159,17 +170,15 @@ const LabProjects: React.FC = () => {
 
                     <div style={{ width: '1px', height: '22px', background: 'var(--border-color)', flexShrink: 0 }} />
 
-                    <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                        {statusOptions.map(opt => (
-                            <button
-                                key={String(opt.value)}
-                                onClick={() => setStatusFilter(opt.value)}
-                                className={`filter-chip ${statusFilter === opt.value ? 'active' : ''}`}
-                                style={{ height: '30px', padding: '0 0.75rem', borderRadius: '8px', fontSize: '0.75rem' }}
-                            >
-                                {opt.label}
-                            </button>
-                        ))}
+                    <div style={{ width: 190, minWidth: 160, flex: '0 0 190px' }}>
+                        <AppSelect
+                            value={statusFilter}
+                            onChange={handleStatusChange}
+                            options={statusOptions}
+                            isSearchable={false}
+                            isClearable={false}
+                            size="sm"
+                        />
                     </div>
 
                     <span style={{ marginLeft: 'auto', fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600, flexShrink: 0 }}>

@@ -1001,7 +1001,7 @@ function MonthNav({ year, month, setMonth, setYear }: {
     year: number; month: number;
     setMonth: (m: number) => void; setYear: (y: number) => void;
 }) {
-    const monthName = new Date(year, month, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+    const monthName = new Date(year, month, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
     const prev = () => { if (month === 0) { setMonth(11); setYear(year - 1); } else setMonth(month - 1); };
     const next = () => { if (month === 11) { setMonth(0); setYear(year + 1); } else setMonth(month + 1); };
     const goToday = () => { const t = new Date(); setMonth(t.getMonth()); setYear(t.getFullYear()); };
@@ -1010,7 +1010,7 @@ function MonthNav({ year, month, setMonth, setYear }: {
             <button onClick={prev} className="icon-btn" style={{ width: 30, height: 30 }}><ChevronLeft size={16} /></button>
             <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: '-0.01em', minWidth: 150, textAlign: 'center' }}>{monthName}</div>
             <button onClick={next} className="icon-btn" style={{ width: 30, height: 30 }}><ChevronRight size={16} /></button>
-            <button onClick={goToday} style={{ padding: '5px 12px', background: '#fff', color: '#1e293b', border: '1px solid #e2e8f0', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+            <button onClick={goToday} style={{ height: 30, padding: '0 12px', background: '#fff', color: '#1e293b', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, whiteSpace: 'nowrap' }}>
                 Today
             </button>
         </div>

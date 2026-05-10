@@ -873,7 +873,7 @@ const ResourceBooking: React.FC = () => {
                                                 color: '#fff', cursor: 'pointer', boxShadow: `0 2px 6px ${meta.color}55`
                                             }}><Plus size={14} /> Add Resource</button>
                                         )}
-                                        {mainTab === 'resources' && !isResourceTypeTab && !isServerTab && (
+                                        {mainTab === 'resources' && !isResourceTypeTab && (
                                             <button onClick={() => handleCreateBooking()} style={{
                                                 display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700,
                                                 padding: '0 14px', height: '32px', borderRadius: '8px', fontSize: '0.8rem',

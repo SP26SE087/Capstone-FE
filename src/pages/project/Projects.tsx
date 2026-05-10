@@ -3,6 +3,7 @@ import MainLayout from '@/layout/MainLayout';
 import { useNavigate } from 'react-router-dom';
 import { projectService, researchFieldService } from '@/services';
 import { Project, ProjectStatus, ResearchField } from '@/types';
+import AppSelect from '@/components/common/AppSelect';
 import { getProjectStatusStyle, getVietnamDateInputValue, toApiDate } from '@/utils/projectUtils';
 import { validateSpecialChars } from '@/utils/validation';
 import { useToastStore } from '@/store/slices/toastSlice';
@@ -61,6 +62,25 @@ const Projects: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState<ProjectStatus | 'All'>('All');
+
+    const statusOptions = [
+        { value: 'All', label: 'All' },
+        { value: ProjectStatus.Active, label: getProjectStatusStyle(ProjectStatus.Active).label },
+        { value: ProjectStatus.Inactive, label: getProjectStatusStyle(ProjectStatus.Inactive).label },
+        { value: ProjectStatus.Archived, label: getProjectStatusStyle(ProjectStatus.Archived).label },
+        { value: ProjectStatus.Completed, label: getProjectStatusStyle(ProjectStatus.Completed).label },
+        { value: ProjectStatus.Cancelled, label: getProjectStatusStyle(ProjectStatus.Cancelled).label },
+    ];
+
+    const handleStatusChange = (value: string) => {
+        if (!value || value === 'All') {
+            setStatusFilter('All');
+            return;
+        }
+
+        const parsed = Number(value);
+        setStatusFilter(Number.isNaN(parsed) ? 'All' : (parsed as ProjectStatus));
+    };
 
     // Create panel
     const [showPanel, setShowPanel] = useState(false);
@@ -345,18 +365,16 @@ const Projects: React.FC = () => {
                     {/* Divider */}
                     <div style={{ width: '1px', height: '22px', background: 'var(--border-color)', flexShrink: 0 }} />
 
-                    {/* Status chips */}
-                    <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                        {(['All', ProjectStatus.Active, ProjectStatus.Inactive, ProjectStatus.Completed, ProjectStatus.Cancelled, ProjectStatus.Archived] as const).map(status => (
-                            <button
-                                key={status}
-                                onClick={() => setStatusFilter(status as any)}
-                                className={`filter-chip ${statusFilter === status ? 'active' : ''}`}
-                                style={{ height: '30px', padding: '0 0.75rem', borderRadius: '8px', fontSize: '0.75rem' }}
-                            >
-                                {status === 'All' ? 'All' : getProjectStatusStyle(status as ProjectStatus).label}
-                            </button>
-                        ))}
+                    {/* Status combobox */}
+                    <div style={{ width: 190, minWidth: 160, flex: '0 0 190px' }}>
+                        <AppSelect
+                            value={statusFilter}
+                            onChange={handleStatusChange}
+                            options={statusOptions}
+                            isSearchable={false}
+                            isClearable={false}
+                            size="sm"
+                        />
                     </div>
 
                 </div>

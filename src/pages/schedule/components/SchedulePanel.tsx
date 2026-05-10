@@ -1601,7 +1601,7 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                                                 <div style={{ fontSize: '0.8rem', fontWeight: isSel ? 700 : 600, color: isSel ? '#6d28d9' : 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                     {m.title || 'Untitled'}
                                                 </div>
-                                                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{new Date(m.meetingDate).toLocaleDateString('vi-VN')}</div>
+                                                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{new Date(m.meetingDate).toLocaleDateString('en-US')}</div>
                                             </div>
                                         </div>
                                     );

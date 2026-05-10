@@ -38,7 +38,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick }) => {
     const deadlineState = getDeadlineState(project);
 
     const endDateStr = !isDefaultDate(project.endDate)
-        ? new Date(project.endDate!).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
+        ? new Date(project.endDate!).toLocaleDateString('en-US', { day: '2-digit', month: '2-digit', year: 'numeric' })
         : null;
 
     return (
