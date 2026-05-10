@@ -16,6 +16,7 @@ import {
     Server,
     UserCheck,
     ContactRound,
+    ScanFace,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -40,12 +41,14 @@ const Sidebar: React.FC = () => {
         { icon: <UserCheck size={20} />, label: 'Register Visitors', path: '/visitor-registrations', onNavClick: undefined },
         { icon: <Presentation size={20} />, label: 'Seminars', path: '/seminars', onNavClick: closeAINote },
         { icon: <Box size={20} />, label: 'Booking Resource', path: '/bookings', onNavClick: undefined },
+        { icon: <ScanFace size={20} />, label: 'Camera Monitor', path: '/admin/camera-monitor', onNavClick: undefined },
     ];
 
     const adminItems = [
         { icon: <UserCog size={20} />, label: 'User Management', path: '/user-management' },
         { icon: <Server size={20} />, label: 'Compute Servers', path: '/admin/compute' },
         { icon: <ContactRound size={20} />, label: 'Contactors', path: '/admin/contactors' },
+        { icon: <ScanFace size={20} />, label: 'Camera Monitor', path: '/admin/camera-monitor' },
     ];
 
     const mainItems = workspaceItems;

@@ -27,6 +27,7 @@ import RoleGuard from '@/components/auth/RoleGuard';
 import LabProjects from '@/pages/project/LabProjects';
 import VisitorRegistrations from '@/pages/schedule/VisitorRegistrations';
 import ContactorsPage from '@/pages/admin/ContactorsPage';
+import CameraMonitorPage from '@/pages/admin/CameraMonitorPage';
 
 export const router = createBrowserRouter([
     {
@@ -141,6 +142,10 @@ export const router = createBrowserRouter([
     {
         path: '/admin/contactors',
         element: <AuthGuard><RoleGuard allowedRoles={[1, 2]}><ContactorsPage /></RoleGuard></AuthGuard>,
+    },
+    {
+        path: '/admin/camera-monitor',
+        element: <AuthGuard><RoleGuard allowedRoles={[1, 2]}><CameraMonitorPage /></RoleGuard></AuthGuard>,
     },
     {
         path: '*',

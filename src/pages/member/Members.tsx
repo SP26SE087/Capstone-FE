@@ -384,6 +384,7 @@ const Members: React.FC = () => {
                                 currentUserRole={user.role}
                                 onClose={() => { setSelectedUserId(null); setCheckLogData(null); setProjectPanelData(null); setLabTimePanelData(null); }}
                                 onCheckLog={(email, studentId, userName) => {
+                                    setLabTimePanelData(null);
                                     setProjectPanelData(null);
                                     if (isCheckLogOpen && checkLogData?.email === email) {
                                         setCheckLogData(null);
@@ -393,6 +394,7 @@ const Members: React.FC = () => {
                                 }}
                                 isCheckLogOpen={isCheckLogOpen}
                                 onViewProjects={(email, userName) => {
+                                    setLabTimePanelData(null);
                                     setCheckLogData(null);
                                     if (isProjectPanelOpen && projectPanelData?.email === email) {
                                         setProjectPanelData(null);

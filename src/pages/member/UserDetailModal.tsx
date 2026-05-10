@@ -431,7 +431,7 @@ const UserDetailModal: React.FC<UserDetailModalProps> = ({ onClose, userId, syst
                                     width: '100%', padding: '8px', borderRadius: '10px', border: 'none', cursor: 'pointer',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
                                     fontSize: '0.78rem', fontWeight: 700,
-                                    background: isProjectPanelOpen ? '#6366f1' : 'var(--surface-hover)',
+                                    background: isProjectPanelOpen ? 'var(--primary-color)' : 'var(--surface-hover)',
                                     color: isProjectPanelOpen ? '#fff' : 'var(--text-primary)',
                                     transition: 'all 0.2s'
                                 }}
