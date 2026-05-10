@@ -55,6 +55,30 @@ const typeClass: Record<string, string> = {
   face_cleared: 'danger',
 };
 
+// Parse "20260510_211556_516907" → "10/05/2026 21:15:56"
+const parseFaceTimestamp = (ts: string): string => {
+  const m = ts.match(/^(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/);
+  if (!m) return ts;
+  const [, yyyy, mm, dd, hh, min, ss] = m;
+  return `${dd}/${mm}/${yyyy} ${hh}:${min}:${ss}`;
+};
+
+// Format log event time from backend (HH:MM:SS) → DD/MM/YYYY HH:MM:SS using today's date
+const parseLogTime = (time: string): string => {
+  if (!time) return '--:--:--';
+  // Already in YYYYMMDD_HHMMSS format (use shared parser)
+  if (/^\d{8}_\d{6}/.test(time)) return parseFaceTimestamp(time);
+  // HH:MM:SS — prepend today's date
+  if (/^\d{2}:\d{2}:\d{2}/.test(time)) {
+    const now = new Date();
+    const dd = String(now.getDate()).padStart(2, '0');
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const yyyy = now.getFullYear();
+    return `${dd}/${mm}/${yyyy} ${time}`;
+  }
+  return time;
+};
+
 const toSelectValue = (gesture: string | null | undefined): string => {
   if (!gesture || gesture === 'None') return 'None';
   return gesture;
@@ -102,13 +126,7 @@ const CameraMonitorPage: React.FC = () => {
     return `${cameraBase}/video_feed?t=${streamToken}`;
   }, [cameraBase, streamToken]);
 
-  const facesGridClassName = useMemo(() => {
-    const count = faces.length;
-    if (count === 1) return 'faces-grid few-1 custom-scrollbar';
-    if (count === 2) return 'faces-grid few-2 custom-scrollbar';
-    if (count === 3) return 'faces-grid few-3 custom-scrollbar';
-    return 'faces-grid custom-scrollbar';
-  }, [faces.length]);
+  const facesGridClassName = useMemo(() => 'faces-grid custom-scrollbar', []);
 
   const loadGestureConfig = useCallback(async () => {
     setGestureLoading(true);
@@ -310,7 +328,7 @@ const CameraMonitorPage: React.FC = () => {
                       <span className={`log-type ${typeClass[entry.type] || 'neutral'}`}>
                         {typeLabel[entry.type] || entry.type}
                       </span>
-                      <span className="log-time">{entry.time || '--:--:--'}</span>
+                      <span className="log-time">{parseLogTime(entry.time)}</span>
                     </div>
                     <div className="log-student">
                       <UserCircle2 size={14} />
@@ -363,7 +381,7 @@ const CameraMonitorPage: React.FC = () => {
               {!facesLoading && faces.map((face) => (
                 <article
                   key={face.filename}
-                  className="face-card"
+                  className="face-card face-card-full"
                   role="button"
                   tabIndex={0}
                   onClick={() => setSelectedFace(face)}
@@ -378,7 +396,7 @@ const CameraMonitorPage: React.FC = () => {
                   <div className="face-card-body">
                     <div className="face-card-top">
                       <span className={`log-type ${face.label === 'unknown' ? 'danger' : 'success'}`}>
-                        {face.label}
+                        {face.label.toUpperCase()}
                       </span>
                       <button
                         className="icon-btn"
@@ -390,7 +408,7 @@ const CameraMonitorPage: React.FC = () => {
                         <Trash2 size={14} />
                       </button>
                     </div>
-                    <p title={face.filename}>{face.filename}</p>
+                    <p className="face-card-meta" title={face.timestamp}>{parseFaceTimestamp(face.timestamp)}</p>
                   </div>
                 </article>
               ))}
@@ -504,7 +522,7 @@ const CameraMonitorPage: React.FC = () => {
           isOpen={Boolean(selectedFace)}
           onClose={() => setSelectedFace(null)}
           title="Face Preview"
-          maxWidth="880px"
+          maxWidth="520px"
         >
           {selectedFace && (
             <div className="face-preview-wrap">
@@ -512,7 +530,7 @@ const CameraMonitorPage: React.FC = () => {
               <div className="face-preview-meta">
                 <p><strong>Filename:</strong> {selectedFace.filename}</p>
                 <p><strong>Label:</strong> {selectedFace.label}</p>
-                <p><strong>Timestamp:</strong> {selectedFace.timestamp}</p>
+                <p><strong>Timestamp:</strong> {parseFaceTimestamp(selectedFace.timestamp)}</p>
                 <p><strong>Cloudinary ID:</strong> {selectedFace.public_id}</p>
               </div>
             </div>

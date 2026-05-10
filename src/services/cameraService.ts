@@ -1,5 +1,13 @@
-const cameraBaseUrl = () =>
-  ((import.meta.env.VITE_FACE_SERVER_URL as string) || 'http://localhost:8000').replace(/\/$/, '');
+const cameraBaseUrl = () => {
+  if (typeof window !== 'undefined') {
+    const { hostname } = window.location;
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return '/face';
+    }
+  }
+
+  return ((import.meta.env.VITE_FACE_SERVER_URL as string) || 'http://localhost:8000').replace(/\/$/, '');
+};
 
 const jsonHeaders = () => ({
   'Content-Type': 'application/json',

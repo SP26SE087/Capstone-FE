@@ -1192,45 +1192,111 @@ const ResourceBooking: React.FC = () => {
                                             <ScrollText size={40} style={{ opacity: 0.3, marginBottom: '1rem' }} />
                                             <div>No equipment log entries found.</div>
                                         </div>
-                                    ) : displayLogs.map((log, idx) => {
-                                        const action = getLogActionConfig(log.action);
-                                        const logBooking = log.bookingId
-                                            ? [...myBookings, ...allBookings, ...managedBookings].find(b => b.id === log.bookingId || b.bookingId === log.bookingId)
-                                            : undefined;
-                                        const cardHoursLate = (log.action === EquipmentLogAction.CheckOut && logBooking?.endTime)
-                                            ? Math.floor((Date.now() - new Date(logBooking.endTime).getTime()) / 3_600_000)
-                                            : 0;
-                                        return (
-                                            <div key={log.id} style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '12px 16px', borderBottom: idx < displayLogs.length - 1 ? '1px solid #f1f5f9' : 'none', transition: 'background 0.15s', cursor: 'pointer', background: activePanel?.targetId === log.id ? '#f0f9ff' : 'transparent', outline: activePanel?.targetId === log.id ? '2px solid #0284c7' : 'none', outlineOffset: '-2px', borderRadius: activePanel?.targetId === log.id ? '8px' : undefined }}
-                                                onClick={() => handleViewLog(log)}
-                                                onMouseEnter={e => { if (activePanel?.targetId !== log.id) e.currentTarget.style.background = '#f8fafc'; }}
-                                                onMouseLeave={e => { if (activePanel?.targetId !== log.id) e.currentTarget.style.background = 'transparent'; }}
-                                            >
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 10px', borderRadius: '8px', background: action.bg, color: action.color, fontSize: '0.72rem', fontWeight: 700, flexShrink: 0 }}>
-                                                    {action.icon} {action.label}
-                                                </div>
-                                                {log.note?.startsWith('[AUTO]') && (
-                                                    <span style={{ fontSize: '0.62rem', fontWeight: 800, color: '#0369a1', background: '#e0f2fe', border: '1px solid #bae6fd', padding: '2px 7px', borderRadius: 20, flexShrink: 0, letterSpacing: '0.04em' }}>
-                                                        AUTO
-                                                    </span>
-                                                )}
-                                                <div style={{ flex: 1, minWidth: 0 }}>
-                                                    <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{log.resourceName || 'Unknown Resource'}</div>
-                                                    <div style={{ fontSize: '0.72rem', color: '#64748b' }}>
-                                                        <span style={{ fontWeight: 700, color: '#2563eb' }}>Borrower:</span> {log.borrowerFullName || log.userFullName || log.userName}
+                                    ) : (
+                                        <>
+                                            {(() => {
+                                                const checkInCount = displayLogs.filter(l => l.action === EquipmentLogAction.CheckIn).length;
+                                                const checkOutCount = displayLogs.filter(l => l.action === EquipmentLogAction.CheckOut).length;
+                                                const autoCount = displayLogs.filter(l => l.note?.startsWith('[AUTO]')).length;
+                                                const lateCount = displayLogs.filter(l => {
+                                                    const rel = l.bookingId
+                                                        ? [...myBookings, ...allBookings, ...managedBookings].find(b => b.id === l.bookingId || b.bookingId === l.bookingId)
+                                                        : undefined;
+                                                    if (!rel?.endTime || l.action !== EquipmentLogAction.CheckOut) return false;
+                                                    return Date.now() > new Date(rel.endTime).getTime();
+                                                }).length;
+
+                                                return (
+                                                    <div style={{
+                                                        position: 'sticky', top: 0, zIndex: 3,
+                                                        display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' as const,
+                                                        padding: '10px 12px', borderBottom: '1px solid #e2e8f0',
+                                                        background: '#f8fafc'
+                                                    }}>
+                                                        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#475569' }}>Visible logs: {displayLogs.length}</span>
+                                                        <span style={{ fontSize: '0.67rem', fontWeight: 700, color: '#059669', background: '#ecfdf5', border: '1px solid #a7f3d0', padding: '2px 8px', borderRadius: 999 }}>Check In: {checkInCount}</span>
+                                                        <span style={{ fontSize: '0.67rem', fontWeight: 700, color: '#2563eb', background: '#eff6ff', border: '1px solid #bfdbfe', padding: '2px 8px', borderRadius: 999 }}>Check Out: {checkOutCount}</span>
+                                                        <span style={{ fontSize: '0.67rem', fontWeight: 700, color: '#0369a1', background: '#e0f2fe', border: '1px solid #bae6fd', padding: '2px 8px', borderRadius: 999 }}>Auto: {autoCount}</span>
+                                                        {lateCount > 0 && (
+                                                            <span style={{ fontSize: '0.67rem', fontWeight: 700, color: '#b91c1c', background: '#fef2f2', border: '1px solid #fecaca', padding: '2px 8px', borderRadius: 999 }}>
+                                                                Late returns: {lateCount}
+                                                            </span>
+                                                        )}
                                                     </div>
-                                                </div>
-                                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '3px', flexShrink: 0 }}>
-                                                    <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600 }}>{formatDate(log.loggedAt)}</div>
-                                                    {cardHoursLate > 0 && (
-                                                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '5px', padding: '2px 6px', fontSize: '0.65rem', fontWeight: 800, color: '#dc2626' }}>
-                                                            ⚠ LATE: {cardHoursLate}h
+                                                );
+                                            })()}
+                                            <div style={{ padding: '10px' }}>
+                                                {displayLogs.map((log) => {
+                                                    const action = getLogActionConfig(log.action);
+                                                    const logBooking = log.bookingId
+                                                        ? [...myBookings, ...allBookings, ...managedBookings].find(b => b.id === log.bookingId || b.bookingId === log.bookingId)
+                                                        : undefined;
+                                                    const cardHoursLate = (log.action === EquipmentLogAction.CheckOut && logBooking?.endTime)
+                                                        ? Math.floor((Date.now() - new Date(logBooking.endTime).getTime()) / 3_600_000)
+                                                        : 0;
+
+                                                    return (
+                                                        <div
+                                                            key={log.id}
+                                                            onClick={() => handleViewLog(log)}
+                                                            onMouseEnter={e => { if (activePanel?.targetId !== log.id) e.currentTarget.style.borderColor = '#cbd5e1'; }}
+                                                            onMouseLeave={e => { if (activePanel?.targetId !== log.id) e.currentTarget.style.borderColor = '#e2e8f0'; }}
+                                                            style={{
+                                                                cursor: 'pointer',
+                                                                border: activePanel?.targetId === log.id ? '1.5px solid #0284c7' : '1px solid #e2e8f0',
+                                                                background: activePanel?.targetId === log.id ? '#f0f9ff' : '#ffffff',
+                                                                borderRadius: '11px',
+                                                                padding: '11px 12px',
+                                                                marginBottom: '8px',
+                                                                transition: 'border-color 0.15s ease, background 0.15s ease',
+                                                            }}
+                                                        >
+                                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '8px' }}>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' as const }}>
+                                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '4px 10px', borderRadius: '8px', background: action.bg, color: action.color, fontSize: '0.72rem', fontWeight: 700 }}>
+                                                                        {action.icon} {action.label}
+                                                                    </span>
+                                                                    {log.note?.startsWith('[AUTO]') && (
+                                                                        <span style={{ fontSize: '0.62rem', fontWeight: 800, color: '#0369a1', background: '#e0f2fe', border: '1px solid #bae6fd', padding: '2px 7px', borderRadius: 20, letterSpacing: '0.04em' }}>
+                                                                            AUTO
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#64748b', fontSize: '0.72rem', fontWeight: 600 }}>
+                                                                    <Clock size={12} /> {formatDate(log.loggedAt)}
+                                                                </div>
+                                                            </div>
+
+                                                            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: '10px', alignItems: 'start' }}>
+                                                                <div style={{ minWidth: 0 }}>
+                                                                    <div style={{ fontSize: '0.86rem', fontWeight: 700, color: '#0f172a', marginBottom: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
+                                                                        {log.resourceName || 'Unknown Resource'}
+                                                                    </div>
+                                                                    <div style={{ fontSize: '0.72rem', color: '#64748b', marginBottom: '4px' }}>
+                                                                        <span style={{ fontWeight: 700, color: '#2563eb' }}>Borrower:</span> {log.borrowerFullName || log.userFullName || log.userName}
+                                                                    </div>
+                                                                    {log.note && (
+                                                                        <div style={{ fontSize: '0.69rem', color: '#475569', background: '#f8fafc', border: '1px dashed #cbd5e1', borderRadius: '7px', padding: '5px 8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
+                                                                            {log.note.replace(/^\[AUTO\]\s*/i, '')}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                                {cardHoursLate > 0 ? (
+                                                                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', padding: '4px 8px', fontSize: '0.66rem', fontWeight: 800, color: '#dc2626', whiteSpace: 'nowrap' as const }}>
+                                                                        <AlertTriangle size={12} /> LATE {cardHoursLate}h
+                                                                    </div>
+                                                                ) : (
+                                                                    <div style={{ fontSize: '0.66rem', color: '#94a3b8', fontWeight: 700, whiteSpace: 'nowrap' as const }}>
+                                                                        On schedule
+                                                                    </div>
+                                                                )}
+                                                            </div>
                                                         </div>
-                                                    )}
-                                                </div>
+                                                    );
+                                                })}
                                             </div>
-                                        );
-                                    })}
+                                        </>
+                                    )}
                                 </div>
                             ) : isResourceTypeTab ? (
                                 <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
