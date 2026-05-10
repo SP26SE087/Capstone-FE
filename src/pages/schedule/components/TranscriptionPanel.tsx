@@ -1680,10 +1680,10 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                                             }}>{t.language.toUpperCase()}</span>
                                         )}
                                         <span style={{ fontSize: '0.62rem', color: '#64748b', fontWeight: 600 }}>
-                                            {new Date(t.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                                            {new Date(t.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}
                                         </span>
                                         <span style={{ fontSize: '0.62rem', color: '#94a3b8' }}>
-                                            {new Date(t.createdAt).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                                            {new Date(t.createdAt).toLocaleDateString('en-US', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                                         </span>
                                     </div>
                                     {isFailed && (

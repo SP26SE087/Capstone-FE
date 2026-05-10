@@ -167,7 +167,7 @@ const ReportList: React.FC<ReportListProps> = ({
                                     return (
                                         <span style={{ fontSize: '0.75rem', color: '#64748b', display: 'flex', alignItems: 'center', marginTop: '2px' }}>
                                             <strong style={{ fontWeight: 500, marginRight: '6px', color: '#94a3b8' }}>Submit date:</strong>
-                                            {d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                                            {d.toLocaleDateString('en-US', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                                         </span>
                                     );
                                 })()}

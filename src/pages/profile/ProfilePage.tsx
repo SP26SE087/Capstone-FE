@@ -185,7 +185,7 @@ const ProfilePage: React.FC = () => {
     };
 
     const initials = (profile?.fullName || authUser.name || 'U').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-    const memberSince = profile?.createdAt ? new Date(profile.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }) : '—';
+    const memberSince = profile?.createdAt ? new Date(profile.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—';
     const roleLabel = SystemRoleMap[profile?.role ?? authUser.role] || 'Member';
 
     if (loading) {

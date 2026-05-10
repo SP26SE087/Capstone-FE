@@ -584,11 +584,11 @@ const ReportDetail: React.FC = () => {
                                 <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #f1f5f9', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                                         <span>Submitted</span>
-                                        <span>{report.submitedAt ? new Date(report.submitedAt).toLocaleDateString() : 'Draft'}</span>
+                                        <span>{report.submitedAt ? new Date(report.submitedAt).toLocaleDateString('en-US') : 'Draft'}</span>
                                     </div>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                                         <span>Last Updated</span>
-                                        <span>{report.updateAt ? new Date(report.updateAt).toLocaleDateString() : 'N/A'}</span>
+                                        <span>{report.updateAt ? new Date(report.updateAt).toLocaleDateString('en-US') : 'N/A'}</span>
                                     </div>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px', alignItems: 'center' }}>
                                         <span>AI Status</span>

@@ -176,7 +176,27 @@ export default function TimelineView({ bookings, resources, onOpenBooking, onNew
                     <button onClick={prevRange} className="icon-btn" style={{ width: 30, height: 30 }}><ChevronLeft size={16} /></button>
                     <div style={{ fontSize: 14, fontWeight: 700, minWidth: 180, textAlign: 'center' }}>{rangeLabel}</div>
                     <button onClick={nextRange} className="icon-btn" style={{ width: 30, height: 30 }}><ChevronRight size={16} /></button>
-                    <button onClick={goToday} style={{ padding: '5px 12px', background: '#fff', color: '#1e293b', border: '1px solid #e2e8f0', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Today</button>
+                    <button
+                        onClick={goToday}
+                        style={{
+                            height: 30,
+                            padding: '0 12px',
+                            background: '#fff',
+                            color: '#1e293b',
+                            border: '1px solid #e2e8f0',
+                            borderRadius: 8,
+                            fontSize: 12,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            lineHeight: 1,
+                            whiteSpace: 'nowrap',
+                        }}
+                    >
+                        Today
+                    </button>
                     <div style={{ width: 1, height: 22, background: '#e2e8f0', margin: '0 4px' }} />
                     <Segmented
                         value={rangeDays}
@@ -265,11 +285,11 @@ export default function TimelineView({ bookings, resources, onOpenBooking, onNew
                                 return (
                                     <div key={i} style={{ width: DAY_WIDTH, flexShrink: 0, padding: '8px 6px', borderRight: '1px solid #f1f5f9', background: isToday ? '#fff7ed' : isWeekend ? '#f8fafc' : '#fff', textAlign: 'center' }}>
                                         <div style={{ fontSize: 10, fontWeight: 700, color: isToday ? '#E8720C' : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                            {d.toLocaleDateString(undefined, { weekday: 'short' })}
+                                            {d.toLocaleDateString('en-GB', { weekday: 'short' })}
                                         </div>
                                         <div style={{ fontSize: 14, fontWeight: isToday ? 800 : 600, color: isToday ? '#E8720C' : '#1e293b', marginTop: 1 }}>
                                             {d.getDate()}
-                                            {d.getDate() === 1 && <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 500, marginLeft: 3 }}>{d.toLocaleDateString(undefined, { month: 'short' })}</span>}
+                                            {d.getDate() === 1 && <span style={{ fontSize: 10, color: '#94a3b8', fontWeight: 500, marginLeft: 3 }}>{d.toLocaleDateString('en-GB', { month: 'short' })}</span>}
                                         </div>
                                     </div>
                                 );

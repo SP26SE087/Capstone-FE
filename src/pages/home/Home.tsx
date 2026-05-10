@@ -201,7 +201,7 @@ const Home: React.FC = () => {
                                                 </p>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.73rem', color: 'var(--text-muted)' }}>
                                                     <Calendar size={11} />
-                                                    <span>{project.startDate ? new Date(project.startDate).toLocaleDateString() : 'TBD'}</span>
+                                                    <span>{project.startDate ? new Date(project.startDate).toLocaleDateString('en-US') : 'TBD'}</span>
                                                 </div>
                                             </div>
                                         </div>

@@ -21,9 +21,13 @@ import {
     RotateCcw,
     User,
     CalendarDays,
-    ChevronLeft,
-    ChevronRight,
 } from 'lucide-react';
+import {
+    BookingStyleMonthGrid,
+    BookingStyleMonthNav,
+    BookingStyleMonthGridEvent,
+    sameDay,
+} from '@/components/common/BookingStyleMonthCalendar';
 import reportService, { Report } from '@/services/reportService';
 import { projectService, userService } from '@/services';
 import { useToastStore } from '@/store/slices/toastSlice';
@@ -32,7 +36,6 @@ import ReportPanel from './components/ReportPanel';
 type TabType = 'my_reports' | 'all_reports' | 'my_assignee';
 
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-const DAY_NAMES = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 
 const Reports: React.FC = () => {
     const { user } = useAuth();
@@ -111,6 +114,13 @@ const Reports: React.FC = () => {
         }
     }, [reports, calYear, calMonth]);
 
+    // Keep selected day valid when switching months
+    useEffect(() => {
+        if (selectedCalDay === null) return;
+        const maxDay = new Date(calYear, calMonth + 1, 0).getDate();
+        if (selectedCalDay > maxDay) setSelectedCalDay(maxDay);
+    }, [calYear, calMonth, selectedCalDay]);
+
     const fetchReports = async () => {
         setLoading(true);
         setSemanticResults(null);
@@ -130,17 +140,6 @@ const Reports: React.FC = () => {
     const handleRefresh = async () => {
         setRefreshing(true);
         try { await fetchReports(); } finally { setRefreshing(false); }
-    };
-
-    const prevMonth = () => {
-        setSelectedCalDay(null);
-        if (calMonth === 0) { setCalMonth(11); setCalYear(y => y - 1); }
-        else setCalMonth(m => m - 1);
-    };
-    const nextMonth = () => {
-        setSelectedCalDay(null);
-        if (calMonth === 11) { setCalMonth(0); setCalYear(y => y + 1); }
-        else setCalMonth(m => m + 1);
     };
 
     const openReport = (report: Report) => {
@@ -193,7 +192,7 @@ const Reports: React.FC = () => {
     };
 
     const fmtDate = (s: string) =>
-        new Date(s).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        new Date(s).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
     const handleSemanticSearch = async () => {
         if (!searchQuery.trim()) return;
@@ -240,21 +239,46 @@ const Reports: React.FC = () => {
         return map;
     }, [displayReports, calYear, calMonth]);
 
-    const calendarCells = useMemo(() => {
-        const firstDow = (new Date(calYear, calMonth, 1).getDay() + 6) % 7;
-        const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
-        const cells: (number | null)[] = [];
-        for (let i = 0; i < firstDow; i++) cells.push(null);
-        for (let d = 1; d <= daysInMonth; d++) cells.push(d);
-        while (cells.length % 7 !== 0) cells.push(null);
-        return cells;
-    }, [calYear, calMonth]);
+    const monthReportCount = useMemo(() => {
+        let total = 0;
+        calendarMap.forEach(arr => { total += arr.length; });
+        return total;
+    }, [calendarMap]);
 
-    const todayY = new Date().getFullYear();
-    const todayM = new Date().getMonth();
-    const todayD = new Date().getDate();
+    const reportById = useMemo(() => {
+        return new Map(displayReports.map(r => [r.id, r] as const));
+    }, [displayReports]);
 
-    const renderCard = (report: Report) => {
+    const calendarEvents: BookingStyleMonthGridEvent[] = useMemo(() => {
+        const events: BookingStyleMonthGridEvent[] = [];
+        for (const r of displayReports) {
+            const d = getReportDate(r);
+            if (!d || d.getFullYear() !== calYear || d.getMonth() !== calMonth) continue;
+            events.push({
+                id: r.id,
+                title: r.title || 'Untitled Report',
+                startTime: d.toISOString(),
+                endTime: null,
+                color: getSmartStatus(r).color,
+                meta: { reportId: r.id },
+            });
+        }
+        return events;
+    }, [displayReports, calYear, calMonth]);
+
+    const selectedCalDate = useMemo(() => {
+        if (selectedCalDay === null) return null;
+        const d = new Date(calYear, calMonth, selectedCalDay);
+        d.setHours(0, 0, 0, 0);
+        return d;
+    }, [calYear, calMonth, selectedCalDay]);
+
+    const selectedDayReports = useMemo(() => {
+        if (selectedCalDay === null) return [] as Report[];
+        return calendarMap.get(selectedCalDay) || [];
+    }, [calendarMap, selectedCalDay]);
+
+    const renderCard = (report: Report, compact: boolean = false) => {
         const statusInfo = getSmartStatus(report);
         const isSelected = selectedReportId === report.id;
         const author = (report as any).userName || (report as any).UserName || usersMap[report.userId] || null;
@@ -264,16 +288,27 @@ const Reports: React.FC = () => {
             <div
                 key={report.id}
                 onClick={() => openReport(report)}
+                onMouseEnter={(e) => {
+                    if (compact) e.currentTarget.style.background = '#f8fafc';
+                }}
+                onMouseLeave={(e) => {
+                    if (compact) e.currentTarget.style.background = '#fff';
+                }}
                 style={{
-                    padding: isPanelOpen ? '0.65rem 0.85rem' : '0.85rem 1.1rem',
-                    borderRadius: '10px',
-                    border: isSelected ? '2px solid var(--primary-color)' : '1px solid #e2e8f0',
-                    backgroundColor: isSelected ? '#f8fafc' : 'white',
+                    padding: compact ? '10px 12px' : (isPanelOpen ? '0.65rem 0.85rem' : '0.85rem 1.1rem'),
+                    borderRadius: compact ? 8 : '10px',
+                    border: compact
+                        ? '1px solid #e2e8f0'
+                        : (isSelected ? '2px solid var(--primary-color)' : '1px solid #e2e8f0'),
+                    backgroundColor: compact ? '#fff' : (isSelected ? '#f8fafc' : 'white'),
                     cursor: 'pointer',
                     display: 'flex', flexDirection: 'column',
-                    transition: 'all 0.2s ease',
-                    boxShadow: isSelected ? '0 6px 20px -4px rgba(99,102,241,0.15)' : '0 2px 6px -1px rgba(0,0,0,0.04)',
+                    transition: 'all 0.15s',
+                    boxShadow: compact
+                        ? 'none'
+                        : (isSelected ? '0 6px 20px -4px rgba(99,102,241,0.15)' : '0 2px 6px -1px rgba(0,0,0,0.04)'),
                     position: 'relative', overflow: 'hidden',
+                    borderLeft: compact ? `4px solid ${statusInfo.color}` : undefined,
                 }}
             >
                 {isSelected && (
@@ -343,80 +378,41 @@ const Reports: React.FC = () => {
     };
 
     const renderCalendar = () => (
-        <div>
-            <div style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                marginBottom: '12px', padding: '8px 12px',
-                background: 'white', borderRadius: '10px', border: '1px solid #e2e8f0',
-            }}>
-                <button onClick={prevMonth} style={{ border: 'none', background: '#f1f5f9', borderRadius: '7px', width: '30px', height: '30px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569' }}>
-                    <ChevronLeft size={15} />
-                </button>
-                <span style={{ fontWeight: 800, fontSize: '0.9rem', color: '#1e293b' }}>
-                    {MONTH_NAMES[calMonth]} {calYear}
-                    <span style={{ marginLeft: '8px', fontSize: '0.72rem', fontWeight: 600, color: '#94a3b8' }}>
-                        ({[...calendarMap.values()].reduce((s, arr) => s + arr.length, 0)} report{[...calendarMap.values()].reduce((s, arr) => s + arr.length, 0) !== 1 ? 's' : ''})
-                    </span>
-                </span>
-                <button onClick={nextMonth} style={{ border: 'none', background: '#f1f5f9', borderRadius: '7px', width: '30px', height: '30px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569' }}>
-                    <ChevronRight size={15} />
-                </button>
-            </div>
-            <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: '1px solid #f1f5f9' }}>
-                    {DAY_NAMES.map(d => (
-                        <div key={d} style={{ padding: '8px 0', textAlign: 'center', fontSize: '0.68rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                            {d}
-                        </div>
-                    ))}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: 1, minHeight: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+                    <div style={{ fontSize: 11, fontWeight: 900, color: '#E8720C', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Calendar</div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8' }}>
+                        ({monthReportCount} report{monthReportCount !== 1 ? 's' : ''})
+                    </div>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
-                    {calendarCells.map((day, idx) => {
-                        if (!day) return (
-                            <div key={idx} style={{ minHeight: '72px', borderRight: (idx + 1) % 7 !== 0 ? '1px solid #f8fafc' : 'none', borderBottom: '1px solid #f8fafc', background: '#fafafa' }} />
-                        );
-                        const isToday = day === todayD && calYear === todayY && calMonth === todayM;
-                        const dayReports = calendarMap.get(day) || [];
-                        return (
-                            <div
-                                key={idx}
-                                onClick={() => { setSelectedCalDay(day); setIsPanelOpen(false); setSelectedReportId(null); setIsAdding(false); }}
-                                onMouseEnter={e => { e.currentTarget.style.background = selectedCalDay === day ? '#eff6ff' : '#f0f4ff'; }}
-                                onMouseLeave={e => { e.currentTarget.style.background = selectedCalDay === day ? '#eff6ff' : dayReports.length > 0 ? '#f8faff' : 'white'; }}
-                                style={{
-                                    minHeight: '64px', padding: '6px',
-                                    borderRight: (idx + 1) % 7 !== 0 ? '1px solid #f1f5f9' : 'none',
-                                    borderBottom: '1px solid #f1f5f9',
-                                    background: selectedCalDay === day ? '#eff6ff' : dayReports.length > 0 ? '#f8faff' : 'white',
-                                    outline: selectedCalDay === day ? '2px solid var(--primary-color)' : 'none',
-                                    outlineOffset: '-2px',
-                                    transition: 'background 0.12s', cursor: 'pointer',
-                                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px',
-                                }}
-                            >
-                                <span style={{
-                                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                                    width: '28px', height: '28px', borderRadius: '50%',
-                                    fontSize: '0.82rem', fontWeight: isToday ? 800 : (dayReports.length > 0 ? 700 : 400),
-                                    background: isToday ? 'var(--primary-color)' : 'transparent',
-                                    color: isToday ? '#fff' : dayReports.length > 0 ? '#1e293b' : '#94a3b8',
-                                }}>
-                                    {day}
-                                </span>
-                                {dayReports.length > 0 && (
-                                    <div style={{ display: 'flex', gap: '3px', alignItems: 'center', justifyContent: 'center' }}>
-                                        {dayReports.slice(0, 3).map((r, i) => {
-                                            const sc = getSmartStatus(r);
-                                            return <div key={i} style={{ width: '6px', height: '6px', borderRadius: '50%', background: sc.color, flexShrink: 0 }} />;
-                                        })}
-                                        {dayReports.length > 3 && <span style={{ fontSize: '0.55rem', color: '#94a3b8', fontWeight: 700 }}>+{dayReports.length - 3}</span>}
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    })}
-                </div>
+
+                <BookingStyleMonthNav
+                    year={calYear}
+                    month={calMonth}
+                    setMonth={setCalMonth}
+                    setYear={setCalYear}
+                />
             </div>
+
+            <BookingStyleMonthGrid
+                year={calYear}
+                month={calMonth}
+                events={calendarEvents}
+                selectedDate={selectedCalDay !== null ? new Date(calYear, calMonth, selectedCalDay) : null}
+                onSelectDate={(d) => {
+                    if (d.getFullYear() !== calYear || d.getMonth() !== calMonth) return;
+                    setSelectedCalDay(d.getDate());
+                    setIsPanelOpen(false);
+                    setSelectedReportId(null);
+                    setIsAdding(false);
+                }}
+                onEventClick={(evt) => {
+                    const report = reportById.get(evt.id);
+                    if (report) openReport(report);
+                }}
+                minWidth={600}
+            />
         </div>
     );
 
@@ -588,79 +584,106 @@ const Reports: React.FC = () => {
                 </div>
 
                 {/* Main: Calendar + Day list / Panel */}
-                <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
+                <div
+                    style={{
+                        display: 'flex',
+                        gap: 14,
+                        alignItems: 'stretch',
+                        height: 'calc(100vh - 310px)',
+                        minHeight: '700px',
+                    }}
+                >
 
                     {/* Left: Calendar */}
-                    <div style={{ flex: 5, minWidth: 0, maxHeight: 'calc(100vh - 310px)', overflowY: 'auto' }} className="custom-scrollbar">
+                    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
                         {loading ? (
-                            <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem', flex: 1 }}>
                                 <Loader2 className="animate-spin" size={28} color="var(--primary-color)" />
                             </div>
                         ) : renderCalendar()}
                     </div>
 
-                    {/* Right: Day list */}
-                    {selectedCalDay !== null && !isPanelOpen && (() => {
-                        const dayReports = calendarMap.get(selectedCalDay) || [];
-                        return (
-                            <div style={{ flex: 5, minWidth: 0, maxHeight: 'calc(100vh - 310px)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                                <div style={{
-                                    display: 'flex', alignItems: 'center', gap: '8px',
-                                    padding: '10px 14px', flexShrink: 0,
-                                    background: 'white', borderRadius: '10px', border: '1px solid #e2e8f0',
-                                }}>
-                                    <div style={{ width: '3px', height: '18px', borderRadius: '2px', background: 'var(--primary-color)', flexShrink: 0 }} />
-                                    <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#1e293b' }}>
-                                        {selectedCalDay} {MONTH_NAMES[calMonth]} {calYear}
-                                    </span>
-                                    <span style={{ fontSize: '0.68rem', fontWeight: 700, background: '#ede9fe', color: '#7c3aed', padding: '2px 8px', borderRadius: '20px' }}>
-                                        {dayReports.length} report{dayReports.length !== 1 ? 's' : ''}
-                                    </span>
+                    {/* Right: Sidebar (day list) or Report Panel */}
+                    <div
+                        style={
+                            isPanelOpen
+                                ? { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }
+                                : { width: 300, flexShrink: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }
+                        }
+                    >
+                        {loading ? (
+                            <div className="bk-card" style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <Loader2 className="animate-spin" size={24} color="var(--primary-color)" />
+                            </div>
+                        ) : isPanelOpen && (isAdding || selectedReportId) ? (
+                            <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+                                <ReportPanel
+                                    reportId={isAdding ? null : selectedReportId}
+                                    isAdding={isAdding}
+                                    isAuthorFallback={activeTab === 'my_reports'}
+                                    onClose={closePanel}
+                                    onSaved={(_shouldClose, message, newReportId) => {
+                                        if (message) showToast(message, 'success');
+                                        fetchReports();
+                                        if (isAdding && newReportId) {
+                                            setIsAdding(false);
+                                            setSelectedReportId(newReportId);
+                                        } else if (_shouldClose) {
+                                            closePanel();
+                                        }
+                                    }}
+                                />
+                            </div>
+                        ) : (
+                            <div className="bk-card" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+                                <div style={{ padding: '14px 16px', borderBottom: '1px solid #f1f5f9' }}>
+                                    <div style={{ fontSize: 11, fontWeight: 800, color: '#E8720C', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                                        {selectedCalDate
+                                            ? (sameDay(selectedCalDate, new Date()) ? 'Today' : 'Selected day')
+                                            : 'Pick a day'
+                                        }
+                                    </div>
+                                    <div style={{ fontSize: 17, fontWeight: 800, marginTop: 2, letterSpacing: '-0.01em' }}>
+                                        {selectedCalDate
+                                            ? selectedCalDate.toLocaleDateString('en-GB', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
+                                            : 'Select a date'
+                                        }
+                                    </div>
+                                    <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+                                        {selectedCalDate
+                                            ? `${selectedDayReports.length} report${selectedDayReports.length !== 1 ? 's' : ''}`
+                                            : 'Click any date on the calendar'
+                                        }
+                                    </div>
                                 </div>
-                                <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }} className="custom-scrollbar">
-                                    {dayReports.length === 0 ? (
-                                        <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#94a3b8' }}>
-                                            <CalendarDays size={36} style={{ opacity: 0.3, marginBottom: '8px' }} />
-                                            <p style={{ fontSize: '0.82rem' }}>No reports on this day</p>
+
+                                <div className="bk-scroll" style={{ overflow: 'auto', flex: 1 }}>
+                                    <div style={{ padding: '14px 16px 10px' }}>
+                                        <div style={{ fontSize: 10, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+                                            Reports
                                         </div>
-                                    ) : dayReports.map(r => renderCard(r))}
+
+                                        {selectedCalDay === null ? (
+                                            <div style={{ textAlign: 'center', padding: '18px 6px', color: '#94a3b8' }}>
+                                                <Target size={34} style={{ opacity: 0.25, marginBottom: 10 }} />
+                                                <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b' }}>Select a day to view reports</div>
+                                                <div style={{ fontSize: 11, marginTop: 4 }}>Use the month grid on the left</div>
+                                            </div>
+                                        ) : selectedDayReports.length === 0 ? (
+                                            <div style={{ textAlign: 'center', padding: '18px 6px', color: '#94a3b8' }}>
+                                                <CalendarDays size={34} style={{ opacity: 0.25, marginBottom: 10 }} />
+                                                <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b' }}>No reports on this day</div>
+                                            </div>
+                                        ) : (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                                {selectedDayReports.map(r => renderCard(r, true))}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
-                        );
-                    })()}
-
-                    {/* Right: Report Panel */}
-                    {isPanelOpen && (isAdding || selectedReportId) && (
-                        <div style={{ flex: 5, minWidth: 0, maxHeight: 'calc(100vh - 180px)', overflowY: 'auto', display: 'flex', flexDirection: 'column' }} className="custom-scrollbar">
-                            <ReportPanel
-                                reportId={isAdding ? null : selectedReportId}
-                                isAdding={isAdding}
-                                isAuthorFallback={activeTab === 'my_reports'}
-                                onClose={closePanel}
-                                onSaved={(_shouldClose, message, newReportId) => {
-                                    if (message) showToast(message, 'success');
-                                    fetchReports();
-                                    if (isAdding && newReportId) {
-                                        setIsAdding(false);
-                                        setSelectedReportId(newReportId);
-                                    } else if (_shouldClose) {
-                                        closePanel();
-                                    }
-                                }}
-                            />
-                        </div>
-                    )}
-
-                    {/* Empty state */}
-                    {selectedCalDay === null && !isPanelOpen && !loading && (
-                        <div style={{ flex: 5, minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '320px', background: 'white', borderRadius: '12px', border: '1px dashed #e2e8f0' }}>
-                            <div style={{ textAlign: 'center', color: '#94a3b8' }}>
-                                <Target size={40} style={{ opacity: 0.25, marginBottom: '12px' }} />
-                                <p style={{ fontSize: '0.85rem', fontWeight: 600, margin: 0 }}>Select a day to view reports</p>
-                                <p style={{ fontSize: '0.75rem', margin: '4px 0 0' }}>Click any date on the calendar</p>
-                            </div>
-                        </div>
-                    )}
+                        )}
+                    </div>
                 </div>
             </div>
 

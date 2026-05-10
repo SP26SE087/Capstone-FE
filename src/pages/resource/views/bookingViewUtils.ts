@@ -86,11 +86,11 @@ export function fmtTime(iso: string): string {
 }
 
 export function fmtDate(iso: string | Date): string {
-    return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    return new Date(iso).toLocaleDateString('en-GB', { month: 'short', day: 'numeric' });
 }
 
 export function fmtFullDate(iso: string | Date): string {
-    return new Date(iso).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+    return new Date(iso).toLocaleDateString('en-GB', { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
 export function sameDay(a: Date, b: Date): boolean {

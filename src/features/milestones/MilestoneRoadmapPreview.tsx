@@ -216,7 +216,7 @@ const MilestoneRoadmapPreview: React.FC<RoadmapPreviewProps> = ({
                                   whiteSpace: 'nowrap',
                                   letterSpacing: '0.02em'
                               }}>
-                                  {m.toLocaleDateString(undefined, { month: 'short', year: '2-digit' })}
+                                  {m.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' })}
                               </span>
                           </div>
                       );
@@ -389,10 +389,10 @@ const MilestoneRoadmapPreview: React.FC<RoadmapPreviewProps> = ({
 
             <div style={{ marginTop: '4px', display: 'flex', justifyContent: 'space-between', opacity: 0.5 }}>
                 <span style={{ fontSize: '0.55rem', color: '#64748b', fontWeight: 600 }}>
-                    {projectStartDate ? new Date(projectStartDate).toLocaleDateString() : 'START N/A'}
+                    {projectStartDate ? new Date(projectStartDate).toLocaleDateString('en-GB') : 'START N/A'}
                 </span>
                 <span style={{ fontSize: '0.55rem', color: '#64748b', fontWeight: 600 }}>
-                    {projectEndDate ? new Date(projectEndDate).toLocaleDateString() : 'END N/A'}
+                    {projectEndDate ? new Date(projectEndDate).toLocaleDateString('en-GB') : 'END N/A'}
                 </span>
             </div>
         </div>

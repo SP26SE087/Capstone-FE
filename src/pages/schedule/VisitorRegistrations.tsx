@@ -602,78 +602,115 @@ const VisitorRegistrations: React.FC = () => {
         </div>
     );
 
-    const renderCalendar = () => (
-        <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', padding: '8px 12px', background: 'white', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-                <button onClick={prevMonth} style={{ border: 'none', background: '#f1f5f9', borderRadius: '7px', width: '30px', height: '30px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569' }}>
-                    <ChevronLeft size={15} />
-                </button>
-                <span style={{ fontWeight: 800, fontSize: '0.9rem', color: '#1e293b' }}>
-                    {MONTH_NAMES[calMonth]} {calYear}
-                    <span style={{ marginLeft: '8px', fontSize: '0.72rem', fontWeight: 600, color: '#94a3b8' }}>
-                        ({[...calendarMap.values()].reduce((s, a) => s + a.length, 0)} registration{[...calendarMap.values()].reduce((s, a) => s + a.length, 0) !== 1 ? 's' : ''})
-                    </span>
-                </span>
-                <button onClick={nextMonth} style={{ border: 'none', background: '#f1f5f9', borderRadius: '7px', width: '30px', height: '30px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569' }}>
-                    <ChevronRight size={15} />
-                </button>
-            </div>
-            <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: '1px solid #f1f5f9' }}>
-                    {DAY_NAMES.map(d => (
-                        <div key={d} style={{ padding: '8px 0', textAlign: 'center', fontSize: '0.68rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{d}</div>
-                    ))}
+    const renderCalendar = () => {
+        const total = Array.from(calendarMap.values()).reduce((s, a) => s + a.length, 0);
+        const lastRowStart = calendarCells.length - 7;
+
+        return (
+            <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14 }}>
+                    <button onClick={prevMonth} className="icon-btn" style={{ width: 30, height: 30 }}>
+                        <ChevronLeft size={16} />
+                    </button>
+                    <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: '-0.01em', minWidth: 150, textAlign: 'center' }}>
+                        {MONTH_NAMES[calMonth]} {calYear}
+                        <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: '#94a3b8' }}>
+                            ({total} registration{total !== 1 ? 's' : ''})
+                        </span>
+                    </div>
+                    <button onClick={nextMonth} className="icon-btn" style={{ width: 30, height: 30 }}>
+                        <ChevronRight size={16} />
+                    </button>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
-                    {calendarCells.map((day, idx) => {
-                        if (!day) return (
-                            <div key={idx} style={{ minHeight: '72px', borderRight: (idx + 1) % 7 !== 0 ? '1px solid #f8fafc' : 'none', borderBottom: '1px solid #f8fafc', background: '#fafafa' }} />
-                        );
-                        const isToday = day === todayD && calYear === todayY && calMonth === todayM;
-                        const dayRegs = calendarMap.get(day) || [];
-                        const isSelected = selectedCalDay === day;
-                        return (
-                            <div
-                                key={idx}
-                                onClick={() => { setSelectedCalDay(day); setSelectedRegId(null); }}
-                                onMouseEnter={e => { e.currentTarget.style.background = isSelected ? '#eff6ff' : '#f0f4ff'; }}
-                                onMouseLeave={e => { e.currentTarget.style.background = isSelected ? '#eff6ff' : dayRegs.length > 0 ? '#f8faff' : 'white'; }}
-                                style={{
-                                    minHeight: '64px', padding: '6px',
-                                    borderRight: (idx + 1) % 7 !== 0 ? '1px solid #f1f5f9' : 'none',
-                                    borderBottom: '1px solid #f1f5f9',
-                                    background: isSelected ? '#eff6ff' : dayRegs.length > 0 ? '#f8faff' : 'white',
-                                    outline: isSelected ? '2px solid var(--accent-color)' : 'none',
-                                    outlineOffset: '-2px',
-                                    transition: 'background 0.12s', cursor: 'pointer',
-                                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px',
-                                }}
-                            >
-                                <span style={{
-                                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                                    width: '28px', height: '28px', borderRadius: '50%',
-                                    fontSize: '0.82rem', fontWeight: isToday ? 800 : (dayRegs.length > 0 ? 700 : 400),
-                                    background: isToday ? 'var(--accent-color)' : 'transparent',
-                                    color: isToday ? '#fff' : dayRegs.length > 0 ? '#1e293b' : '#94a3b8',
-                                }}>
-                                    {day}
-                                </span>
-                                {dayRegs.length > 0 && (
-                                    <div style={{ display: 'flex', gap: '3px', alignItems: 'center', justifyContent: 'center' }}>
-                                        {dayRegs.slice(0, 3).map((r, i) => {
-                                            const cfg = REG_STATUS[r.status];
-                                            return <div key={i} style={{ width: '6px', height: '6px', borderRadius: '50%', background: cfg.color, flexShrink: 0 }} />;
-                                        })}
-                                        {dayRegs.length > 3 && <span style={{ fontSize: '0.55rem', color: '#94a3b8', fontWeight: 700 }}>+{dayRegs.length - 3}</span>}
-                                    </div>
-                                )}
+
+                <div className="bk-card" style={{ overflow: 'hidden' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,minmax(80px,1fr))', borderBottom: '1px solid #e2e8f0', background: '#f8fafc' }}>
+                        {DAY_NAMES.map(d => (
+                            <div key={d} style={{ padding: '9px 10px', fontSize: 11, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                                {d}
                             </div>
-                        );
-                    })}
+                        ))}
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,minmax(80px,1fr))', gridAutoRows: 'minmax(122px, 1fr)' }}>
+                        {calendarCells.map((day, idx) => {
+                            if (!day) {
+                                return (
+                                    <div
+                                        key={idx}
+                                        style={{
+                                            borderRight: idx % 7 !== 6 ? '1px solid #f1f5f9' : 'none',
+                                            borderBottom: idx < lastRowStart ? '1px solid #f1f5f9' : 'none',
+                                            background: '#fafafa',
+                                        }}
+                                    />
+                                );
+                            }
+
+                            const isToday = day === todayD && calYear === todayY && calMonth === todayM;
+                            const dayRegs = calendarMap.get(day) || [];
+                            const isSelected = selectedCalDay === day;
+                            const maxDots = 6;
+                            const overflow = Math.max(0, dayRegs.length - maxDots);
+
+                            return (
+                                <div
+                                    key={idx}
+                                    className="bk-cal-cell"
+                                    onClick={() => { setSelectedCalDay(day); setSelectedRegId(null); }}
+                                    style={{
+                                        borderRight: idx % 7 !== 6 ? '1px solid #f1f5f9' : 'none',
+                                        borderBottom: idx < lastRowStart ? '1px solid #f1f5f9' : 'none',
+                                        padding: 6,
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: 4,
+                                        background: isSelected ? '#fff7ed' : 'transparent',
+                                        cursor: 'pointer',
+                                        minHeight: 0,
+                                        position: 'relative',
+                                    }}
+                                >
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+                                        <span
+                                            style={{
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                fontSize: 13.5,
+                                                fontWeight: isToday ? 800 : 600,
+                                                color: isToday ? '#fff' : isSelected ? '#E8720C' : '#1e293b',
+                                                background: isToday ? '#E8720C' : 'transparent',
+                                                width: isToday ? 22 : 'auto',
+                                                height: isToday ? 22 : 'auto',
+                                                borderRadius: isToday ? '50%' : 0,
+                                            }}
+                                        >
+                                            {day}
+                                        </span>
+
+                                        {dayRegs.length > 0 && (
+                                            <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8' }}>{dayRegs.length}</span>
+                                        )}
+                                    </div>
+
+                                    {dayRegs.length > 0 && (
+                                        <div style={{ display: 'flex', gap: 3, alignItems: 'center', flexWrap: 'wrap' }}>
+                                            {dayRegs.slice(0, maxDots).map((r, i) => {
+                                                const cfg = REG_STATUS[r.status];
+                                                return <div key={i} style={{ width: 6, height: 6, borderRadius: '50%', background: cfg.color, flexShrink: 0 }} />;
+                                            })}
+                                            {overflow > 0 && <span style={{ fontSize: 11, color: '#94a3b8', fontWeight: 700 }}>+{overflow}</span>}
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
                 </div>
             </div>
-        </div>
-    );
+        );
+    };
 
     // ── Render ───────────────────────────────────────────────────────────────
     return (
@@ -718,9 +755,51 @@ const VisitorRegistrations: React.FC = () => {
                 {tab === 'registrations' && (
                     <>
                         {/* View mode toggle + stats row */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                            {/* View toggle — match Schedule/Seminar sizing */}
+                            <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                                <button
+                                    onClick={() => setViewMode('list')}
+                                    style={{
+                                        padding: '8px 16px',
+                                        borderRadius: '8px',
+                                        fontSize: '0.78rem',
+                                        fontWeight: 700,
+                                        border: viewMode === 'list' ? '1.5px solid var(--accent-color)' : '1px solid var(--border-color)',
+                                        background: viewMode === 'list' ? 'var(--accent-bg)' : '#fff',
+                                        color: viewMode === 'list' ? 'var(--accent-color)' : 'var(--text-secondary)',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        transition: 'all 0.2s',
+                                    }}
+                                >
+                                    <List size={16} /> List
+                                </button>
+                                <button
+                                    onClick={() => setViewMode('calendar')}
+                                    style={{
+                                        padding: '8px 16px',
+                                        borderRadius: '8px',
+                                        fontSize: '0.78rem',
+                                        fontWeight: 700,
+                                        border: viewMode === 'calendar' ? '1.5px solid var(--accent-color)' : '1px solid var(--border-color)',
+                                        background: viewMode === 'calendar' ? 'var(--accent-bg)' : '#fff',
+                                        color: viewMode === 'calendar' ? 'var(--accent-color)' : 'var(--text-secondary)',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        transition: 'all 0.2s',
+                                    }}
+                                >
+                                    <CalendarDays size={16} /> Calendar
+                                </button>
+                            </div>
+
                             {!regLoading && registrations.length > 0 && (
-                                <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                                <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginLeft: 'auto' }}>
                                     {([VisitorRegistrationStatus.Pending, VisitorRegistrationStatus.Approved, VisitorRegistrationStatus.Rejected] as VisitorRegistrationStatus[]).map(status => {
                                         const count = registrations.filter(r => r.status === status).length;
                                         const cfg = REG_STATUS[status];
@@ -736,21 +815,6 @@ const VisitorRegistrations: React.FC = () => {
                                     })}
                                 </div>
                             )}
-                            {/* View toggle */}
-                            <div style={{ display: 'flex', gap: '4px', background: '#f1f5f9', padding: '3px', borderRadius: '9px', flexShrink: 0, marginLeft: 'auto' }}>
-                                <button
-                                    onClick={() => setViewMode('list')}
-                                    style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 12px', borderRadius: '6px', border: 'none', background: viewMode === 'list' ? 'white' : 'transparent', color: viewMode === 'list' ? 'var(--accent-color)' : '#64748b', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', boxShadow: viewMode === 'list' ? '0 1px 4px rgba(0,0,0,0.08)' : 'none', transition: 'all 0.15s' }}
-                                >
-                                    <List size={14} /> List
-                                </button>
-                                <button
-                                    onClick={() => setViewMode('calendar')}
-                                    style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 12px', borderRadius: '6px', border: 'none', background: viewMode === 'calendar' ? 'white' : 'transparent', color: viewMode === 'calendar' ? 'var(--accent-color)' : '#64748b', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', boxShadow: viewMode === 'calendar' ? '0 1px 4px rgba(0,0,0,0.08)' : 'none', transition: 'all 0.15s' }}
-                                >
-                                    <CalendarDays size={14} /> Calendar
-                                </button>
-                            </div>
                         </div>
 
                         {/* ── List view ── */}
