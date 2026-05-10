@@ -41,7 +41,9 @@ const Sidebar: React.FC = () => {
         { icon: <UserCheck size={20} />, label: 'Register Visitors', path: '/visitor-registrations', onNavClick: undefined },
         { icon: <Presentation size={20} />, label: 'Seminars', path: '/seminars', onNavClick: closeAINote },
         { icon: <Box size={20} />, label: 'Booking Resource', path: '/bookings', onNavClick: undefined },
-        { icon: <ScanFace size={20} />, label: 'Camera Monitor', path: '/admin/camera-monitor', onNavClick: undefined },
+        ...((isAdmin || isLabDirector)
+            ? [{ icon: <ScanFace size={20} />, label: 'Camera Monitor', path: '/admin/camera-monitor', onNavClick: undefined }]
+            : []),
     ];
 
     const adminItems = [
