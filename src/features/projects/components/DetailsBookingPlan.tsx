@@ -409,7 +409,27 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
         <button onClick={prev} style={{ width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', color: '#475569' }}><ChevronLeft size={12} /></button>
         <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#1e293b', minWidth: 150, textAlign: 'center' }}>{rangeLabel}</span>
         <button onClick={next} style={{ width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', color: '#475569' }}><ChevronRight size={12} /></button>
-        <button onClick={goToday} style={{ padding: '3px 9px', fontSize: '0.68rem', fontWeight: 700, borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', color: '#475569' }}>Today</button>
+        <button
+          onClick={goToday}
+          style={{
+            height: 26,
+            padding: '0 9px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            lineHeight: 1,
+            whiteSpace: 'nowrap',
+            fontSize: '0.68rem',
+            fontWeight: 700,
+            borderRadius: 6,
+            border: '1px solid #e2e8f0',
+            background: '#fff',
+            cursor: 'pointer',
+            color: '#475569',
+          }}
+        >
+          Today
+        </button>
         <div style={{ display: 'flex', background: '#f1f5f9', borderRadius: 7, padding: 2, gap: 1 }}>
           {([7, 14] as const).map(n => (
             <button key={n} onClick={() => setRangeDays(n)} style={{ padding: '3px 9px', fontSize: '0.68rem', fontWeight: 600, borderRadius: 5, border: 'none', cursor: 'pointer', background: rangeDays === n ? '#fff' : 'transparent', color: rangeDays === n ? '#1e293b' : '#64748b', boxShadow: rangeDays === n ? '0 1px 3px rgba(0,0,0,0.08)' : 'none', transition: 'all 0.12s' }}>

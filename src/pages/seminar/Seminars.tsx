@@ -32,7 +32,12 @@ import SeminarList from './components/SeminarList';
 import SeminarPanel from './components/SeminarPanel';
 import CreateSeminarForm from './components/CreateSeminarForm';
 import SwapRequests from './components/SwapRequests';
-import WeeklyTimetable, { TimetableEvent } from '@/components/common/WeeklyTimetable';
+import {
+    BookingStyleMonthGrid,
+    BookingStyleMonthNav,
+    BookingStyleMonthGridEvent,
+    sameDay,
+} from '@/components/common/BookingStyleMonthCalendar';
 import TranscriptionPanel from '@/pages/schedule/components/TranscriptionPanel';
 
 type TabType = 'my_seminars' | 'all_seminars' | 'invited_seminars' | 'swap_requests';
@@ -99,6 +104,13 @@ const Seminars: React.FC = () => {
     const [viewMode, setViewMode] = useState<'list' | 'timetable'>(() =>
         (localStorage.getItem('seminar_viewMode') as 'list' | 'timetable') || 'list'
     );
+    const [calYear, setCalYear] = useState(() => new Date().getFullYear());
+    const [calMonth, setCalMonth] = useState(() => new Date().getMonth());
+    const [selectedCalDate, setSelectedCalDate] = useState(() => {
+        const d = new Date();
+        d.setHours(0, 0, 0, 0);
+        return d;
+    });
     const [allExpanded, setAllExpanded] = useState<boolean | undefined>(undefined);
     const [aiSummaryBySeminarMeetingId, setAiSummaryBySeminarMeetingId] = useState<Record<string, boolean>>({});
     const aiSummaryCacheRef = useRef<Record<string, boolean>>({});
@@ -406,7 +418,11 @@ const Seminars: React.FC = () => {
         };
     }, [displayMeetings]);
 
-    const timetableEvents: TimetableEvent[] = useMemo(() => {
+    const meetingById = useMemo(() => {
+        return new Map(displayMeetings.map(m => [m.seminarMeetingId, m] as const));
+    }, [displayMeetings]);
+
+    const timetableEvents: BookingStyleMonthGridEvent[] = useMemo(() => {
         return displayMeetings.map(m => {
             const startDayStr = m.meetingDate.split('T')[0];
             const presenterEmail = emailsMap[m.presenterId];
@@ -429,19 +445,37 @@ const Seminars: React.FC = () => {
                 title: m.title || 'Seminar',
                 startTime: `${startDayStr}T${normalizeTime(m.startTime)}`,
                 endTime: `${startDayStr}T${normalizeTime(m.endTime)}`,
-                meetLink: m.meetingLink,
-                presenter: usersMap[m.presenterId] || null,
-                description: m.description,
-                type: 'seminar' as const,
                 color: '#e8720c',
-                swapable: isOwnedByCurrentUser && isUpcoming,
-                location: m.location || null,
-                slideUrl: m.slideUrl || null,
-                recordingUrl: m.recordingLink || null,
-                status: isUpcoming ? 'upcoming' : 'past',
+                meta: {
+                    meetLink: m.meetingLink,
+                    presenter: usersMap[m.presenterId] || null,
+                    description: m.description,
+                    swapable: isOwnedByCurrentUser && isUpcoming,
+                    location: m.location || null,
+                    slideUrl: m.slideUrl || null,
+                    recordingUrl: m.recordingLink || null,
+                    status: isUpcoming ? 'upcoming' : 'past',
+                },
             };
         });
     }, [displayMeetings, usersMap, emailsMap, user?.email]);
+
+    const selectedDayEvents = useMemo(() => {
+        return timetableEvents
+            .filter(evt => {
+                const d = new Date(evt.startTime);
+                if (isNaN(d.getTime())) return false;
+                return sameDay(d, selectedCalDate);
+            })
+            .slice()
+            .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+    }, [timetableEvents, selectedCalDate]);
+
+    const fmtHm = (iso: string) => {
+        const d = new Date(iso);
+        if (isNaN(d.getTime())) return '';
+        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    };
 
     // Stats
     const upcomingCount = meetings.filter(m => new Date(m.meetingDate).getTime() > Date.now()).length;
@@ -689,19 +723,164 @@ const Seminars: React.FC = () => {
                         minWidth: 0,
                         overflow: 'hidden'
                     }}>
-                        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', paddingRight: '0.5rem' }} className="custom-scrollbar">
+                        <div
+                            style={{
+                                flex: 1,
+                                minHeight: 0,
+                                overflow: (activeTab !== 'swap_requests' && viewMode === 'timetable') ? 'hidden' : 'auto',
+                                paddingRight: '0.5rem'
+                            }}
+                            className="custom-scrollbar"
+                        >
                             {activeTab !== 'swap_requests' && viewMode === 'timetable' ? (
-                                <WeeklyTimetable
-                                    events={timetableEvents}
-                                    onEventClick={(evt) => {
-                                        const m = displayMeetings.find(mm => mm.seminarMeetingId === evt.id);
-                                        if (m) openTimetableModal(m, false);
-                                    }}
-                                    onSwapRequestClick={(evt) => {
-                                        const m = displayMeetings.find(mm => mm.seminarMeetingId === evt.id);
-                                        if (m) openTimetableModal(m, true);
-                                    }}
-                                />
+                                <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                                        <div>
+                                            <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em' }}>Seminar Timetable</div>
+                                            <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>Monthly overview — click a day to see sessions.</div>
+                                        </div>
+                                        <BookingStyleMonthNav year={calYear} month={calMonth} setMonth={setCalMonth} setYear={setCalYear} />
+                                    </div>
+
+                                    <div style={{ display: 'flex', gap: 14, flex: 1, minHeight: 0 }}>
+                                        <BookingStyleMonthGrid
+                                            year={calYear}
+                                            month={calMonth}
+                                            events={timetableEvents}
+                                            selectedDate={selectedCalDate}
+                                            onSelectDate={(d) => {
+                                                const next = new Date(d);
+                                                next.setHours(0, 0, 0, 0);
+                                                setSelectedCalDate(next);
+                                            }}
+                                            onEventClick={(evt) => {
+                                                const start = new Date(evt.startTime);
+                                                if (!isNaN(start.getTime())) {
+                                                    start.setHours(0, 0, 0, 0);
+                                                    setSelectedCalDate(start);
+                                                }
+
+                                                const m = meetingById.get(evt.id);
+                                                if (m) openTimetableModal(m, false);
+                                            }}
+                                        />
+
+                                        <div className="bk-card" style={{ width: 300, flexShrink: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                                            <div style={{ padding: '14px 16px', borderBottom: '1px solid #f1f5f9' }}>
+                                                <div style={{ fontSize: 11, fontWeight: 800, color: '#E8720C', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                                                    {sameDay(selectedCalDate, new Date()) ? 'Today' : 'Selected day'}
+                                                </div>
+                                                <div style={{ fontSize: 17, fontWeight: 800, marginTop: 2, letterSpacing: '-0.01em' }}>
+                                                    {selectedCalDate.toLocaleDateString('en-GB', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                                                </div>
+                                                <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+                                                    {selectedDayEvents.length} session{selectedDayEvents.length !== 1 ? 's' : ''}
+                                                </div>
+                                            </div>
+
+                                            <div className="bk-scroll" style={{ overflow: 'auto', flex: 1 }}>
+                                                <div style={{ padding: '14px 16px 10px' }}>
+                                                    <div style={{ fontSize: 10, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Sessions</div>
+                                                    {selectedDayEvents.length === 0 ? (
+                                                        <div style={{ fontSize: 12, color: '#94a3b8' }}>No seminars on this day.</div>
+                                                    ) : (
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                                            {selectedDayEvents.map(evt => {
+                                                                const meta = (evt.meta ?? {}) as any;
+                                                                const location = meta.location as string | null | undefined;
+                                                                const presenter = meta.presenter as string | null | undefined;
+                                                                const swapable = Boolean(meta.swapable);
+                                                                const startLabel = fmtHm(evt.startTime);
+                                                                const endLabel = evt.endTime ? fmtHm(evt.endTime) : '';
+                                                                return (
+                                                                    <div
+                                                                        key={evt.id}
+                                                                        onClick={() => {
+                                                                            const m = meetingById.get(evt.id);
+                                                                            if (m) openTimetableModal(m, false);
+                                                                        }}
+                                                                        style={{
+                                                                            padding: '10px 12px',
+                                                                            background: '#fff',
+                                                                            border: '1px solid #e2e8f0',
+                                                                            borderLeft: `4px solid ${evt.color ?? '#E8720C'}`,
+                                                                            borderRadius: 8,
+                                                                            cursor: 'pointer',
+                                                                            transition: 'all 0.15s',
+                                                                        }}
+                                                                        onMouseEnter={e => { e.currentTarget.style.background = '#f8fafc'; }}
+                                                                        onMouseLeave={e => { e.currentTarget.style.background = '#fff'; }}
+                                                                    >
+                                                                        <div style={{ display: 'flex', alignItems: 'start', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
+                                                                            <div style={{ fontSize: 13.5, fontWeight: 800, lineHeight: 1.3, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{evt.title}</div>
+                                                                            {(startLabel || endLabel) && (
+                                                                                <div style={{
+                                                                                    fontSize: 11.5,
+                                                                                    fontWeight: 800,
+                                                                                    color: '#334155',
+                                                                                    background: '#f8fafc',
+                                                                                    border: '1px solid #e2e8f0',
+                                                                                    borderRadius: 999,
+                                                                                    padding: '1px 8px',
+                                                                                    whiteSpace: 'nowrap',
+                                                                                }}>
+                                                                                    {startLabel}{endLabel ? ` - ${endLabel}` : ''}
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+
+                                                                        {(location || presenter) && (
+                                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: swapable ? 8 : 0 }}>
+                                                                                {presenter && (
+                                                                                    <div style={{ fontSize: 12, color: '#64748b' }}>
+                                                                                        Presenter: <span style={{ fontWeight: 700, color: '#334155' }}>{presenter}</span>
+                                                                                    </div>
+                                                                                )}
+                                                                                {location && (
+                                                                                    <div style={{ fontSize: 12, color: '#64748b' }}>
+                                                                                        Location: <span style={{ fontWeight: 700, color: '#334155' }}>{location}</span>
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                        )}
+
+                                                                        {swapable && (
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    const m = meetingById.get(evt.id);
+                                                                                    if (m) openTimetableModal(m, true);
+                                                                                }}
+                                                                                style={{
+                                                                                    width: '100%',
+                                                                                    display: 'inline-flex',
+                                                                                    justifyContent: 'center',
+                                                                                    alignItems: 'center',
+                                                                                    gap: 6,
+                                                                                    padding: '7px 10px',
+                                                                                    borderRadius: 8,
+                                                                                    border: '1px solid #fed7aa',
+                                                                                    background: '#fff7ed',
+                                                                                    color: '#ea580c',
+                                                                                    fontSize: 12,
+                                                                                    fontWeight: 800,
+                                                                                    cursor: 'pointer',
+                                                                                }}
+                                                                            >
+                                                                                <ArrowLeftRight size={14} /> Swap request
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             ) : activeTab === 'swap_requests' ? (
                                 <SwapRequests
                                     usersMap={usersMap}

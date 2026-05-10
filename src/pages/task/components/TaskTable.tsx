@@ -100,7 +100,7 @@ const TaskTable: React.FC<TaskTableProps> = ({
                                     <td style={{ padding: '0.9rem 1rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                                             <Calendar size={13} />
-                                            {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'No date'}
+                                            {task.dueDate ? new Date(task.dueDate).toLocaleDateString('en-US') : 'No date'}
                                         </div>
                                     </td>
                                     <td style={{ padding: '0.9rem 1rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>

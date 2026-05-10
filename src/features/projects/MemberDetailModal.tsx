@@ -244,7 +244,7 @@ const MemberDetailModal: React.FC<MemberDetailModalProps> = ({
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#64748b' }}>
                             <Calendar size={16} />
-                            <span style={{ fontSize: '0.85rem' }}>Joined { (member.joinDate || member.joinedDate) ? new Date(member.joinDate || member.joinedDate).toLocaleDateString() : 'N/A'}</span>
+                            <span style={{ fontSize: '0.85rem' }}>Joined { (member.joinDate || member.joinedDate) ? new Date(member.joinDate || member.joinedDate).toLocaleDateString('en-US') : 'N/A'}</span>
                         </div>
                     </div>
                     

@@ -362,7 +362,7 @@ const BookingModal: React.FC<BookingModalProps> = ({ resource, onClose, onSubmit
 
   // ─── Render ──────────────────────────────────────────
   const sObj = new Date(startTime), eObj = new Date(endTime);
-  const fmtDate = (d: Date) => d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+  const fmtDate = (d: Date) => d.toLocaleDateString('en-GB', { month: 'short', day: 'numeric', year: 'numeric' });
   const fmtTime = (d: Date) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
   return (

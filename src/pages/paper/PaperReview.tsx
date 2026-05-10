@@ -581,7 +581,7 @@ const PaperReview: React.FC = () => {
                                             { label: 'Conference / Journal', value: selectedPaper.conferenceName || 'N/A' },
                                             { label: 'Project', value: getProjectName(selectedPaper.projectId) },
                                             { label: 'Status', value: getStatusConfig(selectedPaper.status).label },
-                                            { label: 'Created', value: new Date(selectedPaper.createdAt).toLocaleDateString() },
+                                            { label: 'Created', value: new Date(selectedPaper.createdAt).toLocaleDateString('en-US') },
                                         ].map(item => (
                                             <div key={item.label} style={{ background: '#f8fafc', borderRadius: '10px', padding: '10px 12px', border: '1px solid #e2e8f0' }}>
                                                 <div style={{ fontSize: '0.62rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '4px' }}>{item.label}</div>

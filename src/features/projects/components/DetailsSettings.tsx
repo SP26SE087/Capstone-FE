@@ -464,7 +464,7 @@ const DetailsSettings: React.FC<DetailsSettingsProps> = ({
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', height: '36px' }}>
                             <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>Created at</p>
                             <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', height: '36px' }}>
-                                {project?.createdAt ? new Date(project.createdAt).toLocaleDateString() : '—'}
+                                {project?.createdAt ? new Date(project.createdAt).toLocaleDateString('en-US') : '—'}
                             </p>
                         </div>
                     </div>

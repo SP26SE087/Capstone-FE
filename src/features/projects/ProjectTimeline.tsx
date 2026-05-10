@@ -385,7 +385,7 @@ const ProjectTimeline: React.FC<ProjectTimelineProps> = ({
                                                 borderLeft: `1px solid ${isCurrentMonth ? '#E8720C' : '#e2e8f0'}`,
                                                 paddingLeft: '8px'
                                             }}>
-                                                {d.toLocaleDateString(undefined, { month: 'short', year: '2-digit' })}
+                                                {d.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' })}
                                             </div>
                                         );
                                     })}

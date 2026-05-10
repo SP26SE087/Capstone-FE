@@ -103,14 +103,14 @@ const AdminBookingPanel: React.FC<AdminBookingPanelProps> = ({
             <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px' }}>
               <Clock size={10} /> Start
             </span>
-            <div style={{ fontSize: '0.88rem', fontWeight: 600, margin: '2px 0' }}>{new Date(booking.startTime).toLocaleDateString()}</div>
+            <div style={{ fontSize: '0.88rem', fontWeight: 600, margin: '2px 0' }}>{new Date(booking.startTime).toLocaleDateString('en-US')}</div>
             <div style={{ fontSize: '0.8rem', color: '#64748b' }}>{new Date(booking.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
           </div>
           <div style={{ padding: '0.75rem', background: '#fff', border: '1px solid #f1f5f9', borderRadius: '12px' }}>
             <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px' }}>
               <Clock size={10} /> End
             </span>
-            <div style={{ fontSize: '0.88rem', fontWeight: 600, margin: '2px 0' }}>{new Date(booking.endTime).toLocaleDateString()}</div>
+            <div style={{ fontSize: '0.88rem', fontWeight: 600, margin: '2px 0' }}>{new Date(booking.endTime).toLocaleDateString('en-US')}</div>
             <div style={{ fontSize: '0.8rem', color: '#64748b' }}>{new Date(booking.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
           </div>
         </div>

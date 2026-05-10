@@ -591,7 +591,7 @@ const UserManagement: React.FC = () => {
                                             </div>
                                             <div style={{ flex: 1, background: 'white', padding: '0.875rem 1rem', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
                                                 <label style={{ fontSize: '0.65rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '4px' }}><Calendar size={11} /> Joined</label>
-                                                <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#1e293b' }}>{m.createdAt ? new Date(m.createdAt).toLocaleDateString() : '—'}</div>
+                                                <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#1e293b' }}>{m.createdAt ? new Date(m.createdAt).toLocaleDateString('en-US') : '—'}</div>
                                             </div>
                                         </div>
                                     </div>

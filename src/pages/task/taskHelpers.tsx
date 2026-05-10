@@ -54,5 +54,5 @@ export const getPriorityStyle = (priority: Priority): PriorityStyle => {
 
 export const formatDate = (d?: string | null): string => {
     if (!d || d.startsWith('0001')) return 'N/A';
-    return new Date(d).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    return new Date(d).toLocaleDateString('en-US', { day: '2-digit', month: '2-digit', year: 'numeric' });
 };

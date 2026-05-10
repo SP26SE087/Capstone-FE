@@ -148,7 +148,7 @@ const DetailsReports: React.FC<DetailsReportsProps> = ({ projectId }) => {
     };
 
     const fmtDate = (s: string) =>
-        new Date(s).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        new Date(s).toLocaleDateString('en-US', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
     const displayReports = useMemo(() => reports.filter(report => {
         const query = searchQuery.toLowerCase();

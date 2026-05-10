@@ -624,7 +624,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
 
     const formatDate = (dateStr: string | null) => {
         if (!dateStr || dateStr.startsWith('0001')) return 'N/A';
-        return new Date(dateStr).toLocaleDateString('vi-VN', { month: '2-digit', day: '2-digit' });
+        return new Date(dateStr).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit' });
     };
 
     if (!isOpen) return null;
@@ -1142,7 +1142,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                                                             {ev.fileName || ev.name || 'Unnamed File'}
                                                         </p>
                                                         <p style={{ margin: 0, fontSize: '0.65rem', color: '#94a3b8' }}>
-                                                            Uploaded {new Date(ev.submittedAt || ev.createdDate || Date.now()).toLocaleDateString('vi-VN')}
+                                                            Uploaded {new Date(ev.submittedAt || ev.createdDate || Date.now()).toLocaleDateString('en-US')}
                                                         </p>
                                                     </div>
                                                     <div style={{ display: 'flex', gap: '6px' }} onClick={(e) => e.stopPropagation()}>

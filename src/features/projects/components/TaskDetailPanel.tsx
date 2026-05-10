@@ -1187,7 +1187,7 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
                                                         if (!dateVal) return null;
                                                         const d = new Date(dateVal);
                                                         if (isNaN(d.getTime())) return null;
-                                                        return <div style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 600 }}>Submitted on {d.toLocaleDateString()} at {d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>;
+                                                        return <div style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 600 }}>Submitted on {d.toLocaleDateString('en-US')} at {d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>;
                                                     })()}
                                                 </div>
                                                 <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>

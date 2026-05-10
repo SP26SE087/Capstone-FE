@@ -443,7 +443,7 @@ const ResourceCard: React.FC<ResourceCardProps> = ({ resource: r, selected, quan
             const isToday = i === 0;
             return (
               <div key={i}
-                title={`${day.toLocaleDateString(undefined,{month:'short',day:'numeric'})}: ${avail}/${total} available`}
+                title={`${day.toLocaleDateString('en-GB',{month:'short',day:'numeric'})}: ${avail}/${total} available`}
                 style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', gap:2 }}>
                 <span style={{ fontSize:8, fontWeight:800, color, lineHeight:1, opacity: avail === total ? 0.6 : 1 }}>
                   {avail}
@@ -836,7 +836,7 @@ const SchedulePicker: React.FC<SchedulePickerProps> = ({
               <div style={{ flex:1, background:'var(--background-color)', borderRadius:'10px 0 0 10px', padding:'8px 12px' }}>
                 <div style={{ fontSize:9, fontWeight:800, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:3 }}>Pickup</div>
                 <div style={{ fontSize:11, fontWeight:700, color:'var(--text-primary)' }}>
-                  {startSummary.toLocaleDateString(undefined, { weekday:'short', month:'short', day:'numeric' })}
+                  {startSummary.toLocaleDateString('en-GB', { weekday:'short', month:'short', day:'numeric' })}
                 </div>
                 <div style={{ fontSize:16, fontWeight:900, color:'var(--accent-color)', lineHeight:1.3 }}>
                   {fmtMins(startMinutes)}
@@ -848,7 +848,7 @@ const SchedulePicker: React.FC<SchedulePickerProps> = ({
               <div style={{ flex:1, background:'var(--background-color)', borderRadius:'0 10px 10px 0', padding:'8px 12px', borderLeft:'1px solid var(--border-color)' }}>
                 <div style={{ fontSize:9, fontWeight:800, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:3 }}>Return</div>
                 <div style={{ fontSize:11, fontWeight:700, color:'var(--text-primary)' }}>
-                  {endDate.toLocaleDateString(undefined, { weekday:'short', month:'short', day:'numeric' })}
+                  {endDate.toLocaleDateString('en-GB', { weekday:'short', month:'short', day:'numeric' })}
                 </div>
                 <div style={{ fontSize:16, fontWeight:900, color:'var(--accent-color)', lineHeight:1.3 }}>
                   {String(endDate.getHours()).padStart(2,'0')}:{String(endDate.getMinutes()).padStart(2,'0')}
@@ -918,7 +918,7 @@ const WeeklyAvailability: React.FC<{ resources: Resource[]; focusDate: Date; boo
             <ChevronLeft size={11} />
           </button>
           <span style={{ fontSize:11, fontWeight:700, color:'var(--text-primary)', minWidth:100, textAlign:'center' }}>
-            {weekStart.toLocaleDateString(undefined, { month:'short', day:'numeric' })} – {weekEnd.toLocaleDateString(undefined, { month:'short', day:'numeric' })}
+            {weekStart.toLocaleDateString('en-GB', { month:'short', day:'numeric' })} – {weekEnd.toLocaleDateString('en-GB', { month:'short', day:'numeric' })}
           </span>
           <button type="button" onClick={() => setWeekOffset(o => o + 1)}
             style={{ width:22, height:22, borderRadius:6, border:'1px solid var(--border-color)', background:'#fff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
@@ -1015,7 +1015,7 @@ const WeeklyAvailability: React.FC<{ resources: Resource[]; focusDate: Date; boo
                 return (
                   <div key={i} style={{ display:'flex', justifyContent:'center', padding:'0 2px' }}>
                     <div
-                      title={`${day.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})}: ${avail} of ${total} available${hasConflict ? ` — need ${selectedQty}` : ''}`}
+                      title={`${day.toLocaleDateString('en-GB',{weekday:'short',month:'short',day:'numeric'})}: ${avail} of ${total} available${hasConflict ? ` — need ${selectedQty}` : ''}`}
                       style={{
                         width:'100%', maxWidth:44, borderRadius:8, padding:'6px 4px 5px',
                         background: bg,
@@ -1159,13 +1159,13 @@ const DetailsStep: React.FC<DetailsStepProps> = ({
           <div style={{ borderTop:'1px solid var(--border-color)', paddingTop:12 }}>
             <div style={{ fontSize:10, fontWeight:800, color:'var(--text-muted)', marginBottom:6, textTransform:'uppercase' }}>Schedule</div>
             <div style={{ fontSize:12, fontWeight:700, color:'var(--text-primary)', marginBottom:2 }}>
-              {summary.startDate.toLocaleDateString(undefined, { weekday:'short', month:'short', day:'numeric' })} {fmtMins(summary.startMinutes)}
+              {summary.startDate.toLocaleDateString('en-GB', { weekday:'short', month:'short', day:'numeric' })} {fmtMins(summary.startMinutes)}
             </div>
             <div style={{ fontSize:11, color:'var(--text-secondary)', display:'flex', alignItems:'center', gap:4, marginBottom:6 }}>
               ↓ {formatDuration(summary.startDate, summary.endDate)}
             </div>
             <div style={{ fontSize:12, fontWeight:700, color:'var(--text-primary)' }}>
-              {summary.endDate.toLocaleDateString(undefined, { weekday:'short', month:'short', day:'numeric' })} {String(summary.endDate.getHours()).padStart(2,'0')}:{String(summary.endDate.getMinutes()).padStart(2,'0')}
+              {summary.endDate.toLocaleDateString('en-GB', { weekday:'short', month:'short', day:'numeric' })} {String(summary.endDate.getHours()).padStart(2,'0')}:{String(summary.endDate.getMinutes()).padStart(2,'0')}
             </div>
           </div>
         )}
