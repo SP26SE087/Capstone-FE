@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import MainLayout from '@/layout/MainLayout';
+import Modal from '@/components/common/Modal';
 import { useAuth } from '@/hooks/useAuth';
 import { useToastStore } from '@/store/slices/toastSlice';
 import {
@@ -76,6 +77,7 @@ const CameraMonitorPage: React.FC = () => {
   const [facesTotal, setFacesTotal] = useState<number>(0);
   const [offset, setOffset] = useState<number>(0);
   const [labelFilter, setLabelFilter] = useState<FaceLabelFilter | 'all'>('all');
+  const [selectedFace, setSelectedFace] = useState<DetectedFaceItem | null>(null);
 
   const [gestureConfig, setGestureConfig] = useState<GestureConfig | null>(null);
   const [gestureLoading, setGestureLoading] = useState<boolean>(true);
@@ -99,6 +101,14 @@ const CameraMonitorPage: React.FC = () => {
   const videoFeedUrl = useMemo(() => {
     return `${cameraBase}/video_feed?t=${streamToken}`;
   }, [cameraBase, streamToken]);
+
+  const facesGridClassName = useMemo(() => {
+    const count = faces.length;
+    if (count === 1) return 'faces-grid few-1 custom-scrollbar';
+    if (count === 2) return 'faces-grid few-2 custom-scrollbar';
+    if (count === 3) return 'faces-grid few-3 custom-scrollbar';
+    return 'faces-grid custom-scrollbar';
+  }, [faces.length]);
 
   const loadGestureConfig = useCallback(async () => {
     setGestureLoading(true);
@@ -341,7 +351,7 @@ const CameraMonitorPage: React.FC = () => {
               </div>
             </header>
 
-            <div className="faces-grid custom-scrollbar">
+            <div className={facesGridClassName}>
               {facesLoading && <div className="empty-state">Loading faces...</div>}
               {!facesLoading && faces.length === 0 && (
                 <div className="empty-state">
@@ -351,14 +361,32 @@ const CameraMonitorPage: React.FC = () => {
               )}
 
               {!facesLoading && faces.map((face) => (
-                <article key={face.filename} className="face-card">
+                <article
+                  key={face.filename}
+                  className="face-card"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setSelectedFace(face)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      setSelectedFace(face);
+                    }
+                  }}
+                >
                   <img src={face.url} alt={face.filename} />
                   <div className="face-card-body">
                     <div className="face-card-top">
                       <span className={`log-type ${face.label === 'unknown' ? 'danger' : 'success'}`}>
                         {face.label}
                       </span>
-                      <button className="icon-btn" onClick={() => handleDeleteFace(face.filename)}>
+                      <button
+                        className="icon-btn"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void handleDeleteFace(face.filename);
+                        }}
+                      >
                         <Trash2 size={14} />
                       </button>
                     </div>
@@ -471,6 +499,25 @@ const CameraMonitorPage: React.FC = () => {
             )}
           </section>
         </div>
+
+        <Modal
+          isOpen={Boolean(selectedFace)}
+          onClose={() => setSelectedFace(null)}
+          title="Face Preview"
+          maxWidth="880px"
+        >
+          {selectedFace && (
+            <div className="face-preview-wrap">
+              <img src={selectedFace.url} alt={selectedFace.filename} className="face-preview-image" />
+              <div className="face-preview-meta">
+                <p><strong>Filename:</strong> {selectedFace.filename}</p>
+                <p><strong>Label:</strong> {selectedFace.label}</p>
+                <p><strong>Timestamp:</strong> {selectedFace.timestamp}</p>
+                <p><strong>Cloudinary ID:</strong> {selectedFace.public_id}</p>
+              </div>
+            </div>
+          )}
+        </Modal>
       </div>
     </MainLayout>
   );
