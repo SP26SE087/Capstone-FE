@@ -427,6 +427,7 @@
   border-radius: 12px;
   color: var(--text-secondary);
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 0.35rem;

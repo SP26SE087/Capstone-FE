@@ -337,6 +337,10 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
         setIsEditMode(false);
     };
 
+    const loadSeminarSeries = async (_seminarId: string) => { /* moved to SeminarList */ };
+
+    const handlePublishSeries = async () => { /* moved to SeminarList */ };
+
     // ---- derived (must be before any return) ----
     const presenterName = usersMap[meeting?.presenterId ?? ''] || 'Unknown Presenter';
     const seminarTimingStatus = getSeminarTimingStatus(meeting);
@@ -345,6 +349,9 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
     const canOpenAiNote = !!onToggleAINote && (isInProgress || seminarTimingStatus === 'completed');
     const presenterEmail = meeting ? emailsMap[meeting.presenterId] : undefined;
     const canEdit = !!user?.email && !!presenterEmail && user.email.toLowerCase() === presenterEmail.toLowerCase();
+    const userRoleValue = String(user?.role ?? '').toLowerCase();
+    const userRoleNumber = Number(user?.role);
+    const isLabDirector = userRoleNumber === 2 || userRoleValue === 'labdirector' || userRoleValue === 'lab director';
 
     useEffect(() => {
         if (!openSwapOnLoad || !canEdit || !meetingId) return;
@@ -820,22 +827,24 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
             {/* View footer */}
             <div style={{ paddingTop: '14px', borderTop: '1px solid var(--border-light)', display: 'flex', justifyContent: 'space-between', gap: '10px', marginTop: 'auto' }}>
                 <div>
-                    {canEdit && isUpcoming && (
-                        <button
-                            onClick={() => {
-                                setShowSwapConfirm(false);
-                                setSwapAccordionOpen(p => !p);
-                                if (!swapAccordionOpen) {
-                                    setSwapTargetId('');
-                                    handleOpenSwapForm();
-                                }
-                            }}
-                            style={{ padding: '8px 16px', borderRadius: '10px', border: swapAccordionOpen ? '1.5px solid #7c3aed' : '1px solid #e9d5ff', background: swapAccordionOpen ? '#f5f3ff' : '#faf5ff', color: '#7c3aed', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}
-                        >
-                            <ArrowLeftRight size={14} /> Request Swap
-                            {swapAccordionOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-                        </button>
-                    )}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        {canEdit && isUpcoming && (
+                            <button
+                                onClick={() => {
+                                    setShowSwapConfirm(false);
+                                    setSwapAccordionOpen(p => !p);
+                                    if (!swapAccordionOpen) {
+                                        setSwapTargetId('');
+                                        handleOpenSwapForm();
+                                    }
+                                }}
+                                style={{ padding: '8px 16px', borderRadius: '10px', border: swapAccordionOpen ? '1.5px solid #7c3aed' : '1px solid #e9d5ff', background: swapAccordionOpen ? '#f5f3ff' : '#faf5ff', color: '#7c3aed', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}
+                            >
+                                <ArrowLeftRight size={14} /> Request Swap
+                                {swapAccordionOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                            </button>
+                        )}
+                    </div>
                 </div>
                 <div style={{ display: 'flex', gap: '10px' }}>
                     <button onClick={onClose} style={{ padding: '8px 20px', borderRadius: '10px', border: '1px solid var(--border-color)', background: '#fff', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 700 }}>

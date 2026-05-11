@@ -489,7 +489,7 @@ const PaperReview: React.FC = () => {
                     </div>
                 ) : filteredPapers.length === 0 ? (
                     <div className="empty-state card" style={{ padding: '4rem 2rem', borderStyle: 'dashed', textAlign: 'center' }}>
-                        <FileSearch size={48} style={{ opacity: 0.3, marginBottom: '1rem' }} />
+                        <div className="empty-state-icon"><FileSearch size={28} /></div>
                         <h2 style={{ margin: '0 0 0.5rem' }}>{activeTab === 'pending' ? 'All Caught Up!' : 'No Papers Yet'}</h2>
                         <p style={{ color: 'var(--text-secondary)' }}>{activeTab === 'pending' ? 'No papers are currently pending review. Great job!' : 'No papers have been submitted yet.'}</p>
                     </div>

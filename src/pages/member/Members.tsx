@@ -310,7 +310,7 @@ const Members: React.FC = () => {
                                     })
                                 ) : (
                                     <div className="empty-state">
-                                        <Users size={36} />
+                                        <div className="empty-state-icon"><Users size={36} /></div>
                                         <h2>No members found</h2>
                                     </div>
                                 )}

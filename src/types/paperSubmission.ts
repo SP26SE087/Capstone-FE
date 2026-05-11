@@ -71,6 +71,7 @@ export interface PaperAssignee {
 export interface PaperSubmissionResponse {
     paperSubmissionId: string;
     projectId?: string | null;
+    projectName?: string | null;
     title: string;
     abstract: string;
     status: SubmissionStatus;
@@ -89,6 +90,7 @@ export interface PaperSubmissionResponse {
     lastUpdatedByEmail?: string | null;
     editable: boolean;
     hasEmbedding?: boolean;
+    isPublic?: boolean;
     reason?: string | null;
     members: PaperMemberResponse[];
     externalUsers?: ExternalUserResponse[] | null;

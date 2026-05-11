@@ -33,7 +33,7 @@ const ResourceListView: React.FC<ResourceListViewProps> = ({
     if (resources.length === 0) {
         return (
             <div style={{ textAlign: 'center', padding: '4rem 2rem', color: '#94a3b8' }}>
-                <Package size={48} style={{ marginBottom: '1.5rem', opacity: 0.3 }} />
+                <Package size={48} style={{ display: 'block', margin: '0 auto 1.5rem', opacity: 0.3 }} />
                 <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#1e293b' }}>No Resources</h3>
                 <p style={{ fontSize: '0.85rem' }}>No resources found matching your criteria.</p>
             </div>

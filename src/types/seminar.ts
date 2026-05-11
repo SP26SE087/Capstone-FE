@@ -54,6 +54,12 @@ export interface CreateRecurringSeminarRequest {
     weeklyTopics: string[] | null;
 }
 
+export interface SeminarPresenter {
+    name: string;
+    email: string;
+    topic: string | null;
+}
+
 export interface SeminarMeetingResponse {
     seminarMeetingId: string;
     seminarId: string;
@@ -68,6 +74,9 @@ export interface SeminarMeetingResponse {
     recordingLink: string | null;
     slideUrl: string | null;
     presenterId: string;
+    presenter: SeminarPresenter | null;
+    attendeeCount: number;
+    isPublic: boolean;
     createdAt: string;
     updatedAt: string | null;
 }
@@ -127,5 +136,6 @@ export interface Seminar {
     endDate: string;
     createdAt: string;
     createdBy: string;
+    isPublic: boolean;
     attendees: SeminarAttendee[] | null;
 }

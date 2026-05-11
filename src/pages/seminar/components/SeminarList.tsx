@@ -10,6 +10,8 @@ import {
     FileText,
     AlertCircle,
     Sparkles,
+    Globe,
+    EyeOff,
 } from 'lucide-react';
 import { getUpcomingUrgencyLevel, UpcomingUrgencyLevel } from '@/utils/helpers/dateFormatter';
 
@@ -21,6 +23,12 @@ interface SeminarListProps {
     filterTimeframe?: string;
     aiSummaryMap: Record<string, boolean>;
     allExpanded?: boolean;
+    canPublish?: boolean;
+    publishedSeriesIds?: Set<string>;
+    publishingSeriesId?: string | null;
+    unpublishingSeriesId?: string | null;
+    onPublishSeries?: (seminarId: string) => void;
+    onUnpublishSeries?: (seminarId: string) => void;
 }
 
 const formatDateOnly = (dateStr: string) => {
@@ -85,7 +93,7 @@ const getNearMeetingTone = (urgency: UpcomingUrgencyLevel | null) => {
     return null;
 };
 
-const SeminarList: React.FC<SeminarListProps> = ({ meetings, selectedId, onSelect, usersMap, filterTimeframe, aiSummaryMap, allExpanded }) => {
+const SeminarList: React.FC<SeminarListProps> = ({ meetings, selectedId, onSelect, usersMap, filterTimeframe, aiSummaryMap, allExpanded, canPublish, publishedSeriesIds, publishingSeriesId, unpublishingSeriesId, onPublishSeries, onUnpublishSeries }) => {
     const [expandedSeries, setExpandedSeries] = React.useState<Record<string, boolean>>({});
 
     const grouped = React.useMemo(() => {
@@ -161,6 +169,11 @@ const SeminarList: React.FC<SeminarListProps> = ({ meetings, selectedId, onSelec
                 const upcomingMeetings = group.meetings.filter(m => isUpcoming(m.meetingDate));
                 const pastMeetings = group.meetings.filter(m => !isUpcoming(m.meetingDate));
                 const nextSession = upcomingMeetings[0] ?? null;
+                const isPublishedSeries = publishedSeriesIds?.has(sid) ?? false;
+                const isPublishingSeries = publishingSeriesId === sid;
+                const isUnpublishingSeries = unpublishingSeriesId === sid;
+                const showPublishBtn = canPublish && onPublishSeries && sid !== 'uncategorized' && !isPublishedSeries;
+                const showUnpublishBtn = canPublish && onUnpublishSeries && sid !== 'uncategorized' && isPublishedSeries;
 
                 return (
                     <div key={sid} style={{
@@ -183,7 +196,7 @@ const SeminarList: React.FC<SeminarListProps> = ({ meetings, selectedId, onSelec
                                 gap: '10px',
                             }}
                         >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
                                 <div style={{
                                     width: '30px', height: '30px', borderRadius: '8px', flexShrink: 0,
                                     background: hasSelected ? 'var(--accent-color)' : 'var(--primary-color)',
@@ -191,10 +204,36 @@ const SeminarList: React.FC<SeminarListProps> = ({ meetings, selectedId, onSelec
                                 }}>
                                     <Folder size={15} />
                                 </div>
-                                <div style={{ minWidth: 0 }}>
-                                    <div style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                        {group.title}
+                                <div style={{ minWidth: 0, flex: 1 }}>
+                                    {/* Title row – status badge sits here */}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                        <div style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+                                            {group.title}
+                                        </div>
+                                        {/* Status badge – lives on the title line */}
+                                        {sid !== 'uncategorized' && (isPublishedSeries ? (
+                                            <span style={{
+                                                flexShrink: 0,
+                                                display: 'inline-flex', alignItems: 'center', gap: '3px',
+                                                padding: '1px 7px', borderRadius: '999px',
+                                                background: '#dcfce7', border: '1px solid #86efac',
+                                                color: '#15803d', fontSize: '0.65rem', fontWeight: 700, lineHeight: 1.5,
+                                            }}>
+                                                <Globe size={9} /> Public
+                                            </span>
+                                        ) : (
+                                            <span style={{
+                                                flexShrink: 0,
+                                                display: 'inline-flex', alignItems: 'center', gap: '3px',
+                                                padding: '1px 7px', borderRadius: '999px',
+                                                background: '#f1f5f9', border: '1px solid #cbd5e1',
+                                                color: '#64748b', fontSize: '0.65rem', fontWeight: 700, lineHeight: 1.5,
+                                            }}>
+                                                <EyeOff size={9} /> Private
+                                            </span>
+                                        ))}
                                     </div>
+                                    {/* Stats row – no buttons here */}
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px', flexWrap: 'wrap' as const }}>
                                         {upcomingMeetings.length > 0 && (
                                             <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#2563eb' }}>
@@ -221,9 +260,50 @@ const SeminarList: React.FC<SeminarListProps> = ({ meetings, selectedId, onSelec
                                     </div>
                                 </div>
                             </div>
-                            {isExpanded
-                                ? <ChevronDown size={16} color="var(--text-muted)" style={{ flexShrink: 0 }} />
-                                : <ChevronRight size={16} color="var(--text-muted)" style={{ flexShrink: 0 }} />}
+                            {/* Right side – action button + chevron */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                                {showPublishBtn && (
+                                    <button
+                                        onClick={e => { e.stopPropagation(); onPublishSeries!(sid); }}
+                                        disabled={isPublishingSeries}
+                                        title="Make entire seminar series public"
+                                        style={{
+                                            display: 'inline-flex', alignItems: 'center', gap: '4px',
+                                            padding: '4px 10px', borderRadius: '7px',
+                                            border: '1px dashed #93c5fd', background: '#eff6ff',
+                                            color: '#1d4ed8', fontSize: '0.7rem', fontWeight: 700,
+                                            cursor: isPublishingSeries ? 'not-allowed' : 'pointer',
+                                            opacity: isPublishingSeries ? 0.7 : 1,
+                                            lineHeight: 1,
+                                        }}
+                                    >
+                                        <Globe size={11} />
+                                        {isPublishingSeries ? 'Publishing…' : 'Make Public'}
+                                    </button>
+                                )}
+                                {showUnpublishBtn && (
+                                    <button
+                                        onClick={e => { e.stopPropagation(); onUnpublishSeries!(sid); }}
+                                        disabled={isUnpublishingSeries}
+                                        title="Make seminar series private"
+                                        style={{
+                                            display: 'inline-flex', alignItems: 'center', gap: '4px',
+                                            padding: '4px 10px', borderRadius: '7px',
+                                            border: '1px dashed #fca5a5', background: '#fff1f2',
+                                            color: '#dc2626', fontSize: '0.7rem', fontWeight: 700,
+                                            cursor: isUnpublishingSeries ? 'not-allowed' : 'pointer',
+                                            opacity: isUnpublishingSeries ? 0.7 : 1,
+                                            lineHeight: 1,
+                                        }}
+                                    >
+                                        <EyeOff size={11} />
+                                        {isUnpublishingSeries ? 'Updating…' : 'Make Private'}
+                                    </button>
+                                )}
+                                {isExpanded
+                                    ? <ChevronDown size={16} color="var(--text-muted)" />
+                                    : <ChevronRight size={16} color="var(--text-muted)" />}
+                            </div>
                         </div>
 
                         {/* Session List */}

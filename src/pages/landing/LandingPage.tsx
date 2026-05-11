@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, BarChart2, Box, Briefcase, Calendar, FileText, Sparkles, Users, UserCheck } from 'lucide-react';
+import { ArrowRight, BarChart2, Box, Briefcase, Calendar, FileText, Sparkles, Users, UserCheck, BookOpen, Presentation } from 'lucide-react';
 import logo from '@/assets/aita.png';
 import { authService } from '@/services/authService';
 import { SystemRoleEnum } from '@/types/enums';
@@ -42,6 +42,14 @@ const LandingPage: React.FC = () => {
                 </Link>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <Link to="/public/seminars" className="welcome-nav-link">
+                        <Presentation size={14} />
+                        Seminars
+                    </Link>
+                    <Link to="/public/papers" className="welcome-nav-link">
+                        <BookOpen size={14} />
+                        Papers
+                    </Link>
                     <button
                         onClick={() => setShowRegister(true)}
                         style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', fontSize: '0.88rem', color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, padding: '0.4rem 0.75rem' }}
@@ -131,6 +139,35 @@ const LandingPage: React.FC = () => {
                                 <p>{feature.desc}</p>
                             </article>
                         ))}
+                    </div>
+                </section>
+
+                <section className="welcome-public-section welcome-enter" style={{ animationDelay: '600ms' }}>
+                    <header className="welcome-features-head">
+                        <h2>Open Knowledge</h2>
+                        <p>Browse public seminars and research papers shared by our lab — no sign-in required.</p>
+                    </header>
+                    <div className="welcome-public-grid">
+                        <Link to="/public/seminars" className="welcome-public-card welcome-public-card--blue">
+                            <div className="welcome-public-icon" style={{ background: '#eff6ff', color: '#2563eb' }}>
+                                <Presentation size={28} />
+                            </div>
+                            <div style={{ flex: 1 }}>
+                                <h3>Public Seminars</h3>
+                                <p>Watch recordings and read AI summaries from our open seminar series.</p>
+                                <span className="welcome-public-cta">Browse seminars <ArrowRight size={13} /></span>
+                            </div>
+                        </Link>
+                        <Link to="/public/papers" className="welcome-public-card welcome-public-card--green">
+                            <div className="welcome-public-icon" style={{ background: '#f0fdf4', color: '#16a34a' }}>
+                                <BookOpen size={28} />
+                            </div>
+                            <div style={{ flex: 1 }}>
+                                <h3>Public Papers</h3>
+                                <p>Explore published research and accepted submissions from our teams.</p>
+                                <span className="welcome-public-cta">Browse papers <ArrowRight size={13} /></span>
+                            </div>
+                        </Link>
                     </div>
                 </section>
 

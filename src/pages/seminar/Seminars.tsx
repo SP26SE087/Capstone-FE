@@ -32,6 +32,7 @@ import SeminarList from './components/SeminarList';
 import SeminarPanel from './components/SeminarPanel';
 import CreateSeminarForm from './components/CreateSeminarForm';
 import SwapRequests from './components/SwapRequests';
+import ConfirmModal from '@/components/common/ConfirmModal';
 import {
     BookingStyleMonthGrid,
     BookingStyleMonthNav,
@@ -114,6 +115,11 @@ const Seminars: React.FC = () => {
     const [allExpanded, setAllExpanded] = useState<boolean | undefined>(undefined);
     const [aiSummaryBySeminarMeetingId, setAiSummaryBySeminarMeetingId] = useState<Record<string, boolean>>({});
     const aiSummaryCacheRef = useRef<Record<string, boolean>>({});
+    const [publishedSeriesIds, setPublishedSeriesIds] = useState<Set<string>>(new Set());
+    const [publishingSeriesId, setPublishingSeriesId] = useState<string | null>(null);
+    const [pendingPublishSeriesId, setPendingPublishSeriesId] = useState<string | null>(null);
+    const [unpublishingSeriesId, setUnpublishingSeriesId] = useState<string | null>(null);
+    const [pendingUnpublishSeriesId, setPendingUnpublishSeriesId] = useState<string | null>(null);
 
     // Panel system
     const [activePanel, setActivePanel] = useState<SeminarTab | null>(null);
@@ -203,6 +209,50 @@ const Seminars: React.FC = () => {
         return role === 1 || role === 2;
     }, [user?.role]);
 
+    const handlePublishSeries = (seminarId: string) => {
+        if (!seminarId || publishingSeriesId) return;
+        setPendingPublishSeriesId(seminarId);
+    };
+
+    const doPublishSeries = async () => {
+        const seminarId = pendingPublishSeriesId;
+        setPendingPublishSeriesId(null);
+        if (!seminarId) return;
+        setPublishingSeriesId(seminarId);
+        try {
+            await seminarService.publishSeminarSeries(seminarId);
+            setPublishedSeriesIds(prev => new Set([...prev, seminarId]));
+            addToast('Seminar series is now public.', 'success');
+        } catch (err: any) {
+            const msg = err?.response?.data?.message || err?.response?.data?.title || 'Failed to make seminar series public.';
+            addToast(msg, 'error');
+        } finally {
+            setPublishingSeriesId(null);
+        }
+    };
+
+    const handleUnpublishSeries = (seminarId: string) => {
+        if (!seminarId || unpublishingSeriesId) return;
+        setPendingUnpublishSeriesId(seminarId);
+    };
+
+    const doUnpublishSeries = async () => {
+        const seminarId = pendingUnpublishSeriesId;
+        setPendingUnpublishSeriesId(null);
+        if (!seminarId) return;
+        setUnpublishingSeriesId(seminarId);
+        try {
+            await seminarService.unpublishSeminarSeries(seminarId);
+            setPublishedSeriesIds(prev => { const next = new Set(prev); next.delete(seminarId); return next; });
+            addToast('Seminar series is now private.', 'success');
+        } catch (err: any) {
+            const msg = err?.response?.data?.message || err?.response?.data?.title || 'Failed to make seminar series private.';
+            addToast(msg, 'error');
+        } finally {
+            setUnpublishingSeriesId(null);
+        }
+    };
+
     const handleTabSwitch = (tabId: TabType) => {
         if (isTranscriptionProcessing) {
             setPendingTab(tabId);
@@ -280,7 +330,13 @@ const Seminars: React.FC = () => {
             } else {
                 data = await seminarService.getMySeminarMeetings();
             }
-            setMeetings(Array.isArray(data) ? data : []);
+            const meetings = Array.isArray(data) ? data : [];
+            setMeetings(meetings);
+            const publishedIds = new Set<string>();
+            meetings.forEach((m: SeminarMeetingResponse) => {
+                if (m.isPublic && m.seminarId) publishedIds.add(m.seminarId);
+            });
+            setPublishedSeriesIds(publishedIds);
         } catch (error) {
             console.error('Failed to fetch seminar meetings:', error);
             setMeetings([]);
@@ -903,6 +959,12 @@ const Seminars: React.FC = () => {
                                     filterTimeframe={filterTimeframe}
                                     aiSummaryMap={aiSummaryBySeminarMeetingId}
                                     allExpanded={allExpanded}
+                                    canPublish={isLabDirector}
+                                    publishedSeriesIds={publishedSeriesIds}
+                                    publishingSeriesId={publishingSeriesId}
+                                    unpublishingSeriesId={unpublishingSeriesId}
+                                    onPublishSeries={handlePublishSeries}
+                                    onUnpublishSeries={handleUnpublishSeries}
                                 />
                             ) : (
                                 <div style={{ textAlign: 'center', padding: '4rem 2rem', color: '#94a3b8' }}>
@@ -1019,6 +1081,30 @@ const Seminars: React.FC = () => {
                 </div>
             </div>
 
+
+            {/* Publish Series Confirm Modal */}
+            <ConfirmModal
+                isOpen={!!pendingPublishSeriesId}
+                onClose={() => setPendingPublishSeriesId(null)}
+                onConfirm={doPublishSeries}
+                title="Make Seminar Series Public"
+                message={<span>Making this seminar series public cannot be undone.<br />Anyone will be able to view the entire series and all its sessions.</span>}
+                confirmText="Make Public"
+                cancelText="Cancel"
+                variant="info"
+            />
+
+            {/* Unpublish Series Confirm Modal */}
+            <ConfirmModal
+                isOpen={!!pendingUnpublishSeriesId}
+                onClose={() => setPendingUnpublishSeriesId(null)}
+                onConfirm={doUnpublishSeries}
+                title="Make Seminar Series Private"
+                message={<span>The series will be hidden from the public page.<br />You can make it public again at any time.</span>}
+                confirmText="Make Private"
+                cancelText="Cancel"
+                variant="danger"
+            />
 
             {/* Custom Confirmation Modal */}
             {showConfirmSwitch && (

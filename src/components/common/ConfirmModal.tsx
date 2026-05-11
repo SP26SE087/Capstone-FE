@@ -82,19 +82,17 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={title} variant={variant} footer={footer} maxWidth="440px">
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <div style={{
-                        padding: '10px',
-                        borderRadius: '14px',
-                        background: colors.bg,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0
-                    }}>
-                        {getIcon()}
-                    </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{
+                    padding: '10px',
+                    borderRadius: '14px',
+                    background: colors.bg,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0
+                }}>
+                    {getIcon()}
                 </div>
                 <div style={{ fontSize: '0.92rem', lineHeight: 1.6 }}>
                     {message}

@@ -789,7 +789,7 @@ function Dashboard() {
                                         padding: '2.5rem 1rem',
                                         color: 'var(--text-secondary)'
                                     }}>
-                                        <BookOpen size={32} style={{ opacity: 0.25, marginBottom: '0.75rem' }} />
+                                        <BookOpen size={32} style={{ opacity: 0.25, display: 'block', margin: '0 auto 0.75rem' }} />
                                         <p style={{ margin: 0, fontWeight: 500 }}>You're not involved in any active projects yet.</p>
                                     </div>
                                 )}

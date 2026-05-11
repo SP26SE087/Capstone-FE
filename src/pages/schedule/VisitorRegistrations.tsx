@@ -927,7 +927,7 @@ const VisitorRegistrations: React.FC = () => {
                                                 <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }} className="custom-scrollbar">
                                                     {dayRegs.length === 0 ? (
                                                         <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#94a3b8' }}>
-                                                            <CalendarDays size={36} style={{ opacity: 0.3, marginBottom: '8px' }} />
+                                                            <CalendarDays size={36} style={{ display: 'block', margin: '0 auto 8px', opacity: 0.3 }} />
                                                             <p style={{ fontSize: '0.82rem' }}>No registrations on this day</p>
                                                         </div>
                                                     ) : dayRegs.map(r => renderRegCard(r))}
@@ -958,7 +958,7 @@ const VisitorRegistrations: React.FC = () => {
                                     {selectedCalDay === null && !selectedRegId && (
                                         <div style={{ flex: 5, minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '320px', background: 'white', borderRadius: '12px', border: '1px dashed #e2e8f0' }}>
                                             <div style={{ textAlign: 'center', color: '#94a3b8' }}>
-                                                <CalendarDays size={40} style={{ opacity: 0.25, marginBottom: '12px' }} />
+                                                <CalendarDays size={40} style={{ display: 'block', margin: '0 auto 12px', opacity: 0.25 }} />
                                                 <p style={{ fontSize: '0.85rem', fontWeight: 600, margin: 0 }}>Select a day to view registrations</p>
                                                 <p style={{ fontSize: '0.75rem', margin: '4px 0 0' }}>Click any date on the calendar</p>
                                             </div>

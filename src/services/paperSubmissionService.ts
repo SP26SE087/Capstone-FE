@@ -1,4 +1,5 @@
 import api from './api';
+import { authApi } from './api';
 import { SubmissionStatus } from '@/types/paperSubmission';
 import type {
     PaperSubmissionResponse,
@@ -58,6 +59,19 @@ export const paperSubmissionService = {
             pageIndex: data.pageIndex ?? data.PageIndex ?? params?.pageIndex ?? 1,
             pageSize: data.pageSize ?? data.PageSize ?? params?.pageSize ?? 10,
             totalPages: data.totalPages ?? data.TotalPages
+        };
+    },
+
+    /** Get public papers for anonymous visitors */
+    getPublic: async (params?: { pageIndex?: number; pageSize?: number }): Promise<PagedResult<PaperSubmissionResponse>> => {
+        const response = await authApi.get('/api/papers/public', { params });
+        const data = response.data.data || response.data;
+        return {
+            items: data.items ?? data.Items ?? [],
+            totalCount: data.totalCount ?? data.TotalCount ?? 0,
+            pageIndex: data.pageIndex ?? data.PageIndex ?? params?.pageIndex ?? 1,
+            pageSize: data.pageSize ?? data.PageSize ?? params?.pageSize ?? 10,
+            totalPages: data.totalPages ?? data.TotalPages,
         };
     },
 
@@ -147,5 +161,11 @@ export const paperSubmissionService = {
     /** Delete an external user */
     deleteExternalUser: async (id: string, externalUserId: string): Promise<void> => {
         await api.delete(`${BASE}/${id}/external-users/${externalUserId}`);
+    },
+
+    /** Toggle public visibility (Published papers only, authorized roles) */
+    setPublic: async (id: string, isPublic: boolean): Promise<PaperSubmissionResponse> => {
+        const response = await api.patch(`${BASE}/${id}/public`, { isPublic });
+        return response.data.data || response.data;
     },
 };

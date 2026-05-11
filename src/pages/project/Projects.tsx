@@ -527,7 +527,7 @@ const Projects: React.FC = () => {
                             })()
                         ) : (
                             <div className="empty-state card" style={{ padding: '6rem 2rem', borderStyle: 'dashed' }}>
-                                <TrendingUp size={48} color="var(--text-muted)" style={{ marginBottom: '1rem' }} />
+                                <div className="empty-state-icon"><TrendingUp size={28} /></div>
                                 <h2>Initialize Your Research</h2>
                                 <p>No active projects found. Start by creating a workspace for your next breakthrough.</p>
                                 {isLabDirector && (

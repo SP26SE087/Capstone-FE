@@ -205,7 +205,7 @@ const LabProjects: React.FC = () => {
                             </div>
                         ) : filtered.length === 0 ? (
                             <div className="empty-state card" style={{ padding: '6rem 2rem', borderStyle: 'dashed' }}>
-                                <TrendingUp size={48} color="var(--text-muted)" style={{ marginBottom: '1rem' }} />
+                                <div className="empty-state-icon"><TrendingUp size={28} /></div>
                                 <h2>No Projects Found</h2>
                                 <p>There are no public projects matching your filters.</p>
                             </div>

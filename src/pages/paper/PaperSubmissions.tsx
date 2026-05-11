@@ -26,7 +26,7 @@ import {
     Plus, Search, ExternalLink, X, Loader2, Trash2,
     Send, Edit2, Link as LinkIcon, FileText, CheckCircle2, XCircle,
     Clock, Filter, Target, Briefcase, BookOpen, FileCheck, RefreshCw, Gavel, Upload,
-    Sparkles, Zap, Camera, Globe, ChevronDown, Eye
+    Sparkles, Zap, Camera, Globe, ChevronDown, Eye, EyeOff
 } from 'lucide-react';
 
 const STATUS_COLOR: Record<SubmissionStatus, string> = {
@@ -60,6 +60,12 @@ const isPdfFile = (file: File | null): boolean => {
     const name = file.name?.toLowerCase() || '';
     const type = file.type?.toLowerCase() || '';
     return name.endsWith('.pdf') || type === 'application/pdf';
+};
+
+const isEmptyTextFile = (file: File | null): boolean => {
+    if (!file) return false;
+    const name = file.name?.toLowerCase() || '';
+    return name.endsWith('.txt') && file.size === 0;
 };
 
 type ExternalAuthorValidationErrors = {
@@ -193,6 +199,7 @@ const PaperSubmissions: React.FC = () => {
     const [actionLoading, setActionLoading] = useState<string | null>(null);
     const [submitReviewLoading, setSubmitReviewLoading] = useState(false);
     const [indexingLoading, setIndexingLoading] = useState(false);
+    const [publicToggleLoading, setPublicToggleLoading] = useState(false);
 
     // Submit-to-conference modal
     const [showSubmitUrlModal, setShowSubmitUrlModal] = useState(false);
@@ -273,6 +280,11 @@ const PaperSubmissions: React.FC = () => {
             setAddDocument(null);
             return;
         }
+        if (isEmptyTextFile(file)) {
+            showToast('Text file cannot be empty. Please upload a valid TXT file with content.', 'error');
+            setAddDocument(null);
+            return;
+        }
         if (file && file.size > MAX_FILE_SIZE) {
             showToast('File size exceeds 10 MB limit. Please upload a smaller file.', 'error');
             setAddDocument(null);
@@ -284,6 +296,11 @@ const PaperSubmissions: React.FC = () => {
     const handleEditDocumentChange = (file: File | null) => {
         if (isPdfFile(file)) {
             showToast('PDF upload is currently disabled. Please upload DOC, DOCX, TXT, PPT, or PPTX.', 'error');
+            setEditDocument(null);
+            return;
+        }
+        if (isEmptyTextFile(file)) {
+            showToast('Text file cannot be empty. Please upload a valid TXT file with content.', 'error');
             setEditDocument(null);
             return;
         }
@@ -584,6 +601,21 @@ const PaperSubmissions: React.FC = () => {
             showToast('Indexing failed.', 'error');
         } finally {
             setIndexingLoading(false);
+        }
+    };
+
+    const handleTogglePublic = async (newValue: boolean) => {
+        if (!selectedPaper) return;
+        setPublicToggleLoading(true);
+        try {
+            const updated = await paperSubmissionService.setPublic(selectedPaper.paperSubmissionId, newValue);
+            setPapers(prev => prev.map(p => p.paperSubmissionId === updated.paperSubmissionId ? updated : p));
+            setSelectedPaper(updated);
+            showToast(newValue ? 'Paper is now public.' : 'Paper visibility set to private.', 'success');
+        } catch (err: any) {
+            showToast(err.response?.data?.message || 'Failed to update visibility.', 'error');
+        } finally {
+            setPublicToggleLoading(false);
         }
     };
 
@@ -2064,13 +2096,37 @@ const PaperSubmissions: React.FC = () => {
                                             </div>
                                         )}
 
-                                        {/* Published: terminal */}
-                                        {selectedPaper.status === SubmissionStatus.Published && (
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', borderRadius: '9px', background: '#f0f9ff', border: '1px solid #bae6fd' }}>
-                                                <Globe size={13} style={{ color: '#0ea5e9', flexShrink: 0 }} />
-                                                <span style={{ flex: 1, fontSize: '0.82rem', fontWeight: 600, color: '#0369a1' }}>Published — no further actions available.</span>
-                                            </div>
-                                        )}
+                                        {/* Published: toggle isPublic */}
+                                        {selectedPaper.status === SubmissionStatus.Published && (() => {
+                                            const canToggle = isDirectorOfThisProject || isProjectLeader || (selectedPaper.assignees ?? []).some(a => a.userId === user?.userId);
+                                            return (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '10px 14px', borderRadius: '9px', background: '#f0f9ff', border: '1px solid #bae6fd' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                        <Globe size={13} style={{ color: '#0ea5e9', flexShrink: 0 }} />
+                                                        <span style={{ flex: 1, fontSize: '0.82rem', fontWeight: 600, color: '#0369a1' }}>
+                                                            Published
+                                                            {selectedPaper.isPublic
+                                                                ? <span style={{ marginLeft: '8px', fontSize: '0.72rem', fontWeight: 700, color: '#16a34a', background: '#dcfce7', padding: '2px 8px', borderRadius: '10px' }}>Public</span>
+                                                                : <span style={{ marginLeft: '8px', fontSize: '0.72rem', fontWeight: 700, color: '#475569', background: '#f1f5f9', padding: '2px 8px', borderRadius: '10px' }}>Private</span>
+                                                            }
+                                                        </span>
+                                                        {canToggle && (
+                                                            selectedPaper.isPublic ? (
+                                                                <button onClick={() => handleTogglePublic(false)} disabled={publicToggleLoading}
+                                                                    style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', cursor: 'pointer', fontWeight: 700, fontSize: '0.78rem' }}>
+                                                                    {publicToggleLoading ? <Loader2 size={13} className="animate-spin" /> : <EyeOff size={13} />} Make Private
+                                                                </button>
+                                                            ) : (
+                                                                <button onClick={() => handleTogglePublic(true)} disabled={publicToggleLoading}
+                                                                    style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 12px', borderRadius: '8px', border: 'none', background: '#16a34a', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: '0.78rem', boxShadow: '0 2px 6px rgba(22,163,74,0.2)' }}>
+                                                                    {publicToggleLoading ? <Loader2 size={13} className="animate-spin" /> : <Eye size={13} />} Make Public
+                                                                </button>
+                                                            )
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
 
                                         {/* Rejected → Revert to Draft (Leader / LabDirector only) */}
                                         {selectedPaper.status === SubmissionStatus.Rejected && (
