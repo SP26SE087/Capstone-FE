@@ -439,15 +439,6 @@ const DetailsHome: React.FC<DetailsHomeProps> = ({
                             </div>
                         )}
                     </div>
-                    {/* Refresh */}
-                    <button
-                        onClick={handleRefresh}
-                        disabled={refreshing}
-                        style={{ padding: '7px 12px', borderRadius: '12px', border: '1px solid #e2e8f0', background: 'white', cursor: refreshing ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px', color: '#64748b', opacity: refreshing ? 0.6 : 1, fontSize: '0.8rem', fontWeight: 600 }}
-                    >
-                        <RotateCcw size={13} className={refreshing ? 'animate-spin' : ''} />
-                        Refresh
-                    </button>
                     </div>
                 </div>
 

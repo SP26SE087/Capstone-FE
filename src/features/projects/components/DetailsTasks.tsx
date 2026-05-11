@@ -339,14 +339,7 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
             </div>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                 {viewToggle}
-                <button
-                    onClick={handleRefresh}
-                    disabled={refreshing}
-                    style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white', cursor: refreshing ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px', color: '#64748b', opacity: refreshing ? 0.7 : 1, fontSize: '0.78rem', fontWeight: 600 }}
-                >
-                    <RotateCcw size={13} className={refreshing ? 'animate-spin' : ''} />
-                    Refresh
-                </button>
+
                 {viewMode === 'list' && canManageTasks && !isArchived && (
                     <>
                         <button

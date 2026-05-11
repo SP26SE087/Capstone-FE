@@ -402,20 +402,7 @@ const DetailsReports: React.FC<DetailsReportsProps> = ({ projectId }) => {
                     </span>
                 )}
 
-                {/* Refresh */}
-                <button
-                    onClick={handleRefresh}
-                    disabled={refreshing || loading}
-                    style={{
-                        height: '38px', padding: '0 12px', border: '1px solid #e2e8f0', background: 'white',
-                        borderRadius: '8px', fontSize: '0.78rem', fontWeight: 600,
-                        display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer',
-                        opacity: refreshing || loading ? 0.6 : 1, flexShrink: 0,
-                    }}
-                >
-                    <RotateCcw size={13} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
-                    Refresh
-                </button>
+
             </div>
 
             {/* â”€â”€ Main content â”€â”€ */}
@@ -439,8 +426,16 @@ const DetailsReports: React.FC<DetailsReportsProps> = ({ projectId }) => {
                 </div>
 
                 {/* Right: Calendar day list */}
-                {selectedCalDay !== null && !isPanelOpen && (() => {
-                    const dayReports = calendarMap.get(selectedCalDay) || [];
+                {!isPanelOpen && (() => {
+                    const dayReports = selectedCalDay !== null
+                        ? (calendarMap.get(selectedCalDay) || [])
+                        : displayReports.filter(r => {
+                            const d = getReportDate(r);
+                            return d && d.getFullYear() === calYear && d.getMonth() === calMonth;
+                        });
+                    const headerLabel = selectedCalDay !== null
+                        ? `${selectedCalDay} ${MONTH_NAMES[calMonth]} ${calYear}`
+                        : `${MONTH_NAMES[calMonth]} ${calYear}`;
                     return (
                         <div style={{
                             flex: 5, minWidth: 0, minHeight: 0,
@@ -455,7 +450,7 @@ const DetailsReports: React.FC<DetailsReportsProps> = ({ projectId }) => {
                             }}>
                                 <div style={{ width: '3px', height: '18px', borderRadius: '2px', background: 'var(--primary-color)', flexShrink: 0 }} />
                                 <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#1e293b' }}>
-                                    {selectedCalDay} {MONTH_NAMES[calMonth]} {calYear}
+                                    {headerLabel}
                                 </span>
                                 <span style={{ fontSize: '0.68rem', fontWeight: 700, background: '#ede9fe', color: '#7c3aed', padding: '2px 8px', borderRadius: '20px' }}>
                                     {dayReports.length} report{dayReports.length !== 1 ? 's' : ''}
@@ -466,7 +461,9 @@ const DetailsReports: React.FC<DetailsReportsProps> = ({ projectId }) => {
                                 {dayReports.length === 0 ? (
                                     <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#94a3b8' }}>
                                         <CalendarDays size={36} style={{ opacity: 0.3, marginBottom: '8px' }} />
-                                        <p style={{ fontSize: '0.82rem' }}>No reports on this day</p>
+                                        <p style={{ fontSize: '0.82rem' }}>
+                                            {selectedCalDay !== null ? 'No reports on this day' : 'No reports this month'}
+                                        </p>
                                     </div>
                                 ) : dayReports.map(r => renderCard(r))}
                             </div>

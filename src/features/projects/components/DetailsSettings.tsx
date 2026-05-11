@@ -18,6 +18,7 @@ interface DetailsSettingsProps {
     submitting: boolean;
     canDeleteProject: boolean;
     setIsDeleteConfirmOpen: (open: boolean) => void;
+    isLabDirector: boolean;
     latestMilestoneDueDate?: string;
     earliestMilestoneStartDate?: string;
     customFields?: string[];
@@ -25,7 +26,7 @@ interface DetailsSettingsProps {
 }
 
 const DetailsSettings: React.FC<DetailsSettingsProps> = ({
-    isArchived, isReadOnly: permissionReadOnly, isAdmin, formData, handleStatusChange, handleInputChange,
+    isArchived, isReadOnly: permissionReadOnly, isAdmin, isLabDirector, formData, handleStatusChange, handleInputChange,
     project, availableFields, selectedFieldIds, toggleField, handleSubmit, submitting,
     canDeleteProject, setIsDeleteConfirmOpen, latestMilestoneDueDate, earliestMilestoneStartDate,
     customFields = [], onCustomFieldsChange
@@ -64,20 +65,6 @@ const DetailsSettings: React.FC<DetailsSettingsProps> = ({
         return formData.startDate > formData.endDate;
     }, [formData.startDate, formData.endDate]);
 
-    // Start date cannot be in the past (only if user changed it)
-    const isStartDateInPast = React.useMemo(() => {
-        if (!formData.startDate) return false;
-        if (formData.startDate === originalStartDate) return false;
-        return formData.startDate < todayStr;
-    }, [formData.startDate, originalStartDate]);
-
-    // End date cannot be in the past (only if user changed it)
-    const isEndDateInPast = React.useMemo(() => {
-        if (!formData.endDate) return false;
-        if (formData.endDate === originalEndDate) return false;
-        return formData.endDate < todayStr;
-    }, [formData.endDate, originalEndDate]);
-
     // End date cannot be before the latest milestone due date
     const isEndDateBeforeMilestone = React.useMemo(() => {
         if (!formData.endDate || !latestMilestoneDueDate) return false;
@@ -90,11 +77,11 @@ const DetailsSettings: React.FC<DetailsSettingsProps> = ({
         return formData.startDate > earliestMilestoneStartDate.split('T')[0];
     }, [formData.startDate, earliestMilestoneStartDate]);
 
-    // Can edit when project is Inactive or Active (or Admin)
+    // Can edit when project is Inactive or Active AND user is Admin or LabDirector
     const isInactive = project?.status === ProjectStatus.Inactive;
     const isActive = project?.status === ProjectStatus.Active;
     const isEditableStatus = isInactive || isActive;
-    const canEdit = !permissionReadOnly && !isArchived && (isAdmin || isEditableStatus);
+    const canEdit = !permissionReadOnly && !isArchived && (isAdmin || isLabDirector) && isEditableStatus;
 
     // End date required before changing status
     const hasNoEndDate = !formData.endDate;
@@ -310,20 +297,14 @@ const DetailsSettings: React.FC<DetailsSettingsProps> = ({
                         </h4>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                             <div className="form-group">
-                                <label className="form-label" style={{ fontSize: '0.75rem', color: isStartDateAfterMilestone ? '#dc2626' : 'inherit' }}>Start Date</label>
-                                <input className="form-input" type="date" name="startDate" value={formData.startDate} onChange={handleInputChange} disabled={isReadOnly} min={todayStr} style={{ fontSize: '0.9rem', borderColor: isStartDateAfterMilestone ? '#dc2626' : '' }} />
-                                {isStartDateAfterMilestone && (
-                                    <p style={{ fontSize: '0.75rem', fontWeight: 600, color: '#dc2626', marginTop: '4px' }}>
-                                        Start date cannot be after earliest milestone ({earliestMilestoneStartDate!.split('T')[0]})
-                                    </p>
-                                )}
+                                <label className="form-label" style={{ fontSize: '0.75rem' }}>Start Date</label>
+                                <input className="form-input" type="date" name="startDate" value={formData.startDate} onChange={handleInputChange} disabled={isReadOnly} min={todayStr} style={{ fontSize: '0.9rem' }} />
                             </div>
                             <div className="form-group">
-                                <label className="form-label" style={{ fontSize: '0.75rem', color: (isDateInvalid || isEndDateInPast || isEndDateBeforeMilestone) ? '#dc2626' : 'inherit' }}>End Date</label>
-                                <input className="form-input" type="date" name="endDate" value={formData.endDate} onChange={handleInputChange} disabled={isReadOnly} min={todayStr} style={{ fontSize: '0.9rem', borderColor: (isDateInvalid || isEndDateInPast || isEndDateBeforeMilestone) ? '#dc2626' : '' }} />
+                                <label className="form-label" style={{ fontSize: '0.75rem', color: (isDateInvalid || isEndDateBeforeMilestone) ? '#dc2626' : 'inherit' }}>End Date</label>
+                                <input className="form-input" type="date" name="endDate" value={formData.endDate} onChange={handleInputChange} disabled={isReadOnly} min={todayStr} style={{ fontSize: '0.9rem', borderColor: (isDateInvalid || isEndDateBeforeMilestone) ? '#dc2626' : '' }} />
                                 {isDateInvalid && <p style={{ fontSize: '0.75rem', fontWeight: 600, color: '#dc2626', marginTop: '4px' }}>Cannot end before start date</p>}
-                                {!isDateInvalid && isEndDateInPast && <p style={{ fontSize: '0.75rem', fontWeight: 600, color: '#dc2626', marginTop: '4px' }}>End date cannot be in the past</p>}
-                                {!isDateInvalid && !isEndDateInPast && isEndDateBeforeMilestone && (
+                                {!isDateInvalid && isEndDateBeforeMilestone && (
                                     <p style={{ fontSize: '0.75rem', fontWeight: 600, color: '#dc2626', marginTop: '4px' }}>
                                         Cannot end before latest milestone ({latestMilestoneDueDate!.split('T')[0]})
                                     </p>
@@ -475,13 +456,13 @@ const DetailsSettings: React.FC<DetailsSettingsProps> = ({
                             onClick={onSave}
                                 className="btn btn-primary"
                                 style={{ height: '36px', padding: '0 20px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}
-                                disabled={submitting || isDateInvalid || isStartDateInPast || isEndDateInPast || isEndDateBeforeMilestone || isStartDateAfterMilestone || isProjectNameInvalid}
+                                disabled={submitting || isDateInvalid || isEndDateBeforeMilestone || isProjectNameInvalid}
                             >
                                 {submitting ? <div className="loader-sm" /> : <Save size={16} />}
                                 Save Changes
                             </button>
                         )}
-                        {canDeleteProject && (isAdmin || isInactive || isActive) && !isArchived && (
+                        {canDeleteProject && isInactive && (
                             <button
                                 onClick={() => setIsDeleteConfirmOpen(true)}
                                 className="btn"

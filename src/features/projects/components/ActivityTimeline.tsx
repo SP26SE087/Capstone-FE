@@ -343,10 +343,17 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
         const duePctGlobal = task.dueDate ? getPositionPercent(task.dueDate) : null;
         const lineOriginDate: string | null = task.createdAt || (sortedLogs.length > 0 ? sortedLogs[0].createdAt : null) || timelineRange.start.toISOString();
 
+        const assigneeMember = task.memberId
+            ? localMembers.find(m => m.membershipId === task.memberId || m.userId === task.memberId || m.id === task.memberId)
+            : null;
+        const primaryMember = task.member || assigneeMember;
+        const avatarSrc = primaryMember?.avatarUrl || primaryMember?.AvatarUrl || primaryMember?.avatar;
+        const avatarInitials = (primaryMember?.fullName || primaryMember?.userName || '')[0]?.toUpperCase();
+
         return (
             <div style={{ display: 'flex', minHeight: '65px', alignItems: 'center', position: 'relative', width: '100%', borderBottom: '1px solid #f8fafc' }}>
                 {/* Zero-width sticky wrapper — overlays timeline without pushing it */}
-                <div style={{ position: 'sticky', left: 0, width: 0, flexShrink: 0, zIndex: 20, alignSelf: 'center' }}>
+                <div style={{ position: 'sticky', left: 0, width: 0, flexShrink: 0, zIndex: 35, alignSelf: 'center' }}>
                     <button
                         onClick={() => handleTaskClick(task.taskId || (task as any).id)}
                         onMouseEnter={() => setIsHovered(true)}
@@ -357,19 +364,25 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
                             top: '10px',
                             transform: 'translateY(-50%)',
                             width: '180px',
-                            padding: '3px 10px',
+                            padding: '3px 8px',
                             background: isHovered ? '#f0f9ff' : 'white',
                             border: `1px solid ${isHovered ? 'var(--primary-color)' : '#e2e8f0'}`,
                             borderRadius: '7px',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '6px',
+                            gap: '5px',
                             cursor: 'pointer',
                             transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
                             boxShadow: isHovered ? '0 6px 14px rgba(0,0,0,0.06)' : '0 2px 4px rgba(0,0,0,0.03)',
                             outline: 'none',
                         }}
                     >
+                        {avatarInitials && (
+                            <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: 'var(--accent-bg)', border: '1px solid #e2e8f0', flexShrink: 0, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                                <span style={{ fontSize: '0.45rem', fontWeight: 800, color: 'var(--primary-color)', lineHeight: 1 }}>{avatarInitials}</span>
+                                {avatarSrc && <img src={avatarSrc} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { e.currentTarget.style.display = 'none'; }} />}
+                            </div>
+                        )}
                         <span style={{ fontSize: '0.7rem', fontWeight: 800, color: isHovered ? 'var(--primary-color)' : '#1e293b', whiteSpace: 'nowrap', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'left' }}>
                             {task.name}
                         </span>
@@ -497,6 +510,18 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
                                     <button onClick={() => setTimelineMode('member')} style={{ padding: '4px 10px', borderRadius: '6px', border: 'none', fontSize: '0.65rem', fontWeight: 700, cursor: 'pointer', background: timelineMode === 'member' ? 'white' : 'transparent', color: timelineMode === 'member' ? 'var(--primary-color)' : '#64748b' }}>By Member</button>
                                 </div>
                             )}
+                            {timelineMode === 'member' && (() => {
+                                const sel = localMembers.find(m => resolveMemberId(m) === selectedMemberId);
+                                const src = sel?.avatarUrl || sel?.AvatarUrl || sel?.avatar;
+                                const initials = (sel?.fullName || sel?.userName || '')[0]?.toUpperCase();
+                                if (!initials) return null;
+                                return (
+                                    <div style={{ width: '28px', height: '28px', borderRadius: '50%', flexShrink: 0, position: 'relative', overflow: 'hidden', background: 'var(--accent-bg)', border: '2px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <span style={{ fontSize: '0.6rem', fontWeight: 800, color: 'var(--primary-color)' }}>{initials}</span>
+                                        {src && <img src={src} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { e.currentTarget.style.display = 'none'; }} />}
+                                    </div>
+                                );
+                            })()}
                             <div style={{ minWidth: '180px' }}>
                                 <AppSelect
                                     size="sm"
@@ -504,7 +529,12 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
                                     onChange={val => timelineMode === 'milestone' ? setSelectedMilestoneId(val) : setSelectedMemberId(val)}
                                     options={timelineMode === 'milestone'
                                         ? milestones.map(m => ({ value: resolveMilestoneId(m), label: m.name || (m as any).title }))
-                                        : localMembers.map(m => ({ value: resolveMemberId(m), label: m.fullName || m.userName }))
+                                        : localMembers.map(m => ({
+                                            value: resolveMemberId(m),
+                                            label: m.fullName || m.userName,
+                                            image: m.avatarUrl || m.AvatarUrl || m.avatar,
+                                            initials: (m.fullName || m.userName || '')[0]?.toUpperCase(),
+                                        }))
                                     }
                                 />
                             </div>
@@ -556,7 +586,17 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
                                 <div style={{ flex: 1 }}>
                                     <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: '#1e293b', lineHeight: 1.4 }}>{selectedDetailTask.details?.name}</h4>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px' }}>
-                                        <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: 'var(--primary-color)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 800 }}>{(selectedDetailTask.details?.member?.fullName || 'U')[0]}</div>
+                                        {(() => {
+                                            const m = selectedDetailTask.details?.member;
+                                            const src = m?.avatarUrl || m?.AvatarUrl || m?.avatar;
+                                            const initials = (m?.fullName || 'U')[0];
+                                            return (
+                                                <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: 'var(--primary-color)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', fontWeight: 800, position: 'relative', overflow: 'hidden', flexShrink: 0 }}>
+                                                    {initials}
+                                                    {src && <img src={src} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { e.currentTarget.style.display = 'none'; }} />}
+                                                </div>
+                                            );
+                                        })()}
                                         <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b' }}>{selectedDetailTask.details?.member?.fullName || 'Unassigned'}</span>
                                     </div>
                                 </div>

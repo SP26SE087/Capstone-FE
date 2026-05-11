@@ -4,6 +4,8 @@ import Select, { StylesConfig, GroupBase } from 'react-select';
 export interface SelectOption {
     value: string | number;
     label: string;
+    image?: string;
+    initials?: string;
 }
 
 type AppSelectVariant = 'default' | 'scheduleFilter';
@@ -72,6 +74,10 @@ const buildStyles = (size: 'sm' | 'md', variant: AppSelectVariant): StylesConfig
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
+        }),
+        menuPortal: (base) => ({
+            ...base,
+            zIndex: 9999,
         }),
         menu: (base) => ({
             ...base,
@@ -161,6 +167,18 @@ const buildStyles = (size: 'sm' | 'md', variant: AppSelectVariant): StylesConfig
     };
 };
 
+const AvatarLabel = ({ image, initials, label }: { image?: string; initials?: string; label: string }) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+        {(image || initials) && (
+            <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: 'var(--accent-bg, #fff7ed)', border: '1px solid #e2e8f0', flexShrink: 0, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                {initials && <span style={{ fontSize: '0.5rem', fontWeight: 800, color: 'var(--primary-color, #e8720c)', lineHeight: 1 }}>{initials}</span>}
+                {image && <img src={image} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />}
+            </div>
+        )}
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+    </div>
+);
+
 const AppSelect: React.FC<AppSelectProps> = ({
     value,
     onChange,
@@ -175,6 +193,7 @@ const AppSelect: React.FC<AppSelectProps> = ({
     className,
 }) => {
     const selected = options.find(o => String(o.value) === String(value ?? '')) ?? null;
+    const hasImages = options.some(o => o.image || o.initials);
 
     return (
         <Select<SelectOption>
@@ -192,6 +211,11 @@ const AppSelect: React.FC<AppSelectProps> = ({
             menuPortalTarget={document.body}
             menuPosition="fixed"
             noOptionsMessage={() => 'No options'}
+            formatOptionLabel={hasImages ? (opt, { context }) =>
+                context === 'menu'
+                    ? <AvatarLabel image={opt.image} initials={opt.initials} label={opt.label} />
+                    : <>{opt.label}</>
+                : undefined}
         />
     );
 };

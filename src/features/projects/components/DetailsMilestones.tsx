@@ -1080,19 +1080,7 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                             <option value={MilestoneStatus.InProgress}>In Progress</option>
                             <option value={MilestoneStatus.Completed}>Done</option>
                         </select>
-                        <button
-                            onClick={async () => {
-                                if (!refreshMilestones) return;
-                                setRefreshingMilestones(true);
-                                try { await refreshMilestones(); } finally { setRefreshingMilestones(false); }
-                            }}
-                            disabled={refreshingMilestones}
-                            title="Refresh milestones"
-                            style={{ padding: '0.5rem 0.75rem', borderRadius: '8px', border: '1px solid #e2e8f0', background: 'white', cursor: refreshingMilestones ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '6px', color: '#64748b', opacity: refreshingMilestones ? 0.6 : 1, flexShrink: 0, fontSize: '0.78rem', fontWeight: 600 }}
-                        >
-                            <RotateCcw size={13} className={refreshingMilestones ? 'animate-spin' : ''} />
-                            Refresh
-                        </button>
+
                     </div>
                     <div ref={milestoneContainerRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem' }} className="custom-scrollbar">
                         {[...filteredMilestones].sort((a, b) => {

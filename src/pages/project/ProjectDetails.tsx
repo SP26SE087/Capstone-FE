@@ -534,7 +534,8 @@ const ProjectDetails: React.FC = () => {
     const canManageMilestones = !isArchived && (isAdmin || (Number(projectRoleValue) === ProjectRoleEnum.LabDirector));
     const canAddTask = !isArchived && (isAdmin || [ProjectRoleEnum.Leader, ProjectRoleEnum.LabDirector].includes(Number(projectRoleValue)));
     const isReadOnly = isArchived || !canManageProject;
-    const canDeleteProject = isAdmin || (Number(projectRoleValue) === ProjectRoleEnum.LabDirector);
+    const isLabDirector = Number(projectRoleValue) === ProjectRoleEnum.LabDirector;
+    const canDeleteProject = isAdmin || isLabDirector;
 
     // Filtered data
     const filteredTasks = tasks.filter(t => {
@@ -871,6 +872,7 @@ const ProjectDetails: React.FC = () => {
                                 submitting={submitting}
                                 canDeleteProject={canDeleteProject}
                                 setIsDeleteConfirmOpen={setIsDeleteConfirmOpen}
+                                isLabDirector={isLabDirector}
                                 customFields={formData.customFields}
                                 onCustomFieldsChange={(fields) => setFormData(prev => ({ ...prev, customFields: fields }))}
                                 latestMilestoneDueDate={
