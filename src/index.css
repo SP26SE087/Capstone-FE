@@ -1271,6 +1271,11 @@ a:hover {
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes notiSlideIn {
+  from { opacity: 0; transform: translateY(-10px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)     scale(1); }
+}
+
 .um-form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr auto;

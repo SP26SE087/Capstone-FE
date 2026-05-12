@@ -16,6 +16,7 @@ interface DetailsMembersProps {
     currentProjectRole?: number;
     currentUserMemberStatus?: number;
     currentUser: any;
+    projectOwnerId?: string;
     onMemberAdded: () => void;
     onMemberUpdated: () => void;
     onMembersRefresh?: () => Promise<void>;
@@ -60,6 +61,7 @@ const DetailsMembers: React.FC<DetailsMembersProps> = ({
     currentProjectRole,
     currentUserMemberStatus,
     currentUser,
+    projectOwnerId,
     onMemberAdded,
     onMemberUpdated,
     onMembersRefresh,
@@ -313,6 +315,7 @@ const DetailsMembers: React.FC<DetailsMembersProps> = ({
                         currentUserProjectRole={currentProjectRole}
                         currentUserMemberStatus={currentUserMemberStatus}
                         canManage={canManageProject}
+                        projectOwnerId={projectOwnerId}
                         onSuccess={() => {
                             onMemberUpdated();
                             setSelectedMember(null);

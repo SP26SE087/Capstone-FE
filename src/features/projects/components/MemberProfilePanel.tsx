@@ -17,6 +17,7 @@ interface MemberProfilePanelProps {
     currentUserProjectRole?: number;
     currentUserMemberStatus?: number;
     canManage: boolean;
+    projectOwnerId?: string;
     onSuccess: () => void;
     onClose: () => void;
 }
@@ -55,6 +56,7 @@ const MemberProfilePanel: React.FC<MemberProfilePanelProps> = ({
     currentUserProjectRole,
     currentUserMemberStatus,
     canManage,
+    projectOwnerId,
     onSuccess,
     onClose,
 }) => {
@@ -194,6 +196,7 @@ const MemberProfilePanel: React.FC<MemberProfilePanelProps> = ({
     const isAdmin = currentUser && (Number(currentUser.role) === 1 || currentUser.role === 'Admin');
     const isCurrentUserLD = Number(currentUserProjectRole) === ProjectRoleEnum.LabDirector;
     const isCurrentUserLeader = Number(currentUserProjectRole) === ProjectRoleEnum.Leader;
+    const isCurrentUserOwner = !!projectOwnerId && currentUser?.userId === projectOwnerId;
     // Current user must be Active in the project to perform any admin action
     const isCurrentUserActiveInProject =
         currentUserMemberStatus === undefined || currentUserMemberStatus === MemberStatus.Active;
@@ -208,16 +211,23 @@ const MemberProfilePanel: React.FC<MemberProfilePanelProps> = ({
         member.projectRoleName === 'Leader' ||
         Number(projectDetails?.projectRole) === ProjectRoleEnum.Leader;
 
+    // Project owner (LD who created the project) cannot be removed by anyone
+    const isTargetOwner = !!projectOwnerId && member.userId === projectOwnerId;
+
     const canEdit =
         canManage &&
         !isSelf &&
         isCurrentUserActiveInProject &&
         (isAdmin ||
-            (isCurrentUserLD && !isTargetLabDirector) ||
+            // Project owner LD can edit all other members including other LDs
+            (isCurrentUserLD && isCurrentUserOwner && !isTargetOwner) ||
+            // Regular LD can edit non-LD members
+            (isCurrentUserLD && !isCurrentUserOwner && !isTargetLabDirector) ||
             (isCurrentUserLeader && !isTargetLabDirector && !isTargetLeader));
 
-    // Lab Director can be removed by Admin or any other Lab Director (not self)
+    // Project owner cannot be removed; Admin or any LD can remove others
     const canRemove =
+        !isTargetOwner &&
         canManage &&
         !isSelf &&
         isCurrentUserActiveInProject &&
@@ -413,6 +423,19 @@ const MemberProfilePanel: React.FC<MemberProfilePanelProps> = ({
                             <User size={11} /> Your Profile
                         </div>
                     )}
+                    {isTargetOwner && (
+                        <div style={{
+                            marginTop: '0.5rem',
+                            padding: '4px 10px',
+                            background: '#fdf4ff',
+                            borderRadius: '8px',
+                            border: '1px solid #e9d5ff',
+                            display: 'flex', alignItems: 'center', gap: '5px',
+                            color: '#7c3aed', fontSize: '0.68rem', fontWeight: 700,
+                        }}>
+                            <Shield size={11} /> Project Owner
+                        </div>
+                    )}
                 </div>
 
                 {/* Info rows */}
@@ -557,7 +580,7 @@ const MemberProfilePanel: React.FC<MemberProfilePanelProps> = ({
                 )}
 
                 {/* Remove member */}
-                {canRemove && (
+                {canRemove ? (
                     <>
                         <div style={{ height: '1px', background: '#f1f5f9', margin: '0.75rem 1.25rem 0' }} />
                         <div style={{ padding: '0.75rem 1.25rem 1.25rem' }}>
@@ -630,7 +653,23 @@ const MemberProfilePanel: React.FC<MemberProfilePanelProps> = ({
                             )}
                         </div>
                     </>
-                )}
+                ) : isTargetOwner && (isAdmin || isCurrentUserLD) && !isSelf ? (
+                    <>
+                        <div style={{ height: '1px', background: '#f1f5f9', margin: '0.75rem 1.25rem 0' }} />
+                        <div style={{ padding: '0.75rem 1.25rem 1.25rem' }}>
+                            <div style={{
+                                width: '100%', padding: '9px',
+                                background: '#f8fafc', color: '#94a3b8',
+                                border: '1.5px solid #e2e8f0', borderRadius: '10px',
+                                fontWeight: 600, fontSize: '0.8rem',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px',
+                                cursor: 'not-allowed',
+                            }}>
+                                <Shield size={14} /> Project Owner — cannot be removed
+                            </div>
+                        </div>
+                    </>
+                ) : null}
             </div>
 
             <style>{`

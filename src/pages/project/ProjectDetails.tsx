@@ -804,6 +804,7 @@ const ProjectDetails: React.FC = () => {
                                 currentProjectRole={Number(projectRoleValue)}
                                 currentUserMemberStatus={currentMemberStatus}
                                 currentUser={currentUser}
+                                projectOwnerId={project?.createdBy}
                                 isArchived={isArchived}
                                 onMemberAdded={refetchMembers}
                                 onMemberUpdated={() => { refetchMembers(); showToast('Team updated.'); }}
