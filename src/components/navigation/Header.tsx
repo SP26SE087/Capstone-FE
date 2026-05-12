@@ -1,9 +1,11 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Bell, LogIn, LogOut, UserCircle, FlaskConical, CheckCheck, Trash2, X } from 'lucide-react';
+import { Bell, LogIn, LogOut, UserCircle, FlaskConical, CheckCheck, Trash2, X, Forward } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { SystemRoleMap } from '@/types/enums';
+import { SystemRoleMap, SystemRoleEnum } from '@/types/enums';
 import { notificationService, Notification } from '@/services/notificationService';
+import ForwardToMemberModal from './ForwardToMemberModal';
+import * as signalR from '@microsoft/signalr';
 
 const Header: React.FC = () => {
     const navigate = useNavigate();
@@ -17,6 +19,14 @@ const Header: React.FC = () => {
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [notiLoading, setNotiLoading] = useState(false);
+
+    // Forward-to-member modal state
+    const [forwardNotif, setForwardNotif] = useState<Notification | null>(null);
+
+    const isDirectorOrAdmin = isAuthenticated && (
+        Number(user?.role) === SystemRoleEnum.LabDirector ||
+        Number(user?.role) === SystemRoleEnum.Admin
+    );
 
     const fetchUnreadCount = useCallback(async () => {
         try {
@@ -45,6 +55,31 @@ const Header: React.FC = () => {
         const interval = setInterval(fetchUnreadCount, 60000);
         return () => clearInterval(interval);
     }, [isAuthenticated, fetchUnreadCount]);
+
+    // ── SignalR real-time push ────────────────────────────────────────────────
+    useEffect(() => {
+        if (!isAuthenticated) return;
+        const token = localStorage.getItem('token') || sessionStorage.getItem('token') || '';
+        if (!token) return;
+
+        const apiBase = (import.meta.env.VITE_API_BASE_URL as string || 'https://api.labsyncs.com').replace(/\/$/, '');
+        const connection = new signalR.HubConnectionBuilder()
+            .withUrl(`${apiBase}/hubs/notifications`, {
+                accessTokenFactory: () => token,
+            })
+            .withAutomaticReconnect()
+            .configureLogging(signalR.LogLevel.Warning)
+            .build();
+
+        connection.on('notificationCreated', (notif: Notification) => {
+            setNotifications(prev => [notif, ...prev]);
+            setUnreadCount(prev => prev + 1);
+        });
+
+        connection.start().catch(() => { /* silently fail — polling is fallback */ });
+
+        return () => { connection.stop(); };
+    }, [isAuthenticated]);
 
     const handleOpenNoti = () => {
         const next = !showNotiPanel;
@@ -96,6 +131,7 @@ const Header: React.FC = () => {
     };
 
     return (
+        <>
         <header className="top-header">
             <div className="header-left">
                 <Link to="/dashboard" className="header-brand-link" style={{ textDecoration: 'none' }}>
@@ -174,12 +210,33 @@ const Header: React.FC = () => {
                                                 background: noti.isRead ? 'transparent' : 'var(--accent-bg, rgba(99,102,241,0.06))',
                                                 display: 'flex', gap: '10px', alignItems: 'flex-start',
                                             }}>
+                                                {/* Thumbnail for camera unknown detections */}
+                                                {noti.imageUrl && (
+                                                    <img
+                                                        src={noti.imageUrl}
+                                                        alt="detection"
+                                                        style={{ width: 44, height: 44, borderRadius: 6, objectFit: 'cover', flexShrink: 0, border: '1px solid var(--border-color)' }}
+                                                    />
+                                                )}
                                                 <div style={{ flex: 1, minWidth: 0 }}>
                                                     {noti.title && <p style={{ margin: 0, fontSize: '0.82rem', fontWeight: noti.isRead ? 400 : 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{noti.title}</p>}
                                                     <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: noti.title ? '2px' : 0 }}>{noti.message}</p>
+                                                    {noti.location && (
+                                                        <p style={{ margin: '2px 0 0', fontSize: '0.72rem', color: 'var(--accent-color)', fontWeight: 500 }}>📍 {noti.location}</p>
+                                                    )}
                                                     <p style={{ margin: '4px 0 0', fontSize: '0.72rem', color: 'var(--text-muted)' }}>{new Date(noti.createdAtUtc).toLocaleString('en-GB')}</p>
                                                 </div>
-                                                <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flexShrink: 0 }}>
+                                                    {/* Forward button — only for type 8 (CameraUnknownDetected), directors/admins only */}
+                                                    {noti.type === 8 && noti.imageUrl && isDirectorOrAdmin && (
+                                                        <button
+                                                            onClick={() => { setForwardNotif(noti); setShowNotiPanel(false); }}
+                                                            title="Forward to a member"
+                                                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#f59e0b', padding: '2px', borderRadius: '4px', display: 'flex', alignItems: 'center' }}
+                                                        >
+                                                            <Forward size={14} />
+                                                        </button>
+                                                    )}
                                                     {!noti.isRead && (
                                                         <button onClick={() => handleMarkAsRead(noti.id)} title="Mark as read" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent-color)', padding: '2px', borderRadius: '4px' }}>
                                                             <CheckCheck size={14} />
@@ -276,6 +333,19 @@ const Header: React.FC = () => {
                 )}
             </div>
         </header>
+
+        {/* Forward-to-member modal */}
+        {forwardNotif && forwardNotif.imageUrl && (
+            <ForwardToMemberModal
+                isOpen={true}
+                imageUrl={forwardNotif.imageUrl}
+                onClose={() => setForwardNotif(null)}
+                onForwarded={(_name) => {
+                    setForwardNotif(null);
+                }}
+            />
+        )}
+        </>
     );
 };
 

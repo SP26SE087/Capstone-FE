@@ -10,6 +10,8 @@ export interface Notification {
     readAtUtc?: string | null;
     referenceId?: string;
     referenceType?: string;
+    imageUrl?: string | null;
+    location?: string | null;
 }
 
 export interface NotificationListResponse {

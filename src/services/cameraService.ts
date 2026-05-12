@@ -227,3 +227,18 @@ export const cameraService = {
     return parseResponseOrThrow<{ message?: string }>(res, 'Failed to sync visitors');
   },
 };
+
+// ── Forward-to-member (uses LabSync main API, not camera server) ──────────────
+import api from './api';
+
+export interface ForwardToMemberPayload {
+  memberId: string;
+  imageUrl: string;
+  message?: string;
+}
+
+export const cameraMainService = {
+  forwardToMember: async (payload: ForwardToMemberPayload): Promise<void> => {
+    await api.post('/api/camera/forward-to-member', payload);
+  },
+};

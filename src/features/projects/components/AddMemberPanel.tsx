@@ -113,6 +113,8 @@ const AddMemberPanel: React.FC<AddMemberPanelProps> = ({
         );
     });
 
+    const selectedUserIsLabDirector = selectedUser && Number(selectedUser.role) === 2;
+
     const visibleRoles = roles.filter(role => {
         const roleId = Number(role.id);
         const isLD = role.name === 'Lab Director' || roleId === ProjectRoleEnum.LabDirector;
@@ -120,6 +122,8 @@ const AddMemberPanel: React.FC<AddMemberPanelProps> = ({
         const isSenior = role.name === 'Senior Researcher' || roleId === ProjectRoleEnum.SeniorResearcher;
         const isMember = role.name === 'Member' || roleId === ProjectRoleEnum.Member;
 
+        // If selected user is a Lab Director (system role), always lock to Lab Director project role
+        if (selectedUserIsLabDirector) return isLD;
         if (!hasLeader) return isLeader;
         if (isAdmin) return true;
         if (isLD) return false;
@@ -148,7 +152,11 @@ const AddMemberPanel: React.FC<AddMemberPanelProps> = ({
     const handleSelectUser = (user: any) => {
         setSelectedUser(user);
         setError(null);
-        if (!hasLeader) {
+        // Lab Director system role → always lock to Lab Director project role
+        if (Number(user.role) === 2) {
+            const ldRole = roles.find(r => r.name === 'Lab Director' || Number(r.id) === ProjectRoleEnum.LabDirector);
+            if (ldRole) setSelectedRoleId(ldRole.id);
+        } else if (!hasLeader) {
             const leaderRole = roles.find(r => r.name === 'Leader' || Number(r.id) === ProjectRoleEnum.Leader);
             if (leaderRole) setSelectedRoleId(leaderRole.id);
         } else {

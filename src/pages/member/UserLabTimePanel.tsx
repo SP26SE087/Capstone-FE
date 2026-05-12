@@ -9,8 +9,8 @@ interface UserLabTimePanelProps {
 }
 
 const UserLabTimePanel: React.FC<UserLabTimePanelProps> = ({ userId, userName, onClose }) => {
-    const [period, setPeriod] = useState<'day' | 'week' | 'month'>('day');
-    const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+    const [period, setPeriod] = useState<'day' | 'week' | 'month'>('month');
+    const [date, setDate] = useState(() => `${new Date().toISOString().slice(0, 7)}-01`);
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -77,6 +77,23 @@ const UserLabTimePanel: React.FC<UserLabTimePanelProps> = ({ userId, userName, o
     };
 
     useEffect(() => {
+        const initialFetch = async () => {
+            setLoading(true);
+            setError(null);
+            try {
+                const monthDate = `${new Date().toISOString().slice(0, 7)}-01`;
+                const result = await userService.getLabTime(userId, 'month', monthDate);
+                setData(result);
+            } catch {
+                setError('Failed to load lab time data.');
+            } finally {
+                setLoading(false);
+            }
+        };
+        initialFetch();
+    }, [userId]);
+
+    useEffect(() => {
         return () => {
             if (fetchLockTimerRef.current !== null) {
                 window.clearTimeout(fetchLockTimerRef.current);
@@ -84,8 +101,13 @@ const UserLabTimePanel: React.FC<UserLabTimePanelProps> = ({ userId, userName, o
         };
     }, []);
 
-    const fmtTime = (iso: string) =>
-        iso ? new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
+    const fmtDateTime = (iso: string) => {
+        if (!iso) return '—';
+        const d = new Date(iso);
+        const dateStr = d.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit' });
+        const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        return `${dateStr} ${timeStr}`;
+    };
 
     const totalHours = Number(data?.totalHours ?? 0).toFixed(1);
     const sessionCount = data?.sessions?.length ?? 0;
@@ -294,14 +316,18 @@ const UserLabTimePanel: React.FC<UserLabTimePanelProps> = ({ userId, userName, o
                                             {data.sessions.map((s: any, i: number) => (
                                                 <tr key={i} style={{ borderBottom: '1px solid var(--border-light)' }}>
                                                     <td style={{ padding: '7px 10px', color: 'var(--text-muted)', fontWeight: 600 }}>{i + 1}</td>
-                                                    <td style={{ padding: '7px 10px' }}>{fmtTime(s.checkIn)}</td>
+                                                    <td style={{ padding: '7px 10px' }}>{fmtDateTime(s.checkIn)}</td>
                                                     <td style={{ padding: '7px 10px' }}>
                                                         {s.checkOut
-                                                            ? fmtTime(s.checkOut)
+                                                            ? fmtDateTime(s.checkOut)
                                                             : <span style={{ color: '#16a34a', fontWeight: 600 }}>Active</span>}
                                                     </td>
                                                     <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 600 }}>
-                                                        {s.durationMinutes != null ? `${Math.round(s.durationMinutes)} min` : '—'}
+                                                        {s.durationMinutes != null ? (() => {
+                                                            const h = Math.floor(s.durationMinutes / 60);
+                                                            const m = Math.round(s.durationMinutes % 60);
+                                                            return h > 0 ? `${h}h ${m}m` : `${m}m`;
+                                                        })() : '—'}
                                                     </td>
                                                     <td style={{ padding: '7px 10px', textAlign: 'center' }}>
                                                         {s.isInferred

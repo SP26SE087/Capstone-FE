@@ -202,4 +202,18 @@ export const userService = {
         const res = await api.get(`/api/users/${userId}/lab-time/range?${params}`);
         return res.data.data ?? res.data;
     },
+
+    getInLabUsers: async (hoursWindow = 12): Promise<InLabUser[]> => {
+        const res = await api.get('/api/users/in-lab', { params: { hoursWindow } });
+        const data = res.data.data ?? res.data;
+        return Array.isArray(data) ? data : [];
+    },
 };
+
+export interface InLabUser {
+    userId: string;
+    fullName: string;
+    email: string;
+    studentId?: string;
+    checkedInAt: string;
+}

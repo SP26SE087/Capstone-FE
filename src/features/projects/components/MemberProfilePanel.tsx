@@ -216,6 +216,13 @@ const MemberProfilePanel: React.FC<MemberProfilePanelProps> = ({
             (isCurrentUserLD && !isTargetLabDirector) ||
             (isCurrentUserLeader && !isTargetLabDirector && !isTargetLeader));
 
+    // Lab Director can be removed by Admin or any other Lab Director (not self)
+    const canRemove =
+        canManage &&
+        !isSelf &&
+        isCurrentUserActiveInProject &&
+        (isAdmin || isCurrentUserLD);
+
     // Status transition matrix:
     // Admin (system):        Active ↔ Inactive only — cannot ban or unban
     // Lab Director (project): Full control — Active↔Inactive, ban, unban
@@ -318,7 +325,7 @@ const MemberProfilePanel: React.FC<MemberProfilePanelProps> = ({
                 </div>
             </div>
 
-            <div style={{ overflowY: 'auto', flex: 1 }} className="custom-scrollbar">
+            <div style={{ overflowY: 'auto', flex: 1, paddingBottom: canRemove ? 0 : '1.25rem' }} className="custom-scrollbar">
                 {/* Avatar + identity */}
                 <div style={{
                     padding: '1rem 1rem 0.75rem',
@@ -550,7 +557,7 @@ const MemberProfilePanel: React.FC<MemberProfilePanelProps> = ({
                 )}
 
                 {/* Remove member */}
-                {canEdit && (
+                {canRemove && (
                     <>
                         <div style={{ height: '1px', background: '#f1f5f9', margin: '0.75rem 1.25rem 0' }} />
                         <div style={{ padding: '0.75rem 1.25rem 1.25rem' }}>
