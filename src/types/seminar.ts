@@ -40,18 +40,19 @@ export interface RecurringSeminarResponse {
     presenterRotation: PresenterInfo[] | null;
 }
 
-export interface CreateRecurringSeminarRequest {
-    title: string | null;
-    description: string | null;
-    firstSessionStartTime: string;
+export interface SeminarSlot {
+    dayOfWeek: number; // 0 = Sun, 1 = Mon, 2 = Tue, 3 = Wed, 4 = Thu, 5 = Fri, 6 = Sat
+    startTime: string; // "HH:mm"
     durationMinutes: number;
+}
+
+export interface CreateRecurringSeminarRequest {
+    title: string;
+    description: string | null;
+    seriesStartDate: string; // "YYYY-MM-DD"
     numberOfWeeks: number;
-    dayOfWeek: DateOfWeek;
-    projectId: string | null;
+    slots: SeminarSlot[];
     presenters: PresenterInfo[] | null;
-    additionalAttendeeEmails: string[] | null;
-    location: string | null;
-    weeklyTopics: string[] | null;
 }
 
 export interface SeminarPresenter {

@@ -1,19 +1,16 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import ReactDOM from 'react-dom';
-import { CreateRecurringSeminarRequest, DateOfWeek } from '@/types/seminar';
+import { CreateRecurringSeminarRequest, SeminarSlot } from '@/types/seminar';
 import { PresenterInfo } from '@/types/meeting';
 import seminarService from '@/services/seminarService';
 import { userService, membershipService } from '@/services';
 import { useToastStore } from '@/store/slices/toastSlice';
-import DateTimePicker from '@/components/common/DateTimePicker';
 import {
     Save,
     Loader2,
     Calendar,
     Clock,
-    MapPin,
     Users,
-    FileText,
     Plus,
     X,
     Presentation,
@@ -23,7 +20,6 @@ import {
     Check,
     AlertCircle
 } from 'lucide-react';
-import AttendeeSelector, { SelectedAttendee } from '@/components/common/AttendeeSelector';
 import { validateTextField } from '@/utils/validation';
 
 interface CreateSeminarFormProps {
@@ -68,12 +64,8 @@ const sectionStyle: React.CSSProperties = {
 
 const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-// Get current datetime string for min attribute
-const getMinDatetime = () => {
-    const now = new Date();
-    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-    return now.toISOString().slice(0, 16);
-};
+// Get current date string for min attribute (date only)
+const getMinDate = () => new Date().toISOString().split('T')[0];
 
 const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
     onClose,
@@ -83,20 +75,21 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
 }) => {
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
-    const [dateError, setDateError] = useState('');
-    const [fieldErrors, setFieldErrors] = useState<{ title?: string; description?: string; location?: string }>({});
+    const [seriesDateError, setSeriesDateError] = useState('');
+    const [fieldErrors, setFieldErrors] = useState<{ title?: string; description?: string }>({});
     const { addToast } = useToastStore();
 
     // Core
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
-    const [firstSessionStartTime, setFirstSessionStartTime] = useState('');
-    const [durationMinutes, setDurationMinutes] = useState(60);
+    const [seriesStartDate, setSeriesStartDate] = useState('');
     const [numberOfWeeks, setNumberOfWeeks] = useState(10);
-    const [dayOfWeek, setDayOfWeek] = useState<DateOfWeek>(DateOfWeek.Monday);
-    const [projectId, setProjectId] = useState('');
-    const [location, setLocation] = useState('');
-    const [selectedAttendees, setSelectedAttendees] = useState<SelectedAttendee[]>([]);
+    const [slots, setSlots] = useState<SeminarSlot[]>([
+        { dayOfWeek: 1, startTime: '09:00', durationMinutes: 60 },
+    ]);
+
+    // Derived
+    const totalMeetings = slots.length * numberOfWeeks;
 
     // Presenters
     const [presenters, setPresenters] = useState<PresenterInfo[]>([]);
@@ -111,9 +104,8 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
     const [presenterProjectLoading, setPresenterProjectLoading] = useState(false);
     const [presenterManualInputs, setPresenterManualInputs] = useState<string[]>(['']);
 
-    // Modal state for participant pickers
+    // Modal state for presenter picker
     const [showPresenterModal, setShowPresenterModal] = useState(false);
-    const [showAttendeeModal, setShowAttendeeModal] = useState(false);
 
     // Load project members when presenter project changes
     useEffect(() => {
@@ -142,15 +134,13 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
     }, []);
 
     const filteredPresenterUsers = useMemo(() => {
-        const attendeeEmails = new Set(selectedAttendees.map(a => a.email.toLowerCase()));
-        const base = allUsers.filter(u => !attendeeEmails.has((u.email || '').toLowerCase()));
-        if (!presenterSearch.trim()) return base;
+        if (!presenterSearch.trim()) return allUsers;
         const q = presenterSearch.toLowerCase();
-        return base.filter(u =>
+        return allUsers.filter(u =>
             (u.fullName || '').toLowerCase().includes(q) ||
             (u.email || '').toLowerCase().includes(q)
         );
-    }, [allUsers, presenterSearch, selectedAttendees]);
+    }, [allUsers, presenterSearch]);
 
     const isPresenterSelected = (email: string) =>
         presenters.some(p => p.email?.toLowerCase() === email.toLowerCase());
@@ -160,8 +150,8 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
             setPresenters(presenters.filter(p => p.email?.toLowerCase() !== email.toLowerCase()));
             setPresenterError('');
         } else {
-            if (presenters.length >= numberOfWeeks) {
-                setPresenterError(`Maximum ${numberOfWeeks} presenter${numberOfWeeks !== 1 ? 's' : ''} allowed (one per session).`);
+            if (presenters.length >= totalMeetings) {
+                setPresenterError(`Maximum ${totalMeetings} presenter${totalMeetings !== 1 ? 's' : ''} allowed (one per meeting).`);
                 return;
             }
             setPresenters([...presenters, { email, name, topic: null }]);
@@ -182,91 +172,77 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
         setPresenterError('');
     };
 
-    // Trim presenters if numberOfWeeks is reduced below current count
+    // Trim presenters if totalMeetings is reduced below current count
     useEffect(() => {
-        if (presenters.length > numberOfWeeks) {
-            setPresenters(prev => prev.slice(0, numberOfWeeks));
-            setPresenterError(`Presenter list trimmed to ${numberOfWeeks} (one per session).`);
-        } else if (presenters.length <= numberOfWeeks) {
+        if (presenters.length > totalMeetings) {
+            setPresenters(prev => prev.slice(0, totalMeetings));
+            setPresenterError(`Presenter list trimmed to ${totalMeetings} (one per meeting).`);
+        } else if (presenters.length <= totalMeetings) {
             setPresenterError('');
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [numberOfWeeks]);
+    }, [totalMeetings]);
 
-    // Validate date is not in the past
-    const validateDate = (dateStr: string) => {
-        if (!dateStr) {
-            setDateError('');
-            return true;
-        }
-        const selected = new Date(dateStr);
-        const now = new Date();
-        if (selected < now) {
-            setDateError('Cannot select a date in the past');
-            return false;
-        }
-        setDateError('');
-        return true;
+    const handleSeriesStartDateChange = (value: string) => {
+        setSeriesStartDate(value);
+        if (!value) { setSeriesDateError(''); return; }
+        const selected = new Date(value);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        setSeriesDateError(selected < today ? 'Series start date cannot be in the past' : '');
     };
 
-    const handleDateChange = (value: string) => {
-        setFirstSessionStartTime(value);
-        validateDate(value);
-        if (value) setDayOfWeek(new Date(value).getDay() as DateOfWeek);
+    const handleAddSlot = () => {
+        setSlots(prev => [...prev, { dayOfWeek: 1, startTime: '09:00', durationMinutes: 60 }]);
+    };
+
+    const handleRemoveSlot = (idx: number) => {
+        if (slots.length <= 1) return;
+        setSlots(prev => prev.filter((_, i) => i !== idx));
+    };
+
+    const handleUpdateSlot = (idx: number, field: keyof SeminarSlot, value: string | number) => {
+        setSlots(prev => prev.map((s, i) => i === idx ? { ...s, [field]: value } : s));
     };
 
     const handleSave = async () => {
-        if (!title.trim() || !firstSessionStartTime) return;
+        if (!title.trim() || !seriesStartDate || slots.length === 0) return;
 
         const titleErr = validateTextField(title, 'Title', { required: true });
         const descErr = validateTextField(description, 'Description');
-        const locErr = validateTextField(location, 'Location');
-        if (titleErr || descErr || locErr) {
-            setFieldErrors({ title: titleErr, description: descErr, location: locErr });
+        if (titleErr || descErr) {
+            setFieldErrors({ title: titleErr, description: descErr });
             return;
         }
         setFieldErrors({});
 
-        // Validate date before saving
-        if (!validateDate(firstSessionStartTime)) return;
+        if (seriesDateError) return;
 
         setSaving(true);
         try {
             const req: CreateRecurringSeminarRequest = {
                 title: title.trim(),
                 description: description.trim() || null,
-                firstSessionStartTime: new Date(firstSessionStartTime).toISOString(),
-                durationMinutes,
+                seriesStartDate,
                 numberOfWeeks,
-                dayOfWeek,
-                projectId: projectId || null,
+                slots,
                 presenters: presenters.length > 0 ? presenters : null,
-                additionalAttendeeEmails: selectedAttendees.length > 0
-                    ? selectedAttendees.map(a => a.email)
-                    : null,
-                location: location.trim() || null,
-                weeklyTopics: null
             };
             await seminarService.createRecurringSeminar(req);
-            // Show success toast, clear form, lock button
             addToast('Recurring seminar created successfully.', 'success');
             setSaved(true);
             setTitle('');
             setDescription('');
-            setFirstSessionStartTime('');
-            setDurationMinutes(60);
+            setSeriesStartDate('');
+            setSeriesDateError('');
             setNumberOfWeeks(10);
-            setDayOfWeek(DateOfWeek.Monday);
-            setProjectId('');
-            setLocation('');
+            setSlots([{ dayOfWeek: 1, startTime: '09:00', durationMinutes: 60 }]);
             setPresenters([]);
-            setSelectedAttendees([]);
             setPresenterSearch('');
             setPresenterProjectId('');
             setPresenterProjectMembers([]);
             setPresenterManualInputs(['']);
             setShowPresenterModal(false);
-            setShowAttendeeModal(false);
             onSaved(false);
         } catch (err: any) {
             console.error('Create recurring seminar failed:', err);
@@ -303,7 +279,7 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
             <div style={{ flex: 1, overflowY: 'auto', paddingRight: '4px' }} className="custom-scrollbar">
                 {/* Basic Info */}
                 <div style={sectionStyle}>
-                    <div style={labelStyle}><FileText size={12} /> Basic Information</div>
+                    <div style={labelStyle}><Hash size={12} /> Basic Information</div>
 
                     <div style={{ marginBottom: '18px' }}>
                         <label style={{ ...labelStyle, fontSize: '0.68rem' }}>Title *</label>
@@ -334,137 +310,139 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
                         />
                         {fieldErrors.description && <span style={{ fontSize: '0.72rem', color: '#ef4444', marginTop: '4px', display: 'block' }}>{fieldErrors.description}</span>}
                     </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-                        <div>
-                            <label style={{ ...labelStyle, fontSize: '0.68rem' }}><MapPin size={12} /> Location</label>
-                            <input
-                                style={{ ...inputStyle, ...(fieldErrors.location ? { borderColor: '#ef4444' } : {}) }}
-                                value={location}
-                                onChange={e => { setLocation(e.target.value); setFieldErrors(prev => ({ ...prev, location: validateTextField(e.target.value, 'Location') })); }}
-                                placeholder="Room, building..."
-                                onFocus={e => { e.currentTarget.style.borderColor = fieldErrors.location ? '#ef4444' : 'var(--accent-color)'; }}
-                                onBlur={e => { e.currentTarget.style.borderColor = fieldErrors.location ? '#ef4444' : 'var(--border-color)'; }}
-                            />
-                            {fieldErrors.location && <span style={{ fontSize: '0.72rem', color: '#ef4444', marginTop: '4px', display: 'block' }}>{fieldErrors.location}</span>}
-                        </div>
-                        <div>
-                            <label style={{ ...labelStyle, fontSize: '0.68rem' }}><FileText size={12} /> Project</label>
-                            <select style={inputStyle} value={projectId} onChange={e => setProjectId(e.target.value)}>
-                                <option value="">No Project</option>
-                                {Object.entries(projectsMap).map(([id, name]) => (
-                                    <option key={id} value={id}>{name}</option>
-                                ))}
-                            </select>
-                        </div>
-                    </div>
                 </div>
 
                 {/* Schedule Config */}
                 <div style={sectionStyle}>
                     <div style={labelStyle}><Repeat size={12} /> Recurring Schedule</div>
 
-                    {/* First session */}
-                    <div style={{ marginBottom: '14px' }}>
-                        <label style={{ ...labelStyle, fontSize: '0.68rem' }}>
-                            <Calendar size={12} /> First Session Date &amp; Time *
-                        </label>
-                        <DateTimePicker
-                            value={firstSessionStartTime}
-                            onChange={v => handleDateChange(v)}
-                            min={getMinDatetime()}
-                        />
-                        {dateError && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#ef4444', fontSize: '0.72rem', fontWeight: 600, marginTop: '6px' }}>
-                                <AlertCircle size={12} /> {dateError}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Repeats-on pill — auto derived */}
-                    {firstSessionStartTime && (
-                        <div style={{
-                            display: 'flex', alignItems: 'center', gap: '8px',
-                            padding: '8px 12px', borderRadius: '8px', marginBottom: '14px',
-                            background: '#f5f3ff', border: '1px solid #e9d5ff'
-                        }}>
-                            <Repeat size={13} color="#7c3aed" style={{ flexShrink: 0 }} />
-                            <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#5b21b6' }}>
-                                Repeats every&nbsp;
-                                <strong>{dayNames[new Date(firstSessionStartTime).getDay()]}</strong>
-                            </span>
-                            <span style={{ fontSize: '0.7rem', color: '#7c3aed', marginLeft: 'auto' }}>auto-detected</span>
-                        </div>
-                    )}
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-                        {/* Duration */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '16px' }}>
+                        {/* Series Start Date */}
                         <div>
-                            <label style={{ ...labelStyle, fontSize: '0.68rem' }}><Clock size={12} /> Each Session Duration</label>
+                            <label style={{ ...labelStyle, fontSize: '0.68rem' }}>
+                                <Calendar size={12} /> Series Start Date *
+                            </label>
                             <input
-                                type="number"
-                                style={inputStyle}
-                                value={durationMinutes}
-                                onChange={e => setDurationMinutes(Number(e.target.value))}
-                                min={15}
-                                max={480}
-                                onFocus={e => { e.currentTarget.style.borderColor = 'var(--accent-color)'; }}
-                                onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; }}
+                                type="date"
+                                style={{ ...inputStyle, ...(seriesDateError ? { borderColor: '#ef4444' } : {}) }}
+                                value={seriesStartDate}
+                                min={getMinDate()}
+                                onChange={e => handleSeriesStartDateChange(e.target.value)}
+                                onFocus={e => { e.currentTarget.style.borderColor = seriesDateError ? '#ef4444' : 'var(--accent-color)'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(232,114,12,0.08)'; }}
+                                onBlur={e => { e.currentTarget.style.borderColor = seriesDateError ? '#ef4444' : 'var(--border-color)'; e.currentTarget.style.boxShadow = 'none'; }}
                             />
-                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px', fontWeight: 600 }}>
-                                {durationMinutes >= 60
-                                    ? `${Math.floor(durationMinutes / 60)}h ${durationMinutes % 60 > 0 ? `${durationMinutes % 60}m` : ''}`.trim()
-                                    : `${durationMinutes} minutes`}
-                            </div>
+                            {seriesDateError && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#ef4444', fontSize: '0.72rem', fontWeight: 600, marginTop: '6px' }}>
+                                    <AlertCircle size={12} /> {seriesDateError}
+                                </div>
+                            )}
                         </div>
 
                         {/* Number of weeks */}
                         <div>
-                            <label style={{ ...labelStyle, fontSize: '0.68rem' }}><Hash size={12} /> Total Sessions</label>
+                            <label style={{ ...labelStyle, fontSize: '0.68rem' }}><Hash size={12} /> Number of Weeks</label>
                             <input
                                 type="number"
                                 style={inputStyle}
                                 value={numberOfWeeks}
-                                onChange={e => setNumberOfWeeks(Number(e.target.value))}
+                                onChange={e => setNumberOfWeeks(Math.max(1, Number(e.target.value)))}
                                 min={1}
                                 max={52}
                                 onFocus={e => { e.currentTarget.style.borderColor = 'var(--accent-color)'; }}
                                 onBlur={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; }}
                             />
                             <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px', fontWeight: 600 }}>
-                                {firstSessionStartTime && numberOfWeeks > 0 ? (() => {
-                                    const end = new Date(firstSessionStartTime);
-                                    end.setDate(end.getDate() + (numberOfWeeks - 1) * 7);
-                                    return `Ends ${end.getDate().toString().padStart(2, '0')}/${(end.getMonth() + 1).toString().padStart(2, '0')}/${end.getFullYear()}`;
-                                })() : `${numberOfWeeks} week${numberOfWeeks !== 1 ? 's' : ''}`}
+                                {totalMeetings} meeting{totalMeetings !== 1 ? 's' : ''} total &nbsp;
+                                <span style={{ opacity: 0.7 }}>({slots.length} slot{slots.length !== 1 ? 's' : ''} × {numberOfWeeks} week{numberOfWeeks !== 1 ? 's' : ''})</span>
                             </div>
+                        </div>
+                    </div>
+
+                    {/* Weekly Slots */}
+                    <div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                            <label style={{ ...labelStyle, fontSize: '0.68rem', marginBottom: 0 }}><Clock size={12} /> Weekly Time Slots</label>
+                            <button
+                                type="button"
+                                onClick={handleAddSlot}
+                                style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', borderRadius: '7px', border: '1px solid #c7d2fe', background: '#ede9fe', color: '#4338ca', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 700 }}
+                            >
+                                <Plus size={11} /> Add Slot
+                            </button>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            {slots.map((slot, idx) => (
+                                <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 110px 110px 28px', gap: '8px', alignItems: 'end', padding: '10px 12px', borderRadius: '10px', background: '#f8fafc', border: '1px solid var(--border-light)' }}>
+                                    <div>
+                                        <label style={{ ...labelStyle, fontSize: '0.62rem', marginBottom: '3px' }}>Day of Week</label>
+                                        <select
+                                            style={{ ...inputStyle, padding: '7px 10px', fontSize: '0.8rem' }}
+                                            value={slot.dayOfWeek}
+                                            onChange={e => handleUpdateSlot(idx, 'dayOfWeek', Number(e.target.value))}
+                                        >
+                                            {dayNames.map((name, d) => (
+                                                <option key={d} value={d}>{name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label style={{ ...labelStyle, fontSize: '0.62rem', marginBottom: '3px' }}>Start Time</label>
+                                        <input
+                                            type="time"
+                                            style={{ ...inputStyle, padding: '7px 10px', fontSize: '0.8rem' }}
+                                            value={slot.startTime}
+                                            onChange={e => handleUpdateSlot(idx, 'startTime', e.target.value)}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label style={{ ...labelStyle, fontSize: '0.62rem', marginBottom: '3px' }}>Duration (min)</label>
+                                        <input
+                                            type="number"
+                                            style={{ ...inputStyle, padding: '7px 10px', fontSize: '0.8rem' }}
+                                            value={slot.durationMinutes}
+                                            onChange={e => handleUpdateSlot(idx, 'durationMinutes', Math.max(15, Number(e.target.value)))}
+                                            min={15}
+                                            max={480}
+                                        />
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleRemoveSlot(idx)}
+                                        disabled={slots.length === 1}
+                                        title={slots.length === 1 ? 'At least one slot required' : 'Remove slot'}
+                                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', borderRadius: '7px', border: '1px solid #fecaca', background: '#fff1f2', color: slots.length === 1 ? '#fca5a5' : '#ef4444', cursor: slots.length === 1 ? 'not-allowed' : 'pointer', padding: 0, flexShrink: 0 }}
+                                    >
+                                        <X size={12} />
+                                    </button>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 </div>
 
-                {/* Participants — Presenters + Attendees */}
+                {/* Participants — Presenters */}
                 <div style={sectionStyle}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                        <div style={labelStyle}><Users size={12} /> Participants</div>
+                        <div style={labelStyle}><Users size={12} /> Presenters</div>
                         <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-muted)' }}>
-                            {presenters.length + selectedAttendees.length} assigned
+                            {presenters.length}/{totalMeetings} assigned
                         </span>
                     </div>
-                    <div style={{ fontSize: '0.7rem', fontWeight: 600, color: '#065f46', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '7px 10px', marginBottom: '14px' }}>
-                        Each person can only hold <strong>one role</strong>: either a <strong>Presenter</strong> or an <strong>Attendee</strong>.
+                    <div style={{ fontSize: '0.7rem', fontWeight: 600, color: '#1e40af', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '7px 10px', marginBottom: '14px' }}>
+                        Presenters rotate globally across all <strong>{totalMeetings}</strong> meeting{totalMeetings !== 1 ? 's' : ''} ({slots.length} slot{slots.length !== 1 ? 's' : ''} × {numberOfWeeks} week{numberOfWeeks !== 1 ? 's' : ''}).
                     </div>
 
                     {/* ── Presenters row ── */}
-                    <div style={{ marginBottom: '10px' }}>
+                    <div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                 <div style={{ width: '20px', height: '20px', borderRadius: '5px', background: 'linear-gradient(135deg,#6366f1,#818cf8)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                     <Presentation size={11} />
                                 </div>
-                                <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#4338ca', textTransform: 'uppercase' as const, letterSpacing: '0.5px' }}>Presenters</span>
+                                <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#4338ca', textTransform: 'uppercase' as const, letterSpacing: '0.5px' }}>Rotation Order</span>
                                 {presenters.length > 0 && (
-                                    <span style={{ fontSize: '0.62rem', fontWeight: 700, color: presenters.length >= numberOfWeeks ? '#ef4444' : '#6366f1', background: presenters.length >= numberOfWeeks ? '#fee2e2' : '#ede9fe', padding: '1px 7px', borderRadius: '10px' }}>
-                                        {presenters.length}/{numberOfWeeks}
+                                    <span style={{ fontSize: '0.62rem', fontWeight: 700, color: presenters.length >= totalMeetings ? '#ef4444' : '#6366f1', background: presenters.length >= totalMeetings ? '#fee2e2' : '#ede9fe', padding: '1px 7px', borderRadius: '10px' }}>
+                                        {presenters.length}/{totalMeetings}
                                     </span>
                                 )}
                             </div>
@@ -478,38 +456,6 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
                                     <span key={idx} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '20px', background: '#ede9fe', border: '1px solid #c7d2fe', fontSize: '0.68rem', fontWeight: 600, color: '#4338ca' }}>
                                         {p.name || p.email}
                                         <button onClick={() => removePresenter(p.email!)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#a5b4fc', padding: 0, display: 'flex', lineHeight: 1 }}>
-                                            <X size={10} />
-                                        </button>
-                                    </span>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* ── Attendees row ── */}
-                    <div>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <div style={{ width: '20px', height: '20px', borderRadius: '5px', background: 'linear-gradient(135deg,#3b82f6,#60a5fa)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                    <Users size={11} />
-                                </div>
-                                <span style={{ fontSize: '0.7rem', fontWeight: 800, color: '#1d4ed8', textTransform: 'uppercase' as const, letterSpacing: '0.5px' }}>Attendees</span>
-                                {selectedAttendees.length > 0 && (
-                                    <span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#3b82f6', background: '#eff6ff', padding: '1px 7px', borderRadius: '10px' }}>
-                                        {selectedAttendees.length}
-                                    </span>
-                                )}
-                            </div>
-                            <button onClick={() => setShowAttendeeModal(true)} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 10px', borderRadius: '7px', border: '1px solid #bfdbfe', background: '#eff6ff', color: '#1d4ed8', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 700 }}>
-                                <Plus size={11} /> Add/Edit
-                            </button>
-                        </div>
-                        {selectedAttendees.length > 0 && (
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                                {selectedAttendees.map(a => (
-                                    <span key={a.email} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '20px', background: '#eff6ff', border: '1px solid #bfdbfe', fontSize: '0.68rem', fontWeight: 600, color: '#1d4ed8' }}>
-                                        {a.name || a.email}
-                                        <button onClick={() => setSelectedAttendees(prev => prev.filter(x => x.email !== a.email))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#93c5fd', padding: 0, display: 'flex', lineHeight: 1 }}>
                                             <X size={10} />
                                         </button>
                                     </span>
@@ -546,20 +492,20 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
                 </button>
                 <button
                     onClick={handleSave}
-                    disabled={saving || saved || !title.trim() || !firstSessionStartTime || !!dateError}
+                    disabled={saving || saved || !title.trim() || !seriesStartDate || !!seriesDateError || slots.length === 0}
                     style={{
                         padding: '8px 24px',
                         borderRadius: '10px',
                         border: 'none',
-                        background: (saved || !title.trim() || !firstSessionStartTime || saving || !!dateError) ? '#94a3b8' : 'var(--accent-color)',
+                        background: (saved || !title.trim() || !seriesStartDate || saving || !!seriesDateError || slots.length === 0) ? '#94a3b8' : 'var(--accent-color)',
                         color: '#fff',
-                        cursor: (saved || !title.trim() || !firstSessionStartTime || saving || !!dateError) ? 'not-allowed' : 'pointer',
+                        cursor: (saved || !title.trim() || !seriesStartDate || saving || !!seriesDateError || slots.length === 0) ? 'not-allowed' : 'pointer',
                         fontSize: '0.8rem',
                         fontWeight: 700,
                         display: 'flex',
                         alignItems: 'center',
                         gap: '6px',
-                        boxShadow: (saved || !title.trim() || !firstSessionStartTime || saving || !!dateError) ? 'none' : '0 4px 12px rgba(232,114,12,0.25)'
+                        boxShadow: (saved || !title.trim() || !seriesStartDate || saving || !!seriesDateError || slots.length === 0) ? 'none' : '0 4px 12px rgba(232,114,12,0.25)'
                     }}
                 >
                     {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
@@ -586,8 +532,8 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
                                 </div>
                                 <span style={{ fontWeight: 800, fontSize: '0.9rem', color: '#4338ca' }}>Add Presenters</span>
                                 {presenters.length > 0 && (
-                                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: presenters.length >= numberOfWeeks ? '#ef4444' : '#6366f1', background: presenters.length >= numberOfWeeks ? '#fee2e2' : '#ede9fe', padding: '2px 8px', borderRadius: '10px' }}>
-                                        {presenters.length}/{numberOfWeeks}
+                                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: presenters.length >= totalMeetings ? '#ef4444' : '#6366f1', background: presenters.length >= totalMeetings ? '#fee2e2' : '#ede9fe', padding: '2px 8px', borderRadius: '10px' }}>
+                                        {presenters.length}/{totalMeetings}
                                     </span>
                                 )}
                             </div>
@@ -636,7 +582,7 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
                                     ) : filteredPresenterUsers.map(u => {
                                         const email = u.email || ''; const name = u.fullName || '';
                                         const selected = isPresenterSelected(email);
-                                        const atLimit = !selected && presenters.length >= numberOfWeeks;
+                                        const atLimit = !selected && presenters.length >= totalMeetings;
                                         return (
                                             <div key={u.userId || email} onClick={() => !atLimit && togglePresenter(email, name)}
                                                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 9px', borderRadius: '7px', cursor: atLimit ? 'not-allowed' : 'pointer', opacity: atLimit ? 0.45 : 1, background: selected ? '#ede9fe' : '#fff', border: selected ? '1px solid #c7d2fe' : '1px solid transparent', transition: 'all 0.12s' }}
@@ -681,11 +627,10 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
                                     ) : presenterProjectMembers.length === 0 ? (
                                         <div style={{ textAlign: 'center', padding: '0.75rem', color: 'var(--text-muted)', fontSize: '0.75rem' }}>No members in this project</div>
                                     ) : presenterProjectMembers
-                                        .filter(m => !selectedAttendees.some(a => a.email.toLowerCase() === (m.email || m.userEmail || '').toLowerCase()))
                                         .map(m => {
                                             const email = m.email || m.userEmail || ''; const name = m.fullName || m.userName || ''; const role = m.projectRoleName || '';
                                             const selected = isPresenterSelected(email);
-                                            const atLimit = !selected && presenters.length >= numberOfWeeks;
+                                            const atLimit = !selected && presenters.length >= totalMeetings;
                                             return (
                                                 <div key={m.memberId || m.userId || email} onClick={() => email && !atLimit && togglePresenter(email, name)}
                                                     style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '7px 9px', borderRadius: '7px', cursor: (email && !atLimit) ? 'pointer' : 'not-allowed', opacity: (email && !atLimit) ? 1 : 0.45, background: selected ? '#ede9fe' : '#fff', border: selected ? '1px solid #c7d2fe' : '1px solid transparent' }}
@@ -715,28 +660,28 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
                                 {presenterManualInputs.map((val, idx) => (
                                     <div key={idx} style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                                         <input
-                                            style={{ flex: 1, padding: '7px 10px', borderRadius: '7px', border: '1.5px solid #e0e7ff', fontSize: '0.8rem', fontFamily: 'inherit', outline: 'none', opacity: presenters.length >= numberOfWeeks ? 0.5 : 1 }}
+                                            style={{ flex: 1, padding: '7px 10px', borderRadius: '7px', border: '1.5px solid #e0e7ff', fontSize: '0.8rem', fontFamily: 'inherit', outline: 'none', opacity: presenters.length >= totalMeetings ? 0.5 : 1 }}
                                             value={val}
-                                            onChange={e => { if (presenters.length < numberOfWeeks) { const u = [...presenterManualInputs]; u[idx] = e.target.value; setPresenterManualInputs(u); } }}
-                                            placeholder={presenters.length >= numberOfWeeks ? 'Limit reached' : 'Enter email address…'}
-                                            readOnly={presenters.length >= numberOfWeeks}
+                                            onChange={e => { if (presenters.length < totalMeetings) { const u = [...presenterManualInputs]; u[idx] = e.target.value; setPresenterManualInputs(u); } }}
+                                            placeholder={presenters.length >= totalMeetings ? 'Limit reached' : 'Enter email address…'}
+                                            readOnly={presenters.length >= totalMeetings}
                                             onKeyDown={e => {
                                                 if (e.key !== 'Enter') return;
                                                 const trimmed = val.trim();
-                                                if (!trimmed || isPresenterSelected(trimmed) || selectedAttendees.some(a => a.email.toLowerCase() === trimmed.toLowerCase()) || presenters.length >= numberOfWeeks) return;
+                                                if (!trimmed || isPresenterSelected(trimmed) || presenters.length >= totalMeetings) return;
                                                 togglePresenter(trimmed, trimmed);
                                                 const u = [...presenterManualInputs]; u[idx] = ''; setPresenterManualInputs(u);
                                             }}
                                         />
                                         <button
-                                            disabled={!val.trim() || presenters.length >= numberOfWeeks}
+                                            disabled={!val.trim() || presenters.length >= totalMeetings}
                                             onClick={() => {
                                                 const trimmed = val.trim();
-                                                if (!trimmed || isPresenterSelected(trimmed) || selectedAttendees.some(a => a.email.toLowerCase() === trimmed.toLowerCase()) || presenters.length >= numberOfWeeks) return;
+                                                if (!trimmed || isPresenterSelected(trimmed) || presenters.length >= totalMeetings) return;
                                                 togglePresenter(trimmed, trimmed);
                                                 const u = [...presenterManualInputs]; u[idx] = ''; setPresenterManualInputs(u);
                                             }}
-                                            style={{ padding: '7px 11px', borderRadius: '7px', border: 'none', background: (val.trim() && presenters.length < numberOfWeeks) ? '#6366f1' : '#94a3b8', color: '#fff', cursor: (val.trim() && presenters.length < numberOfWeeks) ? 'pointer' : 'not-allowed', fontSize: '0.72rem', fontWeight: 700, flexShrink: 0 }}
+                                            style={{ padding: '7px 11px', borderRadius: '7px', border: 'none', background: (val.trim() && presenters.length < totalMeetings) ? '#6366f1' : '#94a3b8', color: '#fff', cursor: (val.trim() && presenters.length < totalMeetings) ? 'pointer' : 'not-allowed', fontSize: '0.72rem', fontWeight: 700, flexShrink: 0 }}
                                         >
                                             Add
                                         </button>
@@ -756,55 +701,6 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
                         {/* Done button */}
                         <div style={{ paddingTop: '14px', borderTop: '1px solid var(--border-light)', marginTop: '12px', display: 'flex', justifyContent: 'flex-end' }}>
                             <button onClick={() => setShowPresenterModal(false)} style={{ padding: '7px 20px', borderRadius: '8px', border: 'none', background: '#6366f1', color: '#fff', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 700 }}>
-                                Done
-                            </button>
-                        </div>
-                    </div>
-                </div>,
-                document.body
-            )}
-
-            {/* ── Attendee picker modal ── */}
-            {showAttendeeModal && ReactDOM.createPortal(
-                <div
-                    onClick={() => setShowAttendeeModal(false)}
-                    style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                >
-                    <div
-                        onClick={e => e.stopPropagation()}
-                        style={{ background: '#fff', borderRadius: '16px', padding: '20px', width: '420px', maxHeight: '70vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.25)' }}
-                    >
-                        {/* Header */}
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <div style={{ width: '26px', height: '26px', borderRadius: '8px', background: 'linear-gradient(135deg,#3b82f6,#60a5fa)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                    <Users size={14} />
-                                </div>
-                                <span style={{ fontWeight: 800, fontSize: '0.9rem', color: '#1d4ed8' }}>Add Attendees</span>
-                                {selectedAttendees.length > 0 && (
-                                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#3b82f6', background: '#eff6ff', padding: '2px 8px', borderRadius: '10px' }}>
-                                        {selectedAttendees.length} selected
-                                    </span>
-                                )}
-                            </div>
-                            <button onClick={() => setShowAttendeeModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '4px', display: 'flex' }}>
-                                <X size={16} />
-                            </button>
-                        </div>
-
-                        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                            <AttendeeSelector
-                                selectedAttendees={selectedAttendees}
-                                onChange={setSelectedAttendees}
-                                projectsMap={projectsMap}
-                                excludeEmails={presenters.map(p => p.email!).filter(Boolean)}
-                                hideSelected
-                            />
-                        </div>
-
-                        {/* Done button */}
-                        <div style={{ paddingTop: '14px', borderTop: '1px solid var(--border-light)', marginTop: '12px', display: 'flex', justifyContent: 'flex-end' }}>
-                            <button onClick={() => setShowAttendeeModal(false)} style={{ padding: '7px 20px', borderRadius: '8px', border: 'none', background: '#3b82f6', color: '#fff', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 700 }}>
                                 Done
                             </button>
                         </div>
