@@ -95,6 +95,17 @@ const fromSelectValue = (value: string): string | null => {
   return value === 'None' ? null : value;
 };
 
+const GESTURE_EMOJI: Record<string, string> = {
+  'None': '⛔ None',
+  'Closed_Fist': '✊ Closed Fist',
+  'Open_Palm': '🖐️ Open Palm',
+  'Pointing_Up': '☝️ Pointing Up',
+  'Thumb_Down': '👎 Thumb Down',
+  'Thumb_Up': '👍 Thumb Up',
+  'Victory': '✌️ Victory',
+  'ILoveYou': '🤟 I Love You',
+};
+
 const CameraMonitorPage: React.FC = () => {
   const { user } = useAuth();
   const { addToast } = useToastStore();
@@ -548,7 +559,7 @@ const CameraMonitorPage: React.FC = () => {
                     Check-in Gesture
                     <select value={checkinGesture} onChange={(e) => setCheckinGesture(e.target.value)}>
                       {(gestureConfig?.available || []).map((item) => (
-                        <option key={item} value={item}>{item}</option>
+                        <option key={item} value={item}>{GESTURE_EMOJI[item] ?? item}</option>
                       ))}
                     </select>
                   </label>
@@ -557,7 +568,7 @@ const CameraMonitorPage: React.FC = () => {
                     Check-out Gesture
                     <select value={checkoutGesture} onChange={(e) => setCheckoutGesture(e.target.value)}>
                       {(gestureConfig?.available || []).map((item) => (
-                        <option key={item} value={item}>{item}</option>
+                        <option key={item} value={item}>{GESTURE_EMOJI[item] ?? item}</option>
                       ))}
                     </select>
                   </label>

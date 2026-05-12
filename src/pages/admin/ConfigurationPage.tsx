@@ -29,6 +29,16 @@ const ConfigurationPage: React.FC = () => {
 
     // Camera gestures
     const GESTURE_OPTIONS = ['Open_Palm', 'Victory', 'Thumb_Up', 'Thumb_Down', 'Closed_Fist', 'Pointing_Up', 'ILoveYou', 'None'];
+    const GESTURE_EMOJI: Record<string, string> = {
+        'None': '⛔ None',
+        'Closed_Fist': '✊ Closed Fist',
+        'Open_Palm': '🖐️ Open Palm',
+        'Pointing_Up': '☝️ Pointing Up',
+        'Thumb_Down': '👎 Thumb Down',
+        'Thumb_Up': '👍 Thumb Up',
+        'Victory': '✌️ Victory',
+        'ILoveYou': '🤟 I Love You',
+    };
     const [gestureCheckin, setGestureCheckin] = useState('Thumb_Up');
     const [gestureCheckout, setGestureCheckout] = useState('Victory');
     const [gestureLoading, setGestureLoading] = useState(true);
@@ -252,9 +262,9 @@ const ConfigurationPage: React.FC = () => {
                                     value={gestureCheckin}
                                     onChange={e => setGestureCheckin(e.target.value)}
                                     className="form-input"
-                                    style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', fontSize: '0.875rem' }}
+                                    style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', fontSize: '1rem', cursor: 'pointer' }}
                                 >
-                                    {GESTURE_OPTIONS.map(g => <option key={g} value={g}>{g.replace(/_/g, ' ')}</option>)}
+                                    {GESTURE_OPTIONS.map(g => <option key={g} value={g}>{GESTURE_EMOJI[g] ?? g.replace(/_/g, ' ')}</option>)}
                                 </select>
                             </div>
                             <div>
@@ -265,9 +275,9 @@ const ConfigurationPage: React.FC = () => {
                                     value={gestureCheckout}
                                     onChange={e => setGestureCheckout(e.target.value)}
                                     className="form-input"
-                                    style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', fontSize: '0.875rem' }}
+                                    style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', fontSize: '1rem', cursor: 'pointer' }}
                                 >
-                                    {GESTURE_OPTIONS.map(g => <option key={g} value={g}>{g.replace(/_/g, ' ')}</option>)}
+                                    {GESTURE_OPTIONS.map(g => <option key={g} value={g}>{GESTURE_EMOJI[g] ?? g.replace(/_/g, ' ')}</option>)}
                                 </select>
                             </div>
                             <div>

@@ -1340,7 +1340,7 @@
                 "header": [{ "key": "Content-Type", "value": "application/json" }],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"title\": \"Weekly Research Seminar\",\n  \"description\": \"Regular research presentations\",\n  \"firstSessionStartTime\": \"2026-04-21T09:00:00Z\",\n  \"durationMinutes\": 90,\n  \"numberOfWeeks\": 8,\n  \"dayOfWeek\": 1,\n  \"presenters\": [\n    {\n      \"email\": \"presenter@example.com\",\n      \"name\": \"Dr. Nguyen\",\n      \"topic\": \"Week 1 Topic\"\n    }\n  ],\n  \"additionalAttendeeEmails\": [\"attendee@example.com\"],\n  \"location\": \"Conference Room B\",\n  \"weeklyTopics\": [\"Topic 1\", \"Topic 2\", \"Topic 3\"]\n}"
+                  "raw": "{\n  \"title\": \"AI Research Seminar\",\n  \"description\": \"Weekly lab presentations\",\n  \"seriesStartDate\": \"2026-05-19\",\n  \"numberOfWeeks\": 8,\n  \"slots\": [\n    { \"dayOfWeek\": 1, \"startTime\": \"09:00\", \"durationMinutes\": 90 },\n    { \"dayOfWeek\": 1, \"startTime\": \"10:30\", \"durationMinutes\": 90 },\n    { \"dayOfWeek\": 4, \"startTime\": \"14:00\", \"durationMinutes\": 60 }\n  ],\n  \"presenters\": [\n    { \"email\": \"alice@fpt.edu.vn\", \"name\": \"Alice\" },\n    { \"email\": \"bob@fpt.edu.vn\",   \"name\": \"Bob\" },\n    { \"email\": \"charlie@fpt.edu.vn\",\"name\": \"Charlie\" }\n  ]\n}"
                 }
               }
             },
