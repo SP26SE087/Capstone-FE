@@ -428,8 +428,9 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
     const handleSave = async () => {
         setSaving(true);
         try {
-            if (isServerType) {
-                // Server resource — update via serverService
+            if (isServerType && serverDetail !== null) {
+                // Server resource — update via serverService using targetResource.id
+                // (targetResource is the selected unit for groups, or initialResource for singles)
                 const serverReq: any = {
                     name: name.trim() || undefined,
                     description: description.trim() || undefined,
