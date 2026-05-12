@@ -115,11 +115,6 @@ const ComputeAccessPanel: React.FC<ComputeAccessPanelProps> = ({
   // ── Step 2: submit public key ────────────────────────────────────────
   const [showPublicKeyForm, setShowPublicKeyForm] = useState(false);
   const [publicKey, setPublicKey] = useState('');
-  const [gpuCount, setGpuCount] = useState('');
-  const [cpuCores, setCpuCores] = useState('');
-  const [ramGb, setRamGb] = useState('');
-  const [dockerImage, setDockerImage] = useState('');
-  const [projectDescription, setProjectDescription] = useState('');
   const [submittingPublicKey, setSubmittingPublicKey] = useState(false);
   const [publicKeyError, setPublicKeyError] = useState<string | null>(null);
   const [generatingKeys, setGeneratingKeys] = useState(false);
@@ -162,11 +157,6 @@ const ComputeAccessPanel: React.FC<ComputeAccessPanelProps> = ({
     try {
       const req: SubmitPublicKeyRequest = {
         sshPublicKey: publicKey.trim(),
-        ...(gpuCount ? { requestedGpuCount: Number(gpuCount) } : {}),
-        ...(cpuCores ? { requestedCpuCores: Number(cpuCores) } : {}),
-        ...(ramGb ? { requestedRamGb: Number(ramGb) } : {}),
-        ...(dockerImage.trim() ? { dockerImage: dockerImage.trim() } : {}),
-        ...(projectDescription.trim() ? { projectDescription: projectDescription.trim() } : {}),
       };
       await computeService.submitPublicKey(bookingId, req);
       setShowPublicKeyForm(false);
@@ -356,33 +346,6 @@ const ComputeAccessPanel: React.FC<ComputeAccessPanelProps> = ({
             </label>
             <textarea style={textareaStyle} placeholder="ssh-rsa AAAAB3NzaC1yc2E..."
               value={publicKey} onChange={e => setPublicKey(e.target.value)} />
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
-            <div>
-              <label style={{ fontSize: '0.68rem', color: '#94a3b8', display: 'block', marginBottom: 4 }}>GPU Count</label>
-              <input style={inputStyle} type="number" min={0} placeholder="e.g. 1" value={gpuCount} onChange={e => setGpuCount(e.target.value)} />
-            </div>
-            <div>
-              <label style={{ fontSize: '0.68rem', color: '#94a3b8', display: 'block', marginBottom: 4 }}>CPU Cores</label>
-              <input style={inputStyle} type="number" min={0} placeholder="e.g. 4" value={cpuCores} onChange={e => setCpuCores(e.target.value)} />
-            </div>
-            <div>
-              <label style={{ fontSize: '0.68rem', color: '#94a3b8', display: 'block', marginBottom: 4 }}>RAM (GB)</label>
-              <input style={inputStyle} type="number" min={0} placeholder="e.g. 16" value={ramGb} onChange={e => setRamGb(e.target.value)} />
-            </div>
-          </div>
-
-          <div>
-            <label style={{ fontSize: '0.68rem', color: '#94a3b8', display: 'block', marginBottom: 4 }}>Docker Image</label>
-            <input style={inputStyle} type="text" placeholder="pytorch/pytorch:latest" value={dockerImage} onChange={e => setDockerImage(e.target.value)} />
-          </div>
-
-          <div>
-            <label style={{ fontSize: '0.68rem', color: '#94a3b8', display: 'block', marginBottom: 4 }}>Project Description</label>
-            <textarea style={{ ...textareaStyle, minHeight: '56px' }}
-              placeholder="Brief description of your project…"
-              value={projectDescription} onChange={e => setProjectDescription(e.target.value)} />
           </div>
 
           {publicKeyError && (
