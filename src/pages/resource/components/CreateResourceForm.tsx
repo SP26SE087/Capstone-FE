@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CreateResourceRequest } from '@/types/booking';
 import { resourceService } from '@/services/resourceService';
+import { serverService } from '@/services/serverService';
 import { resourceTypeService, ResourceTypeItem, ResourceTypeCategory } from '@/services/resourceTypeService';
 import { userService } from '@/services/userService';
 import { useAuth } from '@/hooks/useAuth';
@@ -16,7 +17,13 @@ import {
     User,
     Search,
     Box,
-    Cpu
+    Cpu,
+    Server,
+    Key,
+    Monitor,
+    MemoryStick,
+    Users,
+    Tag
 } from 'lucide-react';
 import { validateTextField } from '@/utils/validation';
 
@@ -90,6 +97,22 @@ const CreateResourceForm: React.FC<CreateResourceFormProps> = ({
     const [serialInput, setSerialInput] = useState('');
     const [serialNumbers, setSerialNumbers] = useState<string[]>([]);
     const [errors, setErrors] = useState<Record<string, string>>({});
+
+    // Server / Compute — single config + unit count
+    const [sshHost, setSshHost] = useState('');
+    const [sshPort, setSshPort] = useState('22');
+    const [sshUsername, setSshUsername] = useState('');
+    const [sshPrivateKey, setSshPrivateKey] = useState('');
+    const [gpuCount, setGpuCount] = useState('');
+    const [cpuCores, setCpuCores] = useState('');
+    const [ramGb, setRamGb] = useState('');
+    const [maxConcurrentUsers, setMaxConcurrentUsers] = useState('');
+    const [serverModelSeries, setServerModelSeries] = useState('');
+    const [serverUnitCount, setServerUnitCount] = useState(1);
+    const [serverUnitCustom, setServerUnitCustom] = useState('');
+
+    const selectedType = resourceTypes.find(rt => rt.id === resourceTypeId);
+    const isServerType = selectedType?.category === ResourceTypeCategory.ServerCompute;
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -187,11 +210,22 @@ const CreateResourceForm: React.FC<CreateResourceFormProps> = ({
         else { const err = validateTextField(name, 'Name'); if (err) newErrors.name = err; }
         if (!resourceTypeId) newErrors.resourceTypeId = 'Please select a resource type.';
         if (!managedBy) newErrors.managedBy = 'Please select a manager.';
-        if (serialNumbers.length === 0) newErrors.serial = 'At least one serial number is required.';
         const descErr = validateTextField(description, 'Description');
         if (descErr) newErrors.description = descErr;
         const locErr = validateTextField(location, 'Location');
         if (locErr) newErrors.location = locErr;
+
+        if (isServerType) {
+            if (!sshHost.trim()) newErrors.sshHost = 'SSH host is required.';
+            if (!sshUsername.trim()) newErrors.sshUsername = 'SSH username is required.';
+            if (!sshPrivateKey.trim()) newErrors.sshPrivateKey = 'SSH private key is required.';
+            const port = Number(sshPort);
+            if (sshPort && (isNaN(port) || port < 1 || port > 65535)) newErrors.sshPort = 'Port must be 1–65535.';
+            if (serverUnitCount < 1 || serverUnitCount > 64) newErrors.serverUnitCount = 'Unit count must be between 1 and 64.';
+        } else {
+            if (serialNumbers.length === 0) newErrors.serial = 'At least one serial number is required.';
+        }
+
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
@@ -201,16 +235,35 @@ const CreateResourceForm: React.FC<CreateResourceFormProps> = ({
 
         setSaving(true);
         try {
-            const request: CreateResourceRequest = {
-                name: name.trim(),
-                description: description.trim() || undefined,
-                resourceTypeId,
-                location: location.trim() || undefined,
-                managedByEmail: managedBy,
-                modelSeriesList: serialNumbers
-            };
-
-            await resourceService.create(request);
+            if (isServerType) {
+                for (let i = 0; i < serverUnitCount; i++) {
+                    await serverService.createServer({
+                        name: serverUnitCount === 1 ? name.trim() : `${name.trim()} #${i + 1}`,
+                        description: description.trim() || undefined,
+                        resourceTypeId,
+                        location: location.trim() || undefined,
+                        sshHost: sshHost.trim(),
+                        sshPort: sshPort ? Number(sshPort) : undefined,
+                        sshUsername: sshUsername.trim(),
+                        sshPrivateKey: sshPrivateKey.trim(),
+                        gpuCount: gpuCount ? Number(gpuCount) : undefined,
+                        cpuCores: cpuCores ? Number(cpuCores) : undefined,
+                        ramGb: ramGb ? Number(ramGb) : undefined,
+                        maxConcurrentUsers: maxConcurrentUsers ? Number(maxConcurrentUsers) : undefined,
+                        modelSeries: serverModelSeries.trim() || undefined,
+                    });
+                }
+            } else {
+                const request: CreateResourceRequest = {
+                    name: name.trim(),
+                    description: description.trim() || undefined,
+                    resourceTypeId,
+                    location: location.trim() || undefined,
+                    managedByEmail: managedBy,
+                    modelSeriesList: serialNumbers
+                };
+                await resourceService.create(request);
+            }
             onSaved(true, 'Resource created successfully.');
         } catch (err: any) {
             const msg = err?.response?.data?.message || err?.response?.data?.title || 'Failed to create resource.';
@@ -510,7 +563,8 @@ const CreateResourceForm: React.FC<CreateResourceFormProps> = ({
                     </div>
                 </div>
 
-                {/* Serial Numbers */}
+                {/* Serial Numbers — physical resources only */}
+                {!isServerType && (
                 <div style={sectionStyle}>
                     <div style={labelStyle}><Hash size={12} /> Serial Numbers *</div>
                     <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '12px', marginTop: 0 }}>
@@ -635,6 +689,177 @@ const CreateResourceForm: React.FC<CreateResourceFormProps> = ({
                         </div>
                     )}
                 </div>
+                )} {/* end !isServerType */}
+
+                {/* Server config — server/compute resources only */}
+                {isServerType && (
+                <>
+                    <div style={{ ...sectionStyle, borderColor: 'rgba(124,58,237,0.3)', background: 'linear-gradient(135deg,#faf5ff,#f5f3ff)' }}>
+                        <div style={{ ...labelStyle, color: '#7c3aed', marginBottom: '4px' }}><Server size={12} /> SSH Connection *</div>
+                        <p style={{ fontSize: '0.78rem', color: '#6d28d9', marginBottom: '14px', marginTop: 0 }}>
+                            Credentials used by the system to connect and provision the server.
+                        </p>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px', gap: '10px', marginBottom: '10px' }}>
+                            <div>
+                                <label style={{ ...labelStyle, fontSize: '0.68rem' }}>Host / IP *</label>
+                                <input
+                                    style={{ ...inputStyle, borderColor: errors.sshHost ? '#ef4444' : undefined }}
+                                    value={sshHost}
+                                    onChange={e => { setSshHost(e.target.value); setErrors(p => ({ ...p, sshHost: '' })); }}
+                                    placeholder="192.168.1.100 or server.example.com"
+                                    onFocus={handleFocus} onBlur={handleBlur}
+                                />
+                                {errors.sshHost && <span style={{ fontSize: '0.72rem', color: '#ef4444', marginTop: '4px', display: 'block' }}>{errors.sshHost}</span>}
+                            </div>
+                            <div>
+                                <label style={{ ...labelStyle, fontSize: '0.68rem' }}>Port</label>
+                                <input
+                                    style={{ ...inputStyle, borderColor: errors.sshPort ? '#ef4444' : undefined }}
+                                    type="number" min={1} max={65535}
+                                    value={sshPort}
+                                    onChange={e => { setSshPort(e.target.value); setErrors(p => ({ ...p, sshPort: '' })); }}
+                                    placeholder="22"
+                                    onFocus={handleFocus} onBlur={handleBlur}
+                                />
+                                {errors.sshPort && <span style={{ fontSize: '0.72rem', color: '#ef4444', marginTop: '4px', display: 'block' }}>{errors.sshPort}</span>}
+                            </div>
+                        </div>
+
+                        <div style={{ marginBottom: '10px' }}>
+                            <label style={{ ...labelStyle, fontSize: '0.68rem' }}>Username *</label>
+                            <input
+                                style={{ ...inputStyle, borderColor: errors.sshUsername ? '#ef4444' : undefined }}
+                                value={sshUsername}
+                                onChange={e => { setSshUsername(e.target.value); setErrors(p => ({ ...p, sshUsername: '' })); }}
+                                placeholder="ubuntu"
+                                onFocus={handleFocus} onBlur={handleBlur}
+                            />
+                            {errors.sshUsername && <span style={{ fontSize: '0.72rem', color: '#ef4444', marginTop: '4px', display: 'block' }}>{errors.sshUsername}</span>}
+                        </div>
+
+                        <div>
+                            <label style={{ ...labelStyle, fontSize: '0.68rem' }}><Key size={11} /> Private Key *</label>
+                            <textarea
+                                style={{ ...inputStyle, minHeight: '110px', resize: 'vertical' as const, fontFamily: 'monospace', fontSize: '0.75rem', borderColor: errors.sshPrivateKey ? '#ef4444' : undefined }}
+                                value={sshPrivateKey}
+                                onChange={e => { setSshPrivateKey(e.target.value); setErrors(p => ({ ...p, sshPrivateKey: '' })); }}
+                                placeholder="-----BEGIN RSA PRIVATE KEY-----&#10;..."
+                                onFocus={handleFocus} onBlur={handleBlur}
+                            />
+                            {errors.sshPrivateKey && <span style={{ fontSize: '0.72rem', color: '#ef4444', marginTop: '4px', display: 'block' }}>{errors.sshPrivateKey}</span>}
+                        </div>
+                    </div>
+
+                    <div style={{ ...sectionStyle, borderColor: 'rgba(124,58,237,0.2)' }}>
+                        <div style={{ ...labelStyle, color: '#7c3aed', marginBottom: '4px' }}><Cpu size={12} /> Server Specs <span style={{ fontWeight: 500, textTransform: 'none' as const, letterSpacing: 0, color: '#94a3b8' }}>(optional)</span></div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+                            <div>
+                                <label style={{ ...labelStyle, fontSize: '0.65rem' }}><Monitor size={10} /> GPU Count</label>
+                                <input style={inputStyle} type="number" min={0} value={gpuCount} onChange={e => setGpuCount(e.target.value)} placeholder="e.g. 2" onFocus={handleFocus} onBlur={handleBlur} />
+                            </div>
+                            <div>
+                                <label style={{ ...labelStyle, fontSize: '0.65rem' }}><Cpu size={10} /> CPU Cores</label>
+                                <input style={inputStyle} type="number" min={0} value={cpuCores} onChange={e => setCpuCores(e.target.value)} placeholder="e.g. 16" onFocus={handleFocus} onBlur={handleBlur} />
+                            </div>
+                            <div>
+                                <label style={{ ...labelStyle, fontSize: '0.65rem' }}><MemoryStick size={10} /> RAM (GB)</label>
+                                <input style={inputStyle} type="number" min={0} value={ramGb} onChange={e => setRamGb(e.target.value)} placeholder="e.g. 64" onFocus={handleFocus} onBlur={handleBlur} />
+                            </div>
+                            <div>
+                                <label style={{ ...labelStyle, fontSize: '0.65rem' }}><Users size={10} /> Max Concurrent Users</label>
+                                <input style={inputStyle} type="number" min={1} value={maxConcurrentUsers} onChange={e => setMaxConcurrentUsers(e.target.value)} placeholder="e.g. 5" onFocus={handleFocus} onBlur={handleBlur} />
+                            </div>
+                        </div>
+                        <div>
+                            <label style={{ ...labelStyle, fontSize: '0.65rem' }}><Tag size={10} /> Model / Series</label>
+                            <input style={inputStyle} value={serverModelSeries} onChange={e => setServerModelSeries(e.target.value)} placeholder="e.g. NVIDIA DGX A100" onFocus={handleFocus} onBlur={handleBlur} />
+                        </div>
+                    </div>
+
+                    {/* Split into units */}
+                    <div style={sectionStyle}>
+                        <div style={{ ...labelStyle, marginBottom: '4px' }}><Hash size={12} /> Split into Units</div>
+                        <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '14px', marginTop: 0 }}>
+                            Create multiple identical server units with the same SSH config. Each gets its own numbered name.
+                        </p>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' as const, marginBottom: '12px' }}>
+                            {[1, 2, 4, 8].map(n => (
+                                <button
+                                    key={n}
+                                    type="button"
+                                    onClick={() => { setServerUnitCount(n); setServerUnitCustom(''); setErrors(p => ({ ...p, serverUnitCount: '' })); }}
+                                    style={{
+                                        padding: '7px 18px', borderRadius: '10px', fontWeight: 800, fontSize: '0.85rem',
+                                        border: serverUnitCount === n && !serverUnitCustom ? '2px solid #7c3aed' : '1.5px solid var(--border-color)',
+                                        background: serverUnitCount === n && !serverUnitCustom ? '#ede9fe' : '#fff',
+                                        color: serverUnitCount === n && !serverUnitCustom ? '#7c3aed' : 'var(--text-secondary)',
+                                        cursor: 'pointer',
+                                        boxShadow: serverUnitCount === n && !serverUnitCustom ? '0 0 0 3px rgba(124,58,237,0.12)' : 'none',
+                                        transition: 'all 0.15s',
+                                    }}
+                                >
+                                    {n === 1 ? '1 (no split)' : `× ${n}`}
+                                </button>
+                            ))}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <input
+                                    style={{
+                                        ...inputStyle,
+                                        width: '90px',
+                                        padding: '7px 10px',
+                                        borderColor: serverUnitCustom ? '#7c3aed' : (errors.serverUnitCount ? '#ef4444' : undefined),
+                                        boxShadow: serverUnitCustom ? '0 0 0 3px rgba(124,58,237,0.12)' : 'none',
+                                        fontWeight: 700,
+                                        textAlign: 'center' as const,
+                                    }}
+                                    type="number" min={1} max={64}
+                                    value={serverUnitCustom}
+                                    placeholder="Custom"
+                                    onChange={e => {
+                                        setServerUnitCustom(e.target.value);
+                                        const n = parseInt(e.target.value, 10);
+                                        if (!isNaN(n) && n >= 1) setServerUnitCount(n);
+                                        setErrors(p => ({ ...p, serverUnitCount: '' }));
+                                    }}
+                                    onFocus={handleFocus} onBlur={handleBlur}
+                                />
+                            </div>
+                        </div>
+
+                        {errors.serverUnitCount && <span style={{ fontSize: '0.72rem', color: '#ef4444', marginBottom: '8px', display: 'block' }}>{errors.serverUnitCount}</span>}
+
+                        {/* Preview */}
+                        {serverUnitCount > 1 && name.trim() && (
+                            <div style={{
+                                background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: '10px',
+                                padding: '10px 14px', display: 'flex', flexWrap: 'wrap' as const, gap: '6px',
+                            }}>
+                                <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#7c3aed', width: '100%', marginBottom: '4px' }}>
+                                    Will create {serverUnitCount} servers:
+                                </span>
+                                {Array.from({ length: Math.min(serverUnitCount, 12) }, (_, i) => (
+                                    <span key={i} style={{
+                                        fontSize: '0.72rem', fontWeight: 600, color: '#6d28d9',
+                                        background: '#ede9fe', padding: '2px 10px', borderRadius: 20, fontFamily: 'monospace',
+                                    }}>
+                                        {name.trim()} #{i + 1}
+                                    </span>
+                                ))}
+                                {serverUnitCount > 12 && (
+                                    <span style={{ fontSize: '0.72rem', color: '#94a3b8', alignSelf: 'center' }}>…+{serverUnitCount - 12} more</span>
+                                )}
+                            </div>
+                        )}
+                        {serverUnitCount === 1 && name.trim() && (
+                            <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '8px 14px' }}>
+                                <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#475569', fontFamily: 'monospace' }}>{name.trim()}</span>
+                            </div>
+                        )}
+                    </div>
+                </>
+                )} {/* end isServerType */}
 
                 {errors.submit && (
                     <div style={{
@@ -692,7 +917,7 @@ const CreateResourceForm: React.FC<CreateResourceFormProps> = ({
                     }}
                 >
                     {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                    Create Resource
+                    {isServerType && serverUnitCount > 1 ? `Create ${serverUnitCount} Servers` : 'Create Resource'}
                 </button>
             </div>
         </div>

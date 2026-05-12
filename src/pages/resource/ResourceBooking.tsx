@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import AppSelect from '@/components/common/AppSelect';
 import MainLayout from '@/layout/MainLayout';
 import { useAuth } from '@/hooks/useAuth';
@@ -82,6 +83,7 @@ const formatDate = (s: string) => {
 // ─── Component ───────────────────────────────────────────────────────────────
 const ResourceBooking: React.FC = () => {
     const { user } = useAuth();
+    const navigate = useNavigate();
 
     const [mainTab, setMainTab] = useState<MainTab>('resources');
     const [resourceSubTab, setResourceSubTab] = useState<ResourceSubTab>('all');
@@ -118,6 +120,7 @@ const ResourceBooking: React.FC = () => {
     const [bulkCheckOutNote, setBulkCheckOutNote] = useState('');
     const [equipmentLogs, setEquipmentLogs] = useState<EquipmentLog[]>([]);
     const [resourceTypes, setResourceTypes] = useState<ResourceTypeItem[]>([]);
+    const [rtTab, setRtTab] = useState<ResourceTypeCategory>(ResourceTypeCategory.ServerCompute);
     const [loading, setLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
     const [confirmDeleteRtId, setConfirmDeleteRtId] = useState<string | null>(null);
@@ -127,8 +130,6 @@ const ResourceBooking: React.FC = () => {
     const { addToast } = useToastStore();
     const [activePanel, setActivePanel] = useState<ActivePanel | null>(null);
     const [bookingCart, setBookingCart] = useState<{ resourceId: string; quantity: number }[]>([]);
-    const [viewNewBookingOpen, setViewNewBookingOpen] = useState(false);
-    const [viewNewBookingCart, setViewNewBookingCart] = useState<{ resourceId: string; quantity: number }[]>([]);
 
     const isLabDirector = useMemo(() => {
         if (!user) return false;
@@ -264,10 +265,11 @@ const ResourceBooking: React.FC = () => {
     };
 
     const handleViewNewBooking = (resource?: Resource, _date?: Date) => {
-        setViewNewBookingCart(
-            resource ? [{ resourceId: resource.id, quantity: 1 }] : []
-        );
-        setViewNewBookingOpen(true);
+        if (resource) {
+            navigate(`/bookings/new?resourceId=${resource.id}`);
+        } else {
+            navigate('/bookings/new');
+        }
     };
 
     const fetchData = useCallback(async () => {
@@ -542,6 +544,11 @@ const ResourceBooking: React.FC = () => {
         return !q || rt.name.toLowerCase().includes(q) || (rt.description || '').toLowerCase().includes(q);
     }), [resourceTypes, searchQuery]);
 
+    const visibleResourceTypes = useMemo(
+        () => displayResourceTypes.filter(rt => rt.category === rtTab),
+        [displayResourceTypes, rtTab]
+    );
+
     const bookingListForTab: Booking[] = useMemo(() => {
         if (activeTab === 'my_bookings') return myBookings;
         if (activeTab === 'all_bookings') return allBookings;
@@ -549,11 +556,50 @@ const ResourceBooking: React.FC = () => {
         return [];
     }, [activeTab, myBookings, allBookings, managedBookings]);
 
-    const displayResources = useMemo(() => resources.filter(r => {
+    const groupedResources = useMemo(() => {
+        const serverTypeIds = new Set(
+            resourceTypes.filter(rt => rt.category === ResourceTypeCategory.ServerCompute).map(rt => rt.id)
+        );
+        const splitPattern = /^(.+) #(\d+)$/;
+        const groups = new Map<string, Resource[]>();
+        const result: Resource[] = [];
+
+        for (const r of resources) {
+            if (!serverTypeIds.has(r.resourceTypeId || '')) { result.push(r); continue; }
+            const match = r.name.match(splitPattern);
+            if (!match) { result.push(r); continue; }
+            const key = `${match[1]}__${r.resourceTypeId}`;
+            if (!groups.has(key)) groups.set(key, []);
+            groups.get(key)!.push(r);
+        }
+
+        for (const units of groups.values()) {
+            units.sort((a, b) => {
+                const na = Number(a.name.match(/ #(\d+)$/)?.[1] ?? 0);
+                const nb = Number(b.name.match(/ #(\d+)$/)?.[1] ?? 0);
+                return na - nb;
+            });
+            const first = units[0];
+            result.push({
+                ...first,
+                id: first.id,
+                ids: units.map(u => u.id),
+                name: first.name.replace(/ #\d+$/, ''),
+                totalQuantity: units.reduce((s, u) => s + (u.totalQuantity || 1), 0),
+                availableQuantity: units.reduce((s, u) => s + (u.availableQuantity || 0), 0),
+                inUseCount: units.reduce((s, u) => s + (u.inUseCount || 0), 0),
+                damagedQuantity: units.reduce((s, u) => s + (u.damagedQuantity || 0), 0),
+                serials: units.map(u => u.name), // unit names used as "serials" for the picker
+            });
+        }
+        return result;
+    }, [resources, resourceTypes]);
+
+    const displayResources = useMemo(() => groupedResources.filter(r => {
         const q = searchQuery.toLowerCase();
         return (!q || r.name.toLowerCase().includes(q) || (r.description || '').toLowerCase().includes(q) || (r.location || '').toLowerCase().includes(q))
             && (!filterType || r.resourceTypeId === filterType);
-    }), [resources, searchQuery, filterType]);
+    }), [groupedResources, searchQuery, filterType]);
 
     const displayBookings = useMemo(() => bookingListForTab.filter(b => {
         const q = searchQuery.toLowerCase();
@@ -673,18 +719,7 @@ const ResourceBooking: React.FC = () => {
                     )}
                 </div>
 
-                {/* ── New Booking modal overlay (Calendar / Timeline / Workspace) ── */}
-                {viewNewBookingOpen && (
-                    <NewBookingModal
-                        preSelectedResourceId={viewNewBookingCart[0]?.resourceId}
-                        onClose={() => setViewNewBookingOpen(false)}
-                        onSaved={(message) => {
-                            if (message) showToast(message, 'success');
-                            setViewNewBookingOpen(false);
-                            fetchViewData();
-                        }}
-                    />
-                )}
+                {/* New Booking opens as a full page at /bookings/new */}
 
                 {/* ── Booking detail modal overlay (Calendar / Timeline / Workspace) ── */}
                 {viewModalBookingId && (
@@ -1299,46 +1334,62 @@ const ResourceBooking: React.FC = () => {
                                     )}
                                 </div>
                             ) : isResourceTypeTab ? (
-                                <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-                                    <div style={{ padding: '10px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' as const, letterSpacing: '0.05em' }}>
-                                            {displayResourceTypes.length} type(s)
-                                        </span>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                    {/* Toggle */}
+                                    <div style={{ display: 'flex', gap: '4px', background: '#f1f5f9', borderRadius: '10px', padding: '4px' }}>
+                                        {([
+                                            { key: ResourceTypeCategory.ServerCompute, label: 'Server / Compute', color: '#7c3aed', bg: '#f5f3ff', icon: <Cpu size={11} /> },
+                                            { key: ResourceTypeCategory.Physical,       label: 'Physical',         color: '#0284c7', bg: '#f0f9ff', icon: <Box size={11} /> },
+                                        ] as const).map(tab => {
+                                            const count = displayResourceTypes.filter(rt => rt.category === tab.key).length;
+                                            const active = rtTab === tab.key;
+                                            return (
+                                                <button key={tab.key} onClick={() => setRtTab(tab.key)} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '6px 10px', borderRadius: '7px', border: 'none', cursor: 'pointer', fontSize: '0.75rem', fontWeight: active ? 700 : 500, background: active ? '#fff' : 'transparent', color: active ? tab.color : '#64748b', boxShadow: active ? '0 1px 4px rgba(0,0,0,0.08)' : 'none', transition: 'all 0.15s' }}>
+                                                    <div style={{ width: '16px', height: '16px', borderRadius: '4px', background: active ? tab.bg : 'transparent', color: active ? tab.color : '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}>
+                                                        {tab.icon}
+                                                    </div>
+                                                    {tab.label}
+                                                    <span style={{ fontSize: '0.62rem', fontWeight: 800, minWidth: '16px', height: '16px', borderRadius: '8px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px', background: active ? tab.color : '#e2e8f0', color: active ? '#fff' : '#64748b', transition: 'all 0.15s' }}>
+                                                        {count}
+                                                    </span>
+                                                </button>
+                                            );
+                                        })}
                                     </div>
-                                    {displayResourceTypes.length === 0 ? (
-                                        <div style={{ padding: '3rem', textAlign: 'center', color: '#94a3b8', fontSize: '0.88rem' }}>No resource types found.</div>
-                                    ) : displayResourceTypes.map((rt, idx) => (
-                                        <div key={rt.id} style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '12px 16px', borderBottom: idx < displayResourceTypes.length - 1 ? '1px solid #f1f5f9' : 'none', transition: 'background 0.15s' }}
-                                            onMouseEnter={e => (e.currentTarget.style.background = '#f8fafc')}
-                                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                                        >
-                                            <div style={{
-                                                width: '32px', height: '32px', borderRadius: '8px', flexShrink: 0,
-                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                background: rt.category === ResourceTypeCategory.ServerCompute ? '#f5f3ff' : '#f0f9ff',
-                                                color: rt.category === ResourceTypeCategory.ServerCompute ? '#7c3aed' : '#0284c7',
-                                            }}>
-                                                {rt.category === ResourceTypeCategory.ServerCompute ? <Cpu size={16} /> : <Box size={16} />}
+
+                                    {/* List */}
+                                    <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+                                        {visibleResourceTypes.length === 0 ? (
+                                            <div style={{ padding: '3rem', textAlign: 'center', color: '#94a3b8', fontSize: '0.88rem' }}>
+                                                No {rtTab === ResourceTypeCategory.ServerCompute ? 'Server / Compute' : 'Physical'} types found.
                                             </div>
-                                            <div style={{ flex: 1, minWidth: 0 }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                    <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1e293b' }}>{rt.name}</span>
-                                                    {rt.isActive === false && (
-                                                        <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px' }}>Inactive</span>
-                                                    )}
+                                        ) : visibleResourceTypes.map((rt, idx) => {
+                                            const isServer = rt.category === ResourceTypeCategory.ServerCompute;
+                                            const clr = isServer ? '#7c3aed' : '#0284c7';
+                                            const bg  = isServer ? '#f5f3ff' : '#f0f9ff';
+                                            return (
+                                                <div key={rt.id} style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '12px 16px', borderBottom: idx < visibleResourceTypes.length - 1 ? '1px solid #f1f5f9' : 'none', transition: 'background 0.15s' }}
+                                                    onMouseEnter={e => (e.currentTarget.style.background = '#f8fafc')}
+                                                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                                                >
+                                                    <div style={{ width: '32px', height: '32px', borderRadius: '8px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: bg, color: clr }}>
+                                                        {isServer ? <Cpu size={16} /> : <Box size={16} />}
+                                                    </div>
+                                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1e293b' }}>{rt.name}</span>
+                                                            {rt.isActive === false && <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px' }}>Inactive</span>}
+                                                        </div>
+                                                        {rt.description && <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '2px' }}>{rt.description}</div>}
+                                                    </div>
+                                                    <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                                                        <button onClick={() => handleEditResourceType(rt)} style={{ width: '30px', height: '30px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}><Pencil size={13} /></button>
+                                                        <button onClick={() => handleDeleteResourceType(rt.id)} style={{ width: '30px', height: '30px', borderRadius: '8px', border: '1px solid #fecaca', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#dc2626' }}><Trash2 size={13} /></button>
+                                                    </div>
                                                 </div>
-                                                {rt.description && <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '2px' }}>{rt.description}</div>}
-                                            </div>
-                                            <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
-                                                <button onClick={() => handleEditResourceType(rt)} style={{ width: '30px', height: '30px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>
-                                                    <Pencil size={13} />
-                                                </button>
-                                                <button onClick={() => handleDeleteResourceType(rt.id)} style={{ width: '30px', height: '30px', borderRadius: '8px', border: '1px solid #fecaca', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#dc2626' }}>
-                                                    <Trash2 size={13} />
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ))}
+                                            );
+                                        })}
+                                    </div>
                                 </div>
                             ) : null}
                         </div>

@@ -155,6 +155,59 @@ function fmtMins(mins: number): string {
   return `${String(Math.floor(mins/60)).padStart(2,'0')}:${mins%60===0?'00':'30'}`;
 }
 
+// ─── Merge server units (e.g. "Server A #1", "Server A #2" → one group) ───────
+/**
+ * Server resources are created as individual units with names like "Name #1", "Name #2".
+ * This merges them into a single virtual Resource group (same as how physical resources
+ * are already grouped by the API), keyed by (resourceTypeId, baseName).
+ * Only merges when every unit has a single ID (individual unit from serverService.create).
+ */
+function mergeServerGroups(resources: Resource[]): Resource[] {
+  const byKey = new Map<string, Resource[]>();
+  const rest: Resource[] = [];
+
+  for (const r of resources) {
+    const m = r.name.match(/^(.+?)\s+#(\d+)$/);
+    if (m && (r.ids?.length ?? 1) <= 1) {
+      const key = `${r.resourceTypeId ?? ''}::${m[1]}`;
+      if (!byKey.has(key)) byKey.set(key, []);
+      byKey.get(key)!.push(r);
+    } else {
+      rest.push(r);
+    }
+  }
+
+  const result: Resource[] = [...rest];
+  for (const units of byKey.values()) {
+    units.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+    const first = units[0];
+    if (units.length === 1) {
+      result.push(first);
+    } else {
+      const allIds = units.flatMap(u => u.ids?.length ? u.ids : [u.id]);
+      const availIds = units
+        .filter(u => u.isAvailable !== false && !u.isInUse && !u.isDamaged)
+        .flatMap(u => u.ids?.length ? u.ids : [u.id]);
+      const baseName = first.name.replace(/\s+#\d+$/, '');
+      result.push({
+        ...first,
+        id: first.id,
+        ids: allIds,
+        name: baseName,
+        totalQuantity: units.length,
+        availableQuantity: availIds.length,
+        availableIds: availIds.length > 0 ? availIds : undefined,
+        damagedQuantity: units.filter(u => u.isDamaged).length,
+        inUseCount: units.filter(u => u.isInUse).length,
+        isAvailable: availIds.length > 0,
+        isInUse: availIds.length === 0,
+      });
+    }
+  }
+
+  return result;
+}
+
 // ─── Step 1: Resource Picker ──────────────────────────────────────────────────
 interface ResourcePickerProps {
   resources: Resource[];
@@ -1211,8 +1264,17 @@ const NewBookingModal: React.FC<NewBookingModalProps> = ({ onClose, onSaved, pre
           resourceService.getAllPages(),
           bookingService.getAllPages(),
         ]);
-        setResources(resItems);
+        const merged = mergeServerGroups(resItems);
+        setResources(merged);
         setAllBookings(allBk);
+        // Remap preSelectedResourceId to its merged group representative if needed
+        if (preSelectedResourceId) {
+          const group = merged.find(r => r.ids?.includes(preSelectedResourceId));
+          if (group && group.id !== preSelectedResourceId) {
+            setSelectedIds([group.id]);
+            setQuantities({ [group.id]: 1 });
+          }
+        }
       } catch (err) {
         console.error('NewBookingModal: failed to load data', err);
       } finally {

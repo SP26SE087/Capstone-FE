@@ -15,6 +15,7 @@ import Reports from '@/pages/report/Reports';
 import CreateReport from '@/pages/report/CreateReport';
 import ReportDetail from '@/pages/report/ReportDetail';
 import ResourceBooking from '@/pages/resource/ResourceBooking';
+import NewBookingPage from '@/pages/resource/NewBookingPage';
 import TerminalPage from '@/pages/resource/TerminalPage';
 import LabResourceAdmin from '@/pages/admin/LabResourceAdmin';
 import ComputeServerAdmin from '@/pages/admin/ComputeServerAdmin';
@@ -95,6 +96,10 @@ export const router = createBrowserRouter([
     {
         path: '/bookings',
         element: <AuthGuard><ResourceBooking /></AuthGuard>,
+    },
+    {
+        path: '/bookings/new',
+        element: <AuthGuard><NewBookingPage /></AuthGuard>,
     },
     {
         path: '/bookings/:bookingId/terminal',

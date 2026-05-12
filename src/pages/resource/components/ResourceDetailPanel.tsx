@@ -2,9 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import SearchableSelect from '@/components/common/SearchableSelect';
 import { Resource, ResourceType, UpdateResourceRequest, BasicBookingResponse, BookingStatus } from '@/types/booking';
 import { resourceService } from '@/services/resourceService';
+import { serverService, ServerResourceDetail } from '@/services/serverService';
 import { bookingService } from '@/services/bookingService';
 import { userService, UserResponse } from '@/services/userService';
-import { resourceTypeService, ResourceTypeItem } from '@/services/resourceTypeService';
+import { resourceTypeService, ResourceTypeItem, ResourceTypeCategory } from '@/services/resourceTypeService';
 import {
     Save,
     Loader2,
@@ -25,6 +26,11 @@ import {
     History,
     Clock,
     User,
+    Server,
+    Key,
+    MemoryStick,
+    Users,
+    Tag,
 } from 'lucide-react';
 
 // ─── Lightweight custom select (open/close toggle like native <select>) ────────
@@ -206,8 +212,6 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
     const [serialLoading, setSerialLoading] = useState(false);
     const [targetResource, setTargetResource] = useState<Resource>(initialResource);
 
-    const canEdit = isLabDirector || (allowSerialSelect && !!selectedSerial);
-    const canDelete = isLabDirector || (allowSerialSelect && !!selectedSerial);
 
     // Editable fields – initialized from the target resource
     const [name, setName] = useState(initialResource.name || '');
@@ -217,6 +221,40 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
     const [resourceTypeId, setResourceTypeId] = useState(initialResource.resourceTypeId || '');
     const [isDamaged, setIsDamaged] = useState(!!initialResource.isDamaged);
     const [isInUse, setIsInUse] = useState(!!initialResource.isInUse);
+
+    // Server-specific fields
+    const [serverDetail, setServerDetail] = useState<ServerResourceDetail | null>(null);
+    const [serverDetailLoading, setServerDetailLoading] = useState(false);
+    const [sshHost, setSshHost] = useState('');
+    const [sshPort, setSshPort] = useState('22');
+    const [sshUsername, setSshUsername] = useState('');
+    const [sshPrivateKey, setSshPrivateKey] = useState('');
+    const [gpuCount, setGpuCount] = useState('');
+    const [cpuCores, setCpuCores] = useState('');
+    const [ramGb, setRamGb] = useState('');
+    const [maxConcurrentUsers, setMaxConcurrentUsers] = useState('');
+    const [serverModelSeries, setServerModelSeries] = useState('');
+
+    // Split into units
+    const [splitCount, setSplitCount] = useState(2);
+    const [splitCustom, setSplitCustom] = useState('');
+    const [splitting, setSplitting] = useState(false);
+    const [splitError, setSplitError] = useState('');
+    const [splitSshPrivateKey, setSplitSshPrivateKey] = useState('');
+
+    const isServerType = resourceTypes.find(rt => rt.id === resourceTypeId)?.category === ResourceTypeCategory.ServerCompute;
+    // True when this resource is a grouped server (split into N units)
+    const isServerGroup = isServerType && (initialResource.serials?.length ?? 0) > 1;
+    // Unit picker: allowSerialSelect (physical) or lab director on server groups
+    const canPickUnit = allowSerialSelect || (isServerGroup && isLabDirector);
+
+    // For server groups, editing requires a unit to be selected first
+    const canEdit = isLabDirector
+        ? (!isServerGroup || !!selectedSerial)
+        : (allowSerialSelect && !!selectedSerial);
+    const canDelete = isLabDirector
+        ? (!isServerGroup || !!selectedSerial)
+        : (allowSerialSelect && !!selectedSerial);
 
     // ─── Panel tab state ───────────────────────────────────────────────────
     type PanelTab = 'details' | 'history';
@@ -301,9 +339,33 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
         setResourceTypeId(targetResource.resourceTypeId || '');
         setIsDamaged(!!targetResource.isDamaged);
         setIsInUse(!!targetResource.isInUse);
+        setSelectedManagerId(targetResource.managedBy || '');
         onTitleChange?.(targetResource.name || 'Resource');
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [targetResource.id]);
+
+    // Load server-specific details when the resource is a server type
+    useEffect(() => {
+        if (!isServerType || !targetResource.id) return;
+        setServerDetailLoading(true);
+        serverService.getServerDetail(targetResource.id).then(detail => {
+            setServerDetail(detail);
+            setSshHost(detail.sshHost || '');
+            setSshPort(detail.sshPort ? String(detail.sshPort) : '22');
+            setSshUsername(detail.sshUsername || '');
+            setSshPrivateKey(''); // never pre-fill private key
+            setGpuCount(detail.gpuCount != null ? String(detail.gpuCount) : '');
+            setCpuCores(detail.cpuCores != null ? String(detail.cpuCores) : '');
+            setRamGb(detail.ramGb != null ? String(detail.ramGb) : '');
+            setMaxConcurrentUsers(detail.maxConcurrentUsers != null ? String(detail.maxConcurrentUsers) : '');
+            setServerModelSeries(detail.modelSeries || '');
+        }).catch(() => {
+            setServerDetail(null);
+        }).finally(() => {
+            setServerDetailLoading(false);
+        });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [targetResource.id, isServerType]);
 
     const handleSelectSerial = async (serial: string) => {
         const next = serial === selectedSerial ? '' : serial;
@@ -314,7 +376,15 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
         }
         setSerialLoading(true);
         try {
-            const unit = await resourceService.getBySerial(next);
+            let unit: Resource;
+            if (isServerGroup) {
+                const idx = initialResource.serials?.indexOf(next) ?? -1;
+                const unitId = idx >= 0 ? initialResource.ids[idx] : null;
+                if (!unitId) throw new Error('Unit not found');
+                unit = await resourceService.getById(unitId);
+            } else {
+                unit = await resourceService.getBySerial(next);
+            }
             setTargetResource(unit);
         } catch (err: any) {
             const msg = err?.response?.data?.message || err?.response?.data?.title || 'Failed to load resource by serial.';
@@ -330,7 +400,11 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
         if (!selectedManagerId) return;
         setAssigning(true);
         try {
-            await Promise.all(initialResource.ids.map(id => resourceService.assignManager(id, selectedManagerId)));
+            if (selectedSerial) {
+                await resourceService.assignManager(targetResource.id, selectedManagerId);
+            } else {
+                await Promise.all(initialResource.ids.map(id => resourceService.assignManager(id, selectedManagerId)));
+            }
             onSaved(false, 'Manager assigned successfully.');
         } catch (err: any) {
             const msg = err?.response?.data?.message || err?.response?.data?.title || 'Failed to assign manager.';
@@ -354,21 +428,42 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
     const handleSave = async () => {
         setSaving(true);
         try {
-            const request: UpdateResourceRequest = {
-                name: name.trim() || undefined,
-                description: description.trim() || undefined,
-                location: location.trim() || undefined,
-                modelSeries: modelSeries.trim() || undefined,
-                resourceTypeId: resourceTypeId.trim() || undefined,
-                isDamaged,
-                isInUse
-            };
-            if (selectedSerial) {
-                // Update only the selected unit
-                await resourceService.update(targetResource.id, request);
+            if (isServerType) {
+                // Server resource — update via serverService
+                const serverReq: any = {
+                    name: name.trim() || undefined,
+                    description: description.trim() || undefined,
+                    location: location.trim() || undefined,
+                    resourceTypeId: resourceTypeId.trim() || undefined,
+                    sshHost: sshHost.trim() || undefined,
+                    sshPort: sshPort ? Number(sshPort) : undefined,
+                    sshUsername: sshUsername.trim() || undefined,
+                    gpuCount: gpuCount ? Number(gpuCount) : undefined,
+                    cpuCores: cpuCores ? Number(cpuCores) : undefined,
+                    ramGb: ramGb ? Number(ramGb) : undefined,
+                    maxConcurrentUsers: maxConcurrentUsers ? Number(maxConcurrentUsers) : undefined,
+                    modelSeries: serverModelSeries.trim() || undefined,
+                };
+                // Only send private key if user typed a new one
+                if (sshPrivateKey.trim()) serverReq.sshPrivateKey = sshPrivateKey.trim();
+                await serverService.updateServer(targetResource.id, serverReq);
             } else {
-                // Update every unit in this resource group
-                await Promise.all(initialResource.ids.map(id => resourceService.update(id, request)));
+                const request: UpdateResourceRequest = {
+                    name: name.trim() || undefined,
+                    description: description.trim() || undefined,
+                    location: location.trim() || undefined,
+                    modelSeries: modelSeries.trim() || undefined,
+                    resourceTypeId: resourceTypeId.trim() || undefined,
+                    isDamaged,
+                    isInUse
+                };
+                if (selectedSerial) {
+                    // Update only the selected unit
+                    await resourceService.update(targetResource.id, request);
+                } else {
+                    // Update every unit in this resource group
+                    await Promise.all(initialResource.ids.map(id => resourceService.update(id, request)));
+                }
             }
             onSaved(false, 'Resource updated successfully.');
         } catch (err: any) {
@@ -376,6 +471,58 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
             alert(msg);
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleSplit = async () => {
+        if (!splitSshPrivateKey.trim()) {
+            setSplitError('SSH Private Key is required to create new server units.');
+            return;
+        }
+        const minCount = isServerGroup ? 1 : 2;
+        if (splitCount < minCount || splitCount > 64) {
+            setSplitError(`Unit count must be between ${minCount} and 64.`);
+            return;
+        }
+        setSplitError('');
+        setSplitting(true);
+        try {
+            const commonPayload = {
+                description: description.trim() || undefined,
+                resourceTypeId,
+                location: location.trim() || undefined,
+                sshHost: sshHost.trim(),
+                sshPort: sshPort ? Number(sshPort) : undefined,
+                sshUsername: sshUsername.trim(),
+                sshPrivateKey: splitSshPrivateKey.trim(),
+                gpuCount: gpuCount ? Number(gpuCount) : undefined,
+                cpuCores: cpuCores ? Number(cpuCores) : undefined,
+                ramGb: ramGb ? Number(ramGb) : undefined,
+                maxConcurrentUsers: maxConcurrentUsers ? Number(maxConcurrentUsers) : undefined,
+                modelSeries: serverModelSeries.trim() || undefined,
+            };
+
+            if (isServerGroup) {
+                // Add N more units to the existing group
+                const existingCount = initialResource.ids.length;
+                const baseName = initialResource.name;
+                for (let i = 1; i <= splitCount; i++) {
+                    await serverService.createServer({ name: `${baseName} #${existingCount + i}`, ...commonPayload });
+                }
+                onSaved(true, `Added ${splitCount} unit(s) to "${initialResource.name}".`);
+            } else {
+                // Split single server: rename to #1, create N-1 more
+                await serverService.updateServer(targetResource.id, { name: `${name.trim()} #1` });
+                for (let i = 2; i <= splitCount; i++) {
+                    await serverService.createServer({ name: `${name.trim()} #${i}`, ...commonPayload });
+                }
+                onSaved(true, `Server split into ${splitCount} units successfully.`);
+            }
+        } catch (err: any) {
+            const msg = err?.response?.data?.message || err?.response?.data?.title || 'Failed to split server.';
+            setSplitError(msg);
+        } finally {
+            setSplitting(false);
         }
     };
 
@@ -577,23 +724,26 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
                     )}
                 </div>
 
-                {/* Serial Numbers */}
+                {/* Serial Numbers / Server Units */}
                 {(initialResource.serials?.length ?? 0) > 0 && (
                     <div style={sectionStyle}>
-                        <div style={labelStyle}><Hash size={12} /> Serial Numbers ({initialResource.serials!.length} units)</div>
+                        <div style={labelStyle}>
+                            <Hash size={12} />
+                            {isServerGroup ? `Server Units (${initialResource.serials!.length})` : `Serial Numbers (${initialResource.serials!.length} units)`}
+                        </div>
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '180px', overflowY: 'auto' }} className="custom-scrollbar">
                             {initialResource.serials!.map((serial, idx) => (
                                 <div
                                     key={idx}
-                                    onClick={allowSerialSelect ? () => handleSelectSerial(serial) : undefined}
+                                    onClick={canPickUnit ? () => handleSelectSerial(serial) : undefined}
                                     style={{
                                     display: 'flex', alignItems: 'center', gap: '10px',
                                     padding: '7px 10px',
-                                    background: (allowSerialSelect && selectedSerial === serial) ? '#f8fafc' : '#fff',
+                                    background: (canPickUnit && selectedSerial === serial) ? '#f8fafc' : '#fff',
                                     borderRadius: '8px',
-                                    border: (allowSerialSelect && selectedSerial === serial) ? '1px solid var(--accent-color)' : '1px solid var(--border-light)',
-                                    cursor: allowSerialSelect ? 'pointer' : 'default'
+                                    border: (canPickUnit && selectedSerial === serial) ? '1px solid var(--accent-color)' : '1px solid var(--border-light)',
+                                    cursor: canPickUnit ? 'pointer' : 'default'
                                 }}>
                                     <span style={{
                                         width: '20px', height: '20px', borderRadius: '6px', background: '#f1f5f9',
@@ -607,22 +757,24 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
                             ))}
                         </div>
 
-                        {allowSerialSelect && (
+                        {canPickUnit && (
                             <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border-light)' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
                                     <div style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' as const, letterSpacing: '0.8px' }}>
-                                        Unit Details
+                                        {isServerGroup ? 'Unit Details' : 'Unit Details'}
                                     </div>
                                     {serialLoading && <Loader2 size={16} className="animate-spin" style={{ color: 'var(--accent-color)' }} />}
                                 </div>
 
                                 {!selectedSerial ? (
                                     <div style={{ fontSize: '0.82rem', color: '#64748b' }}>
-                                        Click a serial number above to expand the update table.
+                                        {isServerGroup
+                                            ? 'Click a server unit above to view and edit its configuration.'
+                                            : 'Click a serial number above to expand the update table.'}
                                     </div>
                                 ) : (
                                     <div style={{ display: 'grid', gridTemplateColumns: '170px 1fr', gap: '8px 12px' }}>
-                                        <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b' }}>Serial</div>
+                                        <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b' }}>{isServerGroup ? 'Unit' : 'Serial'}</div>
                                         <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1e293b' }}>{selectedSerial}</div>
 
                                         <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b' }}>Name</div>
@@ -707,7 +859,7 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
                 )}
 
                 {/* Editable Details */}
-                {!allowSerialSelect && (
+                {!allowSerialSelect && !isServerGroup && (
                 <div style={sectionStyle}>
                     <div style={labelStyle}><FileText size={12} /> {isLabDirector ? 'Editable Details' : 'Details'}</div>
 
@@ -765,40 +917,284 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
                 </div>
                 )}
 
+                {/* Server Configuration (only for server/compute resource types) */}
+                {(!allowSerialSelect && !isServerGroup || (isServerGroup && !!selectedSerial)) && isServerType && isLabDirector && (
+                <div style={sectionStyle}>
+                    <div style={labelStyle}><Server size={12} /> SSH Connection</div>
+                    {serverDetailLoading ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 0', color: '#64748b', fontSize: '0.82rem' }}>
+                            <Loader2 size={14} className="animate-spin" /> Loading server details…
+                        </div>
+                    ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: '8px 12px', alignItems: 'center' }}>
+                        <label style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b' }}>Host *</label>
+                        <input
+                            style={inputStyle}
+                            value={sshHost}
+                            onChange={e => setSshHost(e.target.value)}
+                            placeholder="e.g. 192.168.1.100"
+                            onFocus={handleFocus}
+                            onBlur={handleBlur}
+                        />
+
+                        <label style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b' }}>Port</label>
+                        <input
+                            style={{ ...inputStyle, width: '80px' }}
+                            value={sshPort}
+                            onChange={e => setSshPort(e.target.value)}
+                            placeholder="22"
+                            type="number"
+                            min={1} max={65535}
+                            onFocus={handleFocus}
+                            onBlur={handleBlur}
+                        />
+
+                        <label style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b' }}>Username *</label>
+                        <input
+                            style={inputStyle}
+                            value={sshUsername}
+                            onChange={e => setSshUsername(e.target.value)}
+                            placeholder="e.g. ubuntu"
+                            onFocus={handleFocus}
+                            onBlur={handleBlur}
+                        />
+
+                        <label style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b' }}>
+                            <Key size={10} style={{ marginRight: 3 }} />Private Key
+                        </label>
+                        <div>
+                            <textarea
+                                style={{ ...inputStyle, minHeight: '80px', resize: 'vertical', fontFamily: 'monospace', fontSize: '0.75rem' }}
+                                value={sshPrivateKey}
+                                onChange={e => setSshPrivateKey(e.target.value)}
+                                placeholder="Leave blank to keep existing private key"
+                                onFocus={handleFocus}
+                                onBlur={handleBlur}
+                            />
+                            <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: '2px' }}>Leave blank to keep existing private key unchanged.</div>
+                        </div>
+                    </div>
+                    )}
+
+                    <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px solid var(--border-light)' }}>
+                        <div style={{ ...labelStyle, marginBottom: '10px' }}><MemoryStick size={12} /> Hardware Specs</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+                            <div>
+                                <label style={{ ...labelStyle, fontSize: '0.65rem' }}><Monitor size={10} /> GPU Count</label>
+                                <input
+                                    style={inputStyle}
+                                    value={gpuCount}
+                                    onChange={e => setGpuCount(e.target.value)}
+                                    placeholder="e.g. 2"
+                                    type="number" min={0}
+                                    onFocus={handleFocus}
+                                    onBlur={handleBlur}
+                                />
+                            </div>
+                            <div>
+                                <label style={{ ...labelStyle, fontSize: '0.65rem' }}><Cpu size={10} /> CPU Cores</label>
+                                <input
+                                    style={inputStyle}
+                                    value={cpuCores}
+                                    onChange={e => setCpuCores(e.target.value)}
+                                    placeholder="e.g. 16"
+                                    type="number" min={0}
+                                    onFocus={handleFocus}
+                                    onBlur={handleBlur}
+                                />
+                            </div>
+                            <div>
+                                <label style={{ ...labelStyle, fontSize: '0.65rem' }}><MemoryStick size={10} /> RAM (GB)</label>
+                                <input
+                                    style={inputStyle}
+                                    value={ramGb}
+                                    onChange={e => setRamGb(e.target.value)}
+                                    placeholder="e.g. 64"
+                                    type="number" min={0}
+                                    onFocus={handleFocus}
+                                    onBlur={handleBlur}
+                                />
+                            </div>
+                            <div>
+                                <label style={{ ...labelStyle, fontSize: '0.65rem' }}><Users size={10} /> Max Concurrent Users</label>
+                                <input
+                                    style={inputStyle}
+                                    value={maxConcurrentUsers}
+                                    onChange={e => setMaxConcurrentUsers(e.target.value)}
+                                    placeholder="e.g. 5"
+                                    type="number" min={1}
+                                    onFocus={handleFocus}
+                                    onBlur={handleBlur}
+                                />
+                            </div>
+                        </div>
+                        <div>
+                            <label style={{ ...labelStyle, fontSize: '0.65rem' }}><Tag size={10} /> Model / Series</label>
+                            <input
+                                style={inputStyle}
+                                value={serverModelSeries}
+                                onChange={e => setServerModelSeries(e.target.value)}
+                                placeholder="e.g. NVIDIA DGX A100"
+                                onFocus={handleFocus}
+                                onBlur={handleBlur}
+                            />
+                        </div>
+                    </div>
+                </div>
+                )}
+
+                {/* Split / Add More Units */}
+                {!allowSerialSelect && isServerType && isLabDirector && (
+                <div style={{ ...sectionStyle, borderColor: 'rgba(124,58,237,0.2)' }}>
+                    <div style={{ ...labelStyle, marginBottom: '4px' }}>
+                        <Hash size={12} /> {isServerGroup ? 'Add More Units' : 'Split into Units'}
+                    </div>
+                    <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: '14px', marginTop: 0 }}>
+                        {isServerGroup
+                            ? <>Add more units to the <strong>{initialResource.name}</strong> group. They will be numbered from #{initialResource.ids.length + 1}.</>
+                            : <>Split this server into multiple units. The current server will be renamed to <strong>{name.trim() || 'Server'} #1</strong>.</>
+                        }
+                    </p>
+
+                    {/* Count picker */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' as const, marginBottom: '12px' }}>
+                        {(isServerGroup ? [1, 2, 4, 8] : [2, 4, 8]).map(n => (
+                            <button
+                                key={n}
+                                type="button"
+                                onClick={() => { setSplitCount(n); setSplitCustom(''); setSplitError(''); }}
+                                style={{
+                                    padding: '7px 18px', borderRadius: '10px', fontWeight: 800, fontSize: '0.85rem',
+                                    border: splitCount === n && !splitCustom ? '2px solid #7c3aed' : '1.5px solid var(--border-color)',
+                                    background: splitCount === n && !splitCustom ? '#ede9fe' : '#fff',
+                                    color: splitCount === n && !splitCustom ? '#7c3aed' : 'var(--text-secondary)',
+                                    cursor: 'pointer',
+                                    boxShadow: splitCount === n && !splitCustom ? '0 0 0 3px rgba(124,58,237,0.12)' : 'none',
+                                    transition: 'all 0.15s',
+                                }}
+                            >
+                                {isServerGroup ? `+${n}` : `×${n}`}
+                            </button>
+                        ))}
+                        <input
+                            style={{
+                                ...inputStyle, width: '90px', padding: '7px 10px',
+                                borderColor: splitCustom ? '#7c3aed' : undefined,
+                                boxShadow: splitCustom ? '0 0 0 3px rgba(124,58,237,0.12)' : 'none',
+                                fontWeight: 700, textAlign: 'center' as const,
+                            }}
+                            type="number" min={isServerGroup ? 1 : 2} max={64}
+                            value={splitCustom}
+                            placeholder="Custom"
+                            onChange={e => {
+                                setSplitCustom(e.target.value);
+                                const n = parseInt(e.target.value, 10);
+                                if (!isNaN(n) && n >= 1) setSplitCount(n);
+                                setSplitError('');
+                            }}
+                            onFocus={handleFocus} onBlur={handleBlur}
+                        />
+                    </div>
+
+                    {/* Private key — always required for creating new units */}
+                    <div style={{ marginBottom: '12px' }}>
+                        <label style={{ ...labelStyle, fontSize: '0.65rem' }}><Key size={10} /> SSH Private Key <span style={{ color: '#ef4444' }}>*</span></label>
+                        <textarea
+                            style={{ ...inputStyle, minHeight: '80px', resize: 'vertical' as const, fontFamily: 'monospace', fontSize: '0.75rem' }}
+                            value={splitSshPrivateKey}
+                            onChange={e => { setSplitSshPrivateKey(e.target.value); setSplitError(''); }}
+                            placeholder="-----BEGIN RSA PRIVATE KEY-----&#10;..."
+                            onFocus={handleFocus} onBlur={handleBlur}
+                        />
+                        <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: '2px' }}>
+                            {isServerGroup
+                                ? `SSH host/user will be copied from "${initialResource.name} #1". Only the private key is required.`
+                                : 'Private key used to provision the new server units.'}
+                        </div>
+                    </div>
+
+                    {/* Preview */}
+                    {(isServerGroup ? initialResource.name : name.trim()) && (
+                        <div style={{
+                            background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: '10px',
+                            padding: '10px 14px', display: 'flex', flexWrap: 'wrap' as const, gap: '6px',
+                            marginBottom: splitError ? '10px' : 0,
+                        }}>
+                            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#7c3aed', width: '100%', marginBottom: '4px' }}>
+                                {isServerGroup ? `Adding ${splitCount} unit(s):` : `Will create ${splitCount} server(s):`}
+                            </span>
+                            {isServerGroup
+                                ? Array.from({ length: Math.min(splitCount, 8) }, (_, i) => (
+                                    <span key={i} style={{ fontSize: '0.72rem', fontWeight: 600, color: '#6d28d9', background: '#ede9fe', padding: '2px 10px', borderRadius: 20, fontFamily: 'monospace' }}>
+                                        {initialResource.name} #{initialResource.ids.length + i + 1}
+                                    </span>
+                                ))
+                                : Array.from({ length: Math.min(splitCount, 8) }, (_, i) => (
+                                    <span key={i} style={{ fontSize: '0.72rem', fontWeight: 600, color: '#6d28d9', background: '#ede9fe', padding: '2px 10px', borderRadius: 20, fontFamily: 'monospace' }}>
+                                        {name.trim()} #{i + 1}
+                                    </span>
+                                ))
+                            }
+                            {splitCount > 8 && (
+                                <span style={{ fontSize: '0.72rem', color: '#94a3b8', alignSelf: 'center' }}>…+{splitCount - 8} more</span>
+                            )}
+                        </div>
+                    )}
+
+                    {splitError && (
+                        <div style={{ fontSize: '0.78rem', color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '8px 12px', marginTop: '10px' }}>
+                            {splitError}
+                        </div>
+                    )}
+                </div>
+                )}
+
                 {/* Assign Manager */}
                 {isLabDirector && (
                     <div style={sectionStyle}>
                         <div style={labelStyle}><UserCog size={12} /> Assign Manager</div>
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                            <div style={{ flex: 1 }}>
-                                <SearchableSelect
-                                    options={users.map(u => ({ id: u.userId, name: u.fullName, info: u.email }))}
-                                    value={selectedManagerId}
-                                    onChange={v => setSelectedManagerId(v as string)}
-                                    placeholder="— Select a manager —"
-                                    icon={<UserCog size={14} />}
-                                />
+
+                        {isServerGroup && !selectedSerial ? (
+                            <div style={{ fontSize: '0.82rem', color: '#64748b', background: '#f8fafc', borderRadius: '8px', padding: '10px 12px', border: '1px solid var(--border-light)' }}>
+                                Select a unit above to assign a manager to that specific unit.
                             </div>
-                            <button
-                                onClick={handleAssignManager}
-                                disabled={assigning || !selectedManagerId}
-                                style={{
-                                    padding: '10px 16px', borderRadius: '10px', border: 'none',
-                                    background: (!selectedManagerId || assigning) ? '#e2e8f0' : 'var(--accent-color)',
-                                    color: (!selectedManagerId || assigning) ? '#94a3b8' : '#fff',
-                                    cursor: (!selectedManagerId || assigning) ? 'not-allowed' : 'pointer',
-                                    fontSize: '0.8rem', fontWeight: 700, flexShrink: 0,
-                                    display: 'flex', alignItems: 'center', gap: '6px'
-                                }}
-                            >
-                                {assigning ? <Loader2 size={14} className="animate-spin" /> : <UserCog size={14} />}
-                                Assign
-                            </button>
-                        </div>
-                        {initialResource.managerName && (
-                            <div style={{ marginTop: '8px', fontSize: '0.75rem', color: '#64748b' }}>
-                                Current: <strong style={{ color: '#1e293b' }}>{initialResource.managerName}</strong>
-                            </div>
+                        ) : (
+                            <>
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                    <div style={{ flex: 1 }}>
+                                        <SearchableSelect
+                                            options={users.map(u => ({ id: u.userId, name: u.fullName, info: u.email }))}
+                                            value={selectedManagerId}
+                                            onChange={v => setSelectedManagerId(v as string)}
+                                            placeholder="— Select a manager —"
+                                            icon={<UserCog size={14} />}
+                                        />
+                                    </div>
+                                    <button
+                                        onClick={handleAssignManager}
+                                        disabled={assigning || !selectedManagerId}
+                                        style={{
+                                            padding: '10px 16px', borderRadius: '10px', border: 'none',
+                                            background: (!selectedManagerId || assigning) ? '#e2e8f0' : 'var(--accent-color)',
+                                            color: (!selectedManagerId || assigning) ? '#94a3b8' : '#fff',
+                                            cursor: (!selectedManagerId || assigning) ? 'not-allowed' : 'pointer',
+                                            fontSize: '0.8rem', fontWeight: 700, flexShrink: 0,
+                                            display: 'flex', alignItems: 'center', gap: '6px'
+                                        }}
+                                    >
+                                        {assigning ? <Loader2 size={14} className="animate-spin" /> : <UserCog size={14} />}
+                                        Assign
+                                    </button>
+                                </div>
+                                {targetResource.managerName && (
+                                    <div style={{ marginTop: '8px', fontSize: '0.75rem', color: '#64748b' }}>
+                                        Current: <strong style={{ color: '#1e293b' }}>{targetResource.managerName}</strong>
+                                        {isServerGroup && selectedSerial && (
+                                            <span style={{ color: '#94a3b8', marginLeft: '4px' }}>(this unit)</span>
+                                        )}
+                                    </div>
+                                )}
+                            </>
                         )}
                     </div>
                 )}
@@ -873,10 +1269,28 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
                     >
                         Close
                     </button>
+                    {canEdit && panelTab === 'details' && !allowSerialSelect && isServerType && isLabDirector && (
+                        <button
+                            onClick={handleSplit}
+                            disabled={splitting || saving}
+                            style={{
+                                padding: '8px 20px', borderRadius: '10px', border: '2px solid #7c3aed',
+                                background: (splitting || saving) ? '#f5f3ff' : '#ede9fe',
+                                color: (splitting || saving) ? '#a78bfa' : '#7c3aed',
+                                cursor: (splitting || saving) ? 'not-allowed' : 'pointer',
+                                fontSize: '0.8rem', fontWeight: 700,
+                                display: 'flex', alignItems: 'center', gap: '6px',
+                                transition: 'all 0.2s',
+                            }}
+                        >
+                            {splitting ? <Loader2 size={14} className="animate-spin" /> : <Hash size={14} />}
+                            Split × {splitCount}
+                        </button>
+                    )}
                     {canEdit && panelTab === 'details' && (
                         <button
                             onClick={handleSave}
-                            disabled={saving || serialLoading}
+                            disabled={saving || serialLoading || splitting}
                             style={{
                                 padding: '8px 24px', borderRadius: '10px', border: 'none',
                                 background: saving ? '#94a3b8' : 'var(--accent-color)',

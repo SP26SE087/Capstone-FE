@@ -105,14 +105,20 @@ export interface RespondSeminarSwapRequest {
 export interface SeminarSwapRequestResponse {
     swapRequestId: string;
     seminarId: string;
+    seminarName: string | null;
     sourceSeminarMeetingId: string;
+    sourceMeetingDate: string;
     targetSeminarMeetingId: string;
+    targetMeetingDate: string;
     requestedByUserId: string;
+    requestedByUserName: string | null;
     targetUserId: string;
+    targetUserName: string | null;
     reason: string | null;
     status: string | null;
     requestedAt: string;
     respondedAt: string | null;
+    swapAcceptedAt: string | null;
     decidedAt: string | null;
     decidedByUserId: string | null;
     responseNote: string | null;
