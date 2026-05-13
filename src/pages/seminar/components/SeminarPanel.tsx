@@ -86,9 +86,11 @@ const formatDateOnly = (dateStr: string) => {
 };
 
 const formatTime = (dateStr: string) => {
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return '';
-    return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+    if (!dateStr) return '';
+    const match = dateStr.match(/T(\d{2}:\d{2})/);
+    if (match) return match[1];
+    // fallback: plain HH:MM[:SS]
+    return dateStr.slice(0, 5);
 };
 
 const DESCRIPTION_COLLAPSED_MAX_HEIGHT = 80;

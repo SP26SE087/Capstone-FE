@@ -108,8 +108,10 @@ export interface SeminarSwapRequestResponse {
     seminarName: string | null;
     sourceSeminarMeetingId: string;
     sourceMeetingDate: string;
+    sourceStartTime: string | null;
     targetSeminarMeetingId: string;
     targetMeetingDate: string;
+    targetStartTime: string | null;
     requestedByUserId: string;
     requestedByUserName: string | null;
     targetUserId: string;

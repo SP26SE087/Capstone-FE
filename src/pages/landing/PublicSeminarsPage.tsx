@@ -35,8 +35,8 @@ const formatDateOnly = (v?: string | null) => {
 const formatTimeRange = (start?: string | null, end?: string | null) => {
     const fmt = (v?: string | null) => {
         if (!v) return '';
-        const dt = new Date(v);
-        if (!isNaN(dt.getTime())) return dt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const match = v.match(/T(\d{2}:\d{2})/);
+        if (match) return match[1];
         return v.slice(0, 5);
     };
     const s = fmt(start);

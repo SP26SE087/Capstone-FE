@@ -62,6 +62,14 @@ const formatDateTime = (dateStr: string) => {
     return `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
 };
 
+// Parse HH:MM directly from ISO string without timezone conversion
+// (backend already sends local time with Z suffix)
+const formatTimeRaw = (dateStr: string | null | undefined) => {
+    if (!dateStr) return null;
+    const match = dateStr.match(/T(\d{2}:\d{2})/);
+    return match ? match[1] : null;
+};
+
 const getInitials = (name: string) => {
     if (!name) return '?';
     const parts = name.trim().split(' ');
@@ -269,6 +277,11 @@ const SwapRequests: React.FC<SwapRequestsProps> = ({ usersMap, emailsMap, onActi
                                                 <Calendar size={11} color="var(--text-muted)" style={{ flexShrink: 0 }} />
                                                 <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
                                                     {formatSessionDate(swap.sourceMeetingDate)}
+                                                    {formatTimeRaw(swap.sourceStartTime) && (
+                                                        <span style={{ marginLeft: 4, color: 'var(--text-muted)', fontWeight: 600 }}>
+                                                            {formatTimeRaw(swap.sourceStartTime)}
+                                                        </span>
+                                                    )}
                                                 </span>
                                             </div>
                                         </div>
@@ -323,6 +336,11 @@ const SwapRequests: React.FC<SwapRequestsProps> = ({ usersMap, emailsMap, onActi
                                                 <Calendar size={11} color="var(--accent-color)" style={{ flexShrink: 0 }} />
                                                 <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--accent-color)' }}>
                                                     {formatSessionDate(swap.targetMeetingDate)}
+                                                    {formatTimeRaw(swap.targetStartTime) && (
+                                                        <span style={{ marginLeft: 4, fontWeight: 600, opacity: 0.8 }}>
+                                                            {formatTimeRaw(swap.targetStartTime)}
+                                                        </span>
+                                                    )}
                                                 </span>
                                             </div>
                                         </div>

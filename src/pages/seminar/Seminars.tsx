@@ -528,9 +528,10 @@ const Seminars: React.FC = () => {
     }, [timetableEvents, selectedCalDate]);
 
     const fmtHm = (iso: string) => {
-        const d = new Date(iso);
-        if (isNaN(d.getTime())) return '';
-        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        if (!iso) return '';
+        const match = iso.match(/T(\d{2}:\d{2})/);
+        if (match) return match[1];
+        return iso.slice(0, 5);
     };
 
     // Stats
