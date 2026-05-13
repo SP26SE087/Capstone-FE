@@ -459,24 +459,6 @@ const Projects: React.FC = () => {
                                                                 {project.roleName}
                                                             </span>
                                                         )}
-                                                        {isLabDirector && (
-                                                            <>
-                                                                <button
-                                                                    title="Export to Excel"
-                                                                    onClick={e => handleExport(project.projectId, e)}
-                                                                    style={{ display: 'flex', alignItems: 'center', gap: '3px', padding: '3px 8px', borderRadius: '6px', border: '1px solid #d1fae5', background: '#f0fdf4', color: '#16a34a', cursor: 'pointer', fontSize: '0.65rem', fontWeight: 700 }}
-                                                                >
-                                                                    <Download size={11} /> Export
-                                                                </button>
-                                                                <button
-                                                                    title="Clone project"
-                                                                    onClick={e => openClone(project, e)}
-                                                                    style={{ display: 'flex', alignItems: 'center', gap: '3px', padding: '3px 8px', borderRadius: '6px', border: '1px solid #e0e7ff', background: '#eef2ff', color: '#4f46e5', cursor: 'pointer', fontSize: '0.65rem', fontWeight: 700 }}
-                                                                >
-                                                                    <Copy size={11} /> Clone
-                                                                </button>
-                                                            </>
-                                                        )}
                                                     </div>
                                                 </div>
 
@@ -514,9 +496,29 @@ const Projects: React.FC = () => {
                                                         </span>
                                                     )}
                                                     {!showPanel && (
-                                                        <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '4px', color: '#94a3b8' }}>
-                                                            by {creatorName}
-                                                        </span>
+                                                        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#94a3b8' }}>
+                                                                by {creatorName}
+                                                            </span>
+                                                            {isLabDirector && (
+                                                                <>
+                                                                    <button
+                                                                        title="Export to Excel"
+                                                                        onClick={e => handleExport(project.projectId, e)}
+                                                                        style={{ display: 'flex', alignItems: 'center', gap: '3px', padding: '3px 8px', borderRadius: '6px', border: '1px solid #d1fae5', background: '#f0fdf4', color: '#16a34a', cursor: 'pointer', fontSize: '0.65rem', fontWeight: 700 }}
+                                                                    >
+                                                                        <Download size={11} /> Export
+                                                                    </button>
+                                                                    <button
+                                                                        title="Clone project"
+                                                                        onClick={e => openClone(project, e)}
+                                                                        style={{ display: 'flex', alignItems: 'center', gap: '3px', padding: '3px 8px', borderRadius: '6px', border: '1px solid #e0e7ff', background: '#eef2ff', color: '#4f46e5', cursor: 'pointer', fontSize: '0.65rem', fontWeight: 700 }}
+                                                                    >
+                                                                        <Copy size={11} /> Clone
+                                                                    </button>
+                                                                </>
+                                                            )}
+                                                        </div>
                                                     )}
                                                 </div>
                                             </div>
