@@ -6,7 +6,6 @@ import {
     CheckSquare,
     Users,
     Calendar,
-    FlaskConical,
     BarChart2,
     Presentation,
     Box,
@@ -17,6 +16,7 @@ import {
     UserCheck,
     ContactRound,
     ScanFace,
+    Home,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -30,6 +30,7 @@ const Sidebar: React.FC = () => {
     const closeAINote = () => window.dispatchEvent(new CustomEvent('closeAINote'));
 
     const workspaceItems = [
+        { icon: <Home size={20} />, label: 'Homepage', path: '/', onNavClick: undefined as (() => void) | undefined },
         { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/dashboard', onNavClick: undefined as (() => void) | undefined },
         { icon: <FolderKanban size={20} />, label: "Lab's Projects", path: '/lab-projects', onNavClick: undefined },
         { icon: <Briefcase size={20} />, label: 'My Projects', path: '/projects', onNavClick: undefined },
@@ -57,18 +58,6 @@ const Sidebar: React.FC = () => {
 
     return (
         <aside className="sidebar">
-            <div className="sidebar-header">
-                <Link to="/" className="sidebar-brand" style={{ textDecoration: 'none' }}>
-                    <div className="sidebar-brand-icon">
-                        <FlaskConical size={20} />
-                    </div>
-                    <div>
-                        <h2 className="sidebar-title">Researcher Space</h2>
-                        <span className="sidebar-subtitle">AiTA Lab@FPTU</span>
-                    </div>
-                </Link>
-            </div>
-
             <nav className="sidebar-nav">
                 {(isMemberOrSenior || isLabDirector) && (
                     <>
@@ -119,11 +108,6 @@ const Sidebar: React.FC = () => {
                 alignItems: 'center',
                 gap: '6px',
             }}>
-                <Link to="/" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textDecoration: 'none' }}
-                    onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-color)'}
-                    onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
-                    Homepage
-                </Link>
                 <div style={{ display: 'flex', gap: '12px' }}>
                     <Link to="/privacy" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textDecoration: 'none' }}
                         onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-color)'}
