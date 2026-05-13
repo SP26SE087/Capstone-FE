@@ -269,10 +269,13 @@ const TerminalFileManager: React.FC<TerminalFileManagerProps> = ({ bookingId, te
       const res = await fetch(`${filesBase}/download?path=${encodeURIComponent(entry.fullPath)}`, { headers: authHeader });
       if (res.status === 401) { setError('Token expired.'); return; }
       if (!res.ok) throw new Error(`Download failed (${res.status})`);
-      const blob = await res.blob();
+      const rawBlob = await res.blob();
+      const disposition = res.headers.get('Content-Disposition') ?? '';
+      const fileName = disposition.match(/filename="?([^";\n]+)"?/)?.[1] ?? entry.name;
+      const blob = entry.isDirectory ? new Blob([rawBlob], { type: 'application/zip' }) : rawBlob;
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url; a.download = entry.name; a.click();
+      a.href = url; a.download = fileName; a.click();
       URL.revokeObjectURL(url);
     } catch (err: any) {
       setError(err.message || 'Download failed');
@@ -573,9 +576,10 @@ const TerminalFileManager: React.FC<TerminalFileManagerProps> = ({ bookingId, te
                     display: 'flex', gap: '4px', justifyContent: 'flex-end',
                     opacity: isHovered ? 1 : 0, transition: 'opacity 0.12s',
                   }}>
-                    {!entry.isDirectory && (
+                    {(
                       <button
-                        onClick={() => handleDownload(entry)} disabled={isDownloading} title="Download"
+                        onClick={() => handleDownload(entry)} disabled={isDownloading} title={entry.isDirectory ? 'Download as zip' : 'Download'}
+
                         style={{
                           display: 'flex', alignItems: 'center', padding: '3px 5px',
                           borderRadius: '5px', border: 'none',
