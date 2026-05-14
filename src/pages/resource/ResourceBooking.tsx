@@ -1411,6 +1411,7 @@ const ResourceBooking: React.FC = () => {
                                     onSaved={handlePanelSaved} onTitleChange={handleTitleChange}
                                     isLabDirector={isLabDirector}
                                     allowSerialSelect={activeTab === 'my_managed'}
+                                    currentUserId={user?.userId}
                                 />
                             )}
                             {activePanel.type === 'create_booking' && (

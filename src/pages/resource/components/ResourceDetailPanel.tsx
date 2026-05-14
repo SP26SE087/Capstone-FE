@@ -31,6 +31,9 @@ import {
     MemoryStick,
     Users,
     Tag,
+    Wifi,
+    WifiOff,
+    RefreshCw,
 } from 'lucide-react';
 
 // ─── Lightweight custom select (open/close toggle like native <select>) ────────
@@ -127,6 +130,7 @@ interface ResourceDetailPanelProps {
     onTitleChange?: (title: string) => void;
     isLabDirector: boolean;
     allowSerialSelect?: boolean;
+    currentUserId?: string;
 }
 
 const inputStyle: React.CSSProperties = {
@@ -198,7 +202,8 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
     onSaved,
     onTitleChange,
     isLabDirector,
-    allowSerialSelect
+    allowSerialSelect,
+    currentUserId,
 }) => {
     const [saving, setSaving] = useState(false);
     const [deleting, setDeleting] = useState(false);
@@ -225,6 +230,12 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
     // Server-specific fields
     const [serverDetail, setServerDetail] = useState<ServerResourceDetail | null>(null);
     const [serverDetailLoading, setServerDetailLoading] = useState(false);
+
+    // Server health ping (3-second interval)
+    type ServerHealth = 'checking' | 'online' | 'offline';
+    const [serverHealth, setServerHealth] = useState<ServerHealth>('checking');
+    const [healthLastChecked, setHealthLastChecked] = useState<Date | null>(null);
+    const healthIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const [sshHost, setSshHost] = useState('');
     const [sshPort, setSshPort] = useState('22');
     const [sshUsername, setSshUsername] = useState('');
@@ -245,16 +256,16 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
     const isServerType = resourceTypes.find(rt => rt.id === resourceTypeId)?.category === ResourceTypeCategory.ServerCompute;
     // True when this resource is a grouped server (split into N units)
     const isServerGroup = isServerType && (initialResource.serials?.length ?? 0) > 1;
-    // Unit picker: allowSerialSelect (physical) or lab director on server groups
-    const canPickUnit = allowSerialSelect || (isServerGroup && isLabDirector);
+
+    // Only the assigned manager of this resource can edit it
+    const isAssignee = !!currentUserId && initialResource.managedBy === currentUserId;
+
+    // Unit picker: allowSerialSelect (physical) or assignee on server groups
+    const canPickUnit = allowSerialSelect || (isServerGroup && isAssignee);
 
     // For server groups, editing requires a unit to be selected first
-    const canEdit = isLabDirector
-        ? (!isServerGroup || !!selectedSerial)
-        : (allowSerialSelect && !!selectedSerial);
-    const canDelete = isLabDirector
-        ? (!isServerGroup || !!selectedSerial)
-        : (allowSerialSelect && !!selectedSerial);
+    const canEdit = isAssignee && (!isServerGroup || !!selectedSerial);
+    const canDelete = isLabDirector && (!isServerGroup || !!selectedSerial);
 
     // ─── Panel tab state ───────────────────────────────────────────────────
     type PanelTab = 'details' | 'history';
@@ -364,6 +375,28 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
         }).finally(() => {
             setServerDetailLoading(false);
         });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [targetResource.id, isServerType]);
+
+    // Health-check ping every 3 seconds for server resources
+    useEffect(() => {
+        if (!isServerType || !targetResource.id) {
+            setServerHealth('checking');
+            return;
+        }
+        const ping = async () => {
+            try {
+                const detail = await serverService.getServerDetail(targetResource.id);
+                setServerHealth(detail.isAvailable && !detail.isDamaged ? 'online' : 'offline');
+            } catch {
+                setServerHealth('offline');
+            }
+            setHealthLastChecked(new Date());
+        };
+        setServerHealth('checking');
+        ping();
+        healthIntervalRef.current = setInterval(ping, 3000);
+        return () => { if (healthIntervalRef.current) clearInterval(healthIntervalRef.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [targetResource.id, isServerType]);
 
@@ -563,12 +596,35 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
                         <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
                             {initialResource.name}
                         </h3>
-                        <span style={{
-                            fontSize: '0.68rem', fontWeight: 700, color: typeColor,
-                            background: `${typeColor}10`, padding: '2px 8px', borderRadius: '12px'
-                        }}>
-                            {getResourceTypeLabel(initialResource.type)}
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '3px', flexWrap: 'wrap' }}>
+                            <span style={{
+                                fontSize: '0.68rem', fontWeight: 700, color: typeColor,
+                                background: `${typeColor}10`, padding: '2px 8px', borderRadius: '12px'
+                            }}>
+                                {getResourceTypeLabel(initialResource.type)}
+                            </span>
+                            {isAssignee ? (
+                                <span style={{
+                                    fontSize: '0.62rem', fontWeight: 700,
+                                    background: '#d1fae5', color: '#065f46',
+                                    border: '1px solid #6ee7b7',
+                                    padding: '2px 8px', borderRadius: '12px',
+                                    display: 'inline-flex', alignItems: 'center', gap: '4px',
+                                }}>
+                                    <UserCog size={10} /> Assignee
+                                </span>
+                            ) : (
+                                <span style={{
+                                    fontSize: '0.62rem', fontWeight: 700,
+                                    background: '#f1f5f9', color: '#64748b',
+                                    border: '1px solid #e2e8f0',
+                                    padding: '2px 8px', borderRadius: '12px',
+                                    display: 'inline-flex', alignItems: 'center', gap: '4px',
+                                }}>
+                                    View Only
+                                </span>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -613,6 +669,23 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
 
             {/* Scrollable Content */}
             <div style={{ flex: 1, overflowY: 'auto', paddingRight: '4px' }} className="custom-scrollbar">
+
+                {/* View-only notice for non-assignees */}
+                {!isAssignee && panelTab === 'details' && (
+                    <div style={{
+                        display: 'flex', alignItems: 'center', gap: '10px',
+                        padding: '10px 14px', marginBottom: '12px',
+                        background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px',
+                        fontSize: '0.78rem', color: '#64748b',
+                    }}>
+                        <UserCog size={14} style={{ color: '#94a3b8', flexShrink: 0 }} />
+                        {initialResource.managerName ? (
+                            <span>Managed by <strong style={{ color: '#1e293b' }}>{initialResource.managerName}</strong> — you can view but not edit this resource.</span>
+                        ) : (
+                            <span>No assignee set — you can view but not edit this resource.</span>
+                        )}
+                    </div>
+                )}
 
                 {/* ── Booking History Tab ── */}
                 {panelTab === 'history' && (() => {
@@ -698,17 +771,48 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
 
                 {/* Inventory Status */}
                 <div style={sectionStyle}>
-                    <div style={labelStyle}><Package size={12} /> Inventory Status</div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                        <div style={labelStyle}><Package size={12} /> Inventory Status</div>
+                        {/* Server health badge — only for server resources */}
+                        {isServerType && (() => {
+                            const hCfg = {
+                                checking: { label: 'Checking…', color: '#64748b', bg: '#f1f5f9', border: '#cbd5e1', dot: '#94a3b8', icon: <Loader2 size={11} className="animate-spin" /> },
+                                online:   { label: 'Online',    color: '#16a34a', bg: '#dcfce7', border: '#86efac', dot: '#22c55e', icon: <Wifi size={11} /> },
+                                offline:  { label: 'Offline',   color: '#dc2626', bg: '#fee2e2', border: '#fca5a5', dot: '#ef4444', icon: <WifiOff size={11} /> },
+                            }[serverHealth];
+                            return (
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+                                    <span style={{
+                                        display: 'inline-flex', alignItems: 'center', gap: '5px',
+                                        fontSize: '0.7rem', fontWeight: 800, padding: '4px 10px', borderRadius: '20px',
+                                        color: hCfg.color, background: hCfg.bg, border: `1px solid ${hCfg.border}`,
+                                    }}>
+                                        {serverHealth === 'online'
+                                            ? <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#22c55e', display: 'inline-block', animation: 'serverPulse 1.4s ease-in-out infinite' }} />
+                                            : hCfg.icon
+                                        }
+                                        {hCfg.label}
+                                    </span>
+                                    {healthLastChecked && (
+                                        <span style={{ fontSize: '0.58rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                            <RefreshCw size={8} /> {healthLastChecked.toLocaleTimeString()}
+                                        </span>
+                                    )}
+                                </div>
+                            );
+                        })()}
+                    </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
                         {[
-                            { label: 'Total', value: initialResource.totalQuantity, color: '#1e293b', bg: '#fff' },
-                            { label: 'Available', value: initialResource.availableQuantity, color: '#059669', bg: '#ecfdf5' },
-                            { label: 'In Use', value: initialResource.inUseCount ?? 0, color: '#7c3aed', bg: '#f5f3ff' },
-                            { label: 'Damaged', value: initialResource.damagedQuantity, color: initialResource.damagedQuantity > 0 ? '#dc2626' : '#94a3b8', bg: initialResource.damagedQuantity > 0 ? '#fef2f2' : '#f8fafc' }
+                            { label: 'Total',     sub: 'all units',        value: initialResource.totalQuantity,       color: '#1e293b', bg: '#fff' },
+                            { label: 'Available', sub: 'ready to book',    value: initialResource.availableQuantity,   color: '#059669', bg: '#ecfdf5' },
+                            { label: 'In Use',    sub: 'active sessions',  value: initialResource.inUseCount ?? 0,     color: '#7c3aed', bg: '#f5f3ff' },
+                            { label: 'Damaged',   sub: 'flagged units',    value: initialResource.damagedQuantity,     color: initialResource.damagedQuantity > 0 ? '#dc2626' : '#94a3b8', bg: initialResource.damagedQuantity > 0 ? '#fef2f2' : '#f8fafc' }
                         ].map(stat => (
                             <div key={stat.label} style={{ padding: '10px', background: stat.bg, borderRadius: '8px', border: '1px solid var(--border-light)', textAlign: 'center' }}>
-                                <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '4px', textTransform: 'uppercase' }}>{stat.label}</div>
+                                <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '2px', textTransform: 'uppercase' }}>{stat.label}</div>
                                 <div style={{ fontSize: '1.1rem', fontWeight: 800, color: stat.color }}>{stat.value}</div>
+                                <div style={{ fontSize: '0.55rem', color: 'var(--text-muted)', fontWeight: 600, marginTop: '3px', opacity: 0.75 }}>{stat.sub}</div>
                             </div>
                         ))}
                     </div>
@@ -726,36 +830,73 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
                 </div>
 
                 {/* Serial Numbers / Server Units */}
-                {(initialResource.serials?.length ?? 0) > 0 && (
+                {(initialResource.serials?.length ?? 0) > 0 && (() => {
+                    const serials = initialResource.serials!;
+                    const availableIdSet = new Set(initialResource.availableIds || []);
+                    const totalUnits    = serials.length;
+                    const damagedCnt   = initialResource.damagedQuantity ?? 0;
+                    const availableCnt = initialResource.availableQuantity ?? (totalUnits - damagedCnt);
+                    type UnitSt = 'available' | 'in-use' | 'damaged';
+                    const SERIAL_STATUS: Record<UnitSt, { label: string; color: string; bg: string; border: string; dot: string }> = {
+                        available: { label: 'Available', color: '#16a34a', bg: '#dcfce7', border: '#86efac', dot: '#22c55e' },
+                        'in-use':  { label: 'In Use',    color: '#b45309', bg: '#fef9c3', border: '#fde68a', dot: '#f59e0b' },
+                        damaged:   { label: 'Damaged',   color: '#dc2626', bg: '#fee2e2', border: '#fca5a5', dot: '#ef4444' },
+                    };
+                    const unitSt: { serial: string; status: UnitSt; id?: string }[] = serials.map((serial, idx) => {
+                        const id = initialResource.ids[idx];
+                        if (initialResource.availableIds && initialResource.availableIds.length > 0) {
+                            if (id && availableIdSet.has(id)) return { serial, status: 'available' as UnitSt, id };
+                            if (idx < damagedCnt) return { serial, status: 'damaged' as UnitSt, id };
+                            return { serial, status: 'in-use' as UnitSt, id };
+                        }
+                        if (idx < availableCnt) return { serial, status: 'available' as UnitSt, id };
+                        if (idx < availableCnt + damagedCnt) return { serial, status: 'damaged' as UnitSt, id };
+                        return { serial, status: 'in-use' as UnitSt, id };
+                    });
+                    const avCnt  = unitSt.filter(u => u.status === 'available').length;
+                    const iuCnt  = unitSt.filter(u => u.status === 'in-use').length;
+                    const dmCnt  = unitSt.filter(u => u.status === 'damaged').length;
+                    return (
                     <div style={sectionStyle}>
-                        <div style={labelStyle}>
-                            <Hash size={12} />
-                            {isServerGroup ? `Server Units (${initialResource.serials!.length})` : `Serial Numbers (${initialResource.serials!.length} units)`}
+                        <div style={{ ...labelStyle, justifyContent: 'space-between' }}>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <Hash size={12} />
+                                {isServerGroup ? `Server Units (${serials.length})` : `Serial Numbers (${serials.length} units)`}
+                            </span>
+                            <span style={{ fontSize: '0.62rem', fontWeight: 800, color: '#0ea5e9', background: '#f0f9ff', border: '1px solid #bae6fd', padding: '2px 8px', borderRadius: '20px', letterSpacing: '0.03em' }}>
+                                Current status
+                            </span>
                         </div>
-
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '180px', overflowY: 'auto' }} className="custom-scrollbar">
-                            {initialResource.serials!.map((serial, idx) => (
-                                <div
-                                    key={idx}
-                                    onClick={canPickUnit ? () => handleSelectSerial(serial) : undefined}
-                                    style={{
-                                    display: 'flex', alignItems: 'center', gap: '10px',
-                                    padding: '7px 10px',
-                                    background: (canPickUnit && selectedSerial === serial) ? '#f8fafc' : '#fff',
-                                    borderRadius: '8px',
-                                    border: (canPickUnit && selectedSerial === serial) ? '1px solid var(--accent-color)' : '1px solid var(--border-light)',
-                                    cursor: canPickUnit ? 'pointer' : 'default'
-                                }}>
-                                    <span style={{
-                                        width: '20px', height: '20px', borderRadius: '6px', background: '#f1f5f9',
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        fontSize: '0.65rem', fontWeight: 700, color: '#64748b', flexShrink: 0
-                                    }}>{idx + 1}</span>
-                                    <code style={{ fontFamily: 'monospace', fontSize: '0.82rem', fontWeight: 600, color: '#1e293b', letterSpacing: '0.5px' }}>
+                        {/* Status summary */}
+                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '10px' }}>
+                            {([{count:avCnt,st:'available'},{count:iuCnt,st:'in-use'},{count:dmCnt,st:'damaged'}] as const)
+                              .filter(s => s.count > 0).map(s => { const sc = SERIAL_STATUS[s.st as UnitSt]; return (
+                                <span key={s.st} style={{ display:'inline-flex', alignItems:'center', gap:'5px', fontSize:'0.67rem', fontWeight:800, padding:'3px 9px', borderRadius:'20px', color:sc.color, background:sc.bg, border:`1px solid ${sc.border}` }}>
+                                    <span style={{ width:'6px', height:'6px', borderRadius:'50%', background:sc.dot, display:'inline-block' }} />
+                                    {s.count} {sc.label}
+                                </span>
+                            );})}
+                        </div>
+                        {/* Badge grid */}
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', maxHeight: '160px', overflowY: 'auto' }} className="custom-scrollbar">
+                            {unitSt.map(({ serial, status }, idx) => {
+                                const sc = SERIAL_STATUS[status];
+                                const isActive = canPickUnit && selectedSerial === serial;
+                                return (
+                                    <span key={idx} title={`${serial} — ${sc.label}${status === 'in-use' ? ' (checked out via active booking)' : status === 'damaged' ? ' (manually flagged as damaged)' : ' (no active booking)'}`}
+                                        onClick={canPickUnit ? () => handleSelectSerial(serial) : undefined}
+                                        style={{ display:'inline-flex', alignItems:'center', gap:'5px', fontSize:'0.7rem', fontWeight:700,
+                                            fontFamily:'"Fira Code","Cascadia Code",monospace', padding:'4px 10px', borderRadius:'7px',
+                                            color:sc.color, background:isActive ? sc.dot+'22' : sc.bg,
+                                            border:isActive ? `2px solid ${sc.dot}` : `1px solid ${sc.border}`,
+                                            cursor:canPickUnit?'pointer':'default', letterSpacing:'0.03em', whiteSpace:'nowrap',
+                                            transition:'all 0.15s', boxShadow:isActive?`0 0 0 2px ${sc.dot}33`:'none' }}
+                                    >
+                                        <span style={{ width:'6px', height:'6px', borderRadius:'50%', background:sc.dot, display:'inline-block', flexShrink:0 }} />
                                         {serial}
-                                    </code>
-                                </div>
-                            ))}
+                                    </span>
+                                );
+                            })}
                         </div>
 
                         {canPickUnit && (
@@ -831,46 +972,53 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
                                             isDisabled={!canEdit}
                                         />
 
-                                        <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b' }}>Flags</div>
-                                        <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
-                                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', color: '#334155', fontWeight: 600 }}>
-                                                <input
-                                                    type="checkbox"
-                                                    checked={isDamaged}
-                                                    onChange={e => { if (canEdit) setIsDamaged(e.target.checked); }}
-                                                    disabled={!canEdit}
-                                                />
-                                                Is Damaged
-                                            </label>
-                                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem', color: '#334155', fontWeight: 600 }}>
-                                                <input
-                                                    type="checkbox"
-                                                    checked={isInUse}
-                                                    onChange={e => { if (canEdit) setIsInUse(e.target.checked); }}
-                                                    disabled={!canEdit}
-                                                />
-                                                Is In Use
-                                            </label>
+                                        <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b' }}>
+                                            Unit Status
+                                            <span style={{ marginLeft: '5px', fontSize: '0.62rem', fontWeight: 600, color: '#94a3b8', textTransform: 'none', letterSpacing: 0 }}>(manual overrides)</span>
+                                        </div>
+                                        <div>
+                                            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' as const }}>
+                                                {/* Damaged toggle */}
+                                                <div onClick={() => { if (canEdit) setIsDamaged(v => !v); }}
+                                                    style={{ display:'flex', alignItems:'center', gap:'7px', cursor:canEdit?'pointer':'default' }}>
+                                                    <div style={{ width:'36px', height:'20px', borderRadius:'10px', background:isDamaged?'#ef4444':'#e2e8f0', position:'relative', transition:'background 0.2s', cursor:canEdit?'pointer':'default', flexShrink:0 }}>
+                                                        <div style={{ position:'absolute', top:'2px', left:isDamaged?'18px':'2px', width:'16px', height:'16px', borderRadius:'50%', background:'#fff', transition:'left 0.2s', boxShadow:'0 1px 3px rgba(0,0,0,0.2)' }} />
+                                                    </div>
+                                                    <span style={{ fontSize:'0.75rem', fontWeight:700, color:isDamaged?'#dc2626':'#94a3b8', padding:'2px 8px', borderRadius:'12px', background:isDamaged?'#fee2e2':'#f8fafc', border:`1px solid ${isDamaged?'#fca5a5':'#e2e8f0'}`, transition:'all 0.2s' }}>Damaged</span>
+                                                </div>
+                                                {/* In Use toggle */}
+                                                <div onClick={() => { if (canEdit) setIsInUse(v => !v); }}
+                                                    style={{ display:'flex', alignItems:'center', gap:'7px', cursor:canEdit?'pointer':'default' }}>
+                                                    <div style={{ width:'36px', height:'20px', borderRadius:'10px', background:isInUse?'#f59e0b':'#e2e8f0', position:'relative', transition:'background 0.2s', cursor:canEdit?'pointer':'default', flexShrink:0 }}>
+                                                        <div style={{ position:'absolute', top:'2px', left:isInUse?'18px':'2px', width:'16px', height:'16px', borderRadius:'50%', background:'#fff', transition:'left 0.2s', boxShadow:'0 1px 3px rgba(0,0,0,0.2)' }} />
+                                                    </div>
+                                                    <span style={{ fontSize:'0.75rem', fontWeight:700, color:isInUse?'#b45309':'#94a3b8', padding:'2px 8px', borderRadius:'12px', background:isInUse?'#fef9c3':'#f8fafc', border:`1px solid ${isInUse?'#fde68a':'#e2e8f0'}`, transition:'all 0.2s' }}>In Use</span>
+                                                </div>
+                                            </div>
+                                            <div style={{ fontSize: '0.62rem', color: '#94a3b8', marginTop: '6px' }}>
+                                                These flags are set manually — they persist independently of active booking sessions.
+                                            </div>
                                         </div>
                                     </div>
                                 )}
                             </div>
                         )}
                     </div>
-                )}
+                    );
+                })()}
 
                 {/* Editable Details */}
                 {!allowSerialSelect && !isServerGroup && (
                 <div style={sectionStyle}>
-                    <div style={labelStyle}><FileText size={12} /> {isLabDirector ? 'Editable Details' : 'Details'}</div>
+                    <div style={labelStyle}><FileText size={12} /> {isAssignee ? 'Editable Details' : 'Details'}</div>
 
                     <div style={{ marginBottom: '14px' }}>
                         <label style={{ ...labelStyle, fontSize: '0.68rem' }}>Name</label>
                         <input
-                            style={{ ...inputStyle, ...(!isLabDirector ? { background: '#f8fafc', color: 'var(--text-secondary)', cursor: 'default' } : {}) }}
+                            style={{ ...inputStyle, ...(!isAssignee ? { background: '#f8fafc', color: 'var(--text-secondary)', cursor: 'default' } : {}) }}
                             value={name}
-                            onChange={e => { if (isLabDirector) { setName(e.target.value); onTitleChange?.(e.target.value || 'Resource'); } }}
-                            readOnly={!isLabDirector}
+                            onChange={e => { if (isAssignee) { setName(e.target.value); onTitleChange?.(e.target.value || 'Resource'); } }}
+                            readOnly={!isAssignee}
                             onFocus={handleFocus}
                             onBlur={handleBlur}
                         />
@@ -881,12 +1029,12 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
                         <textarea
                             style={{
                                 ...inputStyle, minHeight: '70px',
-                                resize: isLabDirector ? 'vertical' as const : 'none' as const,
-                                ...(!isLabDirector ? { background: '#f8fafc', color: 'var(--text-secondary)', cursor: 'default' } : {})
+                                resize: isAssignee ? 'vertical' as const : 'none' as const,
+                                ...(!isAssignee ? { background: '#f8fafc', color: 'var(--text-secondary)', cursor: 'default' } : {})
                             }}
                             value={description}
-                            onChange={e => { if (isLabDirector) setDescription(e.target.value); }}
-                            readOnly={!isLabDirector}
+                            onChange={e => { if (isAssignee) setDescription(e.target.value); }}
+                            readOnly={!isAssignee}
                             placeholder="Resource description..."
                             onFocus={handleFocus}
                             onBlur={handleBlur}
@@ -896,10 +1044,10 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
                     <div style={{ marginBottom: '14px' }}>
                         <label style={{ ...labelStyle, fontSize: '0.68rem' }}><MapPin size={12} /> Location</label>
                         <input
-                            style={{ ...inputStyle, ...(!isLabDirector ? { background: '#f8fafc', color: 'var(--text-secondary)', cursor: 'default' } : {}) }}
+                            style={{ ...inputStyle, ...(!isAssignee ? { background: '#f8fafc', color: 'var(--text-secondary)', cursor: 'default' } : {}) }}
                             value={location}
-                            onChange={e => { if (isLabDirector) setLocation(e.target.value); }}
-                            readOnly={!isLabDirector}
+                            onChange={e => { if (isAssignee) setLocation(e.target.value); }}
+                            readOnly={!isAssignee}
                             placeholder="Resource location..."
                             onFocus={handleFocus}
                             onBlur={handleBlur}
@@ -910,16 +1058,16 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
                         <label style={{ ...labelStyle, fontSize: '0.68rem' }}><Package size={12} /> Resource Type</label>
                         <TypeSelect
                             value={resourceTypeId}
-                            onChange={v => { if (isLabDirector) setResourceTypeId(v); }}
+                            onChange={v => { if (isAssignee) setResourceTypeId(v); }}
                             options={resourceTypes.map(rt => ({ value: rt.id, label: rt.name }))}
-                            isDisabled={!isLabDirector}
+                            isDisabled={!isAssignee}
                         />
                     </div>
                 </div>
                 )}
 
                 {/* Server Configuration (only for server/compute resource types) */}
-                {(!allowSerialSelect && !isServerGroup || (isServerGroup && !!selectedSerial)) && isServerType && isLabDirector && (
+                {(!allowSerialSelect && !isServerGroup || (isServerGroup && !!selectedSerial)) && isServerType && isAssignee && (
                 <div style={sectionStyle}>
                     <div style={labelStyle}><Server size={12} /> SSH Connection</div>
                     {serverDetailLoading ? (
@@ -1045,7 +1193,7 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
                 )}
 
                 {/* Split / Add More Units */}
-                {!allowSerialSelect && isServerType && isLabDirector && (
+                {!allowSerialSelect && isServerType && isAssignee && isLabDirector && (
                 <div style={{ ...sectionStyle, borderColor: 'rgba(124,58,237,0.2)' }}>
                     <div style={{ ...labelStyle, marginBottom: '4px' }}>
                         <Hash size={12} /> {isServerGroup ? 'Add More Units' : 'Split into Units'}
@@ -1270,7 +1418,7 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
                     >
                         Close
                     </button>
-                    {canEdit && panelTab === 'details' && !allowSerialSelect && isServerType && isLabDirector && (
+                    {canEdit && panelTab === 'details' && !allowSerialSelect && isServerType && isAssignee && isLabDirector && (
                         <button
                             onClick={handleSplit}
                             disabled={splitting || saving}

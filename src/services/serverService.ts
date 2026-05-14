@@ -69,7 +69,7 @@ export interface UpdateServerRequest {
   sshHost?: string;
   sshPort?: number;
   sshUsername?: string;
-  /** Để trống nếu không muốn thay đổi */
+  /** Leave blank to keep the existing private key unchanged */
   sshPrivateKey?: string;
   gpuCount?: number;
   cpuCores?: number;

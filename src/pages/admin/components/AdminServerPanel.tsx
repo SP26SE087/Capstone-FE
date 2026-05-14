@@ -429,7 +429,7 @@ const AdminServerPanel: React.FC<AdminServerPanelProps> = ({ editingId, onClose,
           {!isEdit && errors.sshPrivateKey && <span style={{ fontSize: '0.72rem', color: '#ef4444', marginTop: '4px', display: 'block' }}>{errors.sshPrivateKey}</span>}
           {isEdit && (
             <span style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '4px', display: 'block' }}>
-              Để trống nếu không muốn thay đổi private key hiện tại.
+          Leave blank to keep the current private key unchanged.
             </span>
           )}
         </div>

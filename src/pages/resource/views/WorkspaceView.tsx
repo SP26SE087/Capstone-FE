@@ -2,7 +2,8 @@ import React, { useState, useMemo } from 'react';
 import {
     Plus, Search, AlertCircle, CheckCircle2, Activity, Archive,
     Clock, Calendar, Check, LogOut, LogIn, X,
-    Cpu, Database, Radio, Monitor, Package, FlaskConical, Microscope
+    Cpu, Database, Radio, Monitor, Package, FlaskConical, Microscope,
+    ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { Booking, Resource, BookingStatus } from '@/types/booking';
 import {
@@ -309,25 +310,76 @@ interface WorkspaceViewProps {
     onCheckIn: (id: string) => void;
 }
 
+type TimeRange = 'day' | 'week' | 'month' | 'all';
+
+const TIME_RANGE_OPTS: { value: TimeRange; label: string }[] = [
+    { value: 'day',   label: 'Today' },
+    { value: 'week',  label: 'This Week' },
+    { value: 'month', label: 'This Month' },
+    { value: 'all',   label: 'All' },
+];
+
 export default function WorkspaceView({
     bookings, resources, isManager, isDirector,
     onOpenBooking, onNewBooking,
     onApprove, onReject, onCheckOut, onCheckIn,
 }: WorkspaceViewProps) {
     const [search, setSearch] = useState('');
+    const [timeRange, setTimeRange] = useState<TimeRange>('week');
+    const [offset, setOffset] = useState(0); // 0 = current period, -1 = previous, +1 = next
+
+    const { rangeWindow, rangeLabel } = useMemo(() => {
+        const now = new Date();
+        const sod = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+        if (timeRange === 'day') {
+            const start = new Date(sod); start.setDate(sod.getDate() + offset);
+            const end   = new Date(start); end.setDate(start.getDate() + 1);
+            const label = start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+            return { rangeWindow: { start, end }, rangeLabel: label };
+        }
+        if (timeRange === 'week') {
+            const dow = (now.getDay() + 6) % 7;
+            const sow = new Date(sod); sow.setDate(sod.getDate() - dow + offset * 7);
+            const eow = new Date(sow); eow.setDate(sow.getDate() + 7);
+            const last = new Date(eow); last.setDate(eow.getDate() - 1);
+            const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            const label = `${fmt(sow)} – ${fmt(last)}, ${last.getFullYear()}`;
+            return { rangeWindow: { start: sow, end: eow }, rangeLabel: label };
+        }
+        if (timeRange === 'month') {
+            const m = now.getMonth() + offset;
+            const y = now.getFullYear() + Math.floor(m / 12);
+            const mo = ((m % 12) + 12) % 12;
+            const start = new Date(y, mo, 1);
+            const end   = new Date(y, mo + 1, 1);
+            const label = start.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+            return { rangeWindow: { start, end }, rangeLabel: label };
+        }
+        return { rangeWindow: null, rangeLabel: 'All time' };
+    }, [timeRange, offset]);
 
     const filtered = useMemo(() => {
+        let result = bookings;
+        if (rangeWindow) {
+            result = result.filter(b => {
+                const s = new Date(b.startTime), e = new Date(b.endTime);
+                return s < rangeWindow.end && e > rangeWindow.start;
+            });
+        }
         const q = search.trim().toLowerCase();
-        if (!q) return bookings;
-        return bookings.filter(b => {
-            const resLabel = getBookingResourceLabel(b, resources).toLowerCase();
-            return (
-                b.title.toLowerCase().includes(q) ||
-                (b.userFullName ?? b.userName ?? '').toLowerCase().includes(q) ||
-                resLabel.includes(q)
-            );
-        });
-    }, [bookings, search, resources]);
+        if (q) {
+            result = result.filter(b => {
+                const resLabel = getBookingResourceLabel(b, resources).toLowerCase();
+                return (
+                    b.title.toLowerCase().includes(q) ||
+                    (b.userFullName ?? b.userName ?? '').toLowerCase().includes(q) ||
+                    resLabel.includes(q)
+                );
+            });
+        }
+        return result;
+    }, [bookings, search, resources, rangeWindow]);
 
     const sortByStart = (a: Booking, b: Booking) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
     const pending   = filtered.filter(b => b.status === BookingStatus.Pending).sort(sortByStart);
@@ -349,8 +401,47 @@ export default function WorkspaceView({
                             : 'Your approval queue on the left; everything in flight on the right.'}
                     </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: '6px 10px', width: 240 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    {/* Time range selector */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{ display: 'flex', background: '#f1f5f9', borderRadius: 8, padding: 3, gap: 2 }}>
+                            {TIME_RANGE_OPTS.map(opt => {
+                                const active = timeRange === opt.value;
+                                return (
+                                    <button
+                                        key={opt.value}
+                                        onClick={() => { setTimeRange(opt.value); setOffset(0); }}
+                                        style={{
+                                            padding: '4px 11px', borderRadius: 6, border: 'none', cursor: 'pointer',
+                                            fontSize: 12, fontWeight: active ? 700 : 500,
+                                            background: active ? '#fff' : 'transparent',
+                                            color: active ? '#E8720C' : '#64748b',
+                                            boxShadow: active ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
+                                            transition: 'all 0.15s',
+                                        }}
+                                    >
+                                        {opt.label}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        {timeRange !== 'all' && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: '3px 6px' }}>
+                                <button onClick={() => setOffset(o => o - 1)}
+                                    style={{ display: 'flex', alignItems: 'center', padding: '2px 4px', border: 'none', background: 'transparent', cursor: 'pointer', color: '#64748b', borderRadius: 5 }}>
+                                    <ChevronLeft size={14} />
+                                </button>
+                                <span style={{ fontSize: 12, fontWeight: 600, color: offset === 0 ? '#E8720C' : '#1e293b', minWidth: 130, textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                    {rangeLabel}
+                                </span>
+                                <button onClick={() => setOffset(o => o + 1)}
+                                    style={{ display: 'flex', alignItems: 'center', padding: '2px 4px', border: 'none', background: 'transparent', cursor: 'pointer', color: '#64748b', borderRadius: 5 }}>
+                                    <ChevronRight size={14} />
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: '6px 10px', width: 220 }}>
                         <Search size={13} color="#94a3b8" />
                         <input
                             value={search} onChange={e => setSearch(e.target.value)}

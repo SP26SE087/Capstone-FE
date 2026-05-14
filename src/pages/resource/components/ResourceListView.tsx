@@ -31,6 +31,17 @@ const SECTION_CFG = {
     },
 };
 
+/* ── Status config (for the overall now-status pill) ────────────────────── */
+type UnitStatus = 'available' | 'in-use' | 'damaged';
+
+const STATUS_CFG: Record<UnitStatus, { label: string; color: string; bg: string; border: string; dot: string }> = {
+    available: { label: 'Available', color: '#16a34a', bg: '#dcfce7', border: '#86efac', dot: '#22c55e' },
+    'in-use':  { label: 'In Use',    color: '#b45309', bg: '#fef9c3', border: '#fde68a', dot: '#f59e0b' },
+    damaged:   { label: 'Damaged',   color: '#dc2626', bg: '#fee2e2', border: '#fca5a5', dot: '#ef4444' },
+};
+
+
+/* ── Component ───────────────────────────────────────────────────────────── */
 const ResourceListView: React.FC<ResourceListViewProps> = ({
     resources,
     selectedId,
@@ -62,12 +73,25 @@ const ResourceListView: React.FC<ResourceListViewProps> = ({
 
     const renderCard = (resource: Resource) => {
         const isSelected = resource.id === selectedId;
-        const isAvailable = resource.availableQuantity > 0;
         const rt = resourceTypes.find(t => t.id === resource.resourceTypeId);
         const isServer = rt?.category === ResourceTypeCategory.ServerCompute;
         const cfg = isServer ? SECTION_CFG.server : SECTION_CFG.physical;
-        const total = Math.max(resource.totalQuantity || 0, 1);
-        const availabilityPct = Math.min(100, Math.round(((resource.availableQuantity || 0) / total) * 100));
+
+        // Derive counts from resource fields directly
+        const total        = Math.max(resource.totalQuantity || 0, 1);
+        const availableCount = resource.availableQuantity ?? 0;
+        const damagedCount   = resource.damagedQuantity ?? 0;
+        const inUseCount     = resource.inUseCount ?? Math.max(0, total - availableCount - damagedCount);
+
+        // Overall now-status (for the header pill)
+        type UnitStatus = 'available' | 'in-use' | 'damaged';
+        const overallStatus: UnitStatus =
+            availableCount > 0 ? 'available' :
+            damagedCount > 0   ? 'damaged'   : 'in-use';
+        const osc = STATUS_CFG[overallStatus];
+
+        // Availability bar
+        const availabilityPct = Math.min(100, Math.round((availableCount / total) * 100));
 
         return (
             <div
@@ -80,78 +104,88 @@ const ResourceListView: React.FC<ResourceListViewProps> = ({
                     background: isSelected ? 'var(--accent-bg)' : '#fff',
                     cursor: 'pointer',
                     transition: 'all 0.2s',
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: '10px',
                 }}
             >
-                <div style={{
-                    width: '32px', height: '32px', borderRadius: '8px',
-                    background: cfg.bg, color: cfg.color,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                }}>
-                    {cfg.cardIcon}
-                </div>
+                {/* ── Top row: icon + name + overall status badge ── */}
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                    <div style={{
+                        width: '32px', height: '32px', borderRadius: '8px',
+                        background: cfg.bg, color: cfg.color,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                    }}>
+                        {cfg.cardIcon}
+                    </div>
 
-                <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px' }}>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1e293b', marginBottom: '4px', wordBreak: 'break-word' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                        {/* Name + now-status */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '4px' }}>
+                            <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1e293b', wordBreak: 'break-word', flex: 1 }}>
                                 {resource.name}
                             </div>
-                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' as const }}>
-                                <span style={{
-                                    fontSize: '0.6rem', fontWeight: 700,
-                                    color: cfg.color, background: cfg.bg, border: `1px solid ${cfg.border}`,
-                                    padding: '1px 7px', borderRadius: '999px', whiteSpace: 'nowrap' as const,
-                                }}>
-                                    {resource.resourceTypeName || 'Resource'}
+                            {/* Now-status pill */}
+                            <span style={{
+                                flexShrink: 0,
+                                display: 'inline-flex', alignItems: 'center', gap: '4px',
+                                fontSize: '0.65rem', fontWeight: 800, letterSpacing: '0.03em',
+                                padding: '2px 8px', borderRadius: '20px',
+                                color: osc.color, background: osc.bg, border: `1px solid ${osc.border}`,
+                                whiteSpace: 'nowrap',
+                            }}>
+                                <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: osc.dot, display: 'inline-block' }} />
+                                {osc.label}
+                            </span>
+                        </div>
+
+                        {/* Meta: type badge + location + manager */}
+                        <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' as const }}>
+                            <span style={{
+                                fontSize: '0.6rem', fontWeight: 700,
+                                color: cfg.color, background: cfg.bg, border: `1px solid ${cfg.border}`,
+                                padding: '1px 7px', borderRadius: '999px', whiteSpace: 'nowrap' as const,
+                            }}>
+                                {resource.resourceTypeName || 'Resource'}
+                            </span>
+                            {resource.location && (
+                                <span style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '0.68rem', color: '#64748b' }}>
+                                    <MapPin size={11} /> {resource.location}
                                 </span>
-                                {resource.location && (
-                                    <span style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '0.68rem', color: '#64748b' }}>
-                                        <MapPin size={11} /> {resource.location}
-                                    </span>
-                                )}
-                                {resource.managerName && (
-                                    <span style={{ display: 'flex', alignItems: 'center', gap: '3px', fontWeight: 600, color: '#475569', fontSize: '0.68rem' }}>
-                                        <UserCog size={11} /> {resource.managerName}
-                                    </span>
-                                )}
-                            </div>
+                            )}
+                            {resource.managerName && (
+                                <span style={{ display: 'flex', alignItems: 'center', gap: '3px', fontWeight: 600, color: '#475569', fontSize: '0.68rem' }}>
+                                    <UserCog size={11} /> {resource.managerName}
+                                </span>
+                            )}
                         </div>
-                        <span style={{
-                            fontSize: '0.67rem', fontWeight: 800,
-                            color: isAvailable ? '#059669' : '#dc2626',
-                            background: isAvailable ? '#ecfdf5' : '#fef2f2',
-                            border: `1px solid ${isAvailable ? '#a7f3d0' : '#fecaca'}`,
-                            padding: '2px 8px', borderRadius: '20px', whiteSpace: 'nowrap' as const,
-                        }}>
-                            {resource.availableQuantity}/{resource.totalQuantity} available
-                        </span>
                     </div>
-                    <div style={{ marginTop: '8px' }}>
-                        <div style={{ height: '6px', borderRadius: '999px', background: '#e2e8f0', overflow: 'hidden' }}>
-                            <div style={{
-                                width: `${availabilityPct}%`, height: '100%', borderRadius: '999px',
-                                background: availabilityPct > 50 ? '#10b981' : availabilityPct > 20 ? '#f59e0b' : '#ef4444',
-                                transition: 'width 0.2s ease',
-                            }} />
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '4px', fontSize: '0.64rem', color: '#64748b', fontWeight: 600 }}>
-                            <span>Availability</span>
-                            <span>{availabilityPct}%</span>
-                        </div>
+
+                    <div style={{
+                        width: '28px', height: '28px', borderRadius: '999px',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        background: isSelected ? 'rgba(232,114,12,0.15)' : '#f8fafc',
+                        border: isSelected ? '1px solid rgba(232,114,12,0.35)' : '1px solid #e2e8f0',
+                        marginTop: '2px', flexShrink: 0,
+                    }}>
+                        <ChevronRight size={15} style={{ color: isSelected ? 'var(--accent-color)' : '#94a3b8' }} />
                     </div>
                 </div>
 
-                <div style={{
-                    width: '28px', height: '28px', borderRadius: '999px',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    background: isSelected ? 'rgba(232,114,12,0.15)' : '#f8fafc',
-                    border: isSelected ? '1px solid rgba(232,114,12,0.35)' : '1px solid #e2e8f0',
-                    marginTop: '2px', flexShrink: 0,
-                }}>
-                    <ChevronRight size={15} style={{ color: isSelected ? 'var(--accent-color)' : '#94a3b8' }} />
+                {/* ── Availability bar ── */}
+                <div style={{ marginTop: '9px' }}>
+                    <div style={{ height: '5px', borderRadius: '999px', background: '#e2e8f0', overflow: 'hidden' }}>
+                        <div style={{
+                            width: `${availabilityPct}%`, height: '100%', borderRadius: '999px',
+                            background: availabilityPct > 50 ? '#10b981' : availabilityPct > 20 ? '#f59e0b' : '#ef4444',
+                            transition: 'width 0.2s ease',
+                        }} />
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '3px', fontSize: '0.62rem', color: '#64748b', fontWeight: 600 }}>
+                        <span>Availability</span>
+                        <span style={{ display: 'flex', gap: '6px' }}>
+                            {availableCount > 0 && <span style={{ color: '#16a34a' }}>{availableCount} avail</span>}
+                            {inUseCount > 0     && <span style={{ color: '#b45309' }}>{inUseCount} in-use</span>}
+                            {damagedCount > 0   && <span style={{ color: '#dc2626' }}>{damagedCount} damaged</span>}
+                        </span>
+                    </div>
                 </div>
             </div>
         );
@@ -161,7 +195,7 @@ const ResourceListView: React.FC<ResourceListViewProps> = ({
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {/* Toggle */}
+            {/* Category toggle */}
             <div style={{ display: 'flex', gap: '4px', background: '#f1f5f9', borderRadius: '10px', padding: '4px' }}>
                 {(['server', 'physical'] as const).map(tab => {
                     const cfg = SECTION_CFG[tab];
@@ -206,7 +240,7 @@ const ResourceListView: React.FC<ResourceListViewProps> = ({
                 })}
             </div>
 
-            {/* Summary bar for active tab */}
+            {/* Summary bar */}
             <div style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 gap: '10px', flexWrap: 'wrap' as const,
@@ -214,7 +248,7 @@ const ResourceListView: React.FC<ResourceListViewProps> = ({
                 border: '1px solid #e2e8f0', background: '#f8fafc',
             }}>
                 <span style={{ fontSize: '0.72rem', color: '#475569', fontWeight: 700 }}>
-                    {visibleList.length} resources
+                    {visibleList.length} {visibleList.length === 1 ? 'resource' : 'resources'}
                 </span>
                 <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' as const }}>
                     <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#059669', background: '#ecfdf5', border: '1px solid #a7f3d0', padding: '2px 8px', borderRadius: 999 }}>

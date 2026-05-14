@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import MainLayout from '@/layout/MainLayout';
 import { useAuth } from '@/hooks/useAuth';
 import ResourceManagement from '@/features/resources/ResourceManagement';
@@ -10,7 +10,8 @@ import { resourceService } from '@/services/resourceService';
 import { equipmentLogService } from '@/services/equipmentLogService';
 import { userService } from '@/services/userService';
 import { bookingService, BookingResponse } from '@/services/bookingService';
-import { Package, Activity, Loader2, CalendarRange, Search, Plus, ShieldCheck, AlertCircle, Server } from 'lucide-react';
+import { serverService } from '@/services/serverService';
+import { Package, Activity, Loader2, CalendarRange, Search, Plus, ShieldCheck, AlertCircle, Server, Wifi, WifiOff, RefreshCw } from 'lucide-react';
 import { useToastStore } from '@/store/slices/toastSlice';
 import { resourceTypeService, ResourceTypeItem, ResourceTypeCategory } from '@/services/resourceTypeService';
 
@@ -19,6 +20,99 @@ import AdminResourcePanel from './components/AdminResourcePanel';
 import AdminBookingPanel from './components/AdminBookingPanel';
 import AdminLogPanel from './components/AdminLogPanel';
 import AdminServerPanel from './components/AdminServerPanel';
+
+/* ── Server Health Row ──────────────────────────────────────────────────────── */
+type ServerHealth = 'checking' | 'online' | 'offline';
+
+const ServerHealthRow: React.FC<{ resource: Resource; onEdit: (r: Resource) => void }> = ({ resource, onEdit }) => {
+  const [health, setHealth] = useState<ServerHealth>('checking');
+  const [lastChecked, setLastChecked] = useState<Date | null>(null);
+  const [sshHost, setSshHost] = useState<string | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const ping = useCallback(async () => {
+    try {
+      const detail = await serverService.getServerDetail(resource.id);
+      // Consider online if isAvailable or not damaged
+      const isOnline = detail.isAvailable && !detail.isDamaged;
+      setHealth(isOnline ? 'online' : 'offline');
+      setSshHost(detail.sshHost || null);
+    } catch {
+      setHealth('offline');
+    }
+    setLastChecked(new Date());
+  }, [resource.id]);
+
+  useEffect(() => {
+    ping();
+    intervalRef.current = setInterval(ping, 3000);
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, [ping]);
+
+  const healthCfg = {
+    checking: { label: 'Checking…', color: '#64748b', bg: '#f1f5f9', dot: '#94a3b8', icon: <Loader2 size={12} className="animate-spin" /> },
+    online:   { label: 'Online',    color: '#16a34a', bg: '#dcfce7', dot: '#22c55e', icon: <Wifi size={12} /> },
+    offline:  { label: 'Offline',   color: '#dc2626', bg: '#fee2e2', dot: '#ef4444', icon: <WifiOff size={12} /> },
+  }[health];
+
+  return (
+    <div
+      onClick={() => onEdit(resource)}
+      style={{
+        padding: '14px 16px', background: '#fff', border: '1px solid #e2e8f0',
+        borderRadius: '14px', display: 'flex', alignItems: 'center', gap: '14px',
+        cursor: 'pointer', transition: 'all 0.18s',
+      }}
+      onMouseEnter={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.borderColor = '#cbd5e1'; }}
+      onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.borderColor = '#e2e8f0'; }}
+    >
+      {/* Icon */}
+      <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: health === 'online' ? 'linear-gradient(135deg,#0ea5e9,#2563eb)' : health === 'offline' ? '#fee2e2' : '#f1f5f9', color: health === 'online' ? '#fff' : health === 'offline' ? '#dc2626' : '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <Server size={20} />
+      </div>
+
+      {/* Name / info */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {resource.name}
+        </div>
+        <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span>{resource.resourceTypeName || 'Compute Server'}</span>
+          {resource.location && <><span style={{ opacity: 0.4 }}>·</span><span>{resource.location}</span></>}
+          {sshHost && <><span style={{ opacity: 0.4 }}>·</span><span style={{ fontFamily: 'monospace', fontSize: '0.7rem' }}>{sshHost}</span></>}
+        </div>
+      </div>
+
+      {/* Model series */}
+      {resource.modelSeries && (
+        <span style={{ fontSize: '0.72rem', fontWeight: 600, padding: '3px 10px', borderRadius: '20px', background: '#eff6ff', color: '#2563eb', whiteSpace: 'nowrap' }}>
+          {resource.modelSeries}
+        </span>
+      )}
+
+      {/* Health badge */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0 }}>
+        <span style={{
+          display: 'inline-flex', alignItems: 'center', gap: '5px',
+          fontSize: '0.72rem', fontWeight: 800, padding: '4px 10px', borderRadius: '20px',
+          color: healthCfg.color, background: healthCfg.bg,
+        }}>
+          {/* Pulsing dot for online */}
+          {health === 'online' && (
+            <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#22c55e', display: 'inline-block', animation: 'serverPulse 1.4s ease-in-out infinite' }} />
+          )}
+          {health !== 'online' && healthCfg.icon}
+          {healthCfg.label}
+        </span>
+        {lastChecked && (
+          <span style={{ fontSize: '0.62rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '3px' }}>
+            <RefreshCw size={9} /> {lastChecked.toLocaleTimeString()}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+};
 
 type TabType = 'inventory' | 'bookings' | 'logs' | 'servers';
 
@@ -331,20 +425,7 @@ const LabResourceAdmin: React.FC<LabResourceAdminProps> = ({ initialTab }) => {
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         {filteredServerResources.map(r => (
-                          <div key={r.id} style={{ padding: '12px 16px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '14px' }}>
-                            <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'linear-gradient(135deg, #0ea5e9, #2563eb)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                              <Server size={18} />
-                            </div>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#0f172a' }}>{r.name}</div>
-                              <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '2px' }}>{r.resourceTypeName || 'Compute Server'}{r.location ? ` · ${r.location}` : ''}</div>
-                            </div>
-                            {r.modelSeries && (
-                              <span style={{ fontSize: '0.72rem', fontWeight: 600, padding: '3px 10px', borderRadius: '20px', background: '#eff6ff', color: '#2563eb', whiteSpace: 'nowrap' as const }}>
-                                {r.modelSeries}
-                              </span>
-                            )}
-                          </div>
+                          <ServerHealthRow key={r.id} resource={r} onEdit={handleOpenResource} />
                         ))}
                       </div>
                     )
@@ -439,6 +520,10 @@ const LabResourceAdmin: React.FC<LabResourceAdminProps> = ({ initialTab }) => {
           @keyframes slideInRight {
             from { transform: translateX(30px); opacity: 0; }
             to { transform: translateX(0); opacity: 1; }
+          }
+          @keyframes serverPulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.85); }
           }
           .custom-scrollbar::-webkit-scrollbar { width: 4px; }
           .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
