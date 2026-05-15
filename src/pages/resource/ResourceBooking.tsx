@@ -230,7 +230,7 @@ const ResourceBooking: React.FC = () => {
     };
 
     const handleViewCheckOut = async (bookingId: string) => {
-        // "Check out" = giao thiết bị cho user (Approved → InUse)
+        // "Check out" = hand equipment to user (Approved → InUse)
         // API: bookingService.checkIn = action=2 (equipment handed to user)
         try {
             await bookingService.checkIn(bookingId);
@@ -242,7 +242,7 @@ const ResourceBooking: React.FC = () => {
     };
 
     const handleViewCheckIn = async (bookingId: string) => {
-        // "Check in" = user trả lại thiết bị (InUse → Completed)
+        // "Check in" = user returns equipment (InUse → Completed)
         // API: bookingService.checkOut = action=1 (equipment returned)
         const booking = viewBookings.find(b => b.id === bookingId || b.bookingId === bookingId);
         const resourceId = booking?.resourceIds?.[0] ?? booking?.resourceId ?? '';
@@ -371,7 +371,7 @@ const ResourceBooking: React.FC = () => {
     const handleCreateBooking = (resource?: Resource) => {
         if (resource) {
             if (user?.userId && resource.managedBy === user.userId) {
-                showToast('Bạn không thể đặt lịch resource mà bạn đang phụ trách.', 'warning');
+                showToast('You cannot book a resource you are managing.', 'warning');
                 return;
             }
             setBookingCart(prev =>

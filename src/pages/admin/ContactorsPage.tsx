@@ -364,7 +364,7 @@ const ContactorsPage: React.FC = () => {
                             {(editTarget || formMode === 'external') && (
                                 <div>
                                     <label style={labelStyle}>Full Name <span style={{ color: '#e11d48' }}>*</span></label>
-                                    <input value={form.fullName} onChange={e => setForm(p => ({ ...p, fullName: e.target.value }))} style={inputStyle(formErrors.fullName)} placeholder="Nguyễn Văn A" maxLength={255} />
+                                    <input value={form.fullName} onChange={e => setForm(p => ({ ...p, fullName: e.target.value }))} style={inputStyle(formErrors.fullName)} placeholder="e.g. John Smith" maxLength={255} />
                                     {formErrors.fullName && <p style={errStyle}>{formErrors.fullName}</p>}
                                 </div>
                             )}

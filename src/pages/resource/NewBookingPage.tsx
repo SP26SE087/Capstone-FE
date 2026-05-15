@@ -234,7 +234,7 @@ const ResourceRow: React.FC<ResourceRowProps> = ({ resource: r, selected, qty, m
         gap: 5,
       }}>
         <AlertTriangle size={11} style={{ flexShrink: 0, color: '#d97706' }} />
-        Bạn đang phụ trách resource này và không thể tự đặt lịch.
+        You manage this resource and cannot book it yourself.
       </div>
     )}
     </div>

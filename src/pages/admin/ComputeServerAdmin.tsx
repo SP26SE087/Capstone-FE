@@ -561,8 +561,8 @@ const ServerDetailView: React.FC<{ server: Resource; onEdit: () => void }> = ({ 
         </div>
       </div>
 
-      {/* Section: Thông tin chung */}
-      <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' as const, letterSpacing: '0.7px', padding: '0 2px', marginTop: '4px' }}>Thông tin chung</div>
+      {/* Section: General Info */}
+      <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' as const, letterSpacing: '0.7px', padding: '0 2px', marginTop: '4px' }}>General Info</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
         {detailRow('Name', d.name, <Server size={10} />)}
         {d.description && detailRow('Description', d.description)}
@@ -573,8 +573,8 @@ const ServerDetailView: React.FC<{ server: Resource; onEdit: () => void }> = ({ 
         {d.managedByEmail && detailRow('Manager Email', d.managedByEmail, <Mail size={10} />)}
       </div>
 
-      {/* Section: Trạng thái */}
-      <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' as const, letterSpacing: '0.7px', padding: '0 2px', marginTop: '4px' }}>Trạng thái</div>
+      {/* Section: Status */}
+      <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' as const, letterSpacing: '0.7px', padding: '0 2px', marginTop: '4px' }}>Status</div>
       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' as const }}>
         <div style={{ flex: 1, minWidth: '90px', padding: '10px 14px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'center' }}>
           <span style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' as const, letterSpacing: '0.5px' }}>Available</span>
@@ -596,10 +596,10 @@ const ServerDetailView: React.FC<{ server: Resource; onEdit: () => void }> = ({ 
         </div>
       </div>
 
-      {/* Section: Thông số phần cứng (privileged only) */}
+      {/* Section: Hardware Specs (privileged only) */}
       {isPrivileged && (
         <>
-          <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' as const, letterSpacing: '0.7px', padding: '0 2px', marginTop: '4px' }}>Thông số phần cứng</div>
+          <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' as const, letterSpacing: '0.7px', padding: '0 2px', marginTop: '4px' }}>Hardware Specs</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
             {d.gpuCount != null && detailRow('GPU Count', d.gpuCount, <Zap size={10} />)}
             {d.cpuCores != null && detailRow('CPU Cores', d.cpuCores, <Cpu size={10} />)}
@@ -618,13 +618,13 @@ const ServerDetailView: React.FC<{ server: Resource; onEdit: () => void }> = ({ 
             {d.sshPort != null && detailRow('Port', d.sshPort, <Network size={10} />)}
             {d.sshUsername && detailRow('Username', d.sshUsername, <UserCircle size={10} />)}
             {detailRow('Private Key', (
-              <span style={{ color: '#64748b', fontStyle: 'italic', fontSize: '0.8rem' }}>Đã cấu hình (ẩn)</span>
+              <span style={{ color: '#64748b', fontStyle: 'italic', fontSize: '0.8rem' }}>Configured (hidden)</span>
             ), <Key size={10} />)}
           </div>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '10px 14px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '10px' }}>
             <ShieldCheck size={14} style={{ color: '#2563eb', flexShrink: 0, marginTop: '1px' }} />
             <span style={{ fontSize: '0.73rem', color: '#1d4ed8', lineHeight: 1.5 }}>
-              SSH private key được <strong>mã hóa AES-256</strong> — không bao giờ được trả về qua API.
+              SSH private key is encrypted with <strong>AES-256</strong> — never returned via the API.
             </span>
           </div>
         </>
