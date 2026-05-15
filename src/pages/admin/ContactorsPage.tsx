@@ -5,7 +5,7 @@ import { contactorService } from '@/services/contactorService';
 import { userService } from '@/services/userService';
 import { ContactorResponse } from '@/types/visitorRegistration';
 import Modal from '@/components/common/Modal';
-import { Plus, Trash2, Loader2, Users, Mail, Phone, ChevronDown, Search, X } from 'lucide-react';
+import { Plus, Trash2, Loader2, Users, Briefcase, Phone, ChevronDown, Search, X } from 'lucide-react';
 
 interface FormState {
     fullName: string;
@@ -88,7 +88,7 @@ const ContactorsPage: React.FC = () => {
 
     const openEdit = (c: ContactorResponse) => {
         setEditTarget(c);
-        setForm({ fullName: c.fullName, email: c.email, phone: c.phone });
+        setForm({ fullName: c.fullName, email: '', phone: c.phone });
         setFormErrors({});
         setFormError(null);
     };
@@ -221,7 +221,7 @@ const ContactorsPage: React.FC = () => {
                             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                                 <thead>
                                     <tr style={{ background: 'var(--surface-hover)', borderBottom: '1px solid var(--border-color)' }}>
-                                        {['Full Name', 'Email', 'Phone', 'Added', ''].map(h => (
+                                        {['Full Name', 'Lab Position', 'Phone', 'Added', ''].map(h => (
                                             <th key={h} style={{ padding: '0.75rem 1rem', textAlign: 'left', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
                                         ))}
                                     </tr>
@@ -237,7 +237,7 @@ const ContactorsPage: React.FC = () => {
                                             <td style={{ padding: '0.85rem 1rem', fontWeight: 600, fontSize: '0.9rem' }}>{c.fullName}</td>
                                             <td style={{ padding: '0.85rem 1rem', fontSize: '0.86rem', color: 'var(--text-secondary)' }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                                    <Mail size={12} color="var(--text-muted)" /> {c.email}
+                                                    <Briefcase size={12} color="var(--text-muted)" /> {c.labPosition}
                                                 </div>
                                             </td>
                                             <td style={{ padding: '0.85rem 1rem', fontSize: '0.86rem', color: 'var(--text-secondary)' }}>
@@ -334,7 +334,6 @@ const ContactorsPage: React.FC = () => {
                                                 </div>
                                                 <div style={{ overflowY: 'auto', flex: 1 }}>
                                                     {labMembers
-                                                        .filter(m => !contactors.some(c => c.email === m.email))
                                                         .filter(m => {
                                                             const q = memberSearch.toLowerCase();
                                                             return !q || (m.fullName || '').toLowerCase().includes(q) || (m.email || '').toLowerCase().includes(q);
@@ -351,7 +350,7 @@ const ContactorsPage: React.FC = () => {
                                                                 <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>{m.email}</div>
                                                             </div>
                                                         ))}
-                                                    {labMembers.filter(m => !contactors.some(c => c.email === m.email)).length === 0 && (
+                                                    {labMembers.length === 0 && (
                                                         <div style={{ padding: '0.85rem', color: 'var(--text-muted)', fontSize: '0.84rem', textAlign: 'center' }}>No members available</div>
                                                     )}
                                                 </div>
@@ -370,20 +369,14 @@ const ContactorsPage: React.FC = () => {
                                 </div>
                             )}
 
-                            {/* Email */}
-                            {!editTarget && formMode === 'external' ? (
+                            {/* Email (create external only) */}
+                            {!editTarget && formMode === 'external' && (
                                 <div>
                                     <label style={labelStyle}>Email <span style={{ color: '#e11d48' }}>*</span></label>
                                     <input type="email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} style={inputStyle(formErrors.email)} placeholder="a@lab.vn" maxLength={255} />
                                     {formErrors.email && <p style={errStyle}>{formErrors.email}</p>}
                                 </div>
-                            ) : editTarget ? (
-                                <div>
-                                    <label style={labelStyle}>Email</label>
-                                    <input value={form.email} disabled style={{ ...inputStyle(), background: 'var(--surface-hover)', color: 'var(--text-muted)', cursor: 'not-allowed' }} />
-                                    <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>Email cannot be changed after creation.</p>
-                                </div>
-                            ) : null}
+                            )}
 
                             {/* Phone */}
                             <div>
@@ -428,7 +421,7 @@ const ContactorsPage: React.FC = () => {
                             <div style={{ background: '#fff1f2', border: '1px solid #fecdd3', borderRadius: 'var(--radius-sm)', padding: '0.75rem 1rem', color: '#e11d48', fontSize: '0.88rem', marginBottom: '1rem' }}>{deleteError}</div>
                         )}
                         <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                            Are you sure you want to delete <strong>{deleteTarget.fullName}</strong> ({deleteTarget.email})? This action cannot be undone.
+                            Are you sure you want to delete <strong>{deleteTarget.fullName}</strong>? This action cannot be undone.
                         </p>
                     </div>
                 )}

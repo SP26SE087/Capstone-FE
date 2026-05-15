@@ -3,7 +3,7 @@ import Modal from '@/components/common/Modal';
 import { visitorRegistrationService } from '@/services/visitorRegistrationService';
 import { contactorService } from '@/services/contactorService';
 import { ContactorResponse } from '@/types/visitorRegistration';
-import { Upload, X, CheckCircle2, Loader2, RefreshCw, ChevronDown } from 'lucide-react';
+import { Upload, X, CheckCircle2, Loader2, ChevronDown } from 'lucide-react';
 
 interface Props {
     isOpen: boolean;
@@ -14,9 +14,10 @@ interface FormState {
     FullName: string;
     Email: string;
     PhoneNumber: string;
-    ContactEmail: string;
+    ContactorEmail: string;
     AppointmentDateTime: string;
     Notes: string;
+    CccdNumber: string;
 }
 
 const ACCEPTED = 'image/jpeg,image/jpg,image/png,image/webp';
@@ -26,25 +27,23 @@ const emptyForm: FormState = {
     FullName: '',
     Email: '',
     PhoneNumber: '',
-    ContactEmail: '',
+    ContactorEmail: '',
     AppointmentDateTime: '',
     Notes: '',
+    CccdNumber: '',
 };
 
 const PHONE_REGEX = /^(\+[1-9]\d{6,14}|0\d{9})$/;
 const PHONE_ERROR = 'Phone number must be in international format (+84...) or Vietnamese local format (0xxxxxxxxx).';
+const CCCD_REGEX = /^\d{9,12}$/;
 
 const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
     const [form, setForm] = useState<FormState>(emptyForm);
     const [photo, setPhoto] = useState<File | null>(null);
-    const [cccdImage, setCccdImage] = useState<File | null>(null);
-    const [errors, setErrors] = useState<Partial<Record<keyof FormState | 'photo' | 'cccdImage' | 'general', string>>>({});
+    const [errors, setErrors] = useState<Partial<Record<keyof FormState | 'photo' | 'general', string>>>({});
     const [submitting, setSubmitting] = useState(false);
     const [success, setSuccess] = useState(false);
     const [photoPreview, setPhotoPreview] = useState<string | null>(null);
-    const [cccdPreview, setCccdPreview] = useState<string | null>(null);
-    const [cccdExtracting, setCccdExtracting] = useState(false);
-    const [cccdExtractError, setCccdExtractError] = useState<string | null>(null);
     const [contactors, setContactors] = useState<ContactorResponse[]>([]);
     const [contactorLoading, setContactorLoading] = useState(false);
     const [contactorOpen, setContactorOpen] = useState(false);
@@ -52,7 +51,6 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
     const [selectedContactor, setSelectedContactor] = useState<ContactorResponse | null>(null);
 
     const photoRef = useRef<HTMLInputElement>(null);
-    const cccdRef = useRef<HTMLInputElement>(null);
     const contactorRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -75,79 +73,10 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
         return () => document.removeEventListener('mousedown', handleOutside);
     }, [contactorOpen]);
 
-    const toTitleCase = (str: string) =>
-        str.toLowerCase().split(/\s+/).map(word =>
-            word.length > 0 ? word.charAt(0).toUpperCase() + word.slice(1) : word
-        ).join(' ');
-
-    const extractCccdFromFile = async (file: File) => {
-        setCccdExtracting(true);
-        setCccdExtractError(null);
-        try {
-            const result = await visitorRegistrationService.extractCccd(file);
-            // Debug: log raw response to check field names
-            console.log('[CCCD extract] result:', result);
-
-            // Handle various possible field names from BE
-            const fullName: string = (result as any).fullName
-                || (result as any).full_name
-                || (result as any).name
-                || '';
-            const faceImageRaw: string | null = (result as any).faceImageBase64
-                || (result as any).faceImage
-                || (result as any).portrait
-                || (result as any).face_image
-                || (result as any).image
-                || null;
-
-            if (fullName) {
-                setForm(prev => ({ ...prev, FullName: toTitleCase(fullName) }));
-                setErrors(prev => ({ ...prev, FullName: undefined }));
-            }
-
-            if (faceImageRaw) {
-                const dataUri = faceImageRaw.startsWith('data:')
-                    ? faceImageRaw
-                    : `data:image/jpeg;base64,${faceImageRaw}`;
-                const res = await fetch(dataUri);
-                const blob = await res.blob();
-                const f = new File([blob], 'cccd-portrait.jpg', { type: blob.type || 'image/jpeg' });
-                const previewUrl = URL.createObjectURL(blob);
-                setPhoto(f);
-                setPhotoPreview(prev => { if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev); return previewUrl; });
-                setErrors(prev => ({ ...prev, photo: undefined }));
-            }
-
-            if (!fullName && !faceImageRaw) {
-                setCccdExtractError('Card was read but no data was returned. Check console for details.');
-            }
-        } catch (err: any) {
-            console.error('[CCCD extract] error:', err?.response?.data ?? err);
-            const code = err?.response?.data?.messageCode
-                || err?.response?.data?.MessageCode
-                || err?.response?.data?.errorCode;
-            if (err?.response?.status === 422 || code === 'US063') {
-                setCccdExtractError('Could not read the card. Please use a clear, well-lit photo of the front side.');
-            } else {
-                setCccdExtractError('Failed to connect to OCR service. Please try again.');
-            }
-            // Clear the image so the user can re-upload a new one
-            setCccdImage(null);
-            setCccdPreview(prev => { if (prev && prev.startsWith('blob:')) URL.revokeObjectURL(prev); return null; });
-            if (cccdRef.current) cccdRef.current.value = '';
-        } finally {
-            setCccdExtracting(false);
-        }
-    };
-
-    const handleExtractCccd = () => {
-        if (cccdImage) extractCccdFromFile(cccdImage);
-    };
-
     const handleSelectContactor = (c: ContactorResponse) => {
         setSelectedContactor(c);
-        setForm(prev => ({ ...prev, ContactEmail: c.email }));
-        setErrors(prev => ({ ...prev, ContactEmail: undefined }));
+        setForm(prev => ({ ...prev, ContactorEmail: c.id }));
+        setErrors(prev => ({ ...prev, ContactorEmail: undefined }));
         setContactorOpen(false);
         setContactorSearch('');
     };
@@ -160,34 +89,21 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
         }
     };
 
-    const validateFile = (file: File, _fieldName: 'photo' | 'cccdImage'): string | undefined => {
-        if (file.size > MAX_SIZE) return 'File exceeds 10 MB limit';
-        if (!['image/jpeg', 'image/jpg', 'image/png', 'image/webp'].includes(file.type)) {
-            return 'Invalid format (only jpg/jpeg/png/webp)';
-        }
-        return undefined;
-    };
-
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, field: 'photo' | 'cccdImage') => {
+    const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
-        const err = validateFile(file, field);
-        if (err) {
-            setErrors(prev => ({ ...prev, [field]: err }));
+        if (file.size > MAX_SIZE) {
+            setErrors(prev => ({ ...prev, photo: 'File exceeds 10 MB limit' }));
             return;
         }
-        setErrors(prev => ({ ...prev, [field]: undefined }));
-        const url = URL.createObjectURL(file);
-        if (field === 'photo') {
-            setPhoto(file);
-            setPhotoPreview(prev => { if (prev) URL.revokeObjectURL(prev); return url; });
-        } else {
-            setCccdImage(file);
-            setCccdPreview(prev => { if (prev) URL.revokeObjectURL(prev); return url; });
-            setCccdExtractError(null);
-            // Auto-extract when CCCD image is selected
-            extractCccdFromFile(file);
+        if (!['image/jpeg', 'image/jpg', 'image/png', 'image/webp'].includes(file.type)) {
+            setErrors(prev => ({ ...prev, photo: 'Invalid format (only jpg/jpeg/png/webp)' }));
+            return;
         }
+        setErrors(prev => ({ ...prev, photo: undefined }));
+        const url = URL.createObjectURL(file);
+        setPhoto(file);
+        setPhotoPreview(prev => { if (prev) URL.revokeObjectURL(prev); return url; });
     };
 
     const validate = (): boolean => {
@@ -196,7 +112,7 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
         if (!form.Email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.Email)) newErrors.Email = 'Invalid email address';
         if (!form.PhoneNumber.trim()) newErrors.PhoneNumber = 'Phone number is required';
         else if (!PHONE_REGEX.test(form.PhoneNumber.trim())) newErrors.PhoneNumber = PHONE_ERROR;
-        if (!form.ContactEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.ContactEmail)) newErrors.ContactEmail = 'Invalid contact email address';
+        if (!form.ContactorEmail) newErrors.ContactorEmail = 'Please select a contactor';
         if (!form.AppointmentDateTime) {
             newErrors.AppointmentDateTime = 'Please select an appointment date & time';
         } else if (new Date(form.AppointmentDateTime) <= new Date()) {
@@ -204,7 +120,8 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
         }
         if (form.Notes.length > 1000) newErrors.Notes = 'Notes must not exceed 1000 characters';
         if (!photo) newErrors.photo = 'Please upload your photo';
-        if (!cccdImage) newErrors.cccdImage = 'Please upload your ID card photo';
+        if (!form.CccdNumber.trim()) newErrors.CccdNumber = 'ID number is required';
+        else if (!CCCD_REGEX.test(form.CccdNumber.trim())) newErrors.CccdNumber = 'ID number must be 9–12 digits';
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
@@ -217,14 +134,14 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
             fd.append('fullName', form.FullName.trim());
             fd.append('email', form.Email.trim());
             fd.append('phoneNumber', form.PhoneNumber.trim());
-            fd.append('contactorEmail', form.ContactEmail.trim());
+            fd.append('contactorEmail', form.ContactorEmail);
             fd.append('appointmentDateTime', new Date(form.AppointmentDateTime).toISOString());
             if (form.Notes.trim()) fd.append('notes', form.Notes.trim());
+            fd.append('cccdNumber', form.CccdNumber.trim());
             const safeName = form.FullName.trim().replace(/\s+/g, '_');
             const safeDate = new Date(form.AppointmentDateTime).toISOString().slice(0, 16).replace(/:/g, '-');
             const photoExt = photo!.name.split('.').pop() || 'jpg';
             fd.append('photo', photo!, `${safeName}_${safeDate}.${photoExt}`);
-            fd.append('cccdImage', cccdImage!);
             await visitorRegistrationService.create(fd);
             setSuccess(true);
         } catch (err: any) {
@@ -244,11 +161,8 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
     const handleClose = () => {
         setForm(emptyForm);
         setPhoto(null);
-        setCccdImage(null);
         if (photoPreview) { URL.revokeObjectURL(photoPreview); setPhotoPreview(null); }
-        if (cccdPreview) { URL.revokeObjectURL(cccdPreview); setCccdPreview(null); }
         setErrors({});
-        setCccdExtractError(null);
         setContactorOpen(false);
         setContactorSearch('');
         setSelectedContactor(null);
@@ -348,9 +262,9 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                             {errors.PhoneNumber && <p style={errorStyle}>{errors.PhoneNumber}</p>}
                         </div>
 
-                        {/* Contact Email — select only */}
+                        {/* Contactor picker */}
                         <div ref={contactorRef} style={{ position: 'relative' }}>
-                            <label style={labelStyle}>Lab Member <span style={{ color: '#e11d48' }}>*</span></label>
+                            <label style={labelStyle}>Contactor <span style={{ color: '#e11d48' }}>*</span></label>
                             <button
                                 type="button"
                                 onClick={() => !contactorLoading && setContactorOpen(prev => !prev)}
@@ -358,7 +272,7 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                                     width: '100%',
                                     padding: '0.6rem 0.85rem',
                                     borderRadius: 'var(--radius-sm)',
-                                    border: `1px solid ${errors.ContactEmail ? '#e11d48' : 'var(--border-color)'}`,
+                                    border: `1px solid ${errors.ContactorEmail ? '#e11d48' : 'var(--border-color)'}`,
                                     fontSize: '0.9rem',
                                     background: 'white',
                                     cursor: contactorLoading ? 'default' : 'pointer',
@@ -374,10 +288,12 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                             >
                                 <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
                                     {contactorLoading
-                                        ? 'Loading members...'
+                                        ? 'Loading contactors...'
                                         : selectedContactor
-                                            ? `${selectedContactor.fullName} — ${selectedContactor.email}`
-                                            : 'Select a lab member'}
+                                            ? (selectedContactor.labPosition
+                                                ? `${selectedContactor.fullName} — ${selectedContactor.labPosition}`
+                                                : selectedContactor.fullName)
+                                            : 'Select a contactor'}
                                 </span>
                                 {contactorLoading
                                     ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }} />
@@ -401,7 +317,7 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                                     <div style={{ padding: '0.5rem', borderBottom: '1px solid var(--border-color)', position: 'sticky', top: 0, background: 'white' }}>
                                         <input
                                             type="text"
-                                            placeholder="Search by name or email..."
+                                            placeholder="Search by name or position..."
                                             value={contactorSearch}
                                             onChange={e => setContactorSearch(e.target.value)}
                                             style={{ ...inputStyle(), fontSize: '0.83rem', padding: '0.4rem 0.65rem' }}
@@ -409,13 +325,14 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                                         />
                                     </div>
                                     {(() => {
-                                        const filtered = contactors.filter(c =>
-                                            c.fullName.toLowerCase().includes(contactorSearch.toLowerCase()) ||
-                                            c.email.toLowerCase().includes(contactorSearch.toLowerCase())
-                                        );
+                                        const filtered = contactors.filter(c => {
+                                            const q = contactorSearch.toLowerCase();
+                                            return c.fullName.toLowerCase().includes(q) ||
+                                                (c.labPosition || '').toLowerCase().includes(q);
+                                        });
                                         return filtered.length === 0 ? (
                                             <div style={{ padding: '1rem', textAlign: 'center', fontSize: '0.83rem', color: 'var(--text-muted)' }}>
-                                                No members found
+                                                No contactors found
                                             </div>
                                         ) : filtered.map(c => (
                                             <button
@@ -439,13 +356,13 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                                                 onMouseLeave={e => (e.currentTarget.style.background = selectedContactor?.id === c.id ? 'var(--surface-hover)' : 'white')}
                                             >
                                                 <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>{c.fullName}</span>
-                                                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{c.email}</span>
+                                                {c.labPosition && <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{c.labPosition}</span>}
                                             </button>
                                         ));
                                     })()}
                                 </div>
                             )}
-                            {errors.ContactEmail && <p style={errorStyle}>{errors.ContactEmail}</p>}
+                            {errors.ContactorEmail && <p style={errorStyle}>{errors.ContactorEmail}</p>}
                         </div>
 
                         {/* Appointment */}
@@ -476,7 +393,7 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                         </p>
                     </div>
 
-                    {/* Right column — photo uploads */}
+                    {/* Right column — photo & ID number */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                         {/* Photo */}
                         <div>
@@ -490,7 +407,7 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                                     cursor: 'pointer',
                                     background: photo ? '#f8fafc' : 'var(--surface-hover)',
                                     transition: 'border-color 0.2s',
-                                    height: '130px',
+                                    height: '160px',
                                     overflow: 'hidden',
                                     position: 'relative',
                                     display: 'flex',
@@ -518,68 +435,27 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                                     </>
                                 )}
                             </div>
-                            <input ref={photoRef} type="file" accept={ACCEPTED} style={{ display: 'none' }} onChange={e => handleFileChange(e, 'photo')} />
+                            <input ref={photoRef} type="file" accept={ACCEPTED} style={{ display: 'none' }} onChange={handlePhotoChange} />
                             {errors.photo && <p style={errorStyle}>{errors.photo}</p>}
                         </div>
 
-                        {/* ID Card */}
+                        {/* CCCD Number */}
                         <div>
-                            <label style={labelStyle}>ID Card Photo <span style={{ color: '#e11d48' }}>*</span></label>
-                            <div
-                                onClick={() => !cccdExtracting && cccdRef.current?.click()}
-                                style={{
-                                    border: `1.5px dashed ${errors.cccdImage ? '#e11d48' : cccdExtractError ? '#f97316' : 'var(--border-color)'}`,
-                                    borderRadius: 'var(--radius-sm)',
-                                    textAlign: 'center',
-                                    cursor: cccdExtracting ? 'default' : 'pointer',
-                                    background: cccdImage ? '#f8fafc' : cccdExtractError ? '#fff7ed' : 'var(--surface-hover)',
-                                    transition: 'border-color 0.2s',
-                                    height: '130px',
-                                    overflow: 'hidden',
-                                    position: 'relative',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                }}
-                            >
-                                {cccdImage && cccdPreview ? (
-                                    <div style={{ position: 'absolute', inset: 0 }}>
-                                        <img src={cccdPreview} alt="ID card" style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#f8fafc', display: 'block' }} />
-                                        {/* Spinner overlay while extracting */}
-                                        {cccdExtracting && (
-                                            <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-                                                <Loader2 size={22} color="#fff" style={{ animation: 'spin 1s linear infinite' }} />
-                                                <span style={{ fontSize: '0.75rem', color: '#fff', fontWeight: 600 }}>Reading ID Card...</span>
-                                            </div>
-                                        )}
-                                        {/* Remove button */}
-                                        {!cccdExtracting && (
-                                            <button
-                                                type="button"
-                                                onClick={e => { e.stopPropagation(); setCccdImage(null); setCccdPreview(prev => { if (prev) URL.revokeObjectURL(prev); return null; }); setCccdExtractError(null); if (cccdRef.current) cccdRef.current.value = ''; }}
-                                                style={{ position: 'absolute', top: '4px', right: '4px', background: 'rgba(0,0,0,0.55)', border: 'none', borderRadius: '50%', cursor: 'pointer', width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
-                                            >
-                                                <X size={13} color="#fff" />
-                                            </button>
-                                        )}
-                                        <span style={{ position: 'absolute', bottom: '4px', left: '4px', right: '4px', fontSize: '0.68rem', color: '#fff', background: 'rgba(0,0,0,0.5)', borderRadius: '3px', padding: '1px 4px', textAlign: 'center', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>{cccdImage.name}</span>
-                                    </div>
-                                ) : (
-                                    <>
-                                        <Upload size={20} color={cccdExtractError ? '#f97316' : 'var(--text-muted)'} />
-                                        <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: cccdExtractError ? '#f97316' : 'var(--text-muted)', fontWeight: cccdExtractError ? 600 : undefined }}>
-                                            {cccdExtractError ? 'Click to upload again' : 'Upload to auto-fill form'}
-                                        </p>
-                                        <p style={{ margin: '2px 0 0', fontSize: '0.72rem', color: 'var(--text-muted)' }}>jpg/png/webp, max 10 MB</p>
-                                    </>
-                                )}
-                            </div>
-                            <input ref={cccdRef} type="file" accept={ACCEPTED} style={{ display: 'none' }} onChange={e => handleFileChange(e, 'cccdImage')} />
-                            {errors.cccdImage && <p style={errorStyle}>{errors.cccdImage}</p>}
-                            {cccdExtractError && (
-                                <p style={{ ...errorStyle, marginTop: '0.35rem', lineHeight: 1.4 }}>{cccdExtractError}</p>
-                            )}
+                            <label style={labelStyle}>ID Card Number <span style={{ color: '#e11d48' }}>*</span></label>
+                            <input
+                                name="CccdNumber"
+                                value={form.CccdNumber}
+                                onChange={handleChange}
+                                style={inputStyle(errors.CccdNumber)}
+                                placeholder="Enter your 9–12 digit ID number"
+                                maxLength={12}
+                                inputMode="numeric"
+                                pattern="\d*"
+                            />
+                            <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '3px 0 0' }}>
+                                Enter the number on your Citizen ID / CCCD card (9–12 digits).
+                            </p>
+                            {errors.CccdNumber && <p style={errorStyle}>{errors.CccdNumber}</p>}
                         </div>
                     </div>
                 </div>

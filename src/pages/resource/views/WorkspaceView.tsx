@@ -9,7 +9,6 @@ import { Booking, Resource, BookingStatus } from '@/types/booking';
 import {
     STATUS_META, getBookingRtMeta, getBookingResourceLabel,
     fmtTime, fmtDate, relTime, initials,
-    sameDay,
 } from './bookingViewUtils';
 
 // ─── Icon by name ─────────────────────────────────────────────────────────────
@@ -38,15 +37,16 @@ function Avatar({ name = '', size = 22 }: { name: string; size?: number }) {
 }
 
 // ─── Booking card (Kanban) ────────────────────────────────────────────────────
-function WSBookingCard({ booking, resources, onOpen, onApprove, onReject, onCheckOut, onCheckIn, isManager }: {
+function WSBookingCard({ booking, resources, onOpen, onApprove, onReject, onCheckOut, onCheckIn, currentUserId }: {
     booking: Booking; resources: Resource[];
     onOpen: (b: Booking) => void;
     onApprove: (id: string) => void; onReject: (id: string) => void;
     onCheckOut: (id: string) => void; onCheckIn: (id: string) => void;
-    isManager: boolean;
+    currentUserId?: string;
 }) {
     const rMeta = getBookingRtMeta(booking, resources);
     const sMeta = STATUS_META[booking.status];
+    const isManager = !!currentUserId && !!booking.managerId && booking.managerId === currentUserId;
     return (
         <div
             onClick={() => onOpen(booking)}
@@ -114,13 +114,13 @@ function WSBookingCard({ booking, resources, onOpen, onApprove, onReject, onChec
 }
 
 // ─── Kanban column ────────────────────────────────────────────────────────────
-function KanbanColumn({ title, items, color, accent, icon: Icon, onOpen, onApprove, onReject, onCheckOut, onCheckIn, isManager, resources, emptyMsg }: {
+function KanbanColumn({ title, items, color, accent, icon: Icon, onOpen, onApprove, onReject, onCheckOut, onCheckIn, currentUserId, resources, emptyMsg }: {
     title: string; items: Booking[]; color: string; accent: string;
     icon: React.ElementType;
     onOpen: (b: Booking) => void;
     onApprove: (id: string) => void; onReject: (id: string) => void;
     onCheckOut: (id: string) => void; onCheckIn: (id: string) => void;
-    isManager: boolean; resources: Resource[];
+    currentUserId?: string; resources: Resource[];
     emptyMsg?: string;
 }) {
     return (
@@ -140,7 +140,7 @@ function KanbanColumn({ title, items, color, accent, icon: Icon, onOpen, onAppro
                 {items.length === 0 ? (
                     <div style={{ fontSize: 12, color: '#94a3b8', textAlign: 'center', padding: '18px 8px' }}>{emptyMsg ?? 'Nothing here.'}</div>
                 ) : items.map(b => (
-                    <WSBookingCard key={b.id} booking={b} resources={resources} onOpen={onOpen} onApprove={onApprove} onReject={onReject} onCheckOut={onCheckOut} onCheckIn={onCheckIn} isManager={isManager} />
+                    <WSBookingCard key={b.id} booking={b} resources={resources} onOpen={onOpen} onApprove={onApprove} onReject={onReject} onCheckOut={onCheckOut} onCheckIn={onCheckIn} currentUserId={currentUserId} />
                 ))}
             </div>
         </div>
@@ -180,21 +180,19 @@ function RightRail({ bookings, resources, onOpen, onNewBooking: _onNewBooking }:
         return { type: t, total: rList.length, free: rList.length - busy, meta };
     }).filter(x => x.total > 0);
 
-    // 14-day heatmap
-    const days14 = Array.from({ length: 14 }, (_, i) => {
-        const d = new Date(today); d.setDate(today.getDate() + i); return d;
-    });
-    const busyRatioFor = (d: Date) => {
-        const end = new Date(d); end.setDate(d.getDate() + 1);
-        const busyIds = new Set<string>();
-        bookings.filter(b => [BookingStatus.Approved, BookingStatus.InUse].includes(b.status))
-            .filter(b => new Date(b.startTime) < end && new Date(b.endTime) > d)
-            .forEach(b => (b.resourceIds ?? []).forEach(id => busyIds.add(id)));
-        return resources.length > 0 ? busyIds.size / resources.length : 0;
-    };
+    // Expiring soon: InUse bookings whose endTime is within the next 2 hours
+    const expiringSoon = useMemo(() => {
+        const in2h = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+        return bookings
+            .filter(b => b.status === BookingStatus.InUse && new Date(b.endTime) <= in2h && new Date(b.endTime) > now)
+            .sort((a, b) => new Date(a.endTime).getTime() - new Date(b.endTime).getTime());
+    }, [bookings]);
+
+    const minsLeft = (t: string) => Math.max(0, Math.round((new Date(t).getTime() - now.getTime()) / 60000));
 
     return (
         <div className="bk-scroll" style={{ width: 252, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto' }}>
+
             {/* Right now */}
             <div className="bk-card" style={{ padding: 14 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
@@ -240,33 +238,33 @@ function RightRail({ bookings, resources, onOpen, onNewBooking: _onNewBooking }:
                 </div>
             </div>
 
-            {/* 14-day heatmap */}
-            <div className="bk-card" style={{ padding: 14 }}>
-                <div style={{ fontSize: 11, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>Next 14 days</div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 3 }}>
-                    {days14.map((d, i) => {
-                        const ratio = busyRatioFor(d);
-                        const isToday = sameDay(d, new Date());
-                        let bg = '#F1F5F9';
-                        if (ratio > 0.66) bg = '#FEE2E2';
-                        else if (ratio > 0.33) bg = '#FEF3C7';
-                        else if (ratio > 0) bg = '#DCFCE7';
-                        return (
-                            <div key={i} title={`${fmtDate(d)} · ${Math.round(ratio * 100)}% booked`}
-                                style={{ aspectRatio: '1', borderRadius: 5, background: bg, border: isToday ? '2px solid #E8720C' : '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: isToday ? 800 : 600, color: isToday ? '#E8720C' : '#64748b', cursor: 'pointer' }}>
-                                {d.getDate()}
-                            </div>
-                        );
-                    })}
+            {/* Expiring soon */}
+            {expiringSoon.length > 0 && (
+                <div className="bk-card" style={{ padding: 14, border: '1px solid #FECACA' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                        <Clock size={11} color="#DC2626" />
+                        <div style={{ fontSize: 11, fontWeight: 800, color: '#DC2626', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Expiring soon</div>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {expiringSoon.map(b => {
+                            const mins = minsLeft(b.endTime);
+                            return (
+                                <div key={b.id} onClick={() => onOpen(b)}
+                                    style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 9px', background: '#FEF2F2', borderRadius: 8, cursor: 'pointer', border: '1px solid #FECACA' }}>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div style={{ fontSize: 12, fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.title}</div>
+                                        <div style={{ fontSize: 11, color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.userFullName ?? b.userName}</div>
+                                    </div>
+                                    <span style={{ fontSize: 11, fontWeight: 800, color: mins <= 30 ? '#DC2626' : '#D97706', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                                        {mins}m left
+                                    </span>
+                                </div>
+                            );
+                        })}
+                    </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, fontSize: 10, color: '#94a3b8', flexWrap: 'wrap' }}>
-                    {[['#F1F5F9', 'free'], ['#DCFCE7', 'light'], ['#FEF3C7', 'busy'], ['#FEE2E2', 'full']].map(([bg, label]) => (
-                        <span key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                            <span style={{ width: 10, height: 10, borderRadius: 3, background: bg, border: '1px solid #e2e8f0' }} /> {label}
-                        </span>
-                    ))}
-                </div>
-            </div>
+            )}
+
         </div>
     );
 }
@@ -300,7 +298,7 @@ function _KpiStrip({ bookings }: { bookings: Booking[] }) {
 interface WorkspaceViewProps {
     bookings: Booking[];
     resources: Resource[];
-    isManager: boolean;
+    currentUserId?: string;
     isDirector?: boolean;
     onOpenBooking: (b: Booking) => void;
     onNewBooking: () => void;
@@ -320,7 +318,7 @@ const TIME_RANGE_OPTS: { value: TimeRange; label: string }[] = [
 ];
 
 export default function WorkspaceView({
-    bookings, resources, isManager, isDirector,
+    bookings, resources, currentUserId, isDirector,
     onOpenBooking, onNewBooking,
     onApprove, onReject, onCheckOut, onCheckIn,
 }: WorkspaceViewProps) {
@@ -380,6 +378,8 @@ export default function WorkspaceView({
         }
         return result;
     }, [bookings, search, resources, rangeWindow]);
+
+    const isManager = !!currentUserId && bookings.some(b => b.managerId === currentUserId);
 
     const sortByStart = (a: Booking, b: Booking) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
     const pending   = filtered.filter(b => b.status === BookingStatus.Pending).sort(sortByStart);
@@ -460,19 +460,19 @@ export default function WorkspaceView({
                 <div className="bk-scroll" style={{ display: 'flex', gap: 10, flex: 1, minWidth: 0, overflowX: 'auto', paddingBottom: 4 }}>
                     <KanbanColumn title="Pending"   items={pending}  color="#FEF3C7" accent="#D97706" icon={AlertCircle}
                         onOpen={onOpenBooking} onApprove={onApprove} onReject={onReject} onCheckOut={onCheckOut} onCheckIn={onCheckIn}
-                        isManager={isManager} resources={resources}
+                        currentUserId={currentUserId} resources={resources}
                         emptyMsg={isManager ? 'Nothing to approve.' : 'No pending requests from you.'} />
                     <KanbanColumn title="Upcoming"  items={approved} color="#DCFCE7" accent="#059669" icon={Calendar}
                         onOpen={onOpenBooking} onApprove={onApprove} onReject={onReject} onCheckOut={onCheckOut} onCheckIn={onCheckIn}
-                        isManager={isManager} resources={resources}
+                        currentUserId={currentUserId} resources={resources}
                         emptyMsg="No approved bookings in the pipeline." />
                     <KanbanColumn title="In use"    items={inUse}    color="#EDE9FE" accent="#7C3AED" icon={Activity}
                         onOpen={onOpenBooking} onApprove={onApprove} onReject={onReject} onCheckOut={onCheckOut} onCheckIn={onCheckIn}
-                        isManager={isManager} resources={resources}
+                        currentUserId={currentUserId} resources={resources}
                         emptyMsg="Nothing is active right now." />
                     <KanbanColumn title="Completed" items={completed} color="#E0F2FE" accent="#0284C7" icon={Check}
                         onOpen={onOpenBooking} onApprove={onApprove} onReject={onReject} onCheckOut={onCheckOut} onCheckIn={onCheckIn}
-                        isManager={isManager} resources={resources}
+                        currentUserId={currentUserId} resources={resources}
                         emptyMsg="No recent activity." />
                 </div>
                 <RightRail bookings={bookings} resources={resources} onOpen={onOpenBooking} onNewBooking={onNewBooking} />

@@ -370,6 +370,10 @@ const ResourceBooking: React.FC = () => {
 
     const handleCreateBooking = (resource?: Resource) => {
         if (resource) {
+            if (user?.userId && resource.managedBy === user.userId) {
+                showToast('Bạn không thể đặt lịch resource mà bạn đang phụ trách.', 'warning');
+                return;
+            }
             setBookingCart(prev =>
                 prev.find(i => i.resourceId === resource.id) ? prev : [...prev, { resourceId: resource.id, quantity: 1 }]
             );
@@ -754,7 +758,7 @@ const ResourceBooking: React.FC = () => {
                                         fetchData();
                                     }}
                                     isLabDirector={isLabDirector}
-                                    isManagedView={activeTab === 'managed_bookings' || isLabDirector}
+                                    isManagedView={activeTab === 'managed_bookings'}
                                 />
                             </div>
                         </div>
@@ -771,7 +775,7 @@ const ResourceBooking: React.FC = () => {
                         ) : bookingVariant === 'calendar' ? (
                             <CalendarView
                                 bookings={viewBookings} resources={viewResources}
-                                isManager={isLabDirector}
+                                currentUserId={user?.userId}
                                 onOpenBooking={handleViewOpenBooking}
                                 onNewBooking={handleViewNewBooking}
                                 onApprove={handleViewApprove}
@@ -787,7 +791,7 @@ const ResourceBooking: React.FC = () => {
                         ) : (
                             <WorkspaceView
                                 bookings={viewBookings} resources={viewResources}
-                                isManager={isLabDirector}
+                                currentUserId={user?.userId}
                                 isDirector={isDirectorRole}
                                 onOpenBooking={handleViewOpenBooking}
                                 onNewBooking={() => handleViewNewBooking()}

@@ -264,7 +264,8 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
     const canPickUnit = allowSerialSelect || (isServerGroup && isAssignee);
 
     // For server groups, editing requires a unit to be selected first
-    const canEdit = isAssignee && (!isServerGroup || !!selectedSerial);
+    // LabDirector can edit any server resource regardless of assignee
+    const canEdit = (isServerType ? (isAssignee || isLabDirector) : isAssignee) && (!isServerGroup || !!selectedSerial);
     const canDelete = isLabDirector && (!isServerGroup || !!selectedSerial);
 
     // ─── Panel tab state ───────────────────────────────────────────────────

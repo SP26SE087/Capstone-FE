@@ -551,12 +551,13 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
     const currentUserEmail = (user?.email || '').trim().toLowerCase();
     const bookingUserEmail = (booking.userEmail || '').trim().toLowerCase();
     const isRequester = !!currentUserEmail && !!bookingUserEmail && currentUserEmail === bookingUserEmail;
-    const canApproveReject = isManagedView && booking.status === BookingStatus.Pending;
+    const isBookingManager = !!user?.userId && !!booking.managerId && booking.managerId === user.userId;
+    const canApproveReject = isBookingManager && booking.status === BookingStatus.Pending;
     const canCancel = isRequester && booking.status === BookingStatus.Pending;
     // Server compute bookings use auto checkout/checkin — hide manual buttons
-    const canCheckOut = isManagedView && booking.status === BookingStatus.Approved && !isServerComputeBooking;
-    const canCheckIn = isManagedView && booking.status === BookingStatus.InUse && !isServerComputeBooking;
-    
+    const canCheckOut = isBookingManager && booking.status === BookingStatus.Approved && !isServerComputeBooking;
+    const canCheckIn = isBookingManager && booking.status === BookingStatus.InUse && !isServerComputeBooking;
+
     // Show compute access panel for approved/in-use bookings with compute resources
     const showComputeAccess = isServerComputeBooking && (
         booking.status === BookingStatus.Approved ||
@@ -564,7 +565,7 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
     );
 
     // Admin: show "Provision Server" when public key submitted but not yet provisioned
-    const canProvision = isManagedView && isServerComputeBooking
+    const canProvision = isBookingManager && isServerComputeBooking
         && booking.status === BookingStatus.Approved
         && !!serverAccess && !serverAccess.isProvisioned
         && serverAccess.status === 'Pending';

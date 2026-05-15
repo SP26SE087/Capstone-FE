@@ -12,10 +12,10 @@ import {
 } from '@/types/visitorRegistration';
 import Modal from '@/components/common/Modal';
 import {
-    UserCheck, Clock, CheckCircle2, XCircle, Loader2, Eye, EyeOff,
+    UserCheck, Clock, CheckCircle2, XCircle, Loader2,
     ArrowRightLeft, CheckCheck, X, Wifi, WifiOff, User, List, GitPullRequest,
-    Users, Mail, Phone, Plus, Trash2, ChevronDown, Search,
-    ChevronLeft, ChevronRight, CalendarDays,
+    Users, Briefcase, Phone, Plus, Trash2, ChevronDown, Search,
+    ChevronLeft, ChevronRight, CalendarDays, Mail, Eye,
 } from 'lucide-react';
 
 // ─── Status configs ────────────────────────────────────────────────────────────
@@ -139,9 +139,6 @@ const VisitorRegistrations: React.FC = () => {
     const [respondSubmitting, setRespondSubmitting] = useState(false);
     const [respondError, setRespondError] = useState<string | null>(null);
 
-    // CCCD reveal
-    const [showCccd, setShowCccd] = useState(false);
-
     // ── Contactors state ──────────────────────────────────────────────────────
     const [contactors, setContactors] = useState<ContactorResponse[]>([]);
     const [contactorsLoading, setContactorsLoading] = useState(false);
@@ -161,14 +158,10 @@ const VisitorRegistrations: React.FC = () => {
     const [cDeleteError, setCDeleteError] = useState<string | null>(null);
     const cMemberPickerRef = useRef<HTMLDivElement>(null);
 
-    // Transfer contactor dropdown
+    // Transfer member dropdown
     const [transferEmailError, setTransferEmailError] = useState<string | null>(null);
-    const [transferContactorOpen, setTransferContactorOpen] = useState(false);
-    const transferContactorRef = useRef<HTMLDivElement>(null);
-    const [transferMode, setTransferMode] = useState<'contactor' | 'member'>('contactor');
     const [transferMemberOpen, setTransferMemberOpen] = useState(false);
     const [transferMemberSearch, setTransferMemberSearch] = useState('');
-    const [transferContactorSearch, setTransferContactorSearch] = useState('');
     const transferMemberPickerRef = useRef<HTMLDivElement>(null);
 
     const fetchRegistrations = useCallback(async () => {
@@ -224,16 +217,6 @@ const VisitorRegistrations: React.FC = () => {
     }, [cMemberOpen]);
 
     useEffect(() => {
-        if (!transferContactorOpen) return;
-        const handler = (e: MouseEvent) => {
-            if (transferContactorRef.current && !transferContactorRef.current.contains(e.target as Node))
-                setTransferContactorOpen(false);
-        };
-        document.addEventListener('mousedown', handler);
-        return () => document.removeEventListener('mousedown', handler);
-    }, [transferContactorOpen]);
-
-    useEffect(() => {
         if (!transferMemberOpen) return;
         const handler = (e: MouseEvent) => {
             if (transferMemberPickerRef.current && !transferMemberPickerRef.current.contains(e.target as Node))
@@ -244,7 +227,7 @@ const VisitorRegistrations: React.FC = () => {
     }, [transferMemberOpen]);
 
     const cOpenCreate = () => { setCEditTarget(null); setCForm({ fullName: '', email: '', phone: '' }); setCFormErrors({}); setCFormError(null); setCFormMode('member'); setCSelectedMember(null); setCMemberSearch(''); };
-    const cOpenEdit = (c: ContactorResponse) => { setCEditTarget(c); setCForm({ fullName: c.fullName, email: c.email, phone: c.phone }); setCFormErrors({}); setCFormError(null); };
+    const cOpenEdit = (c: ContactorResponse) => { setCEditTarget(c); setCForm({ fullName: c.fullName, email: '', phone: c.phone }); setCFormErrors({}); setCFormError(null); };
     const cSwitchMode = (mode: 'external' | 'member') => { setCFormMode(mode); setCForm({ fullName: '', email: '', phone: '' }); setCFormErrors({}); setCFormError(null); setCSelectedMember(null); setCMemberSearch(''); };
     const cSelectMember = (m: any) => { setCSelectedMember(m); setCForm(p => ({ ...p, fullName: m.fullName || '', email: m.email || '', phone: m.phoneNumber || m.phone || '' })); setCFormErrors({}); setCMemberOpen(false); setCMemberSearch(''); };
 
@@ -460,11 +443,8 @@ const VisitorRegistrations: React.FC = () => {
     const openTransfer = (item: VisitorRegistrationResponse) => {
         setTransferError(null);
         setTransferEmailError(null);
-        setTransferContactorOpen(false);
         setTransferMemberOpen(false);
         setTransferMemberSearch('');
-        setTransferContactorSearch('');
-        setTransferMode('contactor');
         setTransferState({ registrationId: item.id, fullName: item.fullName, toAssigneeEmail: '' });
     };
 
@@ -1048,7 +1028,7 @@ const VisitorRegistrations: React.FC = () => {
                                     <thead>
                                         <tr style={{ background: 'var(--surface-hover)', borderBottom: '1px solid var(--border-color)' }}>
                                             <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '30%' }}>Full Name</th>
-                                            <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '30%' }}>Email</th>
+                                            <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '30%' }}>Lab Position</th>
                                             <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '20%' }}>Phone</th>
                                             <th style={{ padding: '0.75rem 1rem', textAlign: 'left', fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', width: '14%' }}>Added</th>
                                             <th style={{ padding: '0.75rem 1rem', width: '6%' }}></th>
@@ -1065,7 +1045,7 @@ const VisitorRegistrations: React.FC = () => {
                                             >
                                                 <td style={{ padding: '0.75rem 1rem', fontWeight: 600, fontSize: '0.88rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.fullName}</td>
                                                 <td style={{ padding: '0.75rem 1rem', fontSize: '0.85rem', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><Mail size={13} style={{ flexShrink: 0 }} />{c.email}</span>
+                                                    <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><Briefcase size={13} style={{ flexShrink: 0 }} />{c.labPosition}</span>
                                                 </td>
                                                 <td style={{ padding: '0.75rem 1rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
                                                     <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><Phone size={13} style={{ flexShrink: 0 }} />{c.phone}</span>
@@ -1250,7 +1230,7 @@ const VisitorRegistrations: React.FC = () => {
             {/* ════════════════ MODALS ════════════════ */}
 
             {/* Detail Modal */}
-            <Modal isOpen={!!detailId} onClose={() => { setDetailId(null); setShowCccd(false); }} title="Registration Details" maxWidth="1020px" disableBackdropClose>
+            <Modal isOpen={!!detailId} onClose={() => setDetailId(null)} title="Registration Details" maxWidth="1020px" disableBackdropClose>
                 {detailLoading || !detail ? (
                     <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
                         <Loader2 size={28} style={{ animation: 'spin 1s linear infinite' }} color="var(--accent-color)" />
@@ -1259,33 +1239,10 @@ const VisitorRegistrations: React.FC = () => {
                     <div style={{ padding: '0.85rem 1.75rem', display: 'grid', gridTemplateColumns: (detail.logs && detail.logs.length > 0) || (detail.status === VisitorRegistrationStatus.Pending && detail.isAssignee) ? '1fr 400px' : '1fr', gap: '1.25rem', alignItems: 'start' }}>
                         {/* Left column */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                            {/* Photos */}
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                                <div>
-                                    <p style={{ margin: '0 0 0.35rem', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Portrait</p>
-                                    <img src={detail.photoUrl} alt="Photo" style={imgPreviewStyle} />
-                                </div>
-                                <div>
-                                    <p style={{ margin: '0 0 0.35rem', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>ID Card</p>
-                                    <div
-                                        style={{ position: 'relative', cursor: 'pointer', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}
-                                        onClick={() => setShowCccd(v => !v)}
-                                        title={showCccd ? 'Click to hide' : 'Click to reveal'}
-                                    >
-                                        <img src={detail.cccdImageUrl} alt="CCCD" style={{ ...imgPreviewStyle, filter: showCccd ? 'none' : 'blur(10px)', transition: 'filter 0.25s' }} />
-                                        {!showCccd && (
-                                            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px', background: 'rgba(0,0,0,0.18)' }}>
-                                                <Eye size={20} color="#fff" />
-                                                <span style={{ fontSize: '0.68rem', color: '#fff', fontWeight: 600, textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>Click to reveal</span>
-                                            </div>
-                                        )}
-                                        {showCccd && (
-                                            <div style={{ position: 'absolute', top: '4px', right: '4px', background: 'rgba(0,0,0,0.45)', borderRadius: '50%', width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                                <EyeOff size={12} color="#fff" />
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
+                            {/* Portrait */}
+                            <div>
+                                <p style={{ margin: '0 0 0.35rem', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Portrait</p>
+                                <img src={detail.photoUrl} alt="Photo" style={imgPreviewStyle} />
                             </div>
 
                             {/* Visitor info */}
@@ -1295,6 +1252,7 @@ const VisitorRegistrations: React.FC = () => {
                                     {fieldRow('Full Name',         <strong>{detail.fullName}</strong>)}
                                     {fieldRow('Email',             detail.email)}
                                     {detail.phoneNumber && fieldRow('Phone Number',    detail.phoneNumber)}
+                                    {fieldRow('ID Card Number',    detail.cccdNumber)}
                                     {fieldRow('Wants to Contact',  detail.contactEmail)}
                                     {fieldRow('Appointment',       formatDt(detail.appointmentDateTime))}
                                     {fieldRow('Submitted At',      formatDt(detail.createdAt))}
@@ -1390,15 +1348,15 @@ const VisitorRegistrations: React.FC = () => {
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', flexShrink: 0 }}>
                                         <p style={{ margin: '0 0 0.25rem', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Actions</p>
                                         <button className="btn btn-primary" style={{ width: '100%', background: '#16a34a', borderColor: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', padding: '5px 10px', fontSize: '0.78rem' }}
-                                            onClick={() => { setDetailId(null); setShowCccd(false); openApprove(detail); }}>
+                                            onClick={() => { setDetailId(null); openApprove(detail); }}>
                                             <CheckCircle2 size={12} /> Approve
                                         </button>
                                         <button className="btn btn-primary" style={{ width: '100%', background: '#dc2626', borderColor: '#dc2626', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', padding: '5px 10px', fontSize: '0.78rem' }}
-                                            onClick={() => { setDetailId(null); setShowCccd(false); openReject(detail); }}>
+                                            onClick={() => { setDetailId(null); openReject(detail); }}>
                                             <XCircle size={12} /> Reject
                                         </button>
                                         <button className="btn btn-secondary" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', padding: '5px 10px', fontSize: '0.78rem' }}
-                                            onClick={() => { setDetailId(null); setShowCccd(false); openTransfer(detail); }}>
+                                            onClick={() => { setDetailId(null); openTransfer(detail); }}>
                                             <ArrowRightLeft size={11} /> Transfer
                                         </button>
                                     </div>
@@ -1540,85 +1498,8 @@ const VisitorRegistrations: React.FC = () => {
                             Transfer the visit request from <strong>{transferState.fullName}</strong> to another lab member. They will need to accept.
                         </p>
 
-                        {/* Mode toggle */}
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                            {(['contactor', 'member'] as const).map(m => (
-                                <button key={m} type="button"
-                                    onClick={() => { setTransferMode(m); setTransferState(p => p && ({ ...p, toAssigneeEmail: '' })); setTransferEmailError(null); setTransferContactorOpen(false); setTransferMemberOpen(false); setTransferMemberSearch(''); setTransferContactorSearch(''); }}
-                                    style={{
-                                        flex: 1, padding: '0.4rem', border: '1px solid', borderRadius: 'var(--radius-sm)',
-                                        fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer', transition: 'all 0.15s',
-                                        borderColor: transferMode === m ? 'var(--accent-color)' : 'var(--border-color)',
-                                        background: transferMode === m ? 'var(--accent-color)' : 'transparent',
-                                        color: transferMode === m ? '#fff' : 'var(--text-primary)',
-                                    }}
-                                >
-                                    {m === 'contactor' ? 'Contactor' : 'Lab Member'}
-                                </button>
-                            ))}
-                        </div>
-
-                        {/* Contactor picker */}
-                        {transferMode === 'contactor' && (
-                            <div ref={transferContactorRef} style={{ position: 'relative' }}>
-                                <label style={labelStyle}>Select Contactor <span style={{ color: '#e11d48' }}>*</span></label>
-                                <button type="button"
-                                    onClick={() => setTransferContactorOpen(o => !o)}
-                                    style={{
-                                        width: '100%', padding: '0.55rem 0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                                        border: `1px solid ${transferEmailError ? '#e11d48' : 'var(--border-color)'}`, borderRadius: 'var(--radius-sm)',
-                                        background: '#fff', cursor: 'pointer', fontSize: '0.9rem', fontFamily: 'inherit',
-                                        color: transferState.toAssigneeEmail ? 'var(--text-primary)' : 'var(--text-muted)',
-                                    }}
-                                >
-                                    <span>{transferState.toAssigneeEmail
-                                        ? (contactors.find(c => c.email === transferState.toAssigneeEmail)?.fullName || transferState.toAssigneeEmail)
-                                        : (contactorsLoading ? 'Loading…' : 'Select a contactor…')}</span>
-                                    <ChevronDown size={14} />
-                                </button>
-                                {transferContactorOpen && (
-                                    <div style={{
-                                        position: 'absolute', top: 'calc(100% + 2px)', left: 0, right: 0, zIndex: 100,
-                                        background: '#fff', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)',
-                                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)', maxHeight: '200px', overflow: 'hidden',
-                                    }}>
-                                        <div style={{ padding: '6px', borderBottom: '1px solid var(--border-light)' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 8px', background: 'var(--surface-hover)', borderRadius: 'var(--radius-sm)' }}>
-                                                <Search size={13} color="var(--text-muted)" />
-                                                <input autoFocus value={transferContactorSearch}
-                                                    onChange={e => setTransferContactorSearch(e.target.value)}
-                                                    placeholder="Search…"
-                                                    style={{ border: 'none', outline: 'none', background: 'none', fontSize: '0.82rem', width: '100%' }}
-                                                />
-                                            </div>
-                                        </div>
-                                        <div style={{ overflowY: 'auto', maxHeight: '152px' }} className="custom-scrollbar">
-                                            {contactors.filter(c => {
-                                                const q = transferContactorSearch.toLowerCase();
-                                                return !q || c.fullName.toLowerCase().includes(q) || c.email.toLowerCase().includes(q);
-                                            }).map(c => (
-                                                <div key={c.id}
-                                                    onClick={() => { setTransferState(p => p && ({ ...p, toAssigneeEmail: c.email })); setTransferEmailError(null); setTransferContactorOpen(false); setTransferContactorSearch(''); }}
-                                                    style={{ padding: '0.5rem 0.75rem', cursor: 'pointer', fontSize: '0.85rem', borderBottom: '1px solid var(--border-light)' }}
-                                                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-hover)')}
-                                                    onMouseLeave={e => (e.currentTarget.style.background = '')}
-                                                >
-                                                    <div style={{ fontWeight: 600 }}>{c.fullName}</div>
-                                                    <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>{c.email}</div>
-                                                </div>
-                                            ))}
-                                            {contactors.filter(c => { const q = transferContactorSearch.toLowerCase(); return !q || c.fullName.toLowerCase().includes(q) || c.email.toLowerCase().includes(q); }).length === 0 && (
-                                                <div style={{ padding: '0.75rem', color: 'var(--text-muted)', fontSize: '0.83rem', textAlign: 'center' }}>No contactors found</div>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
                         {/* Lab Member picker */}
-                        {transferMode === 'member' && (
-                            <div ref={transferMemberPickerRef} style={{ position: 'relative' }}>
+                        <div ref={transferMemberPickerRef} style={{ position: 'relative' }}>
                                 <label style={labelStyle}>Select Lab Member <span style={{ color: '#e11d48' }}>*</span></label>
                                 <button type="button"
                                     onClick={() => setTransferMemberOpen(o => !o)}
@@ -1672,8 +1553,6 @@ const VisitorRegistrations: React.FC = () => {
                                     </div>
                                 )}
                             </div>
-                        )}
-
 
                     </div>
                 )}

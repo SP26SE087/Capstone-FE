@@ -1021,7 +1021,7 @@ function MonthNav({ year, month, setMonth, setYear }: {
 interface CalendarViewProps {
     bookings: Booking[];
     resources: Resource[];
-    isManager: boolean;
+    currentUserId?: string;
     onOpenBooking: (b: Booking) => void;
     onNewBooking: (resource?: Resource, date?: Date) => void;
     onApprove: (id: string, note?: string) => void;
@@ -1029,7 +1029,7 @@ interface CalendarViewProps {
     onAdjust?: (id: string, opts: { newResourceIds: string[]; adjustReason: string }) => Promise<void>;
 }
 
-export default function CalendarView({ bookings, resources, isManager, onOpenBooking, onNewBooking, onApprove, onReject, onAdjust }: CalendarViewProps) {
+export default function CalendarView({ bookings, resources, currentUserId, onOpenBooking, onNewBooking, onApprove, onReject, onAdjust }: CalendarViewProps) {
     const today = new Date();
     const [year, setYear] = useState(today.getFullYear());
     const [month, setMonth] = useState(today.getMonth());
@@ -1065,8 +1065,13 @@ export default function CalendarView({ bookings, resources, isManager, onOpenBoo
                 <MonthNav year={year} month={month} setMonth={setMonth} setYear={setYear} />
             </div>
 
-            {/* Pending queue */}
-            {isManager && <PendingQueue bookings={bookings} resources={resources} onApprove={onApprove} onReject={onReject} onAdjust={onAdjust} onOpen={onOpenBooking} />}
+            {/* Pending queue — only for bookings this user manages */}
+            {bookings.some(b => b.managerId && b.managerId === currentUserId && b.status === BookingStatus.Pending) && (
+                <PendingQueue
+                    bookings={bookings.filter(b => b.managerId === currentUserId)}
+                    resources={resources} onApprove={onApprove} onReject={onReject} onAdjust={onAdjust} onOpen={onOpenBooking}
+                />
+            )}
 
             {/* Filters */}
             <FilterBar

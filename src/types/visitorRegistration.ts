@@ -27,7 +27,7 @@ export interface VisitorRegistrationResponse {
     fullName: string;
     email: string;
     photoUrl: string;
-    cccdImageUrl: string;
+    cccdNumber: string;
     contactEmail: string;
     appointmentDateTime: string;
     status: VisitorRegistrationStatus;
@@ -75,7 +75,7 @@ export interface AssigneeTransferRequestResponse {
 export interface ContactorResponse {
     id: string;
     fullName: string;
-    email: string;
+    labPosition: string;
     phone: string;
     createdAt: string;
 }
