@@ -5,6 +5,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import MainLayout from '@/layout/MainLayout';
+import { useAuth } from '@/hooks/useAuth';
 import { Resource, Booking, BookingStatus, CreateBookingRequest } from '@/types/booking';
 import { resourceService } from '@/services/resourceService';
 import { bookingService } from '@/services/bookingService';
@@ -119,43 +120,47 @@ interface ResourceRowProps {
   maxQty: number;
   onToggle: () => void;
   onQtyChange: (q: number) => void;
+  currentUserId?: string;
 }
-const ResourceRow: React.FC<ResourceRowProps> = ({ resource: r, selected, qty, maxQty, onToggle, onQtyChange }) => {
+const ResourceRow: React.FC<ResourceRowProps> = ({ resource: r, selected, qty, maxQty, onToggle, onQtyChange, currentUserId }) => {
   const server    = isServerResource(r);
   const iconColor = server ? '#7C3AED' : '#0284C7';
   const iconBg    = server ? '#F5F3FF' : '#F0F9FF';
   const avail     = maxQty;
   const total     = r.totalQuantity ?? 1;
-  const unavailable = avail === 0 && !selected;
+  const isManaged = !!currentUserId && !!r.managedBy && r.managedBy === currentUserId;
+  const unavailable = (avail === 0 && !selected) || isManaged;
 
   return (
+    <div style={{ marginBottom: isManaged ? 2 : 0 }}>
     <div
       role="checkbox"
       aria-checked={selected}
       tabIndex={0}
-      onClick={onToggle}
-      onKeyDown={e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); onToggle(); } }}
+      onClick={() => { if (!isManaged) onToggle(); }}
+      onKeyDown={e => { if (!isManaged && (e.key === ' ' || e.key === 'Enter')) { e.preventDefault(); onToggle(); } }}
       style={{
         display: 'flex', alignItems: 'center', gap: 10,
-        padding: '9px 12px', borderRadius: 10,
-        border: '1.5px solid transparent',
-        background: 'transparent',
+        padding: '9px 12px', borderRadius: isManaged ? '10px 10px 0 0' : 10,
+        border: isManaged ? '1.5px solid #fde68a' : '1.5px solid transparent',
+        borderBottom: isManaged ? 'none' : undefined,
+        background: isManaged ? '#fffbeb' : 'transparent',
         cursor: unavailable ? 'not-allowed' : 'pointer',
-        opacity: unavailable ? 0.45 : 1,
+        opacity: isManaged ? 0.75 : unavailable ? 0.45 : 1,
         transition: 'background 0.1s, border-color 0.1s',
         userSelect: 'none',
       }}
       onMouseEnter={e => { if (!unavailable) (e.currentTarget as HTMLElement).style.background = 'var(--background-color)'; }}
-      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = isManaged ? '#fffbeb' : 'transparent'; }}
     >
       {/* Checkbox */}
       <div style={{
         width: 17, height: 17, borderRadius: 5, flexShrink: 0,
-        border: selected ? '2px solid var(--accent-color)' : '2px solid #cbd5e1',
-        background: selected ? 'var(--accent-color)' : '#fff',
+        border: isManaged ? '2px solid #fbbf24' : selected ? '2px solid var(--accent-color)' : '2px solid #cbd5e1',
+        background: isManaged ? '#fef3c7' : selected ? 'var(--accent-color)' : '#fff',
         display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.1s',
       }}>
-        {selected && <Check size={10} color="#fff" strokeWidth={3} />}
+        {selected && !isManaged && <Check size={10} color="#fff" strokeWidth={3} />}
       </div>
 
       {/* Icon */}
@@ -186,7 +191,7 @@ const ResourceRow: React.FC<ResourceRowProps> = ({ resource: r, selected, qty, m
       <div style={{ textAlign: 'right', flexShrink: 0, minWidth: 44 }}>
         <span style={{
           fontSize: 11, fontWeight: 800,
-          color: avail === 0 ? '#ef4444' : avail < total ? '#f59e0b' : '#10b981',
+          color: isManaged ? '#d97706' : avail === 0 ? '#ef4444' : avail < total ? '#f59e0b' : '#10b981',
         }}>
           {avail}/{total}
         </span>
@@ -213,6 +218,25 @@ const ResourceRow: React.FC<ResourceRowProps> = ({ resource: r, selected, qty, m
           </button>
         </div>
       )}
+    </div>
+    {isManaged && (
+      <div style={{
+        padding: '5px 12px 7px',
+        background: '#fffbeb',
+        border: '1.5px solid #fde68a',
+        borderTop: 'none',
+        borderRadius: '0 0 10px 10px',
+        fontSize: 11,
+        fontWeight: 600,
+        color: '#92400e',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 5,
+      }}>
+        <AlertTriangle size={11} style={{ flexShrink: 0, color: '#d97706' }} />
+        Bạn đang phụ trách resource này và không thể tự đặt lịch.
+      </div>
+    )}
     </div>
   );
 };
@@ -359,6 +383,8 @@ const NewBookingPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const preSelectedId = searchParams.get('resourceId') ?? undefined;
   const { addToast } = useToastStore();
+  const { user } = useAuth();
+  const currentUserId = user?.userId;
 
   // ── Data ──
   const [resources,   setResources]   = useState<Resource[]>([]);
@@ -482,6 +508,7 @@ const NewBookingPage: React.FC = () => {
 
   // ── Toggle / qty ──
   const toggleResource = useCallback((r: Resource) => {
+    if (currentUserId && r.managedBy === currentUserId) return; // block own-managed
     const avail = maxQtyFor(r);
     if (avail === 0 && !selectedIds.includes(r.id)) return; // block unavailable
     setSelectedIds(prev => {
@@ -734,6 +761,7 @@ const NewBookingPage: React.FC = () => {
                               maxQty={mq}
                               onToggle={() => toggleResource(r)}
                               onQtyChange={q => setQty(r.id, q)}
+                              currentUserId={currentUserId}
                             />
                           </div>
                         );
