@@ -119,7 +119,7 @@ export const router = createBrowserRouter([
     },
     {
         path: '/admin/compute',
-        element: <AuthGuard><RoleGuard allowedRoles={[1, 2]}><ComputeServerAdmin /></RoleGuard></AuthGuard>,
+        element: <AuthGuard><RoleGuard allowedRoles={[2]}><ComputeServerAdmin /></RoleGuard></AuthGuard>,
     },
     {
         path: '/schedules',
