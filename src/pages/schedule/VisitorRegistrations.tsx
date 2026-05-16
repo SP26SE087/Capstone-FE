@@ -1230,7 +1230,7 @@ const VisitorRegistrations: React.FC = () => {
             {/* ════════════════ MODALS ════════════════ */}
 
             {/* Detail Modal */}
-            <Modal isOpen={!!detailId} onClose={() => setDetailId(null)} title="Registration Details" maxWidth="1020px" disableBackdropClose>
+            <Modal isOpen={!!detailId} onClose={() => setDetailId(null)} title="Registration Details" maxWidth="1020px" maxHeight="calc(100vh - 80px)" disableBackdropClose>
                 {detailLoading || !detail ? (
                     <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
                         <Loader2 size={28} style={{ animation: 'spin 1s linear infinite' }} color="var(--accent-color)" />
@@ -1239,9 +1239,9 @@ const VisitorRegistrations: React.FC = () => {
                     <div style={{ padding: '0.85rem 1.75rem', display: 'grid', gridTemplateColumns: (detail.logs && detail.logs.length > 0) || (detail.status === VisitorRegistrationStatus.Pending && detail.isAssignee) ? '1fr 400px' : '1fr', gap: '1.25rem', alignItems: 'start' }}>
                         {/* Left column */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                            {/* Portrait */}
+                            {/* Photo */}
                             <div>
-                                <p style={{ margin: '0 0 0.35rem', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Portrait</p>
+                                <p style={{ margin: '0 0 0.35rem', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Photo</p>
                                 <img src={detail.photoUrl} alt="Photo" style={imgPreviewStyle} />
                             </div>
 

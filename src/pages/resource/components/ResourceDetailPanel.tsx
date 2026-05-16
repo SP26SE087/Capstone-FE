@@ -774,8 +774,8 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
                 <div style={sectionStyle}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
                         <div style={labelStyle}><Package size={12} /> Inventory Status</div>
-                        {/* Server health badge — only for server resources */}
-                        {isServerType && (() => {
+                        {/* Server health badge — only for server resources when user is lab director */}
+                        {isServerType && isLabDirector && (() => {
                             const hCfg = {
                                 checking: { label: 'Checking…', color: '#64748b', bg: '#f1f5f9', border: '#cbd5e1', dot: '#94a3b8', icon: <Loader2 size={11} className="animate-spin" /> },
                                 online:   { label: 'Online',    color: '#16a34a', bg: '#dcfce7', border: '#86efac', dot: '#22c55e', icon: <Wifi size={11} /> },
