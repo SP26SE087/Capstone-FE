@@ -152,7 +152,7 @@ export const router = createBrowserRouter([
     },
     {
         path: '/admin/camera-monitor',
-        element: <AuthGuard><RoleGuard allowedRoles={[1]}><CameraMonitorPage /></RoleGuard></AuthGuard>,
+        element: <AuthGuard><RoleGuard allowedRoles={[1, 2]}><CameraMonitorPage /></RoleGuard></AuthGuard>,
     },
     {
         path: '/public/papers',
