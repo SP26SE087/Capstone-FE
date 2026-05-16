@@ -34,7 +34,8 @@ import {
     RotateCcw,
     Box,
     Cpu,
-    Server
+    Server,
+    Wifi,
 } from 'lucide-react';
 
 import ResourceListView from './components/ResourceListView';
@@ -45,6 +46,7 @@ import NewBookingModal from '@/features/resources/NewBookingModal';
 import BookingListView from './components/BookingListView';
 import BookingDetailPanel from './components/BookingDetailPanel';
 import ResourceTypePanel from './components/ResourceTypePanel';
+import ServerHealthDashboard from './components/ServerHealthDashboard';
 import ConfirmModal from '@/components/common/ConfirmModal';
 import CalendarView from './views/CalendarView';
 import TimelineView from './views/TimelineView';
@@ -53,9 +55,9 @@ import WorkspaceView from './views/WorkspaceView';
 // ─── Types ───────────────────────────────────────────────────────────────────
 type BookingVariant = 'calendar' | 'timeline' | 'workspace' | 'management';
 type MainTab = 'resources' | 'bookings' | 'logs';
-type ResourceSubTab = 'all' | 'my_managed' | 'types';
+type ResourceSubTab = 'all' | 'my_managed' | 'types' | 'server_health';
 type BookingSubTab = 'my' | 'all' | 'managed';
-type TabType = 'resources' | 'my_managed' | 'my_bookings' | 'all_bookings' | 'managed_bookings' | 'equipment_logs' | 'resource_types';
+type TabType = 'resources' | 'my_managed' | 'my_bookings' | 'all_bookings' | 'managed_bookings' | 'equipment_logs' | 'resource_types' | 'server_health';
 
 interface ActivePanel {
     id: string;
@@ -94,6 +96,7 @@ const ResourceBooking: React.FC = () => {
         if (mainTab === 'resources') {
             if (resourceSubTab === 'my_managed') return 'my_managed';
             if (resourceSubTab === 'types') return 'resource_types';
+            if (resourceSubTab === 'server_health') return 'server_health';
             return 'resources';
         }
         if (mainTab === 'bookings') {
@@ -541,7 +544,7 @@ const ResourceBooking: React.FC = () => {
     const isBookingTab = activeTab === 'my_bookings' || activeTab === 'all_bookings' || activeTab === 'managed_bookings';
     const isLogTab = activeTab === 'equipment_logs';
     const isResourceTypeTab = activeTab === 'resource_types';
-    const isServerTab = false;
+    const isServerTab = activeTab === 'server_health';
 
     const displayResourceTypes = useMemo(() => resourceTypes.filter(rt => {
         const q = searchQuery.toLowerCase();
@@ -865,6 +868,11 @@ const ResourceBooking: React.FC = () => {
                                                         <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><Layers size={12} /> Resource Types</span>
                                                     </button>
                                                 )}
+                                                {isLabDirector && (
+                                                    <button style={pillStyle(resourceSubTab === 'server_health', meta.color)} onClick={() => switchResourceSubTab('server_health')}>
+                                                        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><Wifi size={12} /> Server Health</span>
+                                                    </button>
+                                                )}
                                             </>
                                         )}
                                         {mainTab === 'bookings' && (
@@ -896,7 +904,7 @@ const ResourceBooking: React.FC = () => {
                                         )}
                                     </div>
                                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                        {mainTab === 'resources' && isResourceTypeTab && isLabDirector && (
+                                        {mainTab === 'resources' && isResourceTypeTab && !isServerTab && isLabDirector && (
                                             <button onClick={handleCreateResourceType} style={{
                                                 display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700,
                                                 padding: '0 14px', height: '32px', borderRadius: '8px', fontSize: '0.8rem',
@@ -904,7 +912,7 @@ const ResourceBooking: React.FC = () => {
                                                 color: '#fff', cursor: 'pointer', boxShadow: `0 2px 6px ${meta.color}55`
                                             }}><Plus size={14} /> New Type</button>
                                         )}
-                                        {mainTab === 'resources' && !isResourceTypeTab && isLabDirector && (
+                                        {mainTab === 'resources' && !isResourceTypeTab && !isServerTab && isLabDirector && (
                                             <button onClick={handleCreateResource} style={{
                                                 display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700,
                                                 padding: '0 14px', height: '32px', borderRadius: '8px', fontSize: '0.8rem',
@@ -912,7 +920,7 @@ const ResourceBooking: React.FC = () => {
                                                 color: '#fff', cursor: 'pointer', boxShadow: `0 2px 6px ${meta.color}55`
                                             }}><Plus size={14} /> Add Resource</button>
                                         )}
-                                        {mainTab === 'resources' && !isResourceTypeTab && (
+                                        {mainTab === 'resources' && !isResourceTypeTab && !isServerTab && (
                                             <button onClick={() => handleCreateBooking()} style={{
                                                 display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700,
                                                 padding: '0 14px', height: '32px', borderRadius: '8px', fontSize: '0.8rem',
@@ -926,8 +934,8 @@ const ResourceBooking: React.FC = () => {
                         </div>
                     );
                 })()}
-                {/* Search + filter toolbar + stats in one row */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginBottom: '1rem', flexWrap: 'wrap' as const }}>
+                {/* Search + filter toolbar + stats in one row — hidden on server health tab */}
+                <div style={{ display: isServerTab ? 'none' : 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginBottom: '1rem', flexWrap: 'wrap' as const }}>
                     {/* Left: stats chips */}
                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' as const }}>
                         {isResourceTab && !isResourceTypeTab && [
@@ -1395,6 +1403,8 @@ const ResourceBooking: React.FC = () => {
                                         })}
                                     </div>
                                 </div>
+                            ) : isServerTab ? (
+                                <ServerHealthDashboard />
                             ) : null}
                         </div>
                     </div>

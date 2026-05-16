@@ -4,6 +4,7 @@ import { visitorRegistrationService } from '@/services/visitorRegistrationServic
 import { contactorService } from '@/services/contactorService';
 import { ContactorResponse } from '@/types/visitorRegistration';
 import { Upload, X, CheckCircle2, Loader2, ChevronDown } from 'lucide-react';
+import { Turnstile } from '@marsidev/react-turnstile';
 
 interface Props {
     isOpen: boolean;
@@ -43,6 +44,7 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
     const [errors, setErrors] = useState<Partial<Record<keyof FormState | 'photo' | 'general', string>>>({});
     const [submitting, setSubmitting] = useState(false);
     const [success, setSuccess] = useState(false);
+    const [turnstileToken, setTurnstileToken] = useState('');
     const [photoPreview, setPhotoPreview] = useState<string | null>(null);
     const [contactors, setContactors] = useState<ContactorResponse[]>([]);
     const [contactorLoading, setContactorLoading] = useState(false);
@@ -122,6 +124,7 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
         if (!photo) newErrors.photo = 'Please upload your photo';
         if (!form.CccdNumber.trim()) newErrors.CccdNumber = 'ID number is required';
         else if (!CCCD_REGEX.test(form.CccdNumber.trim())) newErrors.CccdNumber = 'ID number must be 9–12 digits';
+        if (!turnstileToken) newErrors.general = 'Please complete the human verification challenge.';
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
@@ -138,6 +141,7 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
             fd.append('appointmentDateTime', new Date(form.AppointmentDateTime).toISOString());
             if (form.Notes.trim()) fd.append('notes', form.Notes.trim());
             fd.append('cccdNumber', form.CccdNumber.trim());
+            fd.append('TurnstileToken', turnstileToken);
             const safeName = form.FullName.trim().replace(/\s+/g, '_');
             const safeDate = new Date(form.AppointmentDateTime).toISOString().slice(0, 16).replace(/:/g, '-');
             const photoExt = photo!.name.split('.').pop() || 'jpg';
@@ -167,6 +171,7 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
         setContactorSearch('');
         setSelectedContactor(null);
         setSuccess(false);
+        setTurnstileToken('');
         onClose();
     };
 
@@ -225,7 +230,7 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
             footer={
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', padding: '1rem 1.75rem', borderTop: '1px solid var(--border-color)' }}>
                     <button className="btn btn-secondary" onClick={handleClose} disabled={submitting}>Cancel</button>
-                    <button className="btn btn-primary" onClick={handleSubmit} disabled={submitting} style={{ minWidth: '110px' }}>
+                    <button className="btn btn-primary" onClick={handleSubmit} disabled={submitting || !turnstileToken} style={{ minWidth: '110px' }}>
                         {submitting ? <><Loader2 size={15} style={{ animation: 'spin 1s linear infinite', marginRight: '6px' }} />Submitting...</> : 'Submit'}
                     </button>
                 </div>
@@ -456,6 +461,16 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                                 Enter the number on your Citizen ID / CCCD card (9–12 digits).
                             </p>
                             {errors.CccdNumber && <p style={errorStyle}>{errors.CccdNumber}</p>}
+                        </div>
+
+                        {/* Human verification */}
+                        <div>
+                            <Turnstile
+                                siteKey={import.meta.env.VITE_TURNSTILE_SITE_KEY}
+                                onSuccess={setTurnstileToken}
+                                onExpire={() => setTurnstileToken('')}
+                                onError={() => setTurnstileToken('')}
+                            />
                         </div>
                     </div>
                 </div>

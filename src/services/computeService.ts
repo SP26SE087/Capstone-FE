@@ -87,6 +87,38 @@ function normaliseAccess(raw: any): ServerAccess {
   };
 }
 
+export interface ServerHealthStatus {
+  isOnline: boolean;
+  host: string;
+  port: number;
+  latencyMs: number | null;
+  message: string;
+  checkedAtUtc: string;
+}
+
+export interface ServerResourceHealthItem {
+  resourceId: string;
+  resourceName: string;
+  location?: string | null;
+  modelSeries?: string | null;
+  gpuCount?: number | null;
+  cpuCores?: number | null;
+  ramGb?: number | null;
+  isOnline: boolean;
+  host: string;
+  port: number;
+  latencyMs: number | null;
+  message: string;
+  checkedAtUtc: string;
+}
+
+export interface AllServerHealthStatus {
+  total: number;
+  online: number;
+  offline: number;
+  resources: ServerResourceHealthItem[];
+}
+
 export const computeService = {
   /** Keep mock tiers for ComputeTierSelector */
   getTiers: async (): Promise<ComputeTier[]> => {
@@ -182,6 +214,32 @@ export const computeService = {
    */
   revokeAccess: async (bookingId: string): Promise<void> => {
     await api.post(`/api/server-access/bookings/${bookingId}/revoke`, {});
+  },
+
+  /**
+   * Check server SSH connectivity for a booking — GET /api/terminal/bookings/{bookingId}/status
+   */
+  getServerHealthStatus: async (bookingId: string): Promise<ServerHealthStatus> => {
+    const response = await api.get(`/api/terminal/bookings/${bookingId}/status`);
+    return response.data.data || response.data;
+  },
+
+  /**
+   * Get SSH connectivity status for ALL server resources — GET /api/terminal/resources/status
+   * Lab Director / Admin only.
+   */
+  getAllResourcesHealth: async (): Promise<AllServerHealthStatus> => {
+    const response = await api.get('/api/terminal/resources/status');
+    return response.data.data || response.data;
+  },
+
+  /**
+   * Get SSH connectivity status for a single server resource — GET /api/terminal/resources/{resourceId}/status
+   * Lab Director / Admin only.
+   */
+  getResourceHealth: async (resourceId: string): Promise<ServerResourceHealthItem> => {
+    const response = await api.get(`/api/terminal/resources/${resourceId}/status`);
+    return response.data.data || response.data;
   },
 
   // ── File Manager ──────────────────────────────────────────────────────────

@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { Server, Terminal, Clock, CheckCircle2, AlertTriangle, Ban, Key, ChevronDown, ChevronUp, Loader2, Upload, RefreshCw, Download } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Server, Terminal, Clock, CheckCircle2, AlertTriangle, Ban, Key, ChevronDown, ChevronUp, Loader2, Upload, RefreshCw, Download, Wifi, WifiOff, Activity } from 'lucide-react';
 import { ComputeAccess, ComputeAccessStatus } from '@/types/booking';
-import { ServerAccess, computeService, SubmitPublicKeyRequest } from '@/services/computeService';
+import { ServerAccess, ServerHealthStatus, computeService, SubmitPublicKeyRequest } from '@/services/computeService';
 
 // ── Web Crypto RSA key generation ─────────────────────────────────────────────
 async function generateSSHKeyPair(): Promise<{ publicKey: string; privateKeyPem: string }> {
@@ -124,6 +124,32 @@ const ComputeAccessPanel: React.FC<ComputeAccessPanelProps> = ({
   const [showPrivateKeyForm, setShowPrivateKeyForm] = useState(false);
   const [privateKey, setPrivateKey] = useState('');
   const [privateKeyError, setPrivateKeyError] = useState<string | null>(null);
+
+  // ── Server health status ─────────────────────────────────────────────
+  const [health, setHealth] = useState<ServerHealthStatus | null>(null);
+  const [healthLoading, setHealthLoading] = useState(false);
+  const healthIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const fetchHealth = useCallback(async () => {
+    setHealthLoading(true);
+    try {
+      const status = await computeService.getServerHealthStatus(bookingId);
+      setHealth(status);
+    } catch {
+      // silently ignore — server may not be provisioned yet
+    } finally {
+      setHealthLoading(false);
+    }
+  }, [bookingId]);
+
+  useEffect(() => {
+    fetchHealth();
+    // Auto-refresh every 30s
+    healthIntervalRef.current = setInterval(fetchHealth, 30_000);
+    return () => {
+      if (healthIntervalRef.current) clearInterval(healthIntervalRef.current);
+    };
+  }, [fetchHealth]);
 
   const accessConfig = serverAccess ? getAccessStatusConfig(serverAccess.status) : null;
   const isSessionEnded = !!accessConfig && !accessConfig.canConnect
@@ -297,6 +323,103 @@ const ComputeAccessPanel: React.FC<ComputeAccessPanelProps> = ({
         </div>
       </div>
 
+      {/* ── Server connectivity status ── */}
+      {health && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: '10px',
+          padding: '7px 11px', borderRadius: '8px',
+          background: health.isOnline
+            ? 'rgba(16,185,129,0.08)'
+            : 'rgba(239,68,68,0.08)',
+          border: `1px solid ${health.isOnline ? 'rgba(16,185,129,0.2)' : 'rgba(239,68,68,0.2)'}`,
+        }}>
+          {/* Pulsing dot */}
+          <div style={{ position: 'relative', flexShrink: 0 }}>
+            <div style={{
+              width: '8px', height: '8px', borderRadius: '50%',
+              background: health.isOnline ? '#10b981' : '#ef4444',
+            }} />
+            {health.isOnline && (
+              <div style={{
+                position: 'absolute', inset: 0, borderRadius: '50%',
+                background: '#10b981', opacity: 0.4,
+                animation: 'healthPulse 2s ease-out infinite',
+              }} />
+            )}
+          </div>
+
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' as const }}>
+              <span style={{
+                fontSize: '0.72rem', fontWeight: 700,
+                color: health.isOnline ? '#34d399' : '#f87171',
+                display: 'flex', alignItems: 'center', gap: '4px',
+              }}>
+                {health.isOnline ? <Wifi size={11} /> : <WifiOff size={11} />}
+                {health.isOnline ? 'Online' : 'Offline'}
+              </span>
+
+              {health.isOnline && health.latencyMs != null && (
+                <span style={{
+                  fontSize: '0.68rem', fontWeight: 700,
+                  color: health.latencyMs < 100 ? '#34d399' : health.latencyMs < 300 ? '#fbbf24' : '#f87171',
+                  background: 'rgba(0,0,0,0.2)', padding: '1px 7px', borderRadius: 20,
+                  display: 'flex', alignItems: 'center', gap: '3px',
+                }}>
+                  <Activity size={9} /> {health.latencyMs}ms
+                </span>
+              )}
+
+              <span style={{ fontSize: '0.65rem', color: '#475569', fontFamily: 'monospace' }}>
+                {health.host}:{health.port}
+              </span>
+
+              {!health.isOnline && (
+                <span style={{ fontSize: '0.65rem', color: '#94a3b8', fontStyle: 'italic' }}>
+                  {health.message}
+                </span>
+              )}
+            </div>
+
+            <div style={{ fontSize: '0.62rem', color: '#475569', marginTop: '1px' }}>
+              Checked {new Date(health.checkedAtUtc).toLocaleTimeString()}
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={fetchHealth}
+            disabled={healthLoading}
+            title="Refresh connectivity check"
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: '26px', height: '26px', borderRadius: '6px', border: 'none',
+              background: 'rgba(255,255,255,0.06)', color: '#64748b',
+              cursor: healthLoading ? 'not-allowed' : 'pointer',
+              flexShrink: 0, transition: 'background 0.15s',
+            }}
+            onMouseEnter={e => { if (!healthLoading) e.currentTarget.style.background = 'rgba(255,255,255,0.12)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
+          >
+            <RefreshCw size={12} style={{ animation: healthLoading ? 'spin 1s linear infinite' : 'none' }} />
+          </button>
+        </div>
+      )}
+
+      {/* Checking for the first time */}
+      {!health && healthLoading && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: '7px',
+          padding: '7px 11px', borderRadius: '8px',
+          background: 'rgba(255,255,255,0.04)',
+          border: '1px solid rgba(255,255,255,0.06)',
+          fontSize: '0.7rem', color: '#475569',
+        }}>
+          <Loader2 size={12} style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }} />
+          Checking server connectivity…
+        </div>
+      )}
+
       {/* ── Step 2: Public key form ── */}
       {showPublicKeyForm && (
         <div style={{
@@ -428,7 +551,10 @@ const ComputeAccessPanel: React.FC<ComputeAccessPanelProps> = ({
         </div>
       )}
 
-      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+      <style>{`
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes healthPulse { 0% { transform: scale(1); opacity: 0.4; } 70% { transform: scale(2.5); opacity: 0; } 100% { transform: scale(2.5); opacity: 0; } }
+      `}</style>
     </div>
   );
 };

@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Resource } from '@/types/booking';
-import { Box, Cpu, Package, MapPin, ChevronRight, UserCog, Server } from 'lucide-react';
+import { Box, Cpu, Package, MapPin, ChevronRight, UserCog, Server, Wifi, WifiOff, Activity, RefreshCw } from 'lucide-react';
 import { ResourceTypeItem, ResourceTypeCategory } from '@/services/resourceTypeService';
+import { computeService, ServerResourceHealthItem } from '@/services/computeService';
 
 interface ResourceListViewProps {
     resources: Resource[];
@@ -31,7 +32,6 @@ const SECTION_CFG = {
     },
 };
 
-/* ── Status config (for the overall now-status pill) ────────────────────── */
 type UnitStatus = 'available' | 'in-use' | 'damaged';
 
 const STATUS_CFG: Record<UnitStatus, { label: string; color: string; bg: string; border: string; dot: string }> = {
@@ -40,8 +40,6 @@ const STATUS_CFG: Record<UnitStatus, { label: string; color: string; bg: string;
     damaged:   { label: 'Damaged',   color: '#dc2626', bg: '#fee2e2', border: '#fca5a5', dot: '#ef4444' },
 };
 
-
-/* ── Component ───────────────────────────────────────────────────────────── */
 const ResourceListView: React.FC<ResourceListViewProps> = ({
     resources,
     selectedId,
@@ -51,6 +49,31 @@ const ResourceListView: React.FC<ResourceListViewProps> = ({
     resourceTypes = [],
 }) => {
     const [activeTab, setActiveTab] = useState<'server' | 'physical'>('server');
+
+    // ── Health status for server resources ──────────────────────────────────
+    const [healthMap, setHealthMap] = useState<Map<string, ServerResourceHealthItem>>(new Map());
+    const [healthLoading, setHealthLoading] = useState(false);
+    const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+    const fetchHealth = useCallback(async () => {
+        setHealthLoading(true);
+        try {
+            const result = await computeService.getAllResourcesHealth();
+            const map = new Map<string, ServerResourceHealthItem>();
+            result.resources.forEach(r => map.set(r.resourceId, r));
+            setHealthMap(map);
+        } catch {
+            // silently ignore if endpoint unavailable
+        } finally {
+            setHealthLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchHealth();
+        intervalRef.current = setInterval(fetchHealth, 30_000);
+        return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+    }, [fetchHealth]);
 
     if (resources.length === 0) {
         return (
@@ -71,27 +94,46 @@ const ResourceListView: React.FC<ResourceListViewProps> = ({
         return rt?.category !== ResourceTypeCategory.ServerCompute;
     });
 
+    // Aggregate health for a (possibly grouped) server resource
+    const getResourceHealth = (resource: Resource): ServerResourceHealthItem | null => {
+        // Check all unit IDs; return the first match (grouped resources share the same server)
+        for (const id of resource.ids) {
+            const h = healthMap.get(id);
+            if (h) return h;
+        }
+        return null;
+    };
+
+    // Summary counts for server tab
+    const serverOnline  = serverResources.filter(r => getResourceHealth(r)?.isOnline === true).length;
+    const serverOffline = serverResources.filter(r => {
+        const h = getResourceHealth(r);
+        return h !== null && !h.isOnline;
+    }).length;
+
     const renderCard = (resource: Resource) => {
         const isSelected = resource.id === selectedId;
         const rt = resourceTypes.find(t => t.id === resource.resourceTypeId);
         const isServer = rt?.category === ResourceTypeCategory.ServerCompute;
         const cfg = isServer ? SECTION_CFG.server : SECTION_CFG.physical;
 
-        // Derive counts from resource fields directly
         const total        = Math.max(resource.totalQuantity || 0, 1);
         const availableCount = resource.availableQuantity ?? 0;
         const damagedCount   = resource.damagedQuantity ?? 0;
         const inUseCount     = resource.inUseCount ?? Math.max(0, total - availableCount - damagedCount);
 
-        // Overall now-status (for the header pill)
-        type UnitStatus = 'available' | 'in-use' | 'damaged';
         const overallStatus: UnitStatus =
             availableCount > 0 ? 'available' :
             damagedCount > 0   ? 'damaged'   : 'in-use';
         const osc = STATUS_CFG[overallStatus];
 
-        // Availability bar
         const availabilityPct = Math.min(100, Math.round((availableCount / total) * 100));
+
+        const health = isServer ? getResourceHealth(resource) : null;
+        const latencyColor = health?.latencyMs == null ? '#94a3b8'
+            : health.latencyMs < 100 ? '#059669'
+            : health.latencyMs < 300 ? '#d97706'
+            : '#dc2626';
 
         return (
             <div
@@ -117,23 +159,55 @@ const ResourceListView: React.FC<ResourceListViewProps> = ({
                     </div>
 
                     <div style={{ flex: 1, minWidth: 0 }}>
-                        {/* Name + now-status */}
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '4px' }}>
+                        {/* Name + now-status + connectivity badge */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' as const }}>
                             <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1e293b', wordBreak: 'break-word', flex: 1 }}>
                                 {resource.name}
                             </div>
-                            {/* Now-status pill */}
-                            <span style={{
-                                flexShrink: 0,
-                                display: 'inline-flex', alignItems: 'center', gap: '4px',
-                                fontSize: '0.65rem', fontWeight: 800, letterSpacing: '0.03em',
-                                padding: '2px 8px', borderRadius: '20px',
-                                color: osc.color, background: osc.bg, border: `1px solid ${osc.border}`,
-                                whiteSpace: 'nowrap',
-                            }}>
-                                <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: osc.dot, display: 'inline-block' }} />
-                                {osc.label}
-                            </span>
+                            <div style={{ display: 'flex', gap: '5px', alignItems: 'center', flexShrink: 0 }}>
+                                {/* Connectivity badge — server only */}
+                                {isServer && health && (
+                                    <span style={{
+                                        display: 'inline-flex', alignItems: 'center', gap: '3px',
+                                        fontSize: '0.62rem', fontWeight: 700,
+                                        color: health.isOnline ? '#059669' : '#dc2626',
+                                        background: health.isOnline ? '#ecfdf5' : '#fef2f2',
+                                        border: `1px solid ${health.isOnline ? '#a7f3d0' : '#fecaca'}`,
+                                        padding: '1px 7px', borderRadius: 20,
+                                        whiteSpace: 'nowrap' as const,
+                                    }}>
+                                        {/* Pulsing dot */}
+                                        <span style={{ position: 'relative', width: '6px', height: '6px', flexShrink: 0 }}>
+                                            <span style={{
+                                                position: 'absolute', inset: 0, borderRadius: '50%',
+                                                background: health.isOnline ? '#10b981' : '#ef4444',
+                                            }} />
+                                            {health.isOnline && (
+                                                <span style={{
+                                                    position: 'absolute', inset: 0, borderRadius: '50%',
+                                                    background: '#10b981', opacity: 0.4,
+                                                    animation: 'healthPulse 2.5s ease-out infinite',
+                                                }} />
+                                            )}
+                                        </span>
+                                        {health.isOnline ? 'Online' : 'Offline'}
+                                        {health.isOnline && health.latencyMs != null && (
+                                            <span style={{ color: latencyColor, marginLeft: '1px' }}>· {health.latencyMs}ms</span>
+                                        )}
+                                    </span>
+                                )}
+                                {/* Availability status pill */}
+                                <span style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: '4px',
+                                    fontSize: '0.65rem', fontWeight: 800,
+                                    padding: '2px 8px', borderRadius: '20px',
+                                    color: osc.color, background: osc.bg, border: `1px solid ${osc.border}`,
+                                    whiteSpace: 'nowrap' as const,
+                                }}>
+                                    <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: osc.dot, display: 'inline-block' }} />
+                                    {osc.label}
+                                </span>
+                            </div>
                         </div>
 
                         {/* Meta: type badge + location + manager */}
@@ -153,6 +227,12 @@ const ResourceListView: React.FC<ResourceListViewProps> = ({
                             {resource.managerName && (
                                 <span style={{ display: 'flex', alignItems: 'center', gap: '3px', fontWeight: 600, color: '#475569', fontSize: '0.68rem' }}>
                                     <UserCog size={11} /> {resource.managerName}
+                                </span>
+                            )}
+                            {/* Host (server only, no health loaded yet → show nothing) */}
+                            {isServer && health && (
+                                <span style={{ fontFamily: 'monospace', fontSize: '0.62rem', color: '#94a3b8' }}>
+                                    {health.host}:{health.port}
                                 </span>
                             )}
                         </div>
@@ -251,6 +331,31 @@ const ResourceListView: React.FC<ResourceListViewProps> = ({
                     {visibleList.length} {visibleList.length === 1 ? 'resource' : 'resources'}
                 </span>
                 <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' as const }}>
+                    {/* Connectivity summary — server tab only */}
+                    {activeTab === 'server' && healthMap.size > 0 && (
+                        <>
+                            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#059669', background: '#ecfdf5', border: '1px solid #a7f3d0', padding: '2px 8px', borderRadius: 999, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <Wifi size={10} /> Online: {serverOnline}
+                            </span>
+                            {serverOffline > 0 && (
+                                <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', padding: '2px 8px', borderRadius: 999, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <WifiOff size={10} /> Offline: {serverOffline}
+                                </span>
+                            )}
+                            <button
+                                onClick={e => { e.stopPropagation(); fetchHealth(); }}
+                                title="Refresh connectivity"
+                                style={{
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    width: '22px', height: '22px', borderRadius: '6px',
+                                    border: '1px solid #e2e8f0', background: '#fff',
+                                    cursor: healthLoading ? 'not-allowed' : 'pointer', color: '#94a3b8',
+                                }}
+                            >
+                                <RefreshCw size={10} style={{ animation: healthLoading ? 'spin 1s linear infinite' : 'none' }} />
+                            </button>
+                        </>
+                    )}
                     <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#059669', background: '#ecfdf5', border: '1px solid #a7f3d0', padding: '2px 8px', borderRadius: 999 }}>
                         Available: {visibleList.reduce((s, r) => s + (r.availableQuantity || 0), 0)}
                     </span>
@@ -273,6 +378,11 @@ const ResourceListView: React.FC<ResourceListViewProps> = ({
                     {visibleList.map(renderCard)}
                 </div>
             )}
+
+            <style>{`
+                @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+                @keyframes healthPulse { 0% { transform: scale(1); opacity: 0.4; } 70% { transform: scale(2.8); opacity: 0; } 100% { transform: scale(2.8); opacity: 0; } }
+            `}</style>
         </div>
     );
 };
