@@ -75,6 +75,7 @@ export interface AssigneeTransferRequestResponse {
 export interface ContactorResponse {
     id: string;
     fullName: string;
+    email: string;
     labPosition: string;
     phone: string;
     createdAt: string;

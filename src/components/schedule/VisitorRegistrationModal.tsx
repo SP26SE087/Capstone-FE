@@ -77,7 +77,7 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
 
     const handleSelectContactor = (c: ContactorResponse) => {
         setSelectedContactor(c);
-        setForm(prev => ({ ...prev, ContactorEmail: c.id }));
+        setForm(prev => ({ ...prev, ContactorEmail: c.email }));
         setErrors(prev => ({ ...prev, ContactorEmail: undefined }));
         setContactorOpen(false);
         setContactorSearch('');
