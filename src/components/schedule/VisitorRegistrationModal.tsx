@@ -36,7 +36,7 @@ const emptyForm: FormState = {
 
 const PHONE_REGEX = /^(\+[1-9]\d{6,14}|0\d{9})$/;
 const PHONE_ERROR = 'Phone number must be in international format (+84...) or Vietnamese local format (0xxxxxxxxx).';
-const CCCD_REGEX = /^\d{9,12}$/;
+const CCCD_REGEX = /^(\d{9}|\d{12})$/;
 
 const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
     const [form, setForm] = useState<FormState>(emptyForm);
@@ -123,7 +123,7 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
         if (form.Notes.length > 1000) newErrors.Notes = 'Notes must not exceed 1000 characters';
         if (!photo) newErrors.photo = 'Please upload your photo';
         if (!form.CccdNumber.trim()) newErrors.CccdNumber = 'ID number is required';
-        else if (!CCCD_REGEX.test(form.CccdNumber.trim())) newErrors.CccdNumber = 'ID number must be 9–12 digits';
+        else if (!CCCD_REGEX.test(form.CccdNumber.trim())) newErrors.CccdNumber = 'ID number must be exactly 9 digits (CMND) or 12 digits (CCCD)';
         if (!turnstileToken) newErrors.general = 'Please complete the human verification challenge.';
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
@@ -452,13 +452,13 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                                 value={form.CccdNumber}
                                 onChange={handleChange}
                                 style={inputStyle(errors.CccdNumber)}
-                                placeholder="Enter your 9–12 digit ID number"
+                                placeholder="9-digit CMND or 12-digit CCCD"
                                 maxLength={12}
                                 inputMode="numeric"
                                 pattern="\d*"
                             />
                             <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '3px 0 0' }}>
-                                Enter the number on your Citizen ID / CCCD card (9–12 digits).
+                                Enter the number on your Citizen ID card: 9 digits (CMND) or 12 digits (CCCD).
                             </p>
                             {errors.CccdNumber && <p style={errorStyle}>{errors.CccdNumber}</p>}
                         </div>

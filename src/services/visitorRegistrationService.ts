@@ -19,8 +19,9 @@ export const visitorRegistrationService = {
             baseURL: API_BASE_URL,
             timeout: 30000,
         });
+        const clientId = (formData.get('email') as string | null) ?? 'anonymous';
         const response = await anonAxios.post('/api/visitor-registrations', formData, {
-            headers: { 'Content-Type': 'multipart/form-data' },
+            headers: { 'Content-Type': 'multipart/form-data', ClientId: clientId },
         });
         const data = response.data?.data ?? response.data;
         return data as VisitorRegistrationResponse;
