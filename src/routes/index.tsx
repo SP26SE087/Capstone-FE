@@ -119,7 +119,7 @@ export const router = createBrowserRouter([
     },
     {
         path: '/admin/compute',
-        element: <AuthGuard><RoleGuard allowedRoles={[2]}><ComputeServerAdmin /></RoleGuard></AuthGuard>,
+        element: <AuthGuard><RoleGuard allowedRoles={[1]}><ComputeServerAdmin /></RoleGuard></AuthGuard>,
     },
     {
         path: '/schedules',
@@ -148,11 +148,11 @@ export const router = createBrowserRouter([
     },
     {
         path: '/admin/contactors',
-        element: <AuthGuard><RoleGuard allowedRoles={[1, 2]}><ContactorsPage /></RoleGuard></AuthGuard>,
+        element: <AuthGuard><RoleGuard allowedRoles={[1]}><ContactorsPage /></RoleGuard></AuthGuard>,
     },
     {
         path: '/admin/camera-monitor',
-        element: <AuthGuard><RoleGuard allowedRoles={[1, 2]}><CameraMonitorPage /></RoleGuard></AuthGuard>,
+        element: <AuthGuard><RoleGuard allowedRoles={[1]}><CameraMonitorPage /></RoleGuard></AuthGuard>,
     },
     {
         path: '/public/papers',
