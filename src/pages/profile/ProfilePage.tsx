@@ -27,10 +27,11 @@ const ProfilePage: React.FC = () => {
     const [fieldErrors, setFieldErrors] = useState({ studentId: '', phoneNumber: '', orcid: '', googleScholarUrl: '', githubUrl: '' });
 
     // Lab time
-    const [labTimePeriod, setLabTimePeriod] = useState<'day' | 'week' | 'month'>('day');
-    const [labTimeDate, setLabTimeDate] = useState(() => new Date().toISOString().slice(0, 10));
+    const [labTimePeriod, setLabTimePeriod] = useState<'day' | 'week' | 'month'>('month');
+    const [labTimeDate, setLabTimeDate] = useState(() => `${new Date().toISOString().slice(0, 7)}-01`);
     const [labTimeData, setLabTimeData] = useState<any>(null);
     const [labTimeLoading, setLabTimeLoading] = useState(false);
+    const [labTimeError, setLabTimeError] = useState<string | null>(null);
     const labTimeAbortControllerRef = useRef<AbortController | null>(null);
 
     const toDateInputValue = (d: Date) => {
@@ -123,6 +124,7 @@ const ProfilePage: React.FC = () => {
         setImgError(false);
         setLabTimeData(null);
         setLabTimeLoading(false);
+        setLabTimeError(null);
 
         let cancelled = false;
         setLoading(true);
@@ -139,25 +141,13 @@ const ProfilePage: React.FC = () => {
                     githubUrl: data.githubUrl || ''
                 });
                 // Auto-fetch lab time for current month after profile loads
-                setTimeout(() => {
-                    if (!cancelled && authUser.userId) {
-                        const today = new Date();
-                        const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;
-                        setLabTimePeriod('month');
-                        setLabTimeDate(currentMonth);
-                        setLabTimeLoading(true);
-                        userService.getLabTime(authUser.userId, 'month', currentMonth)
-                            .then(data => {
-                                if (!cancelled) setLabTimeData(data);
-                            })
-                            .catch(() => {
-                                if (!cancelled) setLabTimeData(null);
-                            })
-                            .finally(() => {
-                                if (!cancelled) setLabTimeLoading(false);
-                            });
-                    }
-                }, 0);
+                if (!cancelled && authUser.userId) {
+                    const today = new Date();
+                    const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;
+                    setLabTimePeriod('month');
+                    setLabTimeDate(currentMonth);
+                    fetchLabTime('month', currentMonth);
+                }
             })
             .catch(() => {
                 if (cancelled) return;
@@ -262,26 +252,33 @@ const ProfilePage: React.FC = () => {
         const p = period || labTimePeriod;
         const d = date || labTimeDate;
         
-        if (!authUser.userId || labTimeLoading) return;
+        if (!authUser.userId) return;
         
-        // Create abort controller for this request
-        const controller = new AbortController();
-        labTimeAbortControllerRef.current = controller;
+        // Abort any previous request
+        if (labTimeAbortControllerRef.current) {
+            labTimeAbortControllerRef.current.abort();
+        }
+        
+        const newAbortController = new AbortController();
+        labTimeAbortControllerRef.current = newAbortController;
         
         setLabTimeLoading(true);
+        setLabTimeError(null);
+        
         try {
             const data = await userService.getLabTime(authUser.userId, p, d);
             // Only update state if request wasn't aborted
-            if (labTimeAbortControllerRef.current === controller) {
+            if (labTimeAbortControllerRef.current === newAbortController) {
                 setLabTimeData(data);
             }
         } catch (error: any) {
             // Only update state if request wasn't aborted
-            if (labTimeAbortControllerRef.current === controller && error?.name !== 'AbortError') {
+            if (labTimeAbortControllerRef.current === newAbortController && error?.name !== 'AbortError') {
+                setLabTimeError('Failed to load lab time data.');
                 setLabTimeData(null);
             }
         } finally {
-            if (labTimeAbortControllerRef.current === controller) {
+            if (labTimeAbortControllerRef.current === newAbortController) {
                 setLabTimeLoading(false);
             }
         }
@@ -731,7 +728,11 @@ const ProfilePage: React.FC = () => {
                                     </div>
                                 )}
 
-                                {!labTimeLoading && !labTimeData && (
+                                {!labTimeLoading && labTimeError && (
+                                    <p style={{ fontSize: '0.78rem', color: '#ef4444', textAlign: 'center', padding: '1rem 0', margin: 0 }}>{labTimeError}</p>
+                                )}
+
+                                {!labTimeLoading && !labTimeError && !labTimeData && (
                                     <div style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--text-muted)' }}>
                                         <Clock size={28} style={{ margin: '0 auto 0.5rem', display: 'block', opacity: 0.4 }} />
                                         <p style={{ fontSize: '0.78rem', margin: 0 }}>No lab time data available</p>
