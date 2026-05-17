@@ -206,7 +206,7 @@ const Seminars: React.FC = () => {
     const isLabDirector = React.useMemo(() => {
         if (!user) return false;
         const role = Number(user.role);
-        return role === 1 || role === 2;
+        return role === 2;
     }, [user?.role]);
 
     const handlePublishSeries = (seminarId: string) => {

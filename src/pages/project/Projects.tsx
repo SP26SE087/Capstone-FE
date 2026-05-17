@@ -140,8 +140,7 @@ const Projects: React.FC = () => {
 
     const [showResearchPanel, setShowResearchPanel] = React.useState(false);
 
-    const isLabDirector = Number(user.role) === 1 || Number(user.role) === 2 ||
-        user.role === 'Admin' || user.role === 'Lab Director' || user.role === 'LabDirector';
+    const isLabDirector = Number(user.role) === 2 || user.role === 'Lab Director' || user.role === 'LabDirector';
 
     const fetchProjects = async () => {
         setLoading(true);
