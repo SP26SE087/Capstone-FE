@@ -14,8 +14,7 @@ const UserLabTimePanel: React.FC<UserLabTimePanelProps> = ({ userId, userName, o
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [fetchLocked, setFetchLocked] = useState(false);
-    const fetchLockTimerRef = useRef<number | null>(null);
+    const abordControllerRef = useRef<AbortController | null>(null);
 
     const toDateInputValue = (d: Date) => {
         const y = d.getFullYear();
@@ -54,52 +53,59 @@ const UserLabTimePanel: React.FC<UserLabTimePanelProps> = ({ userId, userName, o
         return toDateInputValue(new Date(targetMonday.getUTCFullYear(), targetMonday.getUTCMonth(), targetMonday.getUTCDate()));
     };
 
-    const FETCH_LOCK_MS = 1200;
+    const fetchLabTime = async (
+        nextPeriod?: 'day' | 'week' | 'month',
+        nextDate?: string
+    ) => {
+        const p = nextPeriod || period;
+        const d = nextDate || date;
 
-    const fetchLabTime = async () => {
-        if (loading || fetchLocked) return;
-        setFetchLocked(true);
+        if (abordControllerRef.current) {
+            abordControllerRef.current.abort();
+        }
+
+        const newAbortController = new AbortController();
+        abordControllerRef.current = newAbortController;
+
         setLoading(true);
         setError(null);
-        try {
-            const result = await userService.getLabTime(userId, period, date);
+        
+    try {
+        const result = await userService.getLabTime(userId, p, d);
+
+        if (abordControllerRef.current === newAbortController) {
             setData(result);
-        } catch {
+        }
+    } catch (err: any) {
+        if (
+            abordControllerRef.current === newAbortController &&
+            err?.name !== 'AbortError'
+        ) {
             setError('Failed to load lab time data.');
             setData(null);
-        } finally {
-            setLoading(false);
-            if (fetchLockTimerRef.current !== null) {
-                window.clearTimeout(fetchLockTimerRef.current);
-            }
-            fetchLockTimerRef.current = window.setTimeout(() => setFetchLocked(false), FETCH_LOCK_MS);
         }
+    } finally {
+        if (abordControllerRef.current === newAbortController) {
+            setLoading(false);
+        }
+    }
     };
 
     useEffect(() => {
-        const initialFetch = async () => {
-            setLoading(true);
-            setError(null);
-            try {
-                const monthDate = `${new Date().toISOString().slice(0, 7)}-01`;
-                const result = await userService.getLabTime(userId, 'month', monthDate);
-                setData(result);
-            } catch {
-                setError('Failed to load lab time data.');
-            } finally {
-                setLoading(false);
-            }
-        };
-        initialFetch();
-    }, [userId]);
+        const today = new Date();
 
-    useEffect(() => {
+        const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;
+        
+        setPeriod('month');
+        setDate(currentMonth);
+        fetchLabTime('month', currentMonth);
+
         return () => {
-            if (fetchLockTimerRef.current !== null) {
-                window.clearTimeout(fetchLockTimerRef.current);
+            if (abordControllerRef.current) {
+                abordControllerRef.current.abort();
             }
         };
-    }, []);
+    }, [userId]);
 
     const fmtDateTime = (iso: string) => {
         if (!iso) return '—';
@@ -174,12 +180,20 @@ const UserLabTimePanel: React.FC<UserLabTimePanelProps> = ({ userId, userName, o
                     onChange={e => {
                         const nextPeriod = e.target.value as 'day' | 'week' | 'month';
                         setPeriod(nextPeriod);
-                        if (nextPeriod === 'week') {
-                            setDate(getDateFromWeekValue(getWeekValueFromDate(date)));
+
+                        const today = new Date();
+                        let newDate = date;
+                        
+                        if (nextPeriod === 'day') {
+                            newDate = toDateInputValue(today);
+                        } else if (nextPeriod === 'week') {
+                            newDate = toDateInputValue(today);
+                        } else if (nextPeriod === 'month') {
+                            newDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;
                         }
-                        if (nextPeriod === 'month') {
-                            setDate(`${date.slice(0, 7)}-01`);
-                        }
+                        setDate(newDate);
+
+                        fetchLabTime(nextPeriod, newDate);
                     }}
                     style={{
                         padding: '6px 10px', borderRadius: '8px', fontSize: '0.78rem',
@@ -195,7 +209,9 @@ const UserLabTimePanel: React.FC<UserLabTimePanelProps> = ({ userId, userName, o
                     <input
                         type="date"
                         value={date}
-                        onChange={e => setDate(e.target.value)}
+                        onChange={e => {setDate(e.target.value);
+                        fetchLabTime(period, e.target.value);}
+                        }
                         style={{
                             padding: '6px 10px', borderRadius: '8px', fontSize: '0.78rem',
                             border: '1px solid var(--border-color)',
@@ -207,7 +223,10 @@ const UserLabTimePanel: React.FC<UserLabTimePanelProps> = ({ userId, userName, o
                     <input
                         type="week"
                         value={weekValue}
-                        onChange={e => setDate(getDateFromWeekValue(e.target.value))}
+                        onChange={e => {
+                            setDate(getDateFromWeekValue(e.target.value));
+                            fetchLabTime(period, getDateFromWeekValue(e.target.value));
+                        }}
                         style={{
                             padding: '6px 10px', borderRadius: '8px', fontSize: '0.78rem',
                             border: '1px solid var(--border-color)',
@@ -219,7 +238,10 @@ const UserLabTimePanel: React.FC<UserLabTimePanelProps> = ({ userId, userName, o
                     <input
                         type="month"
                         value={monthValue}
-                        onChange={e => setDate(`${e.target.value}-01`)}
+                        onChange={e => {
+                            setDate(`${e.target.value}-01`);
+                            fetchLabTime(period, `${e.target.value}-01`);
+                        }}
                         style={{
                             padding: '6px 10px', borderRadius: '8px', fontSize: '0.78rem',
                             border: '1px solid var(--border-color)',
@@ -227,23 +249,6 @@ const UserLabTimePanel: React.FC<UserLabTimePanelProps> = ({ userId, userName, o
                         }}
                     />
                 )}
-                <button
-                    disabled={loading || fetchLocked}
-                    onClick={fetchLabTime}
-                    style={{
-                        padding: '6px 16px', borderRadius: '8px', fontSize: '0.78rem',
-                        fontWeight: 700, border: 'none',
-                        cursor: loading || fetchLocked ? 'not-allowed' : 'pointer',
-                        background: 'var(--primary-color)', color: '#fff',
-                        display: 'flex', alignItems: 'center', gap: '5px'
-                    }}
-                >
-                    {loading
-                        ? <><Loader2 size={13} className="animate-spin" /> Loading…</>
-                        : fetchLocked
-                            ? 'Please wait…'
-                            : 'Reload'}
-                </button>
             </div>
             <p style={{ margin: '-8px 1rem 10px', fontSize: '0.74rem', color: 'var(--text-primary)', fontWeight: 500 }}>
                 {period === 'day' && `Selected day: ${new Date(`${date}T00:00:00`).toLocaleDateString('en-GB')}`}
@@ -293,7 +298,7 @@ const UserLabTimePanel: React.FC<UserLabTimePanelProps> = ({ userId, userName, o
                     {!loading && !error && !hasData && (
                         <div style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--text-muted)' }}>
                             <Clock size={28} style={{ margin: '0 auto 0.5rem', display: 'block', opacity: 0.4 }} />
-                            <p style={{ fontSize: '0.78rem', margin: 0 }}>Select a period and date, then click Fetch</p>
+                            <p style={{ fontSize: '0.78rem', margin: 0 }}>No lab time data available</p>
                         </div>
                     )}
 

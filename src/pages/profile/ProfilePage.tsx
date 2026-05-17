@@ -644,16 +644,18 @@ const ProfilePage: React.FC = () => {
                                         const nextPeriod = e.target.value as 'day' | 'week' | 'month';
                                         setLabTimePeriod(nextPeriod);
                                         
-                                        // Extract year-month from current date
-                                        const yearMonth = labTimeDate.slice(0, 7);
+                                        const today = new Date();
                                         let newDate = labTimeDate;
                                         
                                         if (nextPeriod === 'day') {
-                                            newDate = `${yearMonth}-01`;
+                                            // Set to today
+                                            newDate = toDateInputValue(today);
                                         } else if (nextPeriod === 'week') {
-                                            newDate = `${yearMonth}-01`;
+                                            // Set to today (week picker will show current week)
+                                            newDate = toDateInputValue(today);
                                         } else if (nextPeriod === 'month') {
-                                            newDate = `${yearMonth}-01`;
+                                            // Set to first day of current month
+                                            newDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;
                                         }
                                         
                                         setLabTimeDate(newDate);
