@@ -140,7 +140,7 @@ const ProfilePage: React.FC = () => {
                 });
                 // Auto-fetch lab time for current month after profile loads
                 setTimeout(() => {
-                    if (!cancelled) {
+                    if (!cancelled && authUser.userId) {
                         const today = new Date();
                         const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;
                         setLabTimePeriod('month');
