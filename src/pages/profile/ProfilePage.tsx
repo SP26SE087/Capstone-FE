@@ -643,11 +643,19 @@ const ProfilePage: React.FC = () => {
                                     onChange={e => {
                                         const nextPeriod = e.target.value as 'day' | 'week' | 'month';
                                         setLabTimePeriod(nextPeriod);
-                                        const newDate = nextPeriod === 'week' 
-                                            ? getDateFromWeekValue(getWeekValueFromDate(labTimeDate))
-                                            : nextPeriod === 'month'
-                                            ? `${labTimeDate.slice(0, 7)}-01`
-                                            : labTimeDate;
+                                        
+                                        // Extract year-month from current date
+                                        const yearMonth = labTimeDate.slice(0, 7);
+                                        let newDate = labTimeDate;
+                                        
+                                        if (nextPeriod === 'day') {
+                                            newDate = `${yearMonth}-01`;
+                                        } else if (nextPeriod === 'week') {
+                                            newDate = `${yearMonth}-01`;
+                                        } else if (nextPeriod === 'month') {
+                                            newDate = `${yearMonth}-01`;
+                                        }
+                                        
                                         setLabTimeDate(newDate);
                                         fetchLabTime(nextPeriod, newDate);
                                     }}
