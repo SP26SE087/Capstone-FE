@@ -187,7 +187,10 @@ const UserLabTimePanel: React.FC<UserLabTimePanelProps> = ({ userId, userName, o
                         if (nextPeriod === 'day') {
                             newDate = toDateInputValue(today);
                         } else if (nextPeriod === 'week') {
-                            newDate = toDateInputValue(today);
+                            // Get week value from today, then convert back to date for API
+                            const todayDate = toDateInputValue(today);
+                            const weekVal = getWeekValueFromDate(todayDate);
+                            newDate = getDateFromWeekValue(weekVal);
                         } else if (nextPeriod === 'month') {
                             newDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;
                         }

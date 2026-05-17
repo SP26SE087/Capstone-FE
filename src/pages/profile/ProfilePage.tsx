@@ -648,8 +648,10 @@ const ProfilePage: React.FC = () => {
                                             // Set to today
                                             newDate = toDateInputValue(today);
                                         } else if (nextPeriod === 'week') {
-                                            // Set to today (week picker will show current week)
-                                            newDate = toDateInputValue(today);
+                                            // Get week value from today, then convert back to date for API
+                                            const todayDate = toDateInputValue(today);
+                                            const weekVal = getWeekValueFromDate(todayDate);
+                                            newDate = getDateFromWeekValue(weekVal);
                                         } else if (nextPeriod === 'month') {
                                             // Set to first day of current month
                                             newDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;
