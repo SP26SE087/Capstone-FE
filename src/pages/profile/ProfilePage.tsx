@@ -637,8 +637,70 @@ const ProfilePage: React.FC = () => {
                             <h4 style={{ margin: '0 0 1.25rem 0', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                 <Clock size={13} /> Lab Time
                             </h4>
-                            <p style={{ margin: '0 0 16px 0', fontSize: '0.74rem', color: 'var(--text-primary)', fontWeight: 500 }}>
-                                Current month: {new Date(`${labTimeDate}T00:00:00`).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginBottom: '16px' }}>
+                                <select
+                                    value={labTimePeriod}
+                                    onChange={e => {
+                                        const nextPeriod = e.target.value as 'day' | 'week' | 'month';
+                                        setLabTimePeriod(nextPeriod);
+                                        const newDate = nextPeriod === 'week' 
+                                            ? getDateFromWeekValue(getWeekValueFromDate(labTimeDate))
+                                            : nextPeriod === 'month'
+                                            ? `${labTimeDate.slice(0, 7)}-01`
+                                            : labTimeDate;
+                                        setLabTimeDate(newDate);
+                                        fetchLabTime(nextPeriod, newDate);
+                                    }}
+                                    className="form-input"
+                                    style={{ padding: '7px 10px', borderRadius: '8px', fontSize: '0.85rem', width: 'auto' }}
+                                >
+                                    <option value="day">Day</option>
+                                    <option value="week">Week</option>
+                                    <option value="month">Month</option>
+                                </select>
+                                {labTimePeriod === 'day' && (
+                                    <input
+                                        type="date"
+                                        value={labTimeDate}
+                                        onChange={e => {
+                                            setLabTimeDate(e.target.value);
+                                            fetchLabTime('day', e.target.value);
+                                        }}
+                                        className="form-input"
+                                        style={{ padding: '7px 10px', borderRadius: '8px', fontSize: '0.85rem', width: 'auto' }}
+                                    />
+                                )}
+                                {labTimePeriod === 'week' && (
+                                    <input
+                                        type="week"
+                                        value={labTimeWeekValue}
+                                        onChange={e => {
+                                            const newDate = getDateFromWeekValue(e.target.value);
+                                            setLabTimeDate(newDate);
+                                            fetchLabTime('week', newDate);
+                                        }}
+                                        className="form-input"
+                                        style={{ padding: '7px 10px', borderRadius: '8px', fontSize: '0.85rem', width: 'auto' }}
+                                    />
+                                )}
+                                {labTimePeriod === 'month' && (
+                                    <input
+                                        type="month"
+                                        value={labTimeMonthValue}
+                                        onChange={e => {
+                                            const newDate = `${e.target.value}-01`;
+                                            setLabTimeDate(newDate);
+                                            fetchLabTime('month', newDate);
+                                        }}
+                                        className="form-input"
+                                        style={{ padding: '7px 10px', borderRadius: '8px', fontSize: '0.85rem', width: 'auto' }}
+                                    />
+                                )}
+                            </div>
+                            <p style={{ margin: '-8px 0 12px 0', fontSize: '0.74rem', color: 'var(--text-primary)', fontWeight: 500 }}>
+                                {labTimePeriod === 'day' && `Selected day: ${new Date(`${labTimeDate}T00:00:00`).toLocaleDateString('en-GB')}`}
+                                {labTimePeriod === 'week' && `Selected week starts on ${new Date(`${labTimeDate}T00:00:00`).toLocaleDateString('en-GB')}`}
+                                {labTimePeriod === 'month' && `Selected month: ${new Date(`${labTimeDate}T00:00:00`).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}`}
                             </p>
 
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
