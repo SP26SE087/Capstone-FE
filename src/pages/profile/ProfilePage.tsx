@@ -31,8 +31,7 @@ const ProfilePage: React.FC = () => {
     const [labTimeDate, setLabTimeDate] = useState(() => new Date().toISOString().slice(0, 10));
     const [labTimeData, setLabTimeData] = useState<any>(null);
     const [labTimeLoading, setLabTimeLoading] = useState(false);
-    const [labTimeFetchLocked, setLabTimeFetchLocked] = useState(false);
-    const labTimeLockTimerRef = useRef<number | null>(null);
+    const labTimeAbortControllerRef = useRef<AbortController | null>(null);
 
     const toDateInputValue = (d: Date) => {
         const y = d.getFullYear();
@@ -89,10 +88,11 @@ const ProfilePage: React.FC = () => {
     // Keep ref in sync so async callbacks can read current edit mode without stale closure
     useEffect(() => { isEditModeRef.current = isEditMode; }, [isEditMode]);
 
+    // Cleanup pending lab time requests on unmount
     useEffect(() => {
         return () => {
-            if (labTimeLockTimerRef.current !== null) {
-                window.clearTimeout(labTimeLockTimerRef.current);
+            if (labTimeAbortControllerRef.current) {
+                labTimeAbortControllerRef.current.abort();
             }
         };
     }, []);
@@ -121,6 +121,8 @@ const ProfilePage: React.FC = () => {
         setFieldErrors({ studentId: '', phoneNumber: '', orcid: '', googleScholarUrl: '', githubUrl: '' });
         setIsEditMode(false);
         setImgError(false);
+        setLabTimeData(null);
+        setLabTimeLoading(false);
 
         let cancelled = false;
         setLoading(true);
@@ -136,6 +138,26 @@ const ProfilePage: React.FC = () => {
                     googleScholarUrl: data.googleScholarUrl || '',
                     githubUrl: data.githubUrl || ''
                 });
+                // Auto-fetch lab time for current month after profile loads
+                setTimeout(() => {
+                    if (!cancelled) {
+                        const today = new Date();
+                        const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;
+                        setLabTimePeriod('month');
+                        setLabTimeDate(currentMonth);
+                        setLabTimeLoading(true);
+                        userService.getLabTime(authUser.userId, 'month', currentMonth)
+                            .then(data => {
+                                if (!cancelled) setLabTimeData(data);
+                            })
+                            .catch(() => {
+                                if (!cancelled) setLabTimeData(null);
+                            })
+                            .finally(() => {
+                                if (!cancelled) setLabTimeLoading(false);
+                            });
+                    }
+                }, 0);
             })
             .catch(() => {
                 if (cancelled) return;
@@ -145,7 +167,12 @@ const ProfilePage: React.FC = () => {
                 if (!cancelled) setLoading(false);
             });
 
-        return () => { cancelled = true; };
+        return () => { 
+            cancelled = true;
+            if (labTimeAbortControllerRef.current) {
+                labTimeAbortControllerRef.current.abort();
+            }
+        };
     }, [authUser.userId]);
 
     const fetchProfile = async () => {
@@ -231,23 +258,36 @@ const ProfilePage: React.FC = () => {
         setIsEditMode(false);
     };
 
-    const fetchLabTime = async () => {
-        if (!authUser.userId || labTimeLoading || labTimeFetchLocked) return;
-        setLabTimeFetchLocked(true);
+    const fetchLabTime = async (period?: 'day' | 'week' | 'month', date?: string) => {
+        const p = period || labTimePeriod;
+        const d = date || labTimeDate;
+        
+        if (!authUser.userId || labTimeLoading) return;
+        
+        // Create abort controller for this request
+        const controller = new AbortController();
+        labTimeAbortControllerRef.current = controller;
+        
         setLabTimeLoading(true);
         try {
-            const data = await userService.getLabTime(authUser.userId, labTimePeriod, labTimeDate);
-            setLabTimeData(data);
-        } catch {
-            setLabTimeData(null);
-        } finally {
-            setLabTimeLoading(false);
-            if (labTimeLockTimerRef.current !== null) {
-                window.clearTimeout(labTimeLockTimerRef.current);
+            const data = await userService.getLabTime(authUser.userId, p, d);
+            // Only update state if request wasn't aborted
+            if (labTimeAbortControllerRef.current === controller) {
+                setLabTimeData(data);
             }
-            labTimeLockTimerRef.current = window.setTimeout(() => setLabTimeFetchLocked(false), 1200);
+        } catch (error: any) {
+            // Only update state if request wasn't aborted
+            if (labTimeAbortControllerRef.current === controller && error?.name !== 'AbortError') {
+                setLabTimeData(null);
+            }
+        } finally {
+            if (labTimeAbortControllerRef.current === controller) {
+                setLabTimeLoading(false);
+            }
         }
     };
+
+
 
     const initials = (profile?.fullName || authUser.name || 'U').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
     const memberSince = profile?.createdAt ? new Date(profile.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—';
@@ -597,67 +637,8 @@ const ProfilePage: React.FC = () => {
                             <h4 style={{ margin: '0 0 1.25rem 0', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                 <Clock size={13} /> Lab Time
                             </h4>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginBottom: '16px' }}>
-                                <select
-                                    value={labTimePeriod}
-                                    onChange={e => {
-                                        const nextPeriod = e.target.value as 'day' | 'week' | 'month';
-                                        setLabTimePeriod(nextPeriod);
-                                        if (nextPeriod === 'week') {
-                                            setLabTimeDate(getDateFromWeekValue(getWeekValueFromDate(labTimeDate)));
-                                        }
-                                        if (nextPeriod === 'month') {
-                                            setLabTimeDate(`${labTimeDate.slice(0, 7)}-01`);
-                                        }
-                                    }}
-                                    className="form-input"
-                                    style={{ padding: '7px 10px', borderRadius: '8px', fontSize: '0.85rem', width: 'auto' }}
-                                >
-                                    <option value="day">Day</option>
-                                    <option value="week">Week</option>
-                                    <option value="month">Month</option>
-                                </select>
-                                {labTimePeriod === 'day' && (
-                                    <input
-                                        type="date"
-                                        value={labTimeDate}
-                                        onChange={e => setLabTimeDate(e.target.value)}
-                                        className="form-input"
-                                        style={{ padding: '7px 10px', borderRadius: '8px', fontSize: '0.85rem', width: 'auto' }}
-                                    />
-                                )}
-                                {labTimePeriod === 'week' && (
-                                    <input
-                                        type="week"
-                                        value={labTimeWeekValue}
-                                        onChange={e => setLabTimeDate(getDateFromWeekValue(e.target.value))}
-                                        className="form-input"
-                                        style={{ padding: '7px 10px', borderRadius: '8px', fontSize: '0.85rem', width: 'auto' }}
-                                    />
-                                )}
-                                {labTimePeriod === 'month' && (
-                                    <input
-                                        type="month"
-                                        value={labTimeMonthValue}
-                                        onChange={e => setLabTimeDate(`${e.target.value}-01`)}
-                                        className="form-input"
-                                        style={{ padding: '7px 10px', borderRadius: '8px', fontSize: '0.85rem', width: 'auto' }}
-                                    />
-                                )}
-                                <button
-                                    className="btn"
-                                    disabled={labTimeLoading || labTimeFetchLocked}
-                                    onClick={fetchLabTime}
-                                    style={{ padding: '7px 16px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px', minWidth: '92px', cursor: labTimeLoading || labTimeFetchLocked ? 'not-allowed' : 'pointer', background: 'var(--primary-color)', color: '#fff', border: 'none' }}
-                                >
-                                    {labTimeLoading ? <Loader2 size={14} className="animate-spin" /> : null}
-                                    {labTimeLoading ? 'Loading…' : labTimeFetchLocked ? 'Please wait…' : 'Fetch'}
-                                </button>
-                            </div>
-                            <p style={{ margin: '-8px 0 12px 0', fontSize: '0.74rem', color: 'var(--text-primary)', fontWeight: 500 }}>
-                                {labTimePeriod === 'day' && `Selected day: ${new Date(`${labTimeDate}T00:00:00`).toLocaleDateString('en-GB')}`}
-                                {labTimePeriod === 'week' && `Selected week starts on ${new Date(`${labTimeDate}T00:00:00`).toLocaleDateString('en-GB')}`}
-                                {labTimePeriod === 'month' && `Selected month: ${new Date(`${labTimeDate}T00:00:00`).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}`}
+                            <p style={{ margin: '0 0 16px 0', fontSize: '0.74rem', color: 'var(--text-primary)', fontWeight: 500 }}>
+                                Current month: {new Date(`${labTimeDate}T00:00:00`).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}
                             </p>
 
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -681,7 +662,7 @@ const ProfilePage: React.FC = () => {
                                 {!labTimeLoading && !labTimeData && (
                                     <div style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--text-muted)' }}>
                                         <Clock size={28} style={{ margin: '0 auto 0.5rem', display: 'block', opacity: 0.4 }} />
-                                        <p style={{ fontSize: '0.78rem', margin: 0 }}>Select a period and date, then click Fetch</p>
+                                        <p style={{ fontSize: '0.78rem', margin: 0 }}>No lab time data available</p>
                                     </div>
                                 )}
 
