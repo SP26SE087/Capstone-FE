@@ -263,9 +263,10 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
     // Unit picker: allowSerialSelect (physical) or assignee on server groups
     const canPickUnit = allowSerialSelect || (isServerGroup && isAssignee);
 
-    // For server groups, editing requires a unit to be selected first
+    // For server groups, editing general details is allowed as a whole,
+    // and editing unit-specific details is allowed when a unit is selected.
     // LabDirector can edit any server resource regardless of assignee
-    const canEdit = (isServerType ? (isAssignee || isLabDirector) : isAssignee) && (!isServerGroup || !!selectedSerial);
+    const canEdit = isServerType ? (isAssignee || isLabDirector) : isAssignee;
     const canDelete = isLabDirector && (!isServerGroup || !!selectedSerial);
 
     // ─── Panel tab state ───────────────────────────────────────────────────
@@ -1009,17 +1010,17 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
                 })()}
 
                 {/* Editable Details */}
-                {!allowSerialSelect && !isServerGroup && (
+                {!selectedSerial && (
                 <div style={sectionStyle}>
-                    <div style={labelStyle}><FileText size={12} /> {isAssignee ? 'Editable Details' : 'Details'}</div>
+                    <div style={labelStyle}><FileText size={12} /> {canEdit ? 'Editable Details' : 'Details'}</div>
 
                     <div style={{ marginBottom: '14px' }}>
                         <label style={{ ...labelStyle, fontSize: '0.68rem' }}>Name</label>
                         <input
-                            style={{ ...inputStyle, ...(!isAssignee ? { background: '#f8fafc', color: 'var(--text-secondary)', cursor: 'default' } : {}) }}
+                            style={{ ...inputStyle, ...(!canEdit ? { background: '#f8fafc', color: 'var(--text-secondary)', cursor: 'default' } : {}) }}
                             value={name}
-                            onChange={e => { if (isAssignee) { setName(e.target.value); onTitleChange?.(e.target.value || 'Resource'); } }}
-                            readOnly={!isAssignee}
+                            onChange={e => { if (canEdit) { setName(e.target.value); onTitleChange?.(e.target.value || 'Resource'); } }}
+                            readOnly={!canEdit}
                             onFocus={handleFocus}
                             onBlur={handleBlur}
                         />
@@ -1030,12 +1031,12 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
                         <textarea
                             style={{
                                 ...inputStyle, minHeight: '70px',
-                                resize: isAssignee ? 'vertical' as const : 'none' as const,
-                                ...(!isAssignee ? { background: '#f8fafc', color: 'var(--text-secondary)', cursor: 'default' } : {})
+                                resize: canEdit ? 'vertical' as const : 'none' as const,
+                                ...(!canEdit ? { background: '#f8fafc', color: 'var(--text-secondary)', cursor: 'default' } : {})
                             }}
                             value={description}
-                            onChange={e => { if (isAssignee) setDescription(e.target.value); }}
-                            readOnly={!isAssignee}
+                            onChange={e => { if (canEdit) setDescription(e.target.value); }}
+                            readOnly={!canEdit}
                             placeholder="Resource description..."
                             onFocus={handleFocus}
                             onBlur={handleBlur}
@@ -1045,11 +1046,24 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
                     <div style={{ marginBottom: '14px' }}>
                         <label style={{ ...labelStyle, fontSize: '0.68rem' }}><MapPin size={12} /> Location</label>
                         <input
-                            style={{ ...inputStyle, ...(!isAssignee ? { background: '#f8fafc', color: 'var(--text-secondary)', cursor: 'default' } : {}) }}
+                            style={{ ...inputStyle, ...(!canEdit ? { background: '#f8fafc', color: 'var(--text-secondary)', cursor: 'default' } : {}) }}
                             value={location}
-                            onChange={e => { if (isAssignee) setLocation(e.target.value); }}
-                            readOnly={!isAssignee}
+                            onChange={e => { if (canEdit) setLocation(e.target.value); }}
+                            readOnly={!canEdit}
                             placeholder="Resource location..."
+                            onFocus={handleFocus}
+                            onBlur={handleBlur}
+                        />
+                    </div>
+
+                    <div style={{ marginBottom: '14px' }}>
+                        <label style={{ ...labelStyle, fontSize: '0.68rem' }}><Package size={12} /> Model / Series</label>
+                        <input
+                            style={{ ...inputStyle, ...(!canEdit ? { background: '#f8fafc', color: 'var(--text-secondary)', cursor: 'default' } : {}) }}
+                            value={modelSeries}
+                            onChange={e => { if (canEdit) setModelSeries(e.target.value); }}
+                            readOnly={!canEdit}
+                            placeholder="Resource model or series..."
                             onFocus={handleFocus}
                             onBlur={handleBlur}
                         />
@@ -1059,16 +1073,16 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
                         <label style={{ ...labelStyle, fontSize: '0.68rem' }}><Package size={12} /> Resource Type</label>
                         <TypeSelect
                             value={resourceTypeId}
-                            onChange={v => { if (isAssignee) setResourceTypeId(v); }}
+                            onChange={v => { if (canEdit) setResourceTypeId(v); }}
                             options={resourceTypes.map(rt => ({ value: rt.id, label: rt.name }))}
-                            isDisabled={!isAssignee}
+                            isDisabled={!canEdit}
                         />
                     </div>
                 </div>
                 )}
 
                 {/* Server Configuration (only for server/compute resource types) */}
-                {(!allowSerialSelect && !isServerGroup || (isServerGroup && !!selectedSerial)) && isServerType && isAssignee && (
+                {isServerType && (isAssignee || isLabDirector) && (!isServerGroup || !!selectedSerial) && (
                 <div style={sectionStyle}>
                     <div style={labelStyle}><Server size={12} /> SSH Connection</div>
                     {serverDetailLoading ? (
