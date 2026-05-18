@@ -138,11 +138,12 @@ const labelStyle: React.CSSProperties = {
 };
 
 const sectionStyle: React.CSSProperties = {
-    padding: '16px',
-    background: 'var(--background-color)',
+    padding: '14px 16px',
+    background: '#ffffff',
     borderRadius: '12px',
-    border: '1px solid var(--border-light)',
-    marginBottom: '16px'
+    border: '1px solid #e9eef5',
+    marginBottom: '12px',
+    boxShadow: '0 1px 4px rgba(15,23,42,0.04)',
 };
 
 const SchedulePanel: React.FC<SchedulePanelProps> = ({
@@ -471,6 +472,16 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
         }
     };
 
+    const projectEntries = useMemo(
+        () => Object.entries(projectsMap).sort(([, a], [, b]) => a.localeCompare(b)),
+        [projectsMap]
+    );
+    const filteredProjectEntries = useMemo(() => {
+        const q = projectSearch.trim().toLowerCase();
+        if (!q) return projectEntries;
+        return projectEntries.filter(([, name]) => name.toLowerCase().includes(q));
+    }, [projectEntries, projectSearch]);
+
     if (loading) {
         return (
             <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '300px' }}>
@@ -516,21 +527,54 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
     const selectedTimeValue = startTime
         ? (startTime.includes('T') ? startTime.split('T')[1].slice(0, 5) : startTime.slice(0, 5))
         : '09:00';
-    const projectEntries = useMemo(
-        () => Object.entries(projectsMap).sort(([, a], [, b]) => a.localeCompare(b)),
-        [projectsMap]
-    );
-    const filteredProjectEntries = useMemo(() => {
-        const q = projectSearch.trim().toLowerCase();
-        if (!q) return projectEntries;
-        return projectEntries.filter(([, name]) => name.toLowerCase().includes(q));
-    }, [projectEntries, projectSearch]);
     const selectedProjectName = projectId ? projectsMap[projectId] : '';
 
     return (
         <>
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-            {/* Panel Header */}
+            {/* Gradient accent banner for create mode */}
+            {isCreating && (
+                <div style={{
+                    background: 'linear-gradient(135deg, #fff7ed 0%, #fff1e6 60%, #fde8d3 100%)',
+                    borderRadius: '10px',
+                    padding: '12px 16px',
+                    marginBottom: '14px',
+                    border: '1px solid #fed7aa',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                }}>
+                    <div style={{
+                        width: 36, height: 36,
+                        borderRadius: '10px',
+                        background: 'linear-gradient(135deg, #fb923c, #ea580c)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        boxShadow: '0 4px 10px rgba(234,88,12,0.28)',
+                        flexShrink: 0,
+                    }}>
+                        <Plus size={18} color="#fff" />
+                    </div>
+                    <div>
+                        <div style={{ fontSize: '0.92rem', fontWeight: 800, color: '#9a3412', letterSpacing: '-0.01em' }}>New Schedule</div>
+                        <div style={{ fontSize: '0.7rem', color: '#c2410c', fontWeight: 600, marginTop: 1 }}>Fill in the details below to create a meeting</div>
+                    </div>
+                    <button
+                        onClick={onClose}
+                        style={{
+                            marginLeft: 'auto', flexShrink: 0,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            width: 28, height: 28, borderRadius: '8px',
+                            border: '1px solid #fed7aa', background: '#fff7ed',
+                            color: '#c2410c', cursor: 'pointer',
+                        }}
+                    >
+                        <X size={14} />
+                    </button>
+                </div>
+            )}
+
+            {/* Panel Header — only for view/edit mode */}
+            {!isCreating && (
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', paddingBottom: '12px', borderBottom: '1px solid var(--border-light)', gap: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
                     <div style={{
@@ -688,6 +732,7 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                     </button>
                 </div>
             </div>
+            )}
 
             {/* Scrollable Form Area */}
             <div style={{ flex: 1, overflowY: 'auto', paddingRight: '4px' }} className="custom-scrollbar">
@@ -1390,7 +1435,7 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                                     selectedAttendees={selectedAttendees}
                                     onChange={attendees => { setSelectedAttendees(attendees); if (attendees.length > 0) setAttendeeError(''); }}
                                     projectsMap={projectsMap}
-                                    excludeEmails={user?.email ? [user.email] : []}
+                                    excludeEmails={[]}
                                 />
                                 {attendeeError && (
                                     <div style={{
@@ -1693,7 +1738,8 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                         onClick={handleSave}
                         disabled={saving || !title.trim() || !!dateError}
                         style={{
-                            padding: isCreating ? '10px 26px' : '9px 24px',
+                            width: isCreating ? '100%' : 'auto',
+                            padding: isCreating ? '12px 26px' : '9px 24px',
                             borderRadius: '12px',
                             border: 'none',
                             background: (!title.trim() || saving || !!dateError)
@@ -1703,14 +1749,14 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                                     : 'linear-gradient(135deg, var(--accent-color), #f59e0b)'),
                             color: '#fff',
                             cursor: (!title.trim() || saving || !!dateError) ? 'not-allowed' : 'pointer',
-                            fontSize: '0.81rem',
+                            fontSize: isCreating ? '0.88rem' : '0.81rem',
                             fontWeight: 800,
                             letterSpacing: '0.01em',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            gap: isCreating ? '0px' : '7px',
-                            minWidth: isCreating ? '156px' : '150px',
+                            gap: '7px',
+                            minWidth: isCreating ? 'unset' : '150px',
                             transition: 'all 0.2s',
                             boxShadow: (!title.trim() || saving || !!dateError)
                                 ? 'none'

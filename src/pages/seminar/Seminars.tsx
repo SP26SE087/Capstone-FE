@@ -20,7 +20,8 @@ import {
     FileText,
     Users,
     ChevronsUpDown,
-    ChevronsDownUp
+    ChevronsDownUp,
+    X
 } from 'lucide-react';
 import seminarService from '@/services/seminarService';
 import { transcriptionService } from '@/services/transcriptionService';
@@ -125,6 +126,7 @@ const Seminars: React.FC = () => {
     const [activePanel, setActivePanel] = useState<SeminarTab | null>(null);
     const [timetableModal, setTimetableModal] = useState<SeminarMeetingResponse | null>(null);
     const [openSwapInTimetableModal, setOpenSwapInTimetableModal] = useState(false);
+    const [timetableCreateOpen, setTimetableCreateOpen] = useState(false);
     const [closingPanelId, setClosingPanelId] = useState<string | null>(null);
     const [showTranscription, setShowTranscription] = useState(false);
     const [isTranscriptionProcessing, setIsTranscriptionProcessing] = useState(false);
@@ -733,7 +735,7 @@ const Seminars: React.FC = () => {
                             ))}
                         </div>
                     </div>
-                    {isLabDirector && activeTab !== 'swap_requests' && (
+                    {isLabDirector && activeTab !== 'swap_requests' && viewMode !== 'timetable' && (
                         <button
                             onClick={handleAddCreateTab}
                             className="btn btn-primary"
@@ -822,119 +824,211 @@ const Seminars: React.FC = () => {
                                             }}
                                         />
 
-                                        <div className="bk-card" style={{ width: 300, flexShrink: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-                                            <div style={{ padding: '14px 16px', borderBottom: '1px solid #f1f5f9' }}>
-                                                <div style={{ fontSize: 11, fontWeight: 800, color: '#E8720C', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                                                    {sameDay(selectedCalDate, new Date()) ? 'Today' : 'Selected day'}
+                                        {/* Sidebar: day sessions OR create form */}
+                                        <div
+                                            className="bk-card"
+                                            style={{
+                                                width: timetableCreateOpen ? 440 : 300,
+                                                flexShrink: 0,
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                minHeight: 0,
+                                                transition: 'width 0.3s cubic-bezier(0.4,0,0.2,1)',
+                                                overflow: 'hidden',
+                                            }}
+                                        >
+                                            {timetableCreateOpen ? (
+                                                /* ── Create Panel ── */
+                                                <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '14px 16px', overflowY: 'auto' }} className="custom-scrollbar">
+                                                    {/* Gradient accent banner */}
+                                                    <div style={{
+                                                        background: 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 60%, #ddd6fe 100%)',
+                                                        borderRadius: '10px',
+                                                        padding: '12px 16px',
+                                                        marginBottom: '14px',
+                                                        border: '1px solid #c4b5fd',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '10px',
+                                                    }}>
+                                                        <div style={{
+                                                            width: 36, height: 36,
+                                                            borderRadius: '10px',
+                                                            background: 'linear-gradient(135deg, #7c3aed, #6d28d9)',
+                                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                            boxShadow: '0 4px 10px rgba(109,40,217,0.3)',
+                                                            flexShrink: 0,
+                                                        }}>
+                                                            <Plus size={18} color="#fff" />
+                                                        </div>
+                                                        <div>
+                                                            <div style={{ fontSize: '0.92rem', fontWeight: 800, color: '#4c1d95', letterSpacing: '-0.01em' }}>New Seminar Series</div>
+                                                            <div style={{ fontSize: '0.7rem', color: '#6d28d9', fontWeight: 600, marginTop: 1 }}>Fill in the details below to create a series</div>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => setTimetableCreateOpen(false)}
+                                                            style={{
+                                                                marginLeft: 'auto', flexShrink: 0,
+                                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                                width: 28, height: 28, borderRadius: '8px',
+                                                                border: '1px solid #c4b5fd', background: '#f5f3ff',
+                                                                color: '#6d28d9', cursor: 'pointer',
+                                                            }}
+                                                        >
+                                                            <X size={14} />
+                                                        </button>
+                                                    </div>
+                                                    <CreateSeminarForm
+                                                        onClose={() => setTimetableCreateOpen(false)}
+                                                        onSaved={(shouldClose = false, message?: string) => {
+                                                            fetchSeminars();
+                                                            if (message) showToast(message, 'success');
+                                                            if (shouldClose) setTimetableCreateOpen(false);
+                                                        }}
+                                                        onTitleChange={() => {}}
+                                                        projectsMap={projectsMap}
+                                                        hideHeader
+                                                    />
                                                 </div>
-                                                <div style={{ fontSize: 17, fontWeight: 800, marginTop: 2, letterSpacing: '-0.01em' }}>
-                                                    {selectedCalDate.toLocaleDateString('en-GB', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                                            ) : (
+                                                /* ── Day Sessions Sidebar ── */
+                                                <>
+                                                <div style={{ padding: '14px 16px', borderBottom: '1px solid #f1f5f9' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                                                        <div>
+                                                            <div style={{ fontSize: 11, fontWeight: 800, color: '#E8720C', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                                                                {sameDay(selectedCalDate, new Date()) ? 'Today' : 'Selected day'}
+                                                            </div>
+                                                            <div style={{ fontSize: 17, fontWeight: 800, marginTop: 2, letterSpacing: '-0.01em' }}>
+                                                                {selectedCalDate.toLocaleDateString('en-GB', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                                                            </div>
+                                                            <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+                                                                {selectedDayEvents.length} session{selectedDayEvents.length !== 1 ? 's' : ''}
+                                                            </div>
+                                                        </div>
+                                                        {isLabDirector && (
+                                                            <button
+                                                                onClick={() => setTimetableCreateOpen(true)}
+                                                                style={{
+                                                                    display: 'flex', alignItems: 'center', gap: '6px',
+                                                                    padding: '7px 12px', borderRadius: '10px',
+                                                                    border: '1.5px solid #c4b5fd',
+                                                                    background: 'linear-gradient(135deg, #7c3aed, #6d28d9)',
+                                                                    color: '#fff', cursor: 'pointer',
+                                                                    fontSize: '0.75rem', fontWeight: 800,
+                                                                    boxShadow: '0 4px 10px rgba(109,40,217,0.25)',
+                                                                    transition: 'all 0.2s',
+                                                                    flexShrink: 0,
+                                                                }}
+                                                            >
+                                                                <Plus size={14} /> New Series
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                                <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
-                                                    {selectedDayEvents.length} session{selectedDayEvents.length !== 1 ? 's' : ''}
-                                                </div>
-                                            </div>
 
-                                            <div className="bk-scroll" style={{ overflow: 'auto', flex: 1 }}>
-                                                <div style={{ padding: '14px 16px 10px' }}>
-                                                    <div style={{ fontSize: 10, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Sessions</div>
-                                                    {selectedDayEvents.length === 0 ? (
-                                                        <div style={{ fontSize: 12, color: '#94a3b8' }}>No seminars on this day.</div>
-                                                    ) : (
-                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                                                            {selectedDayEvents.map(evt => {
-                                                                const meta = (evt.meta ?? {}) as any;
-                                                                const location = meta.location as string | null | undefined;
-                                                                const presenter = meta.presenter as string | null | undefined;
-                                                                const swapable = Boolean(meta.swapable);
-                                                                const startLabel = fmtHm(evt.startTime);
-                                                                const endLabel = evt.endTime ? fmtHm(evt.endTime) : '';
-                                                                return (
-                                                                    <div
-                                                                        key={evt.id}
-                                                                        onClick={() => {
-                                                                            const m = meetingById.get(evt.id);
-                                                                            if (m) openTimetableModal(m, false);
-                                                                        }}
-                                                                        style={{
-                                                                            padding: '10px 12px',
-                                                                            background: '#fff',
-                                                                            border: '1px solid #e2e8f0',
-                                                                            borderLeft: `4px solid ${evt.color ?? '#E8720C'}`,
-                                                                            borderRadius: 8,
-                                                                            cursor: 'pointer',
-                                                                            transition: 'all 0.15s',
-                                                                        }}
-                                                                        onMouseEnter={e => { e.currentTarget.style.background = '#f8fafc'; }}
-                                                                        onMouseLeave={e => { e.currentTarget.style.background = '#fff'; }}
-                                                                    >
-                                                                        <div style={{ display: 'flex', alignItems: 'start', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
-                                                                            <div style={{ fontSize: 13.5, fontWeight: 800, lineHeight: 1.3, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{evt.title}</div>
-                                                                            {(startLabel || endLabel) && (
-                                                                                <div style={{
-                                                                                    fontSize: 11.5,
-                                                                                    fontWeight: 800,
-                                                                                    color: '#334155',
-                                                                                    background: '#f8fafc',
-                                                                                    border: '1px solid #e2e8f0',
-                                                                                    borderRadius: 999,
-                                                                                    padding: '1px 8px',
-                                                                                    whiteSpace: 'nowrap',
-                                                                                }}>
-                                                                                    {startLabel}{endLabel ? ` - ${endLabel}` : ''}
-                                                                                </div>
-                                                                            )}
-                                                                        </div>
-
-                                                                        {(location || presenter) && (
-                                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: swapable ? 8 : 0 }}>
-                                                                                {presenter && (
-                                                                                    <div style={{ fontSize: 12, color: '#64748b' }}>
-                                                                                        Presenter: <span style={{ fontWeight: 700, color: '#334155' }}>{presenter}</span>
-                                                                                    </div>
-                                                                                )}
-                                                                                {location && (
-                                                                                    <div style={{ fontSize: 12, color: '#64748b' }}>
-                                                                                        Location: <span style={{ fontWeight: 700, color: '#334155' }}>{location}</span>
+                                                <div className="bk-scroll" style={{ overflow: 'auto', flex: 1 }}>
+                                                    <div style={{ padding: '14px 16px 10px' }}>
+                                                        <div style={{ fontSize: 10, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Sessions</div>
+                                                        {selectedDayEvents.length === 0 ? (
+                                                            <div style={{ fontSize: 12, color: '#94a3b8' }}>No seminars on this day.</div>
+                                                        ) : (
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                                                {selectedDayEvents.map(evt => {
+                                                                    const meta = (evt.meta ?? {}) as any;
+                                                                    const location = meta.location as string | null | undefined;
+                                                                    const presenter = meta.presenter as string | null | undefined;
+                                                                    const swapable = Boolean(meta.swapable);
+                                                                    const startLabel = fmtHm(evt.startTime);
+                                                                    const endLabel = evt.endTime ? fmtHm(evt.endTime) : '';
+                                                                    return (
+                                                                        <div
+                                                                            key={evt.id}
+                                                                            onClick={() => {
+                                                                                const m = meetingById.get(evt.id);
+                                                                                if (m) openTimetableModal(m, false);
+                                                                            }}
+                                                                            style={{
+                                                                                padding: '10px 12px',
+                                                                                background: '#fff',
+                                                                                border: '1px solid #e2e8f0',
+                                                                                borderLeft: `4px solid ${evt.color ?? '#E8720C'}`,
+                                                                                borderRadius: 8,
+                                                                                cursor: 'pointer',
+                                                                                transition: 'all 0.15s',
+                                                                            }}
+                                                                            onMouseEnter={e => { e.currentTarget.style.background = '#f8fafc'; }}
+                                                                            onMouseLeave={e => { e.currentTarget.style.background = '#fff'; }}
+                                                                        >
+                                                                            <div style={{ display: 'flex', alignItems: 'start', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
+                                                                                <div style={{ fontSize: 13.5, fontWeight: 800, lineHeight: 1.3, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{evt.title}</div>
+                                                                                {(startLabel || endLabel) && (
+                                                                                    <div style={{
+                                                                                        fontSize: 11.5,
+                                                                                        fontWeight: 800,
+                                                                                        color: '#334155',
+                                                                                        background: '#f8fafc',
+                                                                                        border: '1px solid #e2e8f0',
+                                                                                        borderRadius: 999,
+                                                                                        padding: '1px 8px',
+                                                                                        whiteSpace: 'nowrap',
+                                                                                    }}>
+                                                                                        {startLabel}{endLabel ? ` - ${endLabel}` : ''}
                                                                                     </div>
                                                                                 )}
                                                                             </div>
-                                                                        )}
 
-                                                                        {swapable && (
-                                                                            <button
-                                                                                type="button"
-                                                                                onClick={(e) => {
-                                                                                    e.stopPropagation();
-                                                                                    const m = meetingById.get(evt.id);
-                                                                                    if (m) openTimetableModal(m, true);
-                                                                                }}
-                                                                                style={{
-                                                                                    width: '100%',
-                                                                                    display: 'inline-flex',
-                                                                                    justifyContent: 'center',
-                                                                                    alignItems: 'center',
-                                                                                    gap: 6,
-                                                                                    padding: '7px 10px',
-                                                                                    borderRadius: 8,
-                                                                                    border: '1px solid #fed7aa',
-                                                                                    background: '#fff7ed',
-                                                                                    color: '#ea580c',
-                                                                                    fontSize: 12,
-                                                                                    fontWeight: 800,
-                                                                                    cursor: 'pointer',
-                                                                                }}
-                                                                            >
-                                                                                <ArrowLeftRight size={14} /> Swap request
-                                                                            </button>
-                                                                        )}
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    )}
+                                                                            {(location || presenter) && (
+                                                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: swapable ? 8 : 0 }}>
+                                                                                    {presenter && (
+                                                                                        <div style={{ fontSize: 12, color: '#64748b' }}>
+                                                                                            Presenter: <span style={{ fontWeight: 700, color: '#334155' }}>{presenter}</span>
+                                                                                        </div>
+                                                                                    )}
+                                                                                    {location && (
+                                                                                        <div style={{ fontSize: 12, color: '#64748b' }}>
+                                                                                            Location: <span style={{ fontWeight: 700, color: '#334155' }}>{location}</span>
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                            )}
+
+                                                                            {swapable && (
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation();
+                                                                                        const m = meetingById.get(evt.id);
+                                                                                        if (m) openTimetableModal(m, true);
+                                                                                    }}
+                                                                                    style={{
+                                                                                        width: '100%',
+                                                                                        display: 'inline-flex',
+                                                                                        justifyContent: 'center',
+                                                                                        alignItems: 'center',
+                                                                                        gap: 6,
+                                                                                        padding: '7px 10px',
+                                                                                        borderRadius: 8,
+                                                                                        border: '1px solid #fed7aa',
+                                                                                        background: '#fff7ed',
+                                                                                        color: '#ea580c',
+                                                                                        fontSize: 12,
+                                                                                        fontWeight: 800,
+                                                                                        cursor: 'pointer',
+                                                                                    }}
+                                                                                >
+                                                                                    <ArrowLeftRight size={14} /> Swap request
+                                                                                </button>
+                                                                            )}
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                            </div>
+                                                </>
+                                            )}
                                         </div>
                                     </div>
                                 </div>

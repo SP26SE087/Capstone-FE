@@ -745,33 +745,50 @@ const Schedules: React.FC = () => {
                             ))}
                         </div>
                     </div>
-                    <div style={{ display: 'flex', gap: '8px', marginLeft: '1rem' }}>
-                        <button
-                            onClick={handleAddCreateTab}
-                            className="btn btn-primary"
-                            style={{
-                                display: 'flex', alignItems: 'center', gap: '8px',
-                                fontWeight: 700, padding: '10px 20px', borderRadius: '12px',
-                                fontSize: '0.85rem', height: '42px', marginBottom: '0px',
-                                boxShadow: '0 4px 12px rgba(232, 114, 12, 0.2)',
-                                whiteSpace: 'nowrap' as const,
-                            }}
-                        >
-                            <Plus size={18} /> New Schedule
-                        </button>
-                    </div>
+                    {viewMode === 'list' && (
+                        <div style={{ display: 'flex', gap: '8px', marginLeft: '1rem' }}>
+                            <button
+                                onClick={handleAddCreateTab}
+                                className="btn btn-primary"
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: '8px',
+                                    fontWeight: 700, padding: '10px 20px', borderRadius: '12px',
+                                    fontSize: '0.85rem', height: '42px', marginBottom: '0px',
+                                    boxShadow: '0 4px 12px rgba(232, 114, 12, 0.2)',
+                                    whiteSpace: 'nowrap' as const,
+                                }}
+                            >
+                                <Plus size={18} /> New Schedule
+                            </button>
+                        </div>
+                    )}
                 </div>
                 </>}
 
                 {/* Main Content */}
                 {viewMode === 'timetable' ? (
-                    <div style={{ height: 'calc(100vh - 280px)', minHeight: '700px', display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ height: 'calc(100vh - 340px)', minHeight: '600px', display: 'flex', flexDirection: 'column' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
                             <div>
                                 <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em' }}>Schedule Timetable</div>
                                 <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>Monthly overview — click a day to see items.</div>
                             </div>
-                            <BookingStyleMonthNav year={calYear} month={calMonth} setMonth={setCalMonth} setYear={setCalYear} />
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                <BookingStyleMonthNav year={calYear} month={calMonth} setMonth={setCalMonth} setYear={setCalYear} />
+                                <button
+                                    onClick={handleAddCreateTab}
+                                    className="btn btn-primary"
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: '6px',
+                                        fontWeight: 700, padding: '8px 16px', borderRadius: '10px',
+                                        fontSize: '0.82rem', height: '36px',
+                                        boxShadow: '0 4px 12px rgba(232, 114, 12, 0.2)',
+                                        whiteSpace: 'nowrap' as const,
+                                    }}
+                                >
+                                    <Plus size={16} /> New Schedule
+                                </button>
+                            </div>
                         </div>
 
                         <div style={{ display: 'flex', gap: 14, flex: 1, minHeight: 0 }}>
@@ -797,130 +814,175 @@ const Schedules: React.FC = () => {
                                 }}
                             />
 
-                            <div className="bk-card" style={{ width: 300, flexShrink: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-                                <div style={{ padding: '14px 16px', borderBottom: '1px solid #f1f5f9' }}>
-                                    <div style={{ fontSize: 11, fontWeight: 800, color: '#E8720C', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                                        {sameDay(selectedCalDate, new Date()) ? 'Today' : 'Selected day'}
+                            {/* Right panel: swaps between day-list sidebar and create form */}
+                            <div style={{
+                                width: activePanel?.type === 'create' ? 440 : 300,
+                                flexShrink: 0,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                minHeight: 0,
+                                transition: 'width 0.3s cubic-bezier(0.4,0,0.2,1)',
+                            }}>
+                                {activePanel?.type === 'create' ? (
+                                    /* Create form panel */
+                                    <div
+                                        key="create-panel"
+                                        className="bk-card"
+                                        style={{
+                                            flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0,
+                                            animation: 'panel-enter 0.28s cubic-bezier(0,0,0.2,1) both',
+                                        }}
+                                    >
+                                        <SchedulePanel
+                                            key={activePanel.id}
+                                            meetingId={null}
+                                            actualMeetingId={null}
+                                            initialData={undefined}
+                                            isCreating={true}
+                                            projectsMap={projectsMap}
+                                            onClose={handleClosePanel}
+                                            onSaved={(shouldClose = false, message?: string, newEventId?: string) => {
+                                                fetchMeetings();
+                                                if (message) showToast(message, 'success');
+                                                if (newEventId) {
+                                                    setViewMode('list');
+                                                    localStorage.setItem('schedule_viewMode', 'list');
+                                                    setActivePanel({ id: `view-${newEventId}`, type: 'view', meetingId: newEventId, actualMeetingId: newEventId, title: 'Schedule Detail' });
+                                                } else if (shouldClose) {
+                                                    handleClosePanel();
+                                                }
+                                            }}
+                                            onTitleChange={handleTitleChange}
+                                        />
                                     </div>
-                                    <div style={{ fontSize: 17, fontWeight: 800, marginTop: 2, letterSpacing: '-0.01em' }}>
-                                        {selectedCalDate.toLocaleDateString('en-GB', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
-                                    </div>
-                                    <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
-                                        {selectedDayEvents.length} item{selectedDayEvents.length !== 1 ? 's' : ''}
-                                    </div>
-                                </div>
-
-                                <div className="bk-scroll" style={{ overflow: 'auto', flex: 1 }}>
-                                    <div style={{ padding: '14px 16px 10px' }}>
-                                        <div style={{ fontSize: 10, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Items</div>
-                                        {selectedDayEvents.length === 0 ? (
-                                            <div style={{ fontSize: 12, color: '#94a3b8' }}>Nothing scheduled on this day.</div>
-                                        ) : (
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                                                {selectedDayEvents.map(evt => {
-                                                    const meta = (evt.meta ?? {}) as any;
-                                                    const type = String(meta.type || 'meeting');
-                                                    const projectName = meta.projectName as string | null | undefined;
-                                                    const presenter = meta.presenter as string | null | undefined;
-                                                    const startLabel = fmtHm(evt.startTime);
-                                                    const endLabel = evt.endTime ? fmtHm(evt.endTime) : '';
-                                                    const isMeeting = type === 'meeting';
-
-                                                    return (
-                                                        <div
-                                                            key={evt.id}
-                                                            onClick={() => {
-                                                                if (!isMeeting) return;
-                                                                const meeting = meetingByEventId.get(evt.id);
-                                                                if (meeting) setTimetableModal(meeting);
-                                                            }}
-                                                            style={{
-                                                                padding: '10px 12px',
-                                                                background: '#fff',
-                                                                border: '1px solid #e2e8f0',
-                                                                borderLeft: `4px solid ${evt.color ?? '#E8720C'}`,
-                                                                borderRadius: 8,
-                                                                cursor: isMeeting ? 'pointer' : 'default',
-                                                                transition: 'all 0.15s',
-                                                                opacity: isMeeting ? 1 : 0.92,
-                                                            }}
-                                                            onMouseEnter={e => { if (isMeeting) e.currentTarget.style.background = '#f8fafc'; }}
-                                                            onMouseLeave={e => { if (isMeeting) e.currentTarget.style.background = '#fff'; }}
-                                                        >
-                                                            <div style={{ display: 'flex', alignItems: 'start', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
-                                                                <div style={{ fontSize: 13.5, fontWeight: 800, lineHeight: 1.3, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{evt.title}</div>
-                                                                {(startLabel || endLabel) && (
-                                                                    <div style={{
-                                                                        fontSize: 11.5,
-                                                                        fontWeight: 800,
-                                                                        color: '#334155',
-                                                                        background: '#f8fafc',
-                                                                        border: '1px solid #e2e8f0',
-                                                                        borderRadius: 999,
-                                                                        padding: '1px 8px',
-                                                                        whiteSpace: 'nowrap',
-                                                                    }}>
-                                                                        {startLabel}{endLabel ? ` - ${endLabel}` : ''}
-                                                                    </div>
-                                                                )}
-                                                            </div>
-
-                                                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                                                                <span style={{
-                                                                    display: 'inline-flex',
-                                                                    alignItems: 'center',
-                                                                    gap: 4,
-                                                                    padding: '2px 8px',
-                                                                    borderRadius: 999,
-                                                                    fontSize: 10.5,
-                                                                    fontWeight: 800,
-                                                                    border: `1px solid ${isMeeting ? '#c7d2fe' : '#fed7aa'}`,
-                                                                    background: isMeeting ? '#eef2ff' : '#fff7ed',
-                                                                    color: isMeeting ? '#4f46e5' : '#ea580c',
-                                                                    whiteSpace: 'nowrap',
-                                                                }}>
-                                                                    {isMeeting ? 'MEETING' : 'SEMINAR'}
-                                                                </span>
-                                                                {projectName && (
-                                                                    <span style={{
-                                                                        display: 'inline-flex',
-                                                                        alignItems: 'center',
-                                                                        padding: '2px 8px',
-                                                                        borderRadius: 999,
-                                                                        fontSize: 10.5,
-                                                                        fontWeight: 800,
-                                                                        border: '1px solid #e2e8f0',
-                                                                        background: '#f8fafc',
-                                                                        color: '#334155',
-                                                                        whiteSpace: 'nowrap',
-                                                                    }}>
-                                                                        {projectName}
-                                                                    </span>
-                                                                )}
-                                                                {presenter && (
-                                                                    <span style={{
-                                                                        display: 'inline-flex',
-                                                                        alignItems: 'center',
-                                                                        padding: '2px 8px',
-                                                                        borderRadius: 999,
-                                                                        fontSize: 10.5,
-                                                                        fontWeight: 800,
-                                                                        border: '1px solid #e2e8f0',
-                                                                        background: '#fff',
-                                                                        color: '#475569',
-                                                                        whiteSpace: 'nowrap',
-                                                                    }}>
-                                                                        {presenter}
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })}
+                                ) : (
+                                    /* Day-list sidebar */
+                                    <div key="day-sidebar" className="bk-card" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                                        <div style={{ padding: '14px 16px', borderBottom: '1px solid #f1f5f9' }}>
+                                            <div style={{ fontSize: 11, fontWeight: 800, color: '#E8720C', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                                                {sameDay(selectedCalDate, new Date()) ? 'Today' : 'Selected day'}
                                             </div>
-                                        )}
+                                            <div style={{ fontSize: 17, fontWeight: 800, marginTop: 2, letterSpacing: '-0.01em' }}>
+                                                {selectedCalDate.toLocaleDateString('en-GB', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                                            </div>
+                                            <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+                                                {selectedDayEvents.length} item{selectedDayEvents.length !== 1 ? 's' : ''}
+                                            </div>
+                                        </div>
+
+                                        <div className="bk-scroll" style={{ overflow: 'auto', flex: 1 }}>
+                                            <div style={{ padding: '14px 16px 10px' }}>
+                                                <div style={{ fontSize: 10, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Items</div>
+                                                {selectedDayEvents.length === 0 ? (
+                                                    <div style={{ fontSize: 12, color: '#94a3b8' }}>Nothing scheduled on this day.</div>
+                                                ) : (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                                        {selectedDayEvents.map(evt => {
+                                                            const meta = (evt.meta ?? {}) as any;
+                                                            const type = String(meta.type || 'meeting');
+                                                            const projectName = meta.projectName as string | null | undefined;
+                                                            const presenter = meta.presenter as string | null | undefined;
+                                                            const startLabel = fmtHm(evt.startTime);
+                                                            const endLabel = evt.endTime ? fmtHm(evt.endTime) : '';
+                                                            const isMeeting = type === 'meeting';
+
+                                                            return (
+                                                                <div
+                                                                    key={evt.id}
+                                                                    onClick={() => {
+                                                                        if (!isMeeting) return;
+                                                                        const meeting = meetingByEventId.get(evt.id);
+                                                                        if (meeting) setTimetableModal(meeting);
+                                                                    }}
+                                                                    style={{
+                                                                        padding: '10px 12px',
+                                                                        background: '#fff',
+                                                                        border: '1px solid #e2e8f0',
+                                                                        borderLeft: `4px solid ${evt.color ?? '#E8720C'}`,
+                                                                        borderRadius: 8,
+                                                                        cursor: isMeeting ? 'pointer' : 'default',
+                                                                        transition: 'all 0.15s',
+                                                                        opacity: isMeeting ? 1 : 0.92,
+                                                                    }}
+                                                                    onMouseEnter={e => { if (isMeeting) e.currentTarget.style.background = '#f8fafc'; }}
+                                                                    onMouseLeave={e => { if (isMeeting) e.currentTarget.style.background = '#fff'; }}
+                                                                >
+                                                                    <div style={{ display: 'flex', alignItems: 'start', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
+                                                                        <div style={{ fontSize: 13.5, fontWeight: 800, lineHeight: 1.3, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{evt.title}</div>
+                                                                        {(startLabel || endLabel) && (
+                                                                            <div style={{
+                                                                                fontSize: 11.5,
+                                                                                fontWeight: 800,
+                                                                                color: '#334155',
+                                                                                background: '#f8fafc',
+                                                                                border: '1px solid #e2e8f0',
+                                                                                borderRadius: 999,
+                                                                                padding: '1px 8px',
+                                                                                whiteSpace: 'nowrap',
+                                                                            }}>
+                                                                                {startLabel}{endLabel ? ` - ${endLabel}` : ''}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+
+                                                                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                                                        <span style={{
+                                                                            display: 'inline-flex',
+                                                                            alignItems: 'center',
+                                                                            gap: 4,
+                                                                            padding: '2px 8px',
+                                                                            borderRadius: 999,
+                                                                            fontSize: 10.5,
+                                                                            fontWeight: 800,
+                                                                            border: `1px solid ${isMeeting ? '#c7d2fe' : '#fed7aa'}`,
+                                                                            background: isMeeting ? '#eef2ff' : '#fff7ed',
+                                                                            color: isMeeting ? '#4f46e5' : '#ea580c',
+                                                                            whiteSpace: 'nowrap',
+                                                                        }}>
+                                                                            {isMeeting ? 'MEETING' : 'SEMINAR'}
+                                                                        </span>
+                                                                        {projectName && (
+                                                                            <span style={{
+                                                                                display: 'inline-flex',
+                                                                                alignItems: 'center',
+                                                                                padding: '2px 8px',
+                                                                                borderRadius: 999,
+                                                                                fontSize: 10.5,
+                                                                                fontWeight: 800,
+                                                                                border: '1px solid #e2e8f0',
+                                                                                background: '#f8fafc',
+                                                                                color: '#334155',
+                                                                                whiteSpace: 'nowrap',
+                                                                            }}>
+                                                                                {projectName}
+                                                                            </span>
+                                                                        )}
+                                                                        {presenter && (
+                                                                            <span style={{
+                                                                                display: 'inline-flex',
+                                                                                alignItems: 'center',
+                                                                                padding: '2px 8px',
+                                                                                borderRadius: 999,
+                                                                                fontSize: 10.5,
+                                                                                fontWeight: 800,
+                                                                                border: '1px solid #e2e8f0',
+                                                                                background: '#fff',
+                                                                                color: '#475569',
+                                                                                whiteSpace: 'nowrap',
+                                                                            }}>
+                                                                                {presenter}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
+                                )}
                             </div>
                         </div>
                     </div>

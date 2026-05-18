@@ -27,6 +27,7 @@ interface CreateSeminarFormProps {
     onSaved: (shouldClose?: boolean, message?: string) => void;
     onTitleChange?: (title: string) => void;
     projectsMap: Record<string, string>;
+    hideHeader?: boolean;
 }
 
 const inputStyle: React.CSSProperties = {
@@ -71,7 +72,8 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
     onClose,
     onSaved,
     onTitleChange,
-    projectsMap
+    projectsMap,
+    hideHeader = false,
 }) => {
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
@@ -256,7 +258,8 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
     return (
         <>
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-            {/* Header */}
+            {/* Header — hidden when used inside timetable sidebar (banner handles it) */}
+            {!hideHeader && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', paddingBottom: '12px', borderBottom: '1px solid var(--border-light)' }}>
                 <div style={{
                     width: '32px',
@@ -274,6 +277,7 @@ const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
                     Create Recurring Seminar
                 </h3>
             </div>
+            )}
 
             {/* Scrollable Form */}
             <div style={{ flex: 1, overflowY: 'auto', paddingRight: '4px' }} className="custom-scrollbar">

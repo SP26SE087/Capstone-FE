@@ -191,11 +191,8 @@ const UserDetailModal: React.FC<UserDetailModalProps> = ({ onClose, userId, syst
     const normalizedTargetRoleName = normalizeRoleToken(targetRoleNameRaw);
     const isTargetPrivileged =
         Number(targetRoleRaw) === SystemRoleEnum.Admin ||
-        Number(targetRoleRaw) === SystemRoleEnum.LabDirector ||
         normalizedTargetRole === 'admin' ||
-        normalizedTargetRole === 'labdirector' ||
-        normalizedTargetRoleName === 'admin' ||
-        normalizedTargetRoleName === 'labdirector';
+        normalizedTargetRoleName === 'admin';
 
     const canEditProfile = canCurrentUserEdit && !isSelfProfile && !isTargetPrivileged;
 

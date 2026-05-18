@@ -23,7 +23,7 @@ export function buildMonthGrid(year: number, month: number): Date[] {
     const firstDow = (first.getDay() + 6) % 7; // Monday = 0
     const start = new Date(year, month, 1 - firstDow);
     const days: Date[] = [];
-    for (let i = 0; i < 42; i++) {
+    for (let i = 0; i < 35; i++) {
         const d = new Date(start);
         d.setDate(start.getDate() + i);
         d.setHours(0, 0, 0, 0);
@@ -283,7 +283,7 @@ export function BookingStyleMonthGrid({
                     style={{
                         display: 'grid',
                         gridTemplateColumns: 'repeat(7,minmax(80px,1fr))',
-                        gridAutoRows: 'minmax(122px, 1fr)',
+                        gridAutoRows: 'minmax(88px, 1fr)',
                     }}
                 >
                     {days.map((day, i) => {
@@ -305,7 +305,7 @@ export function BookingStyleMonthGrid({
                                 className="bk-cal-cell"
                                 style={{
                                     borderRight: i % 7 !== 6 ? '1px solid #f1f5f9' : 'none',
-                                    borderBottom: i < 35 ? '1px solid #f1f5f9' : 'none',
+                                    borderBottom: i < 28 ? '1px solid #f1f5f9' : 'none',
                                     padding: 6,
                                     display: 'flex',
                                     flexDirection: 'column',
