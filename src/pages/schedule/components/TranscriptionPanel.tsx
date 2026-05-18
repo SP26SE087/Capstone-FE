@@ -573,10 +573,30 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
         setSummaryPollingTimedOut(false);
         setSummaryPollingAttempts(0);
         summaryPollingAttemptsRef.current = 0;
+        
         if (!autoTrigger) {
             setActiveTab('summary');
+            stopSummaryPolling();
+            
+            try {
+                // Call the actual summarize API when user clicks the button manually
+                const res = await transcriptionService.summarize(transcriptionId);
+                if (res.summary) {
+                    setSummary(res.summary);
+                    setTranscription(prev => prev ? { ...prev, summary: res.summary } : prev);
+                    addToast('Summary generated successfully.', 'success');
+                } else if (res.errorMessage) {
+                    addToast(res.errorMessage, 'error');
+                }
+            } catch (err: any) {
+                addToast(err?.response?.data?.message || 'Failed to generate summary.', 'error');
+            } finally {
+                setSummarizing(false);
+            }
+            return;
         }
 
+        // Auto trigger (polling) logic
         stopSummaryPolling();
 
         const pollOnce = async () => {

@@ -143,7 +143,7 @@ export const transcriptionService = {
     },
 
     suggestTasks: async (text: string, projectId?: string, milestoneId?: string, maxResults = 10): Promise<TaskSuggestion[]> => {
-        const res = await api.post('/api/Transcriptions/api/tasks/suggest', {
+        const res = await api.post('/api/Transcriptions/tasks/suggest', {
             text,
             projectId: projectId || null,
             milestoneId: milestoneId || null,
