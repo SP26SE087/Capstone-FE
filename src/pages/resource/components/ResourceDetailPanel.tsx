@@ -929,7 +929,7 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
                             <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border-light)' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
                                     <div style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' as const, letterSpacing: '0.8px' }}>
-                                        {isServerGroup ? 'Unit Details' : 'Unit Details'}
+                                        Unit Details
                                     </div>
                                     {serialLoading && <Loader2 size={16} className="animate-spin" style={{ color: 'var(--accent-color)' }} />}
                                 </div>
@@ -941,62 +941,24 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
                                             : 'Click a serial number above to expand the update table.'}
                                     </div>
                                 ) : (
-                                    <div style={{ display: 'grid', gridTemplateColumns: '170px 1fr', gap: '8px 12px' }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '170px 1fr', gap: '8px 12px', alignItems: 'center' }}>
                                         <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b' }}>{isServerGroup ? 'Unit' : 'Serial'}</div>
                                         <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#1e293b' }}>{selectedSerial}</div>
 
-                                        <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b' }}>Name</div>
-                                        <input
-                                            style={{ ...inputStyle, ...(!canEdit ? { background: '#f8fafc', color: 'var(--text-secondary)', cursor: 'default' } : {}) }}
-                                            value={name}
-                                            onChange={e => { if (canEdit) { setName(e.target.value); onTitleChange?.(e.target.value || 'Resource'); } }}
-                                            readOnly={!canEdit}
-                                            onFocus={handleFocus}
-                                            onBlur={handleBlur}
-                                        />
-
-                                        <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b' }}>Description</div>
-                                        <textarea
-                                            style={{
-                                                ...inputStyle,
-                                                minHeight: '70px',
-                                                resize: canEdit ? 'vertical' as const : 'none' as const,
-                                                ...(!canEdit ? { background: '#f8fafc', color: 'var(--text-secondary)', cursor: 'default' } : {})
-                                            }}
-                                            value={description}
-                                            onChange={e => { if (canEdit) setDescription(e.target.value); }}
-                                            readOnly={!canEdit}
-                                            onFocus={handleFocus}
-                                            onBlur={handleBlur}
-                                        />
-
-                                        <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b' }}>Location</div>
-                                        <input
-                                            style={{ ...inputStyle, ...(!canEdit ? { background: '#f8fafc', color: 'var(--text-secondary)', cursor: 'default' } : {}) }}
-                                            value={location}
-                                            onChange={e => { if (canEdit) setLocation(e.target.value); }}
-                                            readOnly={!canEdit}
-                                            onFocus={handleFocus}
-                                            onBlur={handleBlur}
-                                        />
-
-                                        <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b' }}>Model Series</div>
-                                        <input
-                                            style={{ ...inputStyle, ...(!canEdit ? { background: '#f8fafc', color: 'var(--text-secondary)', cursor: 'default' } : {}) }}
-                                            value={modelSeries}
-                                            onChange={e => { if (canEdit) setModelSeries(e.target.value); }}
-                                            readOnly={!canEdit}
-                                            onFocus={handleFocus}
-                                            onBlur={handleBlur}
-                                        />
-
-                                        <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b' }}>Resource Type</div>
-                                        <TypeSelect
-                                            value={resourceTypeId}
-                                            onChange={v => { if (canEdit) setResourceTypeId(v); }}
-                                            options={resourceTypes.map(rt => ({ value: rt.id, label: rt.name }))}
-                                            isDisabled={!canEdit}
-                                        />
+                                        {isServerType && (
+                                            <>
+                                                <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b' }}>Model / Series</div>
+                                                <input
+                                                    style={{ ...inputStyle, ...(!canEdit ? { background: '#f8fafc', color: 'var(--text-secondary)', cursor: 'default' } : {}) }}
+                                                    value={modelSeries}
+                                                    onChange={e => { if (canEdit) setModelSeries(e.target.value); }}
+                                                    readOnly={!canEdit}
+                                                    onFocus={handleFocus}
+                                                    onBlur={handleBlur}
+                                                    placeholder="Unit model or series..."
+                                                />
+                                            </>
+                                        )}
 
                                         <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b' }}>
                                             Unit Status
