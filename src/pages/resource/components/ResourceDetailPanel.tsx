@@ -6,6 +6,7 @@ import { serverService, ServerResourceDetail } from '@/services/serverService';
 import { bookingService } from '@/services/bookingService';
 import { userService, UserResponse } from '@/services/userService';
 import { resourceTypeService, ResourceTypeItem, ResourceTypeCategory } from '@/services/resourceTypeService';
+import { useAuth } from '@/hooks/useAuth';
 import {
     Save,
     Loader2,
@@ -257,8 +258,11 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
     // True when this resource is a grouped server (split into N units)
     const isServerGroup = isServerType && (initialResource.serials?.length ?? 0) > 1;
 
+    const { user } = useAuth();
+
     // Only the assigned manager of this resource can edit it
-    const isAssignee = !!currentUserId && initialResource.managedBy === currentUserId;
+    const isAssignee = (!!currentUserId && initialResource.managedBy === currentUserId) ||
+                       (!!user?.email && initialResource.managerEmail === user.email);
 
     // Unit picker: allowSerialSelect (physical) or assignee on server groups
     const canPickUnit = allowSerialSelect || (isServerGroup && isAssignee);
@@ -267,7 +271,7 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
     // and editing unit-specific details is allowed when a unit is selected.
     // LabDirector can edit any server resource regardless of assignee
     const canEdit = isServerType ? (isAssignee || isLabDirector) : isAssignee;
-    const canDelete = isLabDirector && (!isServerGroup || !!selectedSerial);
+    const canDelete = isLabDirector;
 
     // ─── Panel tab state ───────────────────────────────────────────────────
     type PanelTab = 'details' | 'history';
@@ -846,6 +850,12 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
                     };
                     const unitSt: { serial: string; status: UnitSt; id?: string }[] = serials.map((serial, idx) => {
                         const id = initialResource.ids[idx];
+                        const unit = initialResource.units?.[idx];
+                        if (unit) {
+                            if (unit.isDamaged) return { serial, status: 'damaged' as UnitSt, id };
+                            if (unit.isInUse) return { serial, status: 'in-use' as UnitSt, id };
+                            return { serial, status: 'available' as UnitSt, id };
+                        }
                         if (initialResource.availableIds && initialResource.availableIds.length > 0) {
                             if (id && availableIdSet.has(id)) return { serial, status: 'available' as UnitSt, id };
                             if (idx < damagedCnt) return { serial, status: 'damaged' as UnitSt, id };

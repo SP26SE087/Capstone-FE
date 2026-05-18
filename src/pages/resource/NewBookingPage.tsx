@@ -123,12 +123,14 @@ interface ResourceRowProps {
   currentUserId?: string;
 }
 const ResourceRow: React.FC<ResourceRowProps> = ({ resource: r, selected, qty, maxQty, onToggle, onQtyChange, currentUserId }) => {
+  const { user } = useAuth();
   const server    = isServerResource(r);
   const iconColor = server ? '#7C3AED' : '#0284C7';
   const iconBg    = server ? '#F5F3FF' : '#F0F9FF';
   const avail     = maxQty;
   const total     = r.totalQuantity ?? 1;
-  const isManaged = !!currentUserId && !!r.managedBy && r.managedBy === currentUserId;
+  const isManaged = (!!currentUserId && !!r.managedBy && r.managedBy === currentUserId) ||
+                    (!!user?.email && !!r.managerEmail && r.managerEmail === user.email);
   const unavailable = (avail === 0 && !selected) || isManaged;
 
   return (
@@ -508,7 +510,7 @@ const NewBookingPage: React.FC = () => {
 
   // ── Toggle / qty ──
   const toggleResource = useCallback((r: Resource) => {
-    if (currentUserId && r.managedBy === currentUserId) return; // block own-managed
+    if ((currentUserId && r.managedBy === currentUserId) || (user?.email && r.managerEmail === user.email)) return; // block own-managed
     const avail = maxQtyFor(r);
     if (avail === 0 && !selectedIds.includes(r.id)) return; // block unavailable
     setSelectedIds(prev => {

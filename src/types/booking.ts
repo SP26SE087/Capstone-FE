@@ -40,6 +40,8 @@ export interface Resource {
   managedBy?: string;
   managerName?: string;
   managerEmail?: string;
+  // Merged units list for grouped resources
+  units?: Resource[];
 }
 
 export interface BasicResourceResponse {

@@ -373,7 +373,7 @@ const ResourceBooking: React.FC = () => {
 
     const handleCreateBooking = (resource?: Resource) => {
         if (resource) {
-            if (user?.userId && resource.managedBy === user.userId) {
+            if ((user?.userId && resource.managedBy === user.userId) || (user?.email && resource.managerEmail === user.email)) {
                 showToast('You cannot book a resource you are managing.', 'warning');
                 return;
             }
@@ -587,16 +587,21 @@ const ResourceBooking: React.FC = () => {
                 return na - nb;
             });
             const first = units[0];
+            const allAvailableIds = units
+                .filter(u => u.isAvailable !== false && !u.isInUse && !u.isDamaged)
+                .map(u => u.id);
             result.push({
                 ...first,
                 id: first.id,
                 ids: units.map(u => u.id),
                 name: first.name.replace(/ #\d+$/, ''),
                 totalQuantity: units.reduce((s, u) => s + (u.totalQuantity || 1), 0),
-                availableQuantity: units.reduce((s, u) => s + (u.availableQuantity || 0), 0),
+                availableQuantity: allAvailableIds.length,
                 inUseCount: units.reduce((s, u) => s + (u.inUseCount || 0), 0),
                 damagedQuantity: units.reduce((s, u) => s + (u.damagedQuantity || 0), 0),
                 serials: units.map(u => u.name), // unit names used as "serials" for the picker
+                availableIds: allAvailableIds,
+                units: units,
             });
         }
         return result;
