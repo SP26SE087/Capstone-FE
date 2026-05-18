@@ -286,6 +286,14 @@ const ProfilePage: React.FC = () => {
 
 
 
+    const fmtDateTime = (iso: string) => {
+        if (!iso) return '—';
+        const d = new Date(iso);
+        const dateStr = d.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit' });
+        const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        return `${dateStr} ${timeStr}`;
+    };
+
     const initials = (profile?.fullName || authUser.name || 'U').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
     const memberSince = profile?.createdAt ? new Date(profile.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—';
     const roleLabel = SystemRoleMap[profile?.role ?? authUser.role] || 'Member';
@@ -757,8 +765,8 @@ const ProfilePage: React.FC = () => {
                                                     <tbody>
                                                         {labTimeData.sessions.map((s: any, i: number) => (
                                                             <tr key={i} style={{ borderBottom: '1px solid var(--border-light)' }}>
-                                                                <td style={{ padding: '8px 10px' }}>{s.checkIn ? new Date(s.checkIn).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</td>
-                                                                <td style={{ padding: '8px 10px' }}>{s.checkOut ? new Date(s.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : <span style={{ color: '#94a3b8' }}>Active</span>}</td>
+                                                                <td style={{ padding: '8px 10px' }}>{fmtDateTime(s.checkIn)}</td>
+                                                                <td style={{ padding: '8px 10px' }}>{s.checkOut ? fmtDateTime(s.checkOut) : <span style={{ color: '#16a34a', fontWeight: 600 }}>Active</span>}</td>
                                                                 <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600 }}>{Math.round(s.durationMinutes ?? 0)} min</td>
                                                                 <td style={{ padding: '8px 10px', textAlign: 'center' }}>
                                                                     {s.isInferred ? <span style={{ fontSize: '0.7rem', background: '#fef3c7', color: '#d97706', padding: '2px 7px', borderRadius: '4px', fontWeight: 700 }}>Inferred</span> : '—'}
