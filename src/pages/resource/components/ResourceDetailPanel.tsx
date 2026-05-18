@@ -467,7 +467,21 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
     const handleSave = async () => {
         setSaving(true);
         try {
-            if (isServerType && serverDetail !== null) {
+            if (isServerType && isServerGroup && !selectedSerial) {
+                // Update every unit in this server resource group with numbered names
+                const request: UpdateResourceRequest = {
+                    description: description.trim() || undefined,
+                    location: location.trim() || undefined,
+                    modelSeries: modelSeries.trim() || undefined,
+                    resourceTypeId: resourceTypeId.trim() || undefined,
+                    isDamaged,
+                    isInUse
+                };
+                await Promise.all(initialResource.ids.map((id, idx) => {
+                    const unitName = `${name.trim()} #${idx + 1}`;
+                    return resourceService.update(id, { ...request, name: unitName });
+                }));
+            } else if (isServerType && serverDetail !== null) {
                 // Server resource — update via serverService using targetResource.id
                 // (targetResource is the selected unit for groups, or initialResource for singles)
                 const serverReq: any = {
