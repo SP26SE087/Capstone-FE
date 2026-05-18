@@ -963,7 +963,17 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                                 type="file"
                                 accept="audio/*,video/*,.mp3,.mp4,.wav,.m4a,.ogg,.webm"
                                 style={{ display: 'none' }}
-                                onChange={e => setFile(e.target.files?.[0] || null)}
+                                onChange={e => {
+                                    const selectedFile = e.target.files?.[0] || null;
+                                    if (selectedFile) {
+                                        if (selectedFile.size > 100 * 1024 * 1024) {
+                                            addToast('File size must be less than 100MB.', 'warning');
+                                            e.target.value = '';
+                                            return;
+                                        }
+                                    }
+                                    setFile(selectedFile);
+                                }}
                             />
                             <div style={{
                                 width: '44px', height: '44px', borderRadius: '12px',
@@ -982,7 +992,7 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                                     {(file.size / 1024 / 1024).toFixed(1)} MB
                                 </div>
                             ) : (
-                                <div style={{ fontSize: '0.62rem', color: '#cbd5e1' }}>MP3, MP4, WAV, M4A...</div>
+                                <div style={{ fontSize: '0.62rem', color: '#cbd5e1' }}>MP3, MP4, WAV, M4A... (Max 100MB)</div>
                             )}
                         </div>
 

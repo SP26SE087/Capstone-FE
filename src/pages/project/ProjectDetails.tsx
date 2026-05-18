@@ -436,6 +436,11 @@ const ProjectDetails: React.FC = () => {
             return;
         }
 
+        const nameErr = validateSpecialChars(t.name);
+        if (nameErr) { showToast(`Task name: ${nameErr}`, 'error'); return; }
+        const descErr = t.description ? validateSpecialChars(t.description) : '';
+        if (descErr) { showToast(`Task description: ${descErr}`, 'error'); return; }
+
         setSubmitting(true);
         try {
             await taskService.create({

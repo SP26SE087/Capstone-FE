@@ -164,10 +164,17 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
 
     const handleAcceptAIMilestone = async (draft: AIMilestoneDraft) => {
         if (!projectId) return;
+        
+        const name = draft._editing ? draft._name : draft.name;
+        const description = draft._editing ? draft._description : draft.description;
+
+        const nameErr = validateSpecialChars(name || '');
+        if (nameErr) { showToast(`Milestone name: ${nameErr}`, 'error'); return; }
+        const descErr = description ? validateSpecialChars(description) : '';
+        if (descErr) { showToast(`Milestone description: ${descErr}`, 'error'); return; }
+
         setAiMilestoneDrafts(prev => prev.map(d => d._key === draft._key ? { ...d, _saving: true } : d));
         try {
-            const name = draft._editing ? draft._name : draft.name;
-            const description = draft._editing ? draft._description : draft.description;
             // Send the date as received from AI (UTC ISO) or the edited YYYY-MM-DD value
             const startDate = draft._editing ? draft._startDate : draft.startDate;
             const dueDate = draft._editing ? draft._dueDate : draft.dueDate;

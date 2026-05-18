@@ -300,14 +300,12 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
     const originalMemberId = findMemberId(rawActiveAssignee);
     const isMemberDirty = editForm.memberId !== originalMemberId;
 
-    const invalidEditStartInPast = !!editForm.startDate && editForm.startDate < today;
-    const invalidEditDueInPast = !!editForm.dueDate && editForm.dueDate < today;
     const invalidEditStartAfterDue = !!editForm.startDate && !!editForm.dueDate && editForm.startDate > editForm.dueDate;
     const invalidEditStartBeforeMilestone = !!selectedEditMilestone && !!editForm.startDate && !!editMilestoneStart && editForm.startDate < editMilestoneStart;
     const invalidEditDueAfterMilestone = !!selectedEditMilestone && !!editForm.dueDate && !!editMilestoneEnd && editForm.dueDate > editMilestoneEnd;
 
-    const editStartDateHasError = invalidEditStartInPast || invalidEditStartAfterDue || invalidEditStartBeforeMilestone;
-    const editDueDateHasError = invalidEditDueInPast || invalidEditStartAfterDue || invalidEditDueAfterMilestone;
+    const editStartDateHasError = invalidEditStartAfterDue || invalidEditStartBeforeMilestone;
+    const editDueDateHasError = invalidEditStartAfterDue || invalidEditDueAfterMilestone;
     const editMilestoneHasError = invalidEditStartBeforeMilestone || invalidEditDueAfterMilestone;
 
     // ── Refresh helper ──
@@ -481,7 +479,7 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
         const descSpecialErr = validateSpecialChars(editForm.description);
         if (descSpecialErr) { setEditError(`Description: ${descSpecialErr}`); return; }
         if (editStartDateHasError || editDueDateHasError || editMilestoneHasError) {
-            setEditError('Please fix the highlighted errors (dates cannot be in the past, and must be within the milestone range).');
+            setEditError('Please fix the highlighted errors (dates must be within the milestone range and start date must not be after due date).');
             return;
         }
         setEditError(null);
@@ -695,7 +693,7 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                             {(() => {
-                                const minD = (editMilestoneStart && editMilestoneStart > today) ? editMilestoneStart : today;
+                                const minD = editMilestoneStart || '';
                                 const maxD = editMilestoneEnd || '';
                                 return (
                                     <>

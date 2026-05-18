@@ -8,6 +8,7 @@ import ActivityTimeline from './ActivityTimeline';
 import { taskService } from '@/services';
 import { milestoneService } from '@/services/milestoneService';
 import TaskDetailPanel from './TaskDetailPanel';
+import { validateSpecialChars } from '@/utils/validation';
 
 interface DetailsTasksProps {
     tasks: Task[];
@@ -223,6 +224,11 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
     };
 
     const handleAcceptAITaskDraft = async (draft: any) => {
+        const nameErr = validateSpecialChars(draft.name || '');
+        if (nameErr) { showToast(`Task name: ${nameErr}`, 'error'); return; }
+        const descErr = draft.description ? validateSpecialChars(draft.description) : '';
+        if (descErr) { showToast(`Task description: ${descErr}`, 'error'); return; }
+
         if (savingAiDraftId) return;
         setSavingAiDraftId(draft._key);
         try {
