@@ -132,7 +132,7 @@ export const transcriptionService = {
             model: opts?.model || null,
             language: opts?.language || 'vi',
             length: opts?.length || 'medium',
-            style: opts?.style || 'formal',
+            style: opts?.style || 'paragraph',
             customPrompt: opts?.customPrompt || null
         }, { timeout: 300000 });
         return res.data;

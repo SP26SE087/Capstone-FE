@@ -665,11 +665,7 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
             stopSummaryPolling();
             return;
         }
-
-        if (transcription.status === 'Completed' && !summarizing && !summaryPollingTimedOut) {
-            handleSummarize(true);
-        }
-    }, [transcription?.id, transcription?.status, transcription?.summary, summary, summarizing, summaryPollingTimedOut]);
+    }, [transcription?.id, transcription?.status, transcription?.summary, summary]);
 
     // ── Suggest tasks ─────────────────────────────────────────────────────────
     const handleSuggest = async () => {
@@ -1077,7 +1073,7 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
 
                     {/* Summarize controls */}
                     <div style={{ ...sectionStyle, borderLeft: '3px solid #10b981' }}>
-                        <div style={{ ...labelStyle, color: '#10b981' }}><Sparkles size={12} /> Auto Summary</div>
+                        <div style={{ ...labelStyle, color: '#10b981' }}><Sparkles size={12} /> AI Summary</div>
                         <div style={{
                             fontSize: '0.7rem',
                             color: '#475569',
@@ -1088,8 +1084,7 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                             lineHeight: 1.55,
                             marginBottom: '8px'
                         }}>
-                            Summary is generated automatically by the backend after transcription is completed.
-                            This panel checks for summary updates every 5 seconds for up to 60 seconds.
+                            Generate a summary from the transcript using AI. Click the button below to start.
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '8px' }}>
                             {!hasTranscript && (
@@ -1101,7 +1096,7 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                                     borderRadius: '8px',
                                     padding: '6px 8px'
                                 }}>
-                                    Select a completed transcript to start auto-summary polling.
+                                    Select a completed transcript to generate a summary.
                                 </div>
                             )}
                         </div>
@@ -1119,8 +1114,8 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                             }}
                         >
                             {summarizing
-                                ? <><Loader2 size={13} className="animate-spin" /> Checking...</>
-                                : <><Sparkles size={13} /> Check Summary Status</>
+                                ? <><Loader2 size={13} className="animate-spin" /> Generating...</>
+                                : <><Sparkles size={13} /> Generate Summary</>
                             }
                         </button>
                     </div>
