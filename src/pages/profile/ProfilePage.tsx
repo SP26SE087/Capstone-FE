@@ -12,6 +12,29 @@ import {
     Link as LinkIcon, GraduationCap, RefreshCw, Info, Clock
 } from 'lucide-react';
 
+/** Read userId from JWT in sessionStorage as a fallback (handles the case where
+ *  the token auto-refresh endpoint doesn't return userId in its body, leaving
+ *  authUser.userId as an empty string). */
+const getResolvedUserId = (): string => {
+    try {
+        const token = sessionStorage.getItem('token');
+        if (!token) return '';
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const payload = JSON.parse(decodeURIComponent(
+            atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')
+        ));
+        return (
+            payload.sub ||
+            payload.nameid ||
+            payload['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'] ||
+            ''
+        );
+    } catch {
+        return '';
+    }
+};
+
 const ProfilePage: React.FC = () => {
     const { user: authUser, refreshUser } = useAuth();
 
@@ -140,8 +163,9 @@ const ProfilePage: React.FC = () => {
                     googleScholarUrl: data.googleScholarUrl || '',
                     githubUrl: data.githubUrl || ''
                 });
-                // Auto-fetch lab time for current month after profile loads
-                if (!cancelled && authUser.userId) {
+                // Auto-fetch lab time — if profile loaded OK the user is authenticated,
+                // so we can always attempt this (fetchLabTime resolves userId internally).
+                if (!cancelled) {
                     const today = new Date();
                     const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;
                     setLabTimePeriod('month');
@@ -163,6 +187,7 @@ const ProfilePage: React.FC = () => {
                 labTimeAbortControllerRef.current.abort();
             }
         };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [authUser.userId]);
 
     const fetchProfile = async () => {
@@ -252,7 +277,11 @@ const ProfilePage: React.FC = () => {
         const p = period || labTimePeriod;
         const d = date || labTimeDate;
         
-        if (!authUser.userId) return;
+        // Prefer authUser.userId; fall back to decoding the JWT directly.
+        // This handles the case where the auto-refresh interceptor doesn't return
+        // userId in its response body, leaving authUser.userId as ''.
+        const resolvedUserId = authUser.userId || getResolvedUserId();
+        if (!resolvedUserId) return;
         
         // Abort any previous request
         if (labTimeAbortControllerRef.current) {
@@ -266,7 +295,7 @@ const ProfilePage: React.FC = () => {
         setLabTimeError(null);
         
         try {
-            const data = await userService.getLabTime(authUser.userId, p, d);
+            const data = await userService.getLabTime(resolvedUserId, p, d);
             // Only update state if request wasn't aborted
             if (labTimeAbortControllerRef.current === newAbortController) {
                 setLabTimeData(data);

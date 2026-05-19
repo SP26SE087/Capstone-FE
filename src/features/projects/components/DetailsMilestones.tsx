@@ -116,6 +116,28 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
     const [generatingAITasks, setGeneratingAITasks] = React.useState(false);
     const [aiMilestoneDrafts, setAiMilestoneDrafts] = React.useState<AIMilestoneDraft[]>([]);
 
+    // ─── Occupied Ranges from Existing Milestones ─────────────────────────────
+    const occupiedRanges = React.useMemo(() => {
+        return milestones
+            .filter(m => m.startDate && !m.startDate.startsWith('0001') && m.dueDate && !m.dueDate.startsWith('0001'))
+            .map(m => ({
+                start: m.startDate.split('T')[0],
+                end: m.dueDate.split('T')[0],
+                name: m.name,
+            }));
+    }, [milestones]);
+
+    // Check if a given [rangeStart, rangeEnd] overlaps any existing milestone
+    const getOverlappingMilestones = React.useCallback((rangeStart: string, rangeEnd: string) => {
+        if (!rangeStart || !rangeEnd) return [];
+        return occupiedRanges.filter(r => rangeStart <= r.end && rangeEnd >= r.start);
+    }, [occupiedRanges]);
+
+    const aiOverlaps = React.useMemo(
+        () => getOverlappingMilestones(aiStartDate, aiEndDate),
+        [aiStartDate, aiEndDate, getOverlappingMilestones]
+    );
+
     // Helper: extract YYYY-MM-DD from UTC ISO string without timezone shift
     const utcIsoToDateInput = (iso: string | null | undefined): string => {
         if (!iso) return '';
@@ -130,6 +152,12 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
         }
         if (aiStartDate >= aiEndDate) {
             showToast('Start Date must be before End Date.', 'error');
+            return;
+        }
+        const overlaps = getOverlappingMilestones(aiStartDate, aiEndDate);
+        if (overlaps.length > 0) {
+            const names = overlaps.map(o => `"${o.name}"`).join(', ');
+            showToast(`Selected range overlaps existing milestone${overlaps.length > 1 ? 's' : ''}: ${names}. Please choose a different period.`, 'error');
             return;
         }
         setGeneratingAIMilestones(true);
@@ -1151,22 +1179,92 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                                                     Planning range — AI will distribute milestones within this period
                                                 </span>
                                             </div>
+
+                                            {/* Occupied ranges hint */}
+                                            {occupiedRanges.length > 0 && (
+                                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', padding: '0.5rem 0.65rem', background: '#fffbeb', borderRadius: '8px', border: '1px solid #fde68a' }}>
+                                                    <AlertTriangle size={11} style={{ color: '#d97706', marginTop: '1px', flexShrink: 0 }} />
+                                                    <div style={{ fontSize: '0.65rem', color: '#92400e', lineHeight: 1.5 }}>
+                                                        <span style={{ fontWeight: 800 }}>Blocked periods:</span>
+                                                        <ul style={{ margin: '3px 0 0 0', paddingLeft: '14px', display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                                                            {occupiedRanges.map((r, i) => (
+                                                                <li key={i} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                                    <span style={{ fontWeight: 700 }}>{r.start}</span> → <span style={{ fontWeight: 700 }}>{r.end}</span>
+                                                                    <span style={{ color: '#b45309', marginLeft: '4px' }}>({r.name})</span>
+                                                                </li>
+                                                            ))}
+                                                        </ul>
+                                                    </div>
+                                                </div>
+                                            )}
+
                                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                                                 <div>
-                                                    <label style={{ fontSize: '0.62rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: '6px' }}>Start Date</label>
-                                                    <input type="date" value={aiStartDate} onChange={e => setAiStartDate(e.target.value)} min={today} max={aiEndDate || undefined} disabled={generatingAIMilestones} style={{ width: '100%', padding: '6px 8px', borderRadius: '8px', border: '1.5px solid #e2e8f0', fontSize: '0.78rem', color: '#1e293b', background: 'white', cursor: generatingAIMilestones ? 'not-allowed' : 'text', boxSizing: 'border-box' }} />
+                                                    <label style={{ fontSize: '0.62rem', fontWeight: 800, color: aiOverlaps.length > 0 ? '#b91c1c' : '#475569', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: '6px' }}>Start Date</label>
+                                                    <input
+                                                        type="date"
+                                                        value={aiStartDate}
+                                                        onChange={e => setAiStartDate(e.target.value)}
+                                                        min={pStartFormatted || today}
+                                                        max={aiEndDate || pEndFormatted || undefined}
+                                                        disabled={generatingAIMilestones}
+                                                        style={{
+                                                            width: '100%', padding: '6px 8px', borderRadius: '8px',
+                                                            border: `1.5px solid ${aiOverlaps.length > 0 ? '#fca5a5' : '#e2e8f0'}`,
+                                                            fontSize: '0.78rem', color: '#1e293b',
+                                                            background: aiOverlaps.length > 0 ? '#fff5f5' : 'white',
+                                                            cursor: generatingAIMilestones ? 'not-allowed' : 'text',
+                                                            boxSizing: 'border-box'
+                                                        }}
+                                                    />
                                                 </div>
                                                 <div>
-                                                    <label style={{ fontSize: '0.62rem', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: '6px' }}>End Date</label>
-                                                    <input type="date" value={aiEndDate} onChange={e => setAiEndDate(e.target.value)} min={aiStartDate || today} disabled={generatingAIMilestones} style={{ width: '100%', padding: '6px 8px', borderRadius: '8px', border: '1.5px solid #e2e8f0', fontSize: '0.78rem', color: '#1e293b', background: 'white', cursor: generatingAIMilestones ? 'not-allowed' : 'text', boxSizing: 'border-box' }} />
+                                                    <label style={{ fontSize: '0.62rem', fontWeight: 800, color: aiOverlaps.length > 0 ? '#b91c1c' : '#475569', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: '6px' }}>End Date</label>
+                                                    <input
+                                                        type="date"
+                                                        value={aiEndDate}
+                                                        onChange={e => setAiEndDate(e.target.value)}
+                                                        min={aiStartDate || pStartFormatted || today}
+                                                        max={pEndFormatted || undefined}
+                                                        disabled={generatingAIMilestones}
+                                                        style={{
+                                                            width: '100%', padding: '6px 8px', borderRadius: '8px',
+                                                            border: `1.5px solid ${aiOverlaps.length > 0 ? '#fca5a5' : '#e2e8f0'}`,
+                                                            fontSize: '0.78rem', color: '#1e293b',
+                                                            background: aiOverlaps.length > 0 ? '#fff5f5' : 'white',
+                                                            cursor: generatingAIMilestones ? 'not-allowed' : 'text',
+                                                            boxSizing: 'border-box'
+                                                        }}
+                                                    />
                                                 </div>
                                             </div>
+
+                                            {/* Overlap warning */}
+                                            {aiOverlaps.length > 0 && (
+                                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', padding: '0.5rem 0.65rem', background: '#fff1f2', borderRadius: '8px', border: '1px solid #fecdd3' }}>
+                                                    <AlertTriangle size={11} style={{ color: '#e11d48', marginTop: '1px', flexShrink: 0 }} />
+                                                    <div style={{ fontSize: '0.65rem', color: '#9f1239', lineHeight: 1.5 }}>
+                                                        <span style={{ fontWeight: 800 }}>Range conflict!</span> Your selection overlaps:
+                                                        <ul style={{ margin: '3px 0 0 0', paddingLeft: '14px', display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                                                            {aiOverlaps.map((o, i) => (
+                                                                <li key={i} style={{ fontWeight: 700 }}>{o.name} ({o.start} → {o.end})</li>
+                                                            ))}
+                                                        </ul>
+                                                        <span>Please choose a date range that doesn't overlap existing milestones.</span>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                     {aiMilestoneDrafts.length === 0 && (
                                         <div style={{ display: 'flex', gap: '8px' }}>
                                             <button onClick={() => setAiMilestonePanelOpen(false)} disabled={generatingAIMilestones} style={{ flex: 1, padding: '8px', borderRadius: '10px', border: '1.5px solid #e2e8f0', background: 'white', color: '#475569', fontSize: '0.78rem', fontWeight: 700, cursor: generatingAIMilestones ? 'not-allowed' : 'pointer', opacity: generatingAIMilestones ? 0.5 : 1 }}>Cancel</button>
-                                            <button onClick={handleGenerateAIMilestones} disabled={generatingAIMilestones} style={{ flex: 2, padding: '8px 14px', borderRadius: '10px', border: 'none', background: generatingAIMilestones ? '#94a3b8' : 'var(--primary-color)', color: 'white', fontSize: '0.78rem', fontWeight: 700, cursor: generatingAIMilestones ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px', transition: 'background 0.2s' }}>
+                                            <button
+                                                onClick={handleGenerateAIMilestones}
+                                                disabled={generatingAIMilestones || aiOverlaps.length > 0}
+                                                title={aiOverlaps.length > 0 ? 'Range overlaps existing milestones' : undefined}
+                                                style={{ flex: 2, padding: '8px 14px', borderRadius: '10px', border: 'none', background: generatingAIMilestones || aiOverlaps.length > 0 ? '#94a3b8' : 'var(--primary-color)', color: 'white', fontSize: '0.78rem', fontWeight: 700, cursor: generatingAIMilestones || aiOverlaps.length > 0 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px', transition: 'background 0.2s' }}
+                                            >
                                                 {generatingAIMilestones ? <><Clock size={13} className="animate-spin-slow" />Generating...</> : <><Sparkles size={13} />Suggest Milestones</>}
                                             </button>
                                         </div>
