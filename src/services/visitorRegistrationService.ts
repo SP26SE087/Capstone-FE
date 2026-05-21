@@ -28,11 +28,13 @@ export const visitorRegistrationService = {
     },
 
     /**
-     * Get visitor registrations assigned to the current user.
+     * Get visitor registrations.
+     * Backend automatically returns all if the user is Admin/LabDirector,
+     * or only assigned ones for other roles.
      * Requires JWT auth.
      */
     getMyList: async (): Promise<VisitorRegistrationResponse[]> => {
-        const response = await api.get('/api/visitor-registrations/assigned-to-me');
+        const response = await api.get('/api/visitor-registrations');
         const data = response.data?.data ?? response.data;
         return Array.isArray(data) ? data : [];
     },

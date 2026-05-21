@@ -104,6 +104,7 @@ const getErrMsg = (err: any): string => {
 const VisitorRegistrations: React.FC = () => {
     const { user } = useAuth();
     const isLabDirector = Number(user.role) === 2;
+    const isLabDirectorOrAdmin = Number(user.role) === 1 || Number(user.role) === 2;
     const [tab, setTab] = useState<'registrations' | 'transfers' | 'contactors'>('registrations');
 
     // Registrations
@@ -700,7 +701,7 @@ const VisitorRegistrations: React.FC = () => {
                 <div className="page-header" style={{ marginBottom: '1.5rem' }}>
                     <div>
                         <h1>Visitor Registrations</h1>
-                        <p>Manage visit requests assigned to you.</p>
+                        <p>{isLabDirectorOrAdmin ? 'Manage visitor registration requests.' : 'Manage visit requests assigned to you.'}</p>
                     </div>
                 </div>
 
