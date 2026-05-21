@@ -525,7 +525,6 @@ const UserDetailModal: React.FC<UserDetailModalProps> = ({ onClose, userId, syst
                                 { value: 2, label: 'Lab Director',      color: '#7c3aed', bg: '#faf5ff', border: '#d8b4fe' },
                                 { value: 3, label: 'Senior Researcher', color: '#0284c7', bg: '#f0f9ff', border: '#bae6fd' },
                                 { value: 4, label: 'Member',            color: '#16a34a', bg: '#f0fdf4', border: '#86efac' },
-                                { value: 5, label: 'Guest',             color: '#92400e', bg: '#fffbeb', border: '#fde68a' },
                             ];
                             const selectedOpt = ROLE_OPTIONS.find(o => o.value === pendingRole);
                             return (
@@ -702,7 +701,6 @@ const UserDetailModal: React.FC<UserDetailModalProps> = ({ onClose, userId, syst
                     2: { label: 'Lab Director',      color: '#7c3aed', bg: '#faf5ff', border: '#d8b4fe' },
                     3: { label: 'Senior Researcher', color: '#0284c7', bg: '#f0f9ff', border: '#bae6fd' },
                     4: { label: 'Member',            color: '#16a34a', bg: '#f0fdf4', border: '#86efac' },
-                    5: { label: 'Guest',             color: '#92400e', bg: '#fffbeb', border: '#fde68a' },
                 };
                 const fromMeta = ROLE_LABELS[userData?.role] ?? { label: roleName, color: '#64748b', bg: '#f8fafc', border: '#e2e8f0' };
                 const toMeta   = ROLE_LABELS[pendingRole!] ?? { label: String(pendingRole), color: '#64748b', bg: '#f8fafc', border: '#e2e8f0' };
