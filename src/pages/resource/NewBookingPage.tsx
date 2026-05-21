@@ -560,9 +560,23 @@ const NewBookingPage: React.FC = () => {
         endTime: endDate.toISOString(),
         isUrgent,
         items: selectedResources.map(r => {
-          const qty  = quantities[r.id] ?? 1;
-          const pool = r.availableIds?.length ? r.availableIds : (r.ids ?? [r.id]);
-          return { resourceIds: pool.slice(0, qty).length > 0 ? pool.slice(0, qty) : [r.id] };
+          const qty    = quantities[r.id] ?? 1;
+          const allIds = r.ids?.length ? r.ids : [r.id];
+          // Tính lại IDs thực sự free trong time window đã chọn
+          const sT = startDateTime!.getTime();
+          const eT = endDate!.getTime();
+          const bookedIds = new Set<string>();
+          for (const b of bookings) {
+            if (![BookingStatus.Approved, BookingStatus.InUse].includes(b.status)) continue;
+            const bs = new Date(b.startTime).getTime();
+            const be = new Date(b.endTime).getTime();
+            if (be <= sT || bs >= eT) continue; // không overlap
+            const rIds = b.resourceIds ?? (b.resourceId ? [b.resourceId] : []);
+            for (const id of rIds) if (allIds.includes(id)) bookedIds.add(id);
+          }
+          const freeIds = allIds.filter(id => !bookedIds.has(id));
+          const selected = freeIds.slice(0, qty);
+          return { resourceIds: selected.length > 0 ? selected : allIds.slice(0, qty) };
         }),
       };
       await bookingService.create(request);
