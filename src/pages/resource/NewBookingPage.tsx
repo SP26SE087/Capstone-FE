@@ -14,7 +14,7 @@ import { useToastStore } from '@/store/slices/toastSlice';
 import {
   Search, Cpu, Box, Layers, MapPin, Check, X, ChevronLeft,
   Loader2, Calendar, Clock, FileText, Package, AlertTriangle,
-  ChevronDown, ChevronUp, CheckCircle2, Server, Filter,
+  ChevronDown, ChevronUp, CheckCircle2, Server, Filter, Zap,
 } from 'lucide-react';
 
 // ─── Merge server unit groups (e.g. "Server A #1", "Server A #2" → one row) ─
@@ -415,8 +415,9 @@ const NewBookingPage: React.FC = () => {
   const [customDays,      setCustomDays]      = useState('');
 
   // ── Details ──
-  const [title,   setTitle]   = useState('');
-  const [purpose, setPurpose] = useState('');
+  const [title,    setTitle]    = useState('');
+  const [purpose,  setPurpose]  = useState('');
+  const [isUrgent, setIsUrgent] = useState(false);
 
   // ── Submission ──
   const [saving,      setSaving]      = useState(false);
@@ -540,7 +541,9 @@ const NewBookingPage: React.FC = () => {
     if (selectedIds.length === 0) errs.resources = 'Select at least one resource.';
     if (!startDate) errs.schedule = 'Select a start date.';
     if (durationDays <= 0) errs.schedule = 'Select a duration.';
-    if (!title.trim()) errs.title = 'Booking name is required.';
+    if (startDateTime && startDateTime <= new Date()) errs.schedule = 'Pickup time must be in the future.';
+    if (!title.trim()) errs.title = 'Title is required.';
+    if (!purpose.trim()) errs.purpose = 'Purpose is required.';
     setFieldErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -555,6 +558,7 @@ const NewBookingPage: React.FC = () => {
         purpose: purpose.trim(),
         startTime: startDateTime.toISOString(),
         endTime: endDate.toISOString(),
+        isUrgent,
         items: selectedResources.map(r => {
           const qty  = quantities[r.id] ?? 1;
           const pool = r.availableIds?.length ? r.availableIds : (r.ids ?? [r.id]);
@@ -918,23 +922,54 @@ const NewBookingPage: React.FC = () => {
                   </div>
                   <div>
                     <label style={{ display: 'block', fontSize: 10, fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
-                      Purpose & Impact
+                      Purpose & Impact *
                     </label>
                     <textarea
                       value={purpose}
-                      onChange={e => setPurpose(e.target.value)}
+                      onChange={e => { setPurpose(e.target.value); setFieldErrors(p => ({ ...p, purpose: e.target.value.trim() ? '' : 'Required' })); }}
                       maxLength={2000} rows={4}
                       placeholder="Describe what you need these resources for…"
                       style={{
                         width: '100%', padding: '8px 12px', borderRadius: 8, boxSizing: 'border-box',
-                        border: '1.5px solid var(--border-color)',
+                        border: `1.5px solid ${fieldErrors.purpose ? '#ef4444' : 'var(--border-color)'}`,
                         fontSize: 12, fontWeight: 500, outline: 'none', resize: 'vertical',
                         lineHeight: 1.6, fontFamily: 'inherit', color: 'var(--text-primary)',
                       }}
-                      onFocus={e => e.currentTarget.style.borderColor = 'var(--accent-color)'}
-                      onBlur={e => e.currentTarget.style.borderColor = 'var(--border-color)'}
+                      onFocus={e => e.currentTarget.style.borderColor = fieldErrors.purpose ? '#ef4444' : 'var(--accent-color)'}
+                      onBlur={e => e.currentTarget.style.borderColor = fieldErrors.purpose ? '#ef4444' : 'var(--border-color)'}
                     />
+                    {fieldErrors.purpose && <div style={{ fontSize: 11, color: '#ef4444', marginTop: 3, fontWeight: 700 }}>{fieldErrors.purpose}</div>}
                     <div style={{ textAlign: 'right', fontSize: 9, color: 'var(--text-muted)', marginTop: 2 }}>{purpose.length}/2000</div>
+                  </div>
+
+                  {/* Mark as urgent */}
+                  <div
+                    role="checkbox"
+                    aria-checked={isUrgent}
+                    tabIndex={0}
+                    onClick={() => setIsUrgent(v => !v)}
+                    onKeyDown={e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); setIsUrgent(v => !v); } }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '10px 12px', borderRadius: 10,
+                      border: `1.5px solid ${isUrgent ? '#fca5a5' : 'var(--border-color)'}`,
+                      background: isUrgent ? '#fff5f5' : '#fff',
+                      cursor: 'pointer', userSelect: 'none', transition: 'all 0.15s',
+                    }}
+                  >
+                    <div style={{
+                      width: 18, height: 18, borderRadius: 5, flexShrink: 0,
+                      border: `2px solid ${isUrgent ? '#ef4444' : '#cbd5e1'}`,
+                      background: isUrgent ? '#ef4444' : '#fff',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s',
+                    }}>
+                      {isUrgent && <Check size={11} color="#fff" strokeWidth={3} />}
+                    </div>
+                    <Zap size={14} color={isUrgent ? '#dc2626' : '#94a3b8'} style={{ flexShrink: 0 }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: isUrgent ? '#dc2626' : 'var(--text-primary)' }}>Mark as urgent</div>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>Notify manager immediately for priority handling</div>
+                    </div>
                   </div>
                 </div>
               </div>

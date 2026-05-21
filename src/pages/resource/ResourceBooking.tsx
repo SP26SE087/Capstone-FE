@@ -31,7 +31,6 @@ import {
     X,
     Wrench,
     Activity,
-    RotateCcw,
     Box,
     Cpu,
     Server,
@@ -41,7 +40,6 @@ import {
 import ResourceListView from './components/ResourceListView';
 import CreateResourceForm from './components/CreateResourceForm';
 import ResourceDetailPanel from './components/ResourceDetailPanel';
-import BookingResourceForm from './components/BookingResourceForm';
 import NewBookingModal from '@/features/resources/NewBookingModal';
 import BookingListView from './components/BookingListView';
 import BookingDetailPanel from './components/BookingDetailPanel';
@@ -125,14 +123,12 @@ const ResourceBooking: React.FC = () => {
     const [resourceTypes, setResourceTypes] = useState<ResourceTypeItem[]>([]);
     const [rtTab, setRtTab] = useState<ResourceTypeCategory>(ResourceTypeCategory.ServerCompute);
     const [loading, setLoading] = useState(false);
-    const [refreshing, setRefreshing] = useState(false);
     const [confirmDeleteRtId, setConfirmDeleteRtId] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [filterStatus, setFilterStatus] = useState('');
     const [filterType, setFilterType] = useState('');
     const { addToast } = useToastStore();
     const [activePanel, setActivePanel] = useState<ActivePanel | null>(null);
-    const [bookingCart, setBookingCart] = useState<{ resourceId: string; quantity: number }[]>([]);
 
     const isLabDirector = useMemo(() => {
         if (!user) return false;
@@ -353,15 +349,6 @@ const ResourceBooking: React.FC = () => {
 
     useEffect(() => { fetchData(); }, [fetchData]);
 
-    const handleRefresh = async () => {
-        setRefreshing(true);
-        try {
-            await fetchData();
-        } finally {
-            setRefreshing(false);
-        }
-    };
-
     const showToast = (msg: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => addToast(msg, type);
 
     // Panel handlers
@@ -377,13 +364,10 @@ const ResourceBooking: React.FC = () => {
                 showToast('You cannot book a resource you are managing.', 'warning');
                 return;
             }
-            setBookingCart(prev =>
-                prev.find(i => i.resourceId === resource.id) ? prev : [...prev, { resourceId: resource.id, quantity: 1 }]
-            );
+            navigate(`/bookings/new?resourceId=${resource.id}`);
+        } else {
+            navigate('/bookings/new');
         }
-        setActivePanel(prev =>
-            prev?.type === 'create_booking' ? prev : { id: `create-booking-${Date.now()}`, type: 'create_booking', title: 'New Booking' }
-        );
     };
 
     const handleViewBooking = (booking: Booking) => {
@@ -417,7 +401,6 @@ const ResourceBooking: React.FC = () => {
     const handleViewLog = (log: EquipmentLog) => setActivePanel({ id: `view-log-${log.id}`, type: 'view_log', targetId: log.id, title: log.resourceName, log });
     const handleClosePanel = () => {
         setActivePanel(null);
-        setBookingCart([]);
     };
 
     const handleTitleChange = (newTitle: string) => {
@@ -724,11 +707,7 @@ const ResourceBooking: React.FC = () => {
                         );
                     })}
                     <div style={{ flex: 1 }} />
-                    {bookingVariant !== 'management' && (
-                        <button onClick={() => { fetchViewData(); }} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 12px', border: '1px solid #e2e8f0', background: 'white', borderRadius: 7, fontSize: '0.78rem', fontWeight: 600, color: '#64748b', cursor: 'pointer' }}>
-                            <RotateCcw size={13} style={{ animation: viewLoading ? 'spin 1s linear infinite' : 'none' }} /> Refresh
-                        </button>
-                    )}
+
                 </div>
 
                 {/* New Booking opens as a full page at /bookings/new */}
@@ -1039,14 +1018,7 @@ const ResourceBooking: React.FC = () => {
                             />
                         </div>
                     )}
-                    <button
-                        onClick={handleRefresh}
-                        disabled={refreshing}
-                        style={{ padding: '6px 12px', border: '1px solid #e2e8f0', background: 'white', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', flexShrink: 0 }}
-                    >
-                        <RotateCcw size={13} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
-                        Refresh
-                    </button>
+
                     </div>
                 </div>
                 {/* ── Breadcrumb when panel open ── */}
@@ -1433,13 +1405,7 @@ const ResourceBooking: React.FC = () => {
                                     currentUserId={user?.userId}
                                 />
                             )}
-                            {activePanel.type === 'create_booking' && (
-                                <BookingResourceForm
-                                    onClose={handleClosePanel} onSaved={handlePanelSaved}
-                                    onTitleChange={handleTitleChange}
-                                    cartItems={bookingCart} onCartChange={setBookingCart}
-                                />
-                            )}
+
                             {activePanel.type === 'resource_type_form' && (
                                 <ResourceTypePanel
                                     editing={activePanel.editingResourceType ?? null}
