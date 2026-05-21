@@ -391,6 +391,26 @@ const VisitorRegistrations: React.FC = () => {
     const [selectedCalDay, setSelectedCalDay] = useState<number | null>(null);
     const [selectedRegId, setSelectedRegId] = useState<string | null>(null);
 
+    // Pagination
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(10);
+
+    const totalPages = Math.max(1, Math.ceil(registrations.length / itemsPerPage));
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const paginatedRegistrations = useMemo(() => {
+        return registrations.slice(startIndex, startIndex + itemsPerPage);
+    }, [registrations, startIndex, itemsPerPage]);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [tab, viewMode]);
+
+    useEffect(() => {
+        if (currentPage > totalPages) {
+            setCurrentPage(totalPages);
+        }
+    }, [currentPage, totalPages]);
+
     const calendarMap = useMemo(() => {
         const map = new Map<number, VisitorRegistrationResponse[]>();
         for (const r of registrations) {
@@ -825,9 +845,9 @@ const VisitorRegistrations: React.FC = () => {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {registrations.map((item, idx) => (
+                                            {paginatedRegistrations.map((item, idx) => (
                                                 <tr key={item.id}
-                                                    style={{ borderBottom: idx < registrations.length - 1 ? '1px solid var(--border-light)' : 'none', transition: 'background 0.15s' }}
+                                                    style={{ borderBottom: idx < paginatedRegistrations.length - 1 ? '1px solid var(--border-light)' : 'none', transition: 'background 0.15s' }}
                                                     onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-hover)')}
                                                     onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                                                 >
@@ -874,6 +894,71 @@ const VisitorRegistrations: React.FC = () => {
                                             ))}
                                         </tbody>
                                     </table>
+
+                                    {/* Pagination Controls */}
+                                    <div style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        padding: '0.75rem 1rem',
+                                        borderTop: '1px solid var(--border-light)',
+                                        background: '#f8fafc'
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+                                            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                                                Showing {registrations.length > 0 ? startIndex + 1 : 0}-{Math.min(startIndex + itemsPerPage, registrations.length)} of {registrations.length}
+                                            </span>
+                                            
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Items per page:</span>
+                                                <select
+                                                    value={itemsPerPage}
+                                                    onChange={e => {
+                                                        setItemsPerPage(Number(e.target.value));
+                                                        setCurrentPage(1);
+                                                    }}
+                                                    style={{
+                                                        padding: '3px 8px',
+                                                        fontSize: '0.78rem',
+                                                        borderRadius: '6px',
+                                                        border: '1px solid var(--border-color)',
+                                                        background: 'white',
+                                                        outline: 'none',
+                                                        cursor: 'pointer',
+                                                        fontWeight: 600,
+                                                    }}
+                                                >
+                                                    <option value={5}>5</option>
+                                                    <option value={10}>10</option>
+                                                    <option value={20}>20</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                            <button
+                                                type="button"
+                                                disabled={currentPage === 1}
+                                                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                                className={currentPage === 1 ? 'btn btn-secondary' : 'btn btn-primary'}
+                                                style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', opacity: currentPage === 1 ? 0.45 : 1, cursor: currentPage === 1 ? 'not-allowed' : 'pointer' }}
+                                            >
+                                                Prev
+                                            </button>
+                                            <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', minWidth: '58px', textAlign: 'center', fontWeight: 600 }}>
+                                                {currentPage}/{totalPages}
+                                            </span>
+                                            <button
+                                                type="button"
+                                                disabled={currentPage === totalPages}
+                                                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                                className={currentPage === totalPages ? 'btn btn-secondary' : 'btn btn-primary'}
+                                                style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', opacity: currentPage === totalPages ? 0.45 : 1, cursor: currentPage === totalPages ? 'not-allowed' : 'pointer' }}
+                                            >
+                                                Next
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                             )
                         )}
