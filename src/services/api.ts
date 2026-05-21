@@ -12,6 +12,55 @@ const api = axios.create({
     timeout: 30000, // 30 second timeout
 });
 
+/**
+ * BroadcastChannel for syncing refreshed tokens between tabs of the SAME user.
+ *
+ * Why BroadcastChannel instead of localStorage?
+ * - sessionStorage keeps each user's tokens isolated per-tab (User A in Tab 1
+ *   never sees User B's tokens in Tab 2). We want to preserve this guarantee.
+ * - But when the same user has multiple tabs open, refresh-token rotation causes
+ *   the tab that refreshes first to invalidate the refresh token held by the
+ *   other tabs — those tabs will fail their own refresh and get logged out.
+ * - BroadcastChannel delivers a message ONLY to other tabs of the same origin
+ *   in the same browser session. After Tab 1 refreshes, it posts the new tokens
+ *   via this channel; Tab 2 receives them and updates its own sessionStorage so
+ *   it won't have to re-refresh (or fail) on its next 401.
+ */
+const tokenChannel = typeof BroadcastChannel !== 'undefined'
+    ? new BroadcastChannel('auth_token_sync')
+    : null;
+
+// Listen for token updates broadcast by sibling tabs of the SAME user
+if (tokenChannel) {
+    tokenChannel.onmessage = (event) => {
+        const { type, userId, token, refreshToken, authUser } = event.data ?? {};
+
+        // Only process messages intended for the currently logged-in user.
+        // This prevents User B's tab from acting on User A's broadcast.
+        const myUserId = (() => {
+            try { return JSON.parse(sessionStorage.getItem('auth_user') || '{}')?.userId; }
+            catch { return null; }
+        })();
+        if (!userId || !myUserId || userId !== myUserId) return;
+
+        if (type === 'TOKEN_REFRESHED') {
+            if (token)        sessionStorage.setItem('token', token);
+            if (refreshToken) sessionStorage.setItem('refreshToken', refreshToken);
+            if (authUser)     sessionStorage.setItem('auth_user', authUser);
+            window.dispatchEvent(new Event('auth_user_updated'));
+        }
+        if (type === 'LOGOUT') {
+            // A sibling tab of the SAME user logged out — mirror the action
+            sessionStorage.removeItem('token');
+            sessionStorage.removeItem('refreshToken');
+            sessionStorage.removeItem('auth_user');
+            if (!window.location.pathname.includes('/login')) {
+                window.location.href = '/login';
+            }
+        }
+    };
+}
+
 export const setupInterceptors = (axiosInstance: any) => {
     // Determine the base URL to use for refresh calls
     const refreshBaseUrl = axiosInstance.defaults.baseURL || API_BASE_URL;
@@ -80,7 +129,7 @@ export const setupInterceptors = (axiosInstance: any) => {
             // If error is 401 and not already retrying
             if (error.response?.status === 401 && !originalRequest._retry && !originalRequest.url?.includes('/api/auth/refresh')) {
                 
-                // Concurrent refresh handling
+                // Concurrent refresh handling — queue requests while one refresh is in flight
                 if (isRefreshing) {
                     return new Promise((resolve, reject) => {
                         failedQueue.push({ resolve, reject });
@@ -115,11 +164,12 @@ export const setupInterceptors = (axiosInstance: any) => {
 
                     if (!newToken) throw new Error('No token returned from refresh');
 
-                    // Update storage
+                    // Update this tab's sessionStorage
                     sessionStorage.setItem('token', newToken);
                     sessionStorage.setItem('refreshToken', newRefreshToken || currentRefreshToken);
                     
                     // Update user info from refresh response (include avatar, role, fullName)
+                    let authUserJson: string | undefined;
                     if (data.email || data.userId) {
                         const userData = {
                             userId: data.userId || data.UserId,
@@ -147,9 +197,22 @@ export const setupInterceptors = (axiosInstance: any) => {
                                 data.profileImageUrl ||
                                 data.ProfileImageUrl,
                         };
-                        sessionStorage.setItem('auth_user', JSON.stringify(userData));
+                        authUserJson = JSON.stringify(userData);
+                        sessionStorage.setItem('auth_user', authUserJson);
                         window.dispatchEvent(new Event('auth_user_updated'));
                     }
+
+                    // Broadcast new tokens to sibling tabs of the SAME user.
+                    // Include userId so other users' tabs can ignore this message.
+                    const broadcastUserId = data.userId || data.UserId ||
+                        (() => { try { return JSON.parse(sessionStorage.getItem('auth_user') || '{}')?.userId; } catch { return null; } })();
+                    tokenChannel?.postMessage({
+                        type: 'TOKEN_REFRESHED',
+                        userId: broadcastUserId,
+                        token: newToken,
+                        refreshToken: newRefreshToken || currentRefreshToken,
+                        authUser: authUserJson,
+                    });
 
                     // Process queuing and retry
                     originalRequest.headers.Authorization = `Bearer ${newToken}`;
@@ -157,7 +220,19 @@ export const setupInterceptors = (axiosInstance: any) => {
                     isRefreshing = false;
 
                     return axiosInstance(originalRequest);
-                } catch (refreshError) {
+                } catch (refreshError: any) {
+                    // Before giving up, check if a sibling tab already refreshed
+                    // and updated this tab's sessionStorage via BroadcastChannel.
+                    const freshToken = sessionStorage.getItem('token');
+                    const usedToken = originalRequest.headers?.Authorization?.replace('Bearer ', '');
+                    if (freshToken && freshToken !== usedToken) {
+                        // Sibling tab already refreshed — retry with the new token
+                        processQueue(null, freshToken);
+                        isRefreshing = false;
+                        originalRequest.headers.Authorization = `Bearer ${freshToken}`;
+                        return axiosInstance(originalRequest);
+                    }
+
                     processQueue(refreshError, null);
                     isRefreshing = false;
                     handleSessionExpired();
@@ -181,6 +256,9 @@ const handleSessionExpired = () => {
     sessionStorage.removeItem('refreshToken');
     sessionStorage.removeItem('auth_user');
     
+    // Notify sibling tabs (same user) to also log out
+    tokenChannel?.postMessage({ type: 'LOGOUT' });
+
     // Redirect only if not already on login page
     if (!window.location.pathname.includes('/login')) {
         window.location.href = '/login';
