@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { userService } from '@/services/userService';
 import { formatProjectDate } from '@/utils/projectUtils';
-import { Mail, Loader2, X, Phone, BookOpen, GraduationCap, ClipboardList, Clock, CheckCircle, XCircle, ExternalLink, Trash2, Briefcase, Pencil, Save } from 'lucide-react';
+import { Mail, Loader2, X, Phone, BookOpen, GraduationCap, ClipboardList, Clock, CheckCircle, XCircle, ExternalLink, Trash2, Briefcase, Pencil, Save, ShieldCheck } from 'lucide-react';
 import ConfirmModal from '@/components/common/ConfirmModal';
 import { useToastStore } from '@/store/slices/toastSlice';
 import { SystemRoleEnum } from '@/types/enums';
@@ -40,6 +40,12 @@ const UserDetailModal: React.FC<UserDetailModalProps> = ({ onClose, userId, syst
     const [fieldErrors, setFieldErrors] = useState({ fullName: '', studentId: '', phoneNumber: '', orcid: '', googleScholarUrl: '', githubUrl: '' });
     const [saving, setSaving] = useState(false);
 
+    // ── Role change state ──
+    const [isChangingRole, setIsChangingRole] = useState(false);
+    const [pendingRole, setPendingRole] = useState<number | null>(null);
+    const [showRoleConfirm, setShowRoleConfirm] = useState(false);
+    const [roleChanging, setRoleChanging] = useState(false);
+
     // (Lab Time is now handled by UserLabTimePanel in the parent)
 
     const validate = {
@@ -56,7 +62,7 @@ const UserDetailModal: React.FC<UserDetailModalProps> = ({ onClose, userId, syst
     const { addToast } = useToastStore();
 
     useEffect(() => {
-        if (userId) { fetchUserDetails(); setIsEditing(false); return; }
+        if (userId) { fetchUserDetails(); setIsEditing(false); setIsChangingRole(false); setPendingRole(null); return; }
         setUserData(null);
         setError(null);
     }, [userId]);
@@ -118,6 +124,25 @@ const UserDetailModal: React.FC<UserDetailModalProps> = ({ onClose, userId, syst
             addToast(err?.response?.data?.message || err?.message || 'Failed to update profile.', 'error');
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleChangeRole = async () => {
+        const uid = userData?.userId || userData?.id;
+        if (!uid || pendingRole === null) return;
+        setRoleChanging(true);
+        try {
+            await userService.updateUser(uid, { role: pendingRole });
+            addToast('Role updated successfully.', 'success');
+            setShowRoleConfirm(false);
+            setIsChangingRole(false);
+            setPendingRole(null);
+            onUpdated?.();
+            await fetchUserDetails();
+        } catch (err: any) {
+            addToast(err?.response?.data?.message || err?.message || 'Failed to update role.', 'error');
+        } finally {
+            setRoleChanging(false);
         }
     };
 
@@ -475,6 +500,134 @@ const UserDetailModal: React.FC<UserDetailModalProps> = ({ onClose, userId, syst
                                 Edit Profile
                             </button>
                         )}
+
+                        {/* ── Change Role button (Lab Director only, not self, not Admin target) ── */}
+                        {canEditProfile && !isChangingRole && (
+                            <button
+                                onClick={() => { setIsChangingRole(true); setPendingRole(userData?.role ?? null); }}
+                                style={{
+                                    width: '100%', padding: '8px', borderRadius: '10px', border: '1.5px solid #d8b4fe', cursor: 'pointer',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                                    fontSize: '0.78rem', fontWeight: 700,
+                                    background: '#faf5ff', color: '#7c3aed', transition: 'all 0.2s'
+                                }}
+                                onMouseEnter={e => { e.currentTarget.style.background = '#ede9fe'; }}
+                                onMouseLeave={e => { e.currentTarget.style.background = '#faf5ff'; }}
+                            >
+                                <ShieldCheck size={14} />
+                                Change Role
+                            </button>
+                        )}
+
+                        {/* ── Inline role selector ── */}
+                        {canEditProfile && isChangingRole && (() => {
+                            const ROLE_OPTIONS = [
+                                { value: 2, label: 'Lab Director',      color: '#7c3aed', bg: '#faf5ff', border: '#d8b4fe' },
+                                { value: 3, label: 'Senior Researcher', color: '#0284c7', bg: '#f0f9ff', border: '#bae6fd' },
+                                { value: 4, label: 'Member',            color: '#16a34a', bg: '#f0fdf4', border: '#86efac' },
+                                { value: 5, label: 'Guest',             color: '#92400e', bg: '#fffbeb', border: '#fde68a' },
+                            ];
+                            const selectedOpt = ROLE_OPTIONS.find(o => o.value === pendingRole);
+                            return (
+                                <div style={{
+                                    border: '1.5px solid #d8b4fe',
+                                    borderRadius: '12px',
+                                    background: '#faf5ff',
+                                    overflow: 'hidden',
+                                    animation: 'fadeIn 0.2s ease-out'
+                                }}>
+                                    {/* Header */}
+                                    <div style={{
+                                        padding: '8px 12px',
+                                        borderBottom: '1px solid #e9d5ff',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+                                    }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                            <ShieldCheck size={13} color="#7c3aed" />
+                                            <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#6d28d9', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Change Role</span>
+                                        </div>
+                                        <button
+                                            onClick={() => { setIsChangingRole(false); setPendingRole(null); }}
+                                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: '#94a3b8', display: 'flex', alignItems: 'center' }}
+                                        >
+                                            <X size={14} />
+                                        </button>
+                                    </div>
+
+                                    {/* Role options */}
+                                    <div style={{ padding: '8px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                        {ROLE_OPTIONS.map(opt => {
+                                            const isCurrent = opt.value === (userData?.role ?? null);
+                                            const isSelected = opt.value === pendingRole;
+                                            return (
+                                                <button
+                                                    key={opt.value}
+                                                    onClick={() => setPendingRole(opt.value)}
+                                                    style={{
+                                                        width: '100%', padding: '7px 10px', borderRadius: '8px', cursor: 'pointer',
+                                                        display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left',
+                                                        border: `1.5px solid ${isSelected ? opt.border : isCurrent ? '#e2e8f0' : 'transparent'}`,
+                                                        background: isSelected ? opt.bg : isCurrent ? '#f8fafc' : 'transparent',
+                                                        transition: 'all 0.15s'
+                                                    }}
+                                                    onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = '#f3e8ff'; }}
+                                                    onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = isCurrent ? '#f8fafc' : 'transparent'; }}
+                                                >
+                                                    {/* Radio dot */}
+                                                    <span style={{
+                                                        width: 14, height: 14, borderRadius: '50%', flexShrink: 0,
+                                                        border: `2px solid ${isSelected ? opt.color : '#cbd5e1'}`,
+                                                        background: isSelected ? opt.color : 'transparent',
+                                                        display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                                    }}>
+                                                        {isSelected && <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#fff' }} />}
+                                                    </span>
+                                                    <span style={{ flex: 1, fontSize: '0.78rem', fontWeight: isSelected ? 700 : 500, color: isSelected ? opt.color : '#334155' }}>
+                                                        {opt.label}
+                                                    </span>
+                                                    {isCurrent && (
+                                                        <span style={{ fontSize: '0.6rem', fontWeight: 700, color: '#64748b', background: '#e2e8f0', padding: '1px 6px', borderRadius: 99 }}>current</span>
+                                                    )}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+
+                                    {/* Footer actions */}
+                                    <div style={{ padding: '8px', borderTop: '1px solid #e9d5ff', display: 'flex', gap: 6 }}>
+                                        <button
+                                            onClick={() => { setIsChangingRole(false); setPendingRole(null); }}
+                                            style={{
+                                                flex: 1, padding: '7px', borderRadius: '8px', border: '1px solid #e2e8f0',
+                                                background: '#fff', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, color: '#475569'
+                                            }}
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                if (pendingRole !== null && pendingRole !== userData?.role) {
+                                                    setShowRoleConfirm(true);
+                                                }
+                                            }}
+                                            disabled={pendingRole === null || pendingRole === userData?.role}
+                                            style={{
+                                                flex: 1, padding: '7px', borderRadius: '8px', border: 'none',
+                                                cursor: (pendingRole === null || pendingRole === userData?.role) ? 'not-allowed' : 'pointer',
+                                                fontSize: '0.75rem', fontWeight: 700,
+                                                background: (pendingRole === null || pendingRole === userData?.role) ? '#e2e8f0' : '#7c3aed',
+                                                color: (pendingRole === null || pendingRole === userData?.role) ? '#94a3b8' : '#fff',
+                                                transition: 'all 0.15s',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5
+                                            }}
+                                        >
+                                            <ShieldCheck size={12} />
+                                            Apply Role
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        })()}
                     </div>
                     )}
 
@@ -542,6 +695,165 @@ const UserDetailModal: React.FC<UserDetailModalProps> = ({ onClose, userId, syst
                 cancelText="Cancel"
                 variant="success"
             />
+
+            {/* ── Role Change Confirm Modal ── */}
+            {showRoleConfirm && (() => {
+                const ROLE_LABELS: Record<number, { label: string; color: string; bg: string; border: string }> = {
+                    2: { label: 'Lab Director',      color: '#7c3aed', bg: '#faf5ff', border: '#d8b4fe' },
+                    3: { label: 'Senior Researcher', color: '#0284c7', bg: '#f0f9ff', border: '#bae6fd' },
+                    4: { label: 'Member',            color: '#16a34a', bg: '#f0fdf4', border: '#86efac' },
+                    5: { label: 'Guest',             color: '#92400e', bg: '#fffbeb', border: '#fde68a' },
+                };
+                const fromMeta = ROLE_LABELS[userData?.role] ?? { label: roleName, color: '#64748b', bg: '#f8fafc', border: '#e2e8f0' };
+                const toMeta   = ROLE_LABELS[pendingRole!] ?? { label: String(pendingRole), color: '#64748b', bg: '#f8fafc', border: '#e2e8f0' };
+                return (
+                    <div style={{
+                        position: 'fixed', inset: 0, zIndex: 9999,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        background: 'rgba(15, 23, 42, 0.55)',
+                        backdropFilter: 'blur(4px)',
+                        animation: 'fadeIn 0.18s ease-out'
+                    }} onClick={() => setShowRoleConfirm(false)}>
+                        <div
+                            onClick={e => e.stopPropagation()}
+                            style={{
+                                background: '#fff',
+                                borderRadius: '20px',
+                                width: '100%',
+                                maxWidth: '420px',
+                                margin: '0 16px',
+                                boxShadow: '0 25px 60px rgba(15, 23, 42, 0.22), 0 4px 16px rgba(124,58,237,0.12)',
+                                overflow: 'hidden',
+                                animation: 'slideUp 0.22s cubic-bezier(0.34, 1.56, 0.64, 1)'
+                            }}
+                        >
+                            {/* Modal top accent */}
+                            <div style={{ height: 5, background: 'linear-gradient(90deg, #7c3aed 0%, #a855f7 50%, #6366f1 100%)' }} />
+
+                            {/* Header */}
+                            <div style={{ padding: '20px 22px 0', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                    <div style={{
+                                        width: 44, height: 44, borderRadius: 14,
+                                        background: 'linear-gradient(135deg, #faf5ff 0%, #ede9fe 100%)',
+                                        border: '1.5px solid #d8b4fe',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                    }}>
+                                        <ShieldCheck size={20} color="#7c3aed" />
+                                    </div>
+                                    <div>
+                                        <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: '#1e293b' }}>Confirm Role Change</h3>
+                                        <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: '#64748b' }}>This action will take effect immediately</p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setShowRoleConfirm(false)}
+                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 4, marginTop: -2 }}
+                                >
+                                    <X size={18} />
+                                </button>
+                            </div>
+
+                            {/* Body */}
+                            <div style={{ padding: '16px 22px' }}>
+                                {/* Member info */}
+                                <div style={{
+                                    display: 'flex', alignItems: 'center', gap: 10,
+                                    padding: '10px 12px', borderRadius: 12,
+                                    background: '#f8fafc', border: '1px solid #e2e8f0',
+                                    marginBottom: 16
+                                }}>
+                                    <div style={{
+                                        width: 36, height: 36, borderRadius: 10,
+                                        background: 'linear-gradient(135deg, var(--primary-color) 0%, var(--accent-color) 100%)',
+                                        color: '#fff', fontWeight: 800, fontSize: '0.9rem',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        flexShrink: 0, overflow: 'hidden'
+                                    }}>
+                                        {(userData?.avatarUrl || userData?.AvatarUrl) ? (
+                                            <img src={userData.avatarUrl || userData.AvatarUrl} alt={name}
+                                                style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                        ) : initials}
+                                    </div>
+                                    <div style={{ minWidth: 0 }}>
+                                        <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name || 'Unknown'}</div>
+                                        <div style={{ fontSize: '0.72rem', color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{userData?.email}</div>
+                                    </div>
+                                </div>
+
+                                {/* Role transition */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center', marginBottom: 14 }}>
+                                    {/* From */}
+                                    <div style={{
+                                        flex: 1, padding: '8px 12px', borderRadius: 10, textAlign: 'center',
+                                        background: fromMeta.bg, border: `1.5px solid ${fromMeta.border}`
+                                    }}>
+                                        <div style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>From</div>
+                                        <div style={{ fontSize: '0.8rem', fontWeight: 800, color: fromMeta.color }}>{fromMeta.label}</div>
+                                    </div>
+                                    {/* Arrow */}
+                                    <div style={{ fontSize: '1.2rem', color: '#7c3aed', fontWeight: 800, flexShrink: 0 }}>→</div>
+                                    {/* To */}
+                                    <div style={{
+                                        flex: 1, padding: '8px 12px', borderRadius: 10, textAlign: 'center',
+                                        background: toMeta.bg, border: `2px solid ${toMeta.border}`,
+                                        boxShadow: `0 0 0 3px ${toMeta.border}55`
+                                    }}>
+                                        <div style={{ fontSize: '0.6rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>To</div>
+                                        <div style={{ fontSize: '0.8rem', fontWeight: 800, color: toMeta.color }}>{toMeta.label}</div>
+                                    </div>
+                                </div>
+
+                                <p style={{ margin: 0, fontSize: '0.8rem', color: '#475569', textAlign: 'center', lineHeight: 1.6 }}>
+                                    Are you sure you want to change <strong>{name || 'this member'}</strong>'s role?
+                                    <br />This will immediately affect their access permissions.
+                                </p>
+                            </div>
+
+                            {/* Footer */}
+                            <div style={{ padding: '0 22px 20px', display: 'flex', gap: 10 }}>
+                                <button
+                                    onClick={() => setShowRoleConfirm(false)}
+                                    disabled={roleChanging}
+                                    style={{
+                                        flex: 1, padding: '10px', borderRadius: 12,
+                                        border: '1.5px solid #e2e8f0', background: '#f8fafc',
+                                        cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600, color: '#475569'
+                                    }}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleChangeRole}
+                                    disabled={roleChanging}
+                                    style={{
+                                        flex: 1, padding: '10px', borderRadius: 12, border: 'none',
+                                        cursor: roleChanging ? 'not-allowed' : 'pointer',
+                                        fontSize: '0.82rem', fontWeight: 800,
+                                        background: roleChanging ? '#ede9fe' : 'linear-gradient(135deg, #7c3aed 0%, #6366f1 100%)',
+                                        color: roleChanging ? '#a78bfa' : '#fff',
+                                        boxShadow: roleChanging ? 'none' : '0 8px 20px rgba(124,58,237,0.35)',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                                        transition: 'all 0.2s'
+                                    }}
+                                    onMouseEnter={e => { if (!roleChanging) e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                                    onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; }}
+                                >
+                                    {roleChanging ? <Loader2 size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
+                                    {roleChanging ? 'Updating…' : 'Confirm Change'}
+                                </button>
+                            </div>
+                        </div>
+
+                        <style>{`
+                            @keyframes slideUp {
+                                from { opacity: 0; transform: translateY(24px) scale(0.96); }
+                                to   { opacity: 1; transform: translateY(0)   scale(1);    }
+                            }
+                        `}</style>
+                    </div>
+                );
+            })()}
         </div>
     );
 };
