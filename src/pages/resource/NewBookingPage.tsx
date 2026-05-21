@@ -67,7 +67,9 @@ function getAvailableCount(resource: Resource, start: Date, end: Date, bookings:
   const sT = start.getTime(), eT = end.getTime();
   const bookedIds = new Set<string>();
   for (const b of bookings) {
-    if ([BookingStatus.Rejected, BookingStatus.Cancelled, BookingStatus.Completed].includes(b.status)) continue;
+    // Only Approved and InUse bookings actually lock the resource slot.
+    // Pending = request chưa được duyệt → không khóa slot.
+    if (![BookingStatus.Approved, BookingStatus.InUse].includes(b.status)) continue;
     const bs = new Date(b.startTime).getTime(), be = new Date(b.endTime).getTime();
     if (be <= sT || bs >= eT) continue;
     const rIds = b.resourceIds ?? (b.resourceId ? [b.resourceId] : []);

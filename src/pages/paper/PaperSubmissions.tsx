@@ -87,7 +87,7 @@ const externalAuthorValidationDefaults: ExternalAuthorValidationErrors = {
 const validateExternalAuthorField = (field: keyof ExternalAuthorValidationErrors, value: string): string => {
     switch (field) {
         case 'studentId':
-            return value && !/^[A-Za-z]{2}\d{4}$/.test(value) ? 'Format: 2 letters + 4 digits (e.g. SE1234)' : '';
+            return value && !/^[A-Za-z]{2}\d{6}$/.test(value) ? 'Format: 2 letters + 6 digits (e.g. SE123456)' : '';
         case 'phoneNumber':
             return value && !/^(\+[1-9]\d{6,14}|0\d{9})$/.test(value) ? 'Invalid phone number format (e.g. 0912345678 or +84912345678)' : '';
         case 'orcid':
