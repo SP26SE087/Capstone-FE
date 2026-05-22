@@ -92,7 +92,7 @@ const Header: React.FC = () => {
         const apiBase = (import.meta.env.VITE_API_BASE_URL as string || 'https://api.labsyncs.com').replace(/\/$/, '');
         const connection = new signalR.HubConnectionBuilder()
             .withUrl(`${apiBase}/hubs/notifications`, {
-                accessTokenFactory: () => token,
+                accessTokenFactory: () => localStorage.getItem('token') || sessionStorage.getItem('token') || '',
             })
             .withAutomaticReconnect()
             .configureLogging(signalR.LogLevel.Warning)

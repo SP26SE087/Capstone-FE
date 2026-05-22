@@ -171,11 +171,19 @@ export const setupInterceptors = (axiosInstance: any) => {
                     // Update user info from refresh response (include avatar, role, fullName)
                     let authUserJson: string | undefined;
                     if (data.email || data.userId) {
+                        let existingUser: any = {};
+                        try {
+                            const raw = sessionStorage.getItem('auth_user');
+                            if (raw) existingUser = JSON.parse(raw);
+                        } catch (e) {
+                            console.error('Failed to parse existing auth_user from sessionStorage', e);
+                        }
+
                         const userData = {
-                            userId: data.userId || data.UserId,
-                            email: data.email || data.Email,
-                            fullName: data.fullName || data.FullName,
-                            role: data.role ?? data.Role,
+                            userId: data.userId || data.UserId || existingUser.userId,
+                            email: data.email || data.Email || existingUser.email,
+                            fullName: data.fullName || data.FullName || existingUser.fullName,
+                            role: data.role ?? data.Role ?? existingUser.role,
                             avatarUrl:
                                 data.avatarUrl ||
                                 data.AvatarUrl ||
@@ -195,7 +203,8 @@ export const setupInterceptors = (axiosInstance: any) => {
                                 data.profilePictureUrl ||
                                 data.ProfilePictureUrl ||
                                 data.profileImageUrl ||
-                                data.ProfileImageUrl,
+                                data.ProfileImageUrl ||
+                                existingUser.avatarUrl,
                         };
                         authUserJson = JSON.stringify(userData);
                         sessionStorage.setItem('auth_user', authUserJson);
