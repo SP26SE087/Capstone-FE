@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AppSelect from '@/components/common/AppSelect';
 import MainLayout from '@/layout/MainLayout';
@@ -147,6 +147,10 @@ const ResourceBooking: React.FC = () => {
     const [viewResources, setViewResources] = useState<Resource[]>([]);
     const [viewLoading, setViewLoading] = useState(false);
     const [viewModalBookingId, setViewModalBookingId] = useState<string | null>(null);
+    const [viewModalExtraResources, setViewModalExtraResources] = useState<import('@/types/booking').BasicResourceResponse[]>([]);
+    const [viewModalGroupedIds, setViewModalGroupedIds] = useState<string[]>([]);
+    // Map from primary bookingId → all grouped bookingIds (for approve/reject all in group)
+    const groupedIdsRef = useRef<Map<string, string[]>>(new Map());
 
     const fetchViewData = useCallback(async () => {
         setViewLoading(true);
@@ -194,13 +198,23 @@ const ResourceBooking: React.FC = () => {
     };
 
     const handleViewApprove = async (bookingId: string, note?: string) => {
+        // Resolve all grouped IDs (if this card was created by groupBookings)
+        const ids = groupedIdsRef.current.get(bookingId) ?? [bookingId];
         try {
-            await bookingService.approve(bookingId, { bookingId, note });
-            showToast('Booking approved.', 'success');
+            await Promise.all(ids.map((id: string) => bookingService.approve(id, { bookingId: id, note })));
+            showToast(ids.length > 1 ? `${ids.length} bookings approved.` : 'Booking approved.', 'success');
             fetchViewData();
         } catch (err: any) {
             showToast(err?.response?.data?.message ?? 'Failed to approve.', 'error');
         }
+    };
+
+    /** Called from Calendar/Workspace inline buttons which pass the full Booking object */
+    const handleViewApproveBooking = (booking: Booking, note?: string) => {
+        if (booking._groupedIds?.length) {
+            groupedIdsRef.current.set(booking.id, booking._groupedIds);
+        }
+        handleViewApprove(booking.id, note);
     };
 
     const handleViewAdjust = async (bookingId: string, opts: { newResourceIds: string[]; adjustReason: string }) => {
@@ -219,13 +233,23 @@ const ResourceBooking: React.FC = () => {
     };
 
     const handleViewReject = async (bookingId: string, reason?: string) => {
+        // Resolve all grouped IDs (if this card was created by groupBookings)
+        const ids = groupedIdsRef.current.get(bookingId) ?? [bookingId];
         try {
-            await bookingService.reject(bookingId, reason ?? 'Rejected');
-            showToast('Booking rejected.', 'success');
+            await Promise.all(ids.map((id: string) => bookingService.reject(id, reason ?? 'Rejected')));
+            showToast(ids.length > 1 ? `${ids.length} bookings rejected.` : 'Booking rejected.', 'success');
             fetchViewData();
         } catch (err: any) {
             showToast(err?.response?.data?.message ?? 'Failed to reject.', 'error');
         }
+    };
+
+    /** Called from Calendar/Workspace inline buttons which pass the full Booking object */
+    const handleViewRejectBooking = (booking: Booking, reason?: string) => {
+        if (booking._groupedIds?.length) {
+            groupedIdsRef.current.set(booking.id, booking._groupedIds);
+        }
+        handleViewReject(booking.id, reason);
     };
 
     const handleViewCheckOut = async (bookingId: string) => {
@@ -260,6 +284,12 @@ const ResourceBooking: React.FC = () => {
             showToast('Cannot open booking detail for this item.', 'warning');
             return;
         }
+        // Pass extra resources if this is a grouped booking (resources beyond what the single booking API returns)
+        setViewModalExtraResources(booking.resources ?? []);
+        // Pass all grouped IDs for approve/reject all
+        const gids = booking._groupedIds ?? [resolvedBookingId];
+        setViewModalGroupedIds(gids);
+        groupedIdsRef.current.set(resolvedBookingId, gids);
         setViewModalBookingId(resolvedBookingId);
     };
 
@@ -750,6 +780,8 @@ const ResourceBooking: React.FC = () => {
                                     }}
                                     isLabDirector={isLabDirector}
                                     isManagedView={activeTab === 'managed_bookings'}
+                                    extraResources={viewModalExtraResources}
+                                    groupedBookingIds={viewModalGroupedIds}
                                 />
                             </div>
                         </div>
@@ -769,8 +801,8 @@ const ResourceBooking: React.FC = () => {
                                 currentUserId={user?.userId}
                                 onOpenBooking={handleViewOpenBooking}
                                 onNewBooking={handleViewNewBooking}
-                                onApprove={handleViewApprove}
-                                onReject={handleViewReject}
+                                onApprove={handleViewApproveBooking}
+                                onReject={handleViewRejectBooking}
                                 onAdjust={handleViewAdjust}
                             />
                         ) : bookingVariant === 'timeline' ? (
@@ -786,8 +818,8 @@ const ResourceBooking: React.FC = () => {
                                 isDirector={isDirectorRole}
                                 onOpenBooking={handleViewOpenBooking}
                                 onNewBooking={() => handleViewNewBooking()}
-                                onApprove={handleViewApprove}
-                                onReject={handleViewReject}
+                                onApprove={handleViewApproveBooking}
+                                onReject={handleViewRejectBooking}
                                 onCheckOut={handleViewCheckOut}
                                 onCheckIn={handleViewCheckIn}
                             />

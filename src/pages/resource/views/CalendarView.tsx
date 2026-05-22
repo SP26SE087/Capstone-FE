@@ -791,8 +791,8 @@ function DaySidebar({ selectedDate, bookings, resources, onOpenBooking }: {
 // ─── Pending queue (manager/director only) ───────────────────────────────────
 function PendingQueue({ bookings, resources, onApprove, onReject, onAdjust, onOpen }: {
     bookings: Booking[]; resources: Resource[];
-    onApprove: (id: string, note?: string) => void;
-    onReject: (id: string, reason?: string) => void;
+    onApprove: (booking: Booking, note?: string) => void;
+    onReject: (booking: Booking, reason?: string) => void;
     onAdjust?: (id: string, opts: { newResourceIds: string[]; adjustReason: string }) => Promise<void>;
     onOpen: (b: Booking) => void;
 }) {
@@ -833,14 +833,15 @@ function PendingQueue({ bookings, resources, onApprove, onReject, onAdjust, onOp
         const { id, type } = activeAction;
         if ((type === 'reject' || type === 'adjust') && !actionReason.trim()) return;
         setActionLoading(true);
+        const activeBookingObj = pending.find(b => b.id === id);
         try {
             if (type === 'approve') {
-                onApprove(id, actionReason.trim() || undefined);
+                onApprove(activeBookingObj ?? { id } as Booking, actionReason.trim() || undefined);
             } else if (type === 'reject') {
-                onReject(id, actionReason.trim());
+                onReject(activeBookingObj ?? { id } as Booking, actionReason.trim());
             } else {
                 if (isAllZero) {
-                    onReject(id, actionReason.trim());
+                    onReject(activeBookingObj ?? { id } as Booking, actionReason.trim());
                 } else {
                     if (!onAdjust) return;
                     const newResourceIds = adjustResGroups.flatMap(g => g.ids.slice(0, groupKeptQtys[g.key] ?? g.ids.length));
@@ -1029,8 +1030,8 @@ interface CalendarViewProps {
     currentUserId?: string;
     onOpenBooking: (b: Booking) => void;
     onNewBooking: (resource?: Resource, date?: Date) => void;
-    onApprove: (id: string, note?: string) => void;
-    onReject: (id: string, reason?: string) => void;
+    onApprove: (booking: Booking, note?: string) => void;
+    onReject: (booking: Booking, reason?: string) => void;
     onAdjust?: (id: string, opts: { newResourceIds: string[]; adjustReason: string }) => Promise<void>;
 }
 

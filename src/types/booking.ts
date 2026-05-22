@@ -90,6 +90,8 @@ export interface Booking {
   updatedAt?: string;
   isUrgent?: boolean;
   resources?: BasicResourceResponse[];
+  /** Internal FE-only: all constituent booking IDs when multiple bookings are grouped into one card */
+  _groupedIds?: string[];
 }
 
 export enum BookingStatus {

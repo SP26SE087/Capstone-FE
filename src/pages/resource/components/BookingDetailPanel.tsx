@@ -39,6 +39,10 @@ interface BookingDetailPanelProps {
     onTitleChange?: (title: string) => void;
     isLabDirector: boolean;
     isManagedView?: boolean;
+    /** Extra resources to merge in (from grouped bookings with multiple items) */
+    extraResources?: import('@/types/booking').BasicResourceResponse[];
+    /** All constituent booking IDs when this is a grouped booking (for approve/reject all) */
+    groupedBookingIds?: string[];
 }
 
 const labelStyle: React.CSSProperties = {
@@ -245,7 +249,9 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
     onSaved,
     onTitleChange,
     isLabDirector: _isLabDirector,
-    isManagedView = false
+    isManagedView = false,
+    extraResources,
+    groupedBookingIds,
 }) => {
     const navigate = useNavigate();
     const { user } = useAuth();
@@ -336,6 +342,14 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
         if (!silent) setLoading(true);
         try {
             const data = await bookingService.getById(bookingId);
+            // Merge extraResources (from grouped bookings) into fetched data
+            if (extraResources && extraResources.length > 0) {
+                const existingIds = new Set((data.resources ?? []).map((r: any) => r.id));
+                const toMerge = extraResources.filter(r => !existingIds.has(r.id));
+                if (toMerge.length > 0) {
+                    data.resources = [...(data.resources ?? []), ...toMerge];
+                }
+            }
             setBooking(data);
             onTitleChange?.(data.title || 'Booking');
             // Fetch server access status for compute bookings
@@ -387,11 +401,19 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
         }
         setActionLoading(true);
         try {
+            // Approve the primary booking
             await bookingService.approve(bookingId, {
                 note: approveNote.trim() || null,
                 newResourceIds: newResourceIds ?? undefined,
                 adjustReason: hasAdjustment ? approveAdjustReason.trim() : null,
             });
+            // Also approve any other bookings in the same grouped session (no adjustment for them)
+            const otherIds = (groupedBookingIds ?? []).filter(id => id !== bookingId);
+            if (otherIds.length > 0) {
+                await Promise.allSettled(otherIds.map(id =>
+                    bookingService.approve(id, { note: approveNote.trim() || null })
+                ));
+            }
             onSaved(false, 'Booking approved successfully.');
             setShowApproveForm(false);
             setApproveNote('');
@@ -412,6 +434,13 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
         setActionLoading(true);
         try {
             await bookingService.reject(bookingId, rejectReason.trim());
+            // Also reject any other bookings in the same grouped session
+            const otherIds = (groupedBookingIds ?? []).filter(id => id !== bookingId);
+            if (otherIds.length > 0) {
+                await Promise.allSettled(otherIds.map(id =>
+                    bookingService.reject(id, rejectReason.trim())
+                ));
+            }
             onSaved(false, 'Booking rejected.');
             setShowRejectForm(false);
             setRejectReason('');

@@ -41,7 +41,7 @@ function Avatar({ name = '', size = 22 }: { name: string; size?: number }) {
 function WSBookingCard({ booking, resources, onOpen, onApprove, onReject, onCheckOut, onCheckIn, currentUserId }: {
     booking: Booking; resources: Resource[];
     onOpen: (b: Booking) => void;
-    onApprove: (id: string) => void; onReject: (id: string) => void;
+    onApprove: (b: Booking) => void; onReject: (b: Booking) => void;
     onCheckOut: (id: string) => void; onCheckIn: (id: string) => void;
     currentUserId?: string;
 }) {
@@ -89,11 +89,11 @@ function WSBookingCard({ booking, resources, onOpen, onApprove, onReject, onChec
                 </span>
                 {isManager && booking.status === BookingStatus.Pending && (
                     <>
-                        <button onClick={e => { e.stopPropagation(); onReject(booking.id); }}
+                        <button onClick={e => { e.stopPropagation(); onReject(booking); }}
                             style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '0 7px', height: 24, background: '#fff', color: '#DC2626', border: '1px solid #FECACA', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
                             <X size={11} />
                         </button>
-                        <button onClick={e => { e.stopPropagation(); onApprove(booking.id); }}
+                        <button onClick={e => { e.stopPropagation(); onApprove(booking); }}
                             style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '0 7px', height: 24, background: '#059669', color: '#fff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
                             <Check size={11} />
                         </button>
@@ -121,7 +121,7 @@ function KanbanColumn({ title, items, color, accent, icon: Icon, onOpen, onAppro
     title: string; items: Booking[]; color: string; accent: string;
     icon: React.ElementType;
     onOpen: (b: Booking) => void;
-    onApprove: (id: string) => void; onReject: (id: string) => void;
+    onApprove: (b: Booking) => void; onReject: (b: Booking) => void;
     onCheckOut: (id: string) => void; onCheckIn: (id: string) => void;
     currentUserId?: string; resources: Resource[];
     emptyMsg?: string;
@@ -305,8 +305,8 @@ interface WorkspaceViewProps {
     isDirector?: boolean;
     onOpenBooking: (b: Booking) => void;
     onNewBooking: () => void;
-    onApprove: (id: string) => void;
-    onReject: (id: string) => void;
+    onApprove: (b: Booking) => void;
+    onReject: (b: Booking) => void;
     onCheckOut: (id: string) => void;
     onCheckIn: (id: string) => void;
 }

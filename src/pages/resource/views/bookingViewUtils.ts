@@ -171,7 +171,9 @@ export function groupBookings(bookings: Booking[]): Booking[] {
             seen.add(r.id);
             return true;
         });
-        result.push({ ...group[0], resources: mergedResources });
+        // Store all constituent IDs so approve/reject can act on all of them
+        const allIds = group.map(b => b.bookingId || b.id).filter(Boolean) as string[];
+        result.push({ ...group[0], resources: mergedResources, _groupedIds: allIds });
     }
 
     return result;
