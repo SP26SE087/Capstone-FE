@@ -123,8 +123,10 @@ interface ResourceRowProps {
   onToggle: () => void;
   onQtyChange: (q: number) => void;
   currentUserId?: string;
+  isUrgent?: boolean;
+  onToggleUrgent?: () => void;
 }
-const ResourceRow: React.FC<ResourceRowProps> = ({ resource: r, selected, qty, maxQty, onToggle, onQtyChange, currentUserId }) => {
+const ResourceRow: React.FC<ResourceRowProps> = ({ resource: r, selected, qty, maxQty, onToggle, onQtyChange, currentUserId, isUrgent, onToggleUrgent }) => {
   const { user } = useAuth();
   const server    = isServerResource(r);
   const iconColor = server ? '#7C3AED' : '#0284C7';
@@ -221,6 +223,25 @@ const ResourceRow: React.FC<ResourceRowProps> = ({ resource: r, selected, qty, m
             +
           </button>
         </div>
+      )}
+
+      {/* Per-item Urgent toggle — only visible when this row is selected */}
+      {selected && !isManaged && (
+        <button
+          onClick={e => { e.stopPropagation(); onToggleUrgent?.(); }}
+          style={{
+            flexShrink: 0, marginLeft: 2,
+            padding: '2px 7px', borderRadius: 6,
+            border: `1px solid ${isUrgent ? '#fca5a5' : '#e2e8f0'}`,
+            background: isUrgent ? '#fef2f2' : '#f8fafc',
+            color: isUrgent ? '#dc2626' : '#94a3b8',
+            fontSize: 10, fontWeight: 700,
+            cursor: 'pointer', transition: 'all 0.15s',
+            whiteSpace: 'nowrap', fontFamily: 'inherit',
+          }}
+        >
+          {isUrgent ? '✓ Urgent' : 'Urgent'}
+        </button>
       )}
     </div>
     {isManaged && (
@@ -415,9 +436,9 @@ const NewBookingPage: React.FC = () => {
   const [customDays,      setCustomDays]      = useState('');
 
   // ── Details ──
-  const [title,    setTitle]    = useState('');
-  const [purpose,  setPurpose]  = useState('');
-  const [isUrgent, setIsUrgent] = useState(false);
+  const [title,      setTitle]      = useState('');
+  const [purpose,    setPurpose]    = useState('');
+  const [urgentIds,  setUrgentIds]  = useState<Set<string>>(new Set());
 
   // ── Submission ──
   const [saving,      setSaving]      = useState(false);
@@ -512,6 +533,14 @@ const NewBookingPage: React.FC = () => {
   }, [startDateTime, endDate, selectedResources, quantities, bookings]);
 
   // ── Toggle / qty ──
+  const toggleUrgent = useCallback((id: string) => {
+    setUrgentIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
   const toggleResource = useCallback((r: Resource) => {
     if ((currentUserId && r.managedBy === currentUserId) || (user?.email && r.managerEmail === user.email)) return; // block own-managed
     const avail = maxQtyFor(r);
@@ -519,6 +548,8 @@ const NewBookingPage: React.FC = () => {
     setSelectedIds(prev => {
       if (prev.includes(r.id)) {
         setQuantities(q => { const n = { ...q }; delete n[r.id]; return n; });
+        // Also clear urgent flag when deselecting
+        setUrgentIds(u => { const next = new Set(u); next.delete(r.id); return next; });
         return prev.filter(x => x !== r.id);
       }
       setQuantities(q => ({ ...q, [r.id]: 1 }));
@@ -552,35 +583,62 @@ const NewBookingPage: React.FC = () => {
     if (!validate() || !startDateTime || !endDate) return;
     setSaving(true);
     setSubmitError('');
+
+    // Helper: build CreateBookingItem list for a given subset of resources
+    const buildItems = (subset: Resource[]) => subset.map(r => {
+      const qty    = quantities[r.id] ?? 1;
+      const allIds = r.ids?.length ? r.ids : [r.id];
+      const sT = startDateTime!.getTime();
+      const eT = endDate!.getTime();
+      const bookedIds = new Set<string>();
+      for (const b of bookings) {
+        if (![BookingStatus.Approved, BookingStatus.InUse].includes(b.status)) continue;
+        const bs = new Date(b.startTime).getTime();
+        const be = new Date(b.endTime).getTime();
+        if (be <= sT || bs >= eT) continue;
+        const rIds = b.resourceIds ?? (b.resourceId ? [b.resourceId] : []);
+        for (const id of rIds) if (allIds.includes(id)) bookedIds.add(id);
+      }
+      const freeIds = allIds.filter(id => !bookedIds.has(id));
+      const picked  = freeIds.slice(0, qty);
+      return { resourceIds: picked.length > 0 ? picked : allIds.slice(0, qty) };
+    });
+
+    const urgentResources    = selectedResources.filter(r => urgentIds.has(r.id));
+    const nonUrgentResources = selectedResources.filter(r => !urgentIds.has(r.id));
+
+    const basePayload = {
+      title:     title.trim(),
+      purpose:   purpose.trim(),
+      startTime: startDateTime.toISOString(),
+      endTime:   endDate.toISOString(),
+    };
+
     try {
-      const request: CreateBookingRequest = {
-        title: title.trim(),
-        purpose: purpose.trim(),
-        startTime: startDateTime.toISOString(),
-        endTime: endDate.toISOString(),
-        isUrgent,
-        items: selectedResources.map(r => {
-          const qty    = quantities[r.id] ?? 1;
-          const allIds = r.ids?.length ? r.ids : [r.id];
-          // Tính lại IDs thực sự free trong time window đã chọn
-          const sT = startDateTime!.getTime();
-          const eT = endDate!.getTime();
-          const bookedIds = new Set<string>();
-          for (const b of bookings) {
-            if (![BookingStatus.Approved, BookingStatus.InUse].includes(b.status)) continue;
-            const bs = new Date(b.startTime).getTime();
-            const be = new Date(b.endTime).getTime();
-            if (be <= sT || bs >= eT) continue; // không overlap
-            const rIds = b.resourceIds ?? (b.resourceId ? [b.resourceId] : []);
-            for (const id of rIds) if (allIds.includes(id)) bookedIds.add(id);
-          }
-          const freeIds = allIds.filter(id => !bookedIds.has(id));
-          const selected = freeIds.slice(0, qty);
-          return { resourceIds: selected.length > 0 ? selected : allIds.slice(0, qty) };
-        }),
-      };
-      await bookingService.create(request);
-      addToast('Booking request submitted successfully.', 'success');
+      const requests: Promise<any>[] = [];
+
+      if (urgentResources.length > 0) {
+        requests.push(bookingService.create({
+          ...basePayload,
+          isUrgent: true,
+          items: buildItems(urgentResources),
+        }));
+      }
+
+      if (nonUrgentResources.length > 0) {
+        requests.push(bookingService.create({
+          ...basePayload,
+          isUrgent: false,
+          items: buildItems(nonUrgentResources),
+        }));
+      }
+
+      await Promise.all(requests);
+
+      const parts: string[] = [];
+      if (urgentResources.length > 0)    parts.push(`${urgentResources.length} urgent`);
+      if (nonUrgentResources.length > 0) parts.push(`${nonUrgentResources.length} standard`);
+      addToast(`Booking submitted: ${parts.join(' + ')} request${requests.length > 1 ? 's' : ''}.`, 'success');
       navigate('/bookings');
     } catch (err: any) {
       const msg = err?.response?.data?.message || err?.response?.data?.title || 'Failed to submit booking.';
@@ -784,6 +842,8 @@ const NewBookingPage: React.FC = () => {
                               onToggle={() => toggleResource(r)}
                               onQtyChange={q => setQty(r.id, q)}
                               currentUserId={currentUserId}
+                              isUrgent={urgentIds.has(r.id)}
+                              onToggleUrgent={() => toggleUrgent(r.id)}
                             />
                           </div>
                         );
@@ -956,35 +1016,33 @@ const NewBookingPage: React.FC = () => {
                     <div style={{ textAlign: 'right', fontSize: 9, color: 'var(--text-muted)', marginTop: 2 }}>{purpose.length}/2000</div>
                   </div>
 
-                  {/* Mark as urgent */}
-                  <div
-                    role="checkbox"
-                    aria-checked={isUrgent}
-                    tabIndex={0}
-                    onClick={() => setIsUrgent(v => !v)}
-                    onKeyDown={e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); setIsUrgent(v => !v); } }}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 10,
-                      padding: '10px 12px', borderRadius: 10,
-                      border: `1.5px solid ${isUrgent ? '#fca5a5' : 'var(--border-color)'}`,
-                      background: isUrgent ? '#fff5f5' : '#fff',
-                      cursor: 'pointer', userSelect: 'none', transition: 'all 0.15s',
-                    }}
-                  >
+                  {/* Urgent summary — only shown when some resources are selected */}
+                  {selectedIds.length > 0 && (
                     <div style={{
-                      width: 18, height: 18, borderRadius: 5, flexShrink: 0,
-                      border: `2px solid ${isUrgent ? '#ef4444' : '#cbd5e1'}`,
-                      background: isUrgent ? '#ef4444' : '#fff',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s',
+                      padding: '9px 12px', borderRadius: 10,
+                      border: '1px solid var(--border-color)',
+                      background: '#fafafa',
+                      fontSize: 11, color: 'var(--text-muted)', fontWeight: 600,
+                      display: 'flex', alignItems: 'center', gap: 7,
                     }}>
-                      {isUrgent && <Check size={11} color="#fff" strokeWidth={3} />}
+                      <Zap size={13} color="#dc2626" />
+                      <span>
+                        <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>Urgent: </span>
+                        {urgentIds.size === 0
+                          ? 'None — tap ⚡ on a resource to mark it urgent'
+                          : (
+                            <>
+                              <span style={{ color: '#dc2626', fontWeight: 800 }}>{urgentIds.size}</span>
+                              {` of ${selectedIds.length} resource${selectedIds.length !== 1 ? 's' : ''} flagged`}
+                              {urgentIds.size < selectedIds.length && (
+                                <span style={{ color: '#64748b' }}> · {selectedIds.length - urgentIds.size} standard</span>
+                              )}
+                            </>
+                          )
+                        }
+                      </span>
                     </div>
-                    <Zap size={14} color={isUrgent ? '#dc2626' : '#94a3b8'} style={{ flexShrink: 0 }} />
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: isUrgent ? '#dc2626' : 'var(--text-primary)' }}>Mark as urgent</div>
-                      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>Notify manager immediately for priority handling</div>
-                    </div>
-                  </div>
+                  )}
                 </div>
               </div>
 
