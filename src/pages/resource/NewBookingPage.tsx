@@ -1029,7 +1029,7 @@ const NewBookingPage: React.FC = () => {
                       <span>
                         <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>Urgent: </span>
                         {urgentIds.size === 0
-                          ? 'None — tap ⚡ on a resource to mark it urgent'
+                          ? 'None — tap Urgent on a resource to mark it urgent'
                           : (
                             <>
                               <span style={{ color: '#dc2626', fontWeight: 800 }}>{urgentIds.size}</span>
