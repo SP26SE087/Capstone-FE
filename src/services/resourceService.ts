@@ -20,7 +20,7 @@ export interface ProjectResource {
 // Re-export for backward compatibility
 export type { CreateResourceRequest, UpdateResourceRequest } from '@/types/booking';
 
-const PAGE_SIZE_MAX = 200;
+const PAGE_SIZE_MAX = 50;
 
 async function fetchAllPages<T>(
   fetcher: (pageIndex: number, pageSize: number) => Promise<PaginatedResponse<T>>,
