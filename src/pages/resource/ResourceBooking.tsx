@@ -80,6 +80,25 @@ const formatDate = (s: string) => {
     return `${d.getDate().toString().padStart(2,'0')}/${(d.getMonth()+1).toString().padStart(2,'0')}/${d.getFullYear()} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
 };
 
+const findGroupedBookings = (booking: Booking, allBookings: Booking[]): Booking[] => {
+    const title = booking.title;
+    const start = (booking.startTime || '').slice(0, 16);
+    const end = (booking.endTime || '').slice(0, 16);
+    const uid = booking.userId ?? booking.userFullName ?? booking.userName ?? '';
+    const status = booking.status;
+
+    return allBookings.filter(b => {
+        const bStart = (b.startTime || '').slice(0, 16);
+        const bEnd = (b.endTime || '').slice(0, 16);
+        const bUid = b.userId ?? b.userFullName ?? b.userName ?? '';
+        return b.title === title &&
+               bStart === start &&
+               bEnd === end &&
+               bUid === uid &&
+               b.status === status;
+    });
+};
+
 // ─── Component ───────────────────────────────────────────────────────────────
 const ResourceBooking: React.FC = () => {
     const { user } = useAuth();
@@ -284,12 +303,29 @@ const ResourceBooking: React.FC = () => {
             showToast('Cannot open booking detail for this item.', 'warning');
             return;
         }
-        // Pass extra resources if this is a grouped booking (resources beyond what the single booking API returns)
-        setViewModalExtraResources(booking.resources ?? []);
-        // Pass all grouped IDs for approve/reject all
-        const gids = booking._groupedIds ?? [resolvedBookingId];
-        setViewModalGroupedIds(gids);
-        groupedIdsRef.current.set(resolvedBookingId, gids);
+        
+        let gids = booking._groupedIds;
+        let extraRes = booking.resources;
+
+        if (!gids || gids.length <= 1) {
+            const group = findGroupedBookings(booking, viewBookings);
+            gids = group.map(b => b.bookingId || b.id).filter(Boolean) as string[];
+            
+            const allResources = group.flatMap(b => b.resources ?? []);
+            const seen = new Set<string>();
+            extraRes = allResources.filter(r => {
+                if (seen.has(r.id)) return false;
+                seen.add(r.id);
+                return true;
+            });
+        }
+
+        const finalGids = gids && gids.length > 0 ? gids : [resolvedBookingId];
+        const finalExtraRes = extraRes ?? [];
+
+        setViewModalExtraResources(finalExtraRes);
+        setViewModalGroupedIds(finalGids);
+        groupedIdsRef.current.set(resolvedBookingId, finalGids);
         setViewModalBookingId(resolvedBookingId);
     };
 
@@ -406,7 +442,31 @@ const ResourceBooking: React.FC = () => {
 
     const handleViewBooking = (booking: Booking) => {
         const resolvedId = booking.bookingId || booking.id;
-        if (resolvedId) setViewModalBookingId(resolvedId);
+        if (!resolvedId) return;
+
+        let gids = booking._groupedIds;
+        let extraRes = booking.resources;
+
+        if (!gids || gids.length <= 1) {
+            const group = findGroupedBookings(booking, viewBookings);
+            gids = group.map(b => b.bookingId || b.id).filter(Boolean) as string[];
+            
+            const allResources = group.flatMap(b => b.resources ?? []);
+            const seen = new Set<string>();
+            extraRes = allResources.filter(r => {
+                if (seen.has(r.id)) return false;
+                seen.add(r.id);
+                return true;
+            });
+        }
+
+        const finalGids = gids && gids.length > 0 ? gids : [resolvedId];
+        const finalExtraRes = extraRes ?? [];
+
+        setViewModalExtraResources(finalExtraRes);
+        setViewModalGroupedIds(finalGids);
+        groupedIdsRef.current.set(resolvedId, finalGids);
+        setViewModalBookingId(resolvedId);
     };
 
     const handleCreateResourceType = () =>
@@ -749,7 +809,11 @@ const ResourceBooking: React.FC = () => {
                 {/* ── Booking detail modal overlay (Calendar / Timeline / Workspace) ── */}
                 {viewModalBookingId && (
                     <div
-                        onClick={() => setViewModalBookingId(null)}
+                        onClick={() => {
+                            setViewModalBookingId(null);
+                            setViewModalExtraResources([]);
+                            setViewModalGroupedIds([]);
+                        }}
                         style={{
                             position: 'fixed', inset: 0, zIndex: 100,
                             background: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(4px)',
@@ -771,10 +835,18 @@ const ResourceBooking: React.FC = () => {
                                 <BookingDetailPanel
                                     key={viewModalBookingId}
                                     bookingId={viewModalBookingId}
-                                    onClose={() => setViewModalBookingId(null)}
+                                    onClose={() => {
+                                        setViewModalBookingId(null);
+                                        setViewModalExtraResources([]);
+                                        setViewModalGroupedIds([]);
+                                    }}
                                     onSaved={(shouldClose, message) => {
                                         if (message) showToast(message, 'success');
-                                        if (shouldClose) setViewModalBookingId(null);
+                                        if (shouldClose) {
+                                            setViewModalBookingId(null);
+                                            setViewModalExtraResources([]);
+                                            setViewModalGroupedIds([]);
+                                        }
                                         fetchViewData();
                                         fetchData();
                                     }}

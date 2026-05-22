@@ -341,8 +341,51 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
     const loadBooking = async (silent = false) => {
         if (!silent) setLoading(true);
         try {
-            const data = await bookingService.getById(bookingId);
-            // Merge extraResources (from grouped bookings) into fetched data
+            // Fetch detailed resources for all bookings in the group if groupedBookingIds is provided
+            const bookingIdsToFetch = groupedBookingIds && groupedBookingIds.length > 0
+                ? groupedBookingIds
+                : [bookingId];
+
+            const primaryPromise = bookingService.getById(bookingId);
+            let data: Booking;
+
+            if (bookingIdsToFetch.length > 1) {
+                // Fetch details for all grouped bookings in parallel
+                const fetchPromises = bookingIdsToFetch.map(id =>
+                    bookingService.getById(id).catch(err => {
+                        console.error(`Failed to load grouped booking ${id}:`, err);
+                        return null;
+                    })
+                );
+                const results = await Promise.all(fetchPromises);
+
+                const primaryData = results[bookingIdsToFetch.indexOf(bookingId)];
+                if (!primaryData) {
+                    data = await primaryPromise;
+                } else {
+                    data = primaryData;
+                }
+
+                // Merge fully populated resources from all successful fetches
+                const mergedResources = [...(data.resources ?? [])];
+                const existingIds = new Set(mergedResources.map((r: any) => r.id));
+
+                for (const b of results) {
+                    if (b && b.id !== bookingId && b.resources) {
+                        for (const r of b.resources) {
+                            if (!existingIds.has(r.id)) {
+                                existingIds.add(r.id);
+                                mergedResources.push(r);
+                            }
+                        }
+                    }
+                }
+                data.resources = mergedResources;
+            } else {
+                data = await primaryPromise;
+            }
+
+            // Merge extraResources (from grouped bookings) into fetched data as a fallback
             if (extraResources && extraResources.length > 0) {
                 const existingIds = new Set((data.resources ?? []).map((r: any) => r.id));
                 const toMerge = extraResources.filter(r => !existingIds.has(r.id));
@@ -357,7 +400,8 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
             const isCompute = resources.some((r: any) =>
                 r.resourceTypeCategory === 2 ||
                 r.resourceTypeName?.toLowerCase().includes('compute') ||
-                r.resourceTypeName?.toLowerCase().includes('server')
+                r.resourceTypeName?.toLowerCase().includes('server') ||
+                r.resourceTypeName?.toLowerCase().includes('gpu rental')
             );
             if (isCompute) {
                 try {
