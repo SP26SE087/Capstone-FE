@@ -81,7 +81,7 @@ function hasConflict(resource: Resource, startDate: Date, endDate: Date, booking
     ) continue;
     const bs = new Date(b.startTime).getTime(), be = new Date(b.endTime).getTime();
     if (be <= sT || bs >= eT) continue;
-    const rIds = b.resourceIds ?? (b.resourceId ? [b.resourceId] : []);
+    const rIds = b.resources?.map(r => r.id) ?? [];
     for (const id of rIds) {
       if (unitIds.has(id)) { booked++; break; }
     }
@@ -110,7 +110,7 @@ function getDayAvailableCount(resource: Resource, day: Date, bookings: Booking[]
     if (b.status === BookingStatus.Rejected || b.status === BookingStatus.Cancelled || b.status === BookingStatus.Completed) continue;
     const bs = new Date(b.startTime), be = new Date(b.endTime);
     if (be <= sT || bs >= eT) continue;
-    const rIds = b.resourceIds ?? (b.resourceId ? [b.resourceId] : []);
+    const rIds = b.resources?.map(r => r.id) ?? [];
     for (const id of rIds) if (unitIds.has(id)) bookedIds.add(id);
   }
   return Math.max(0, total - bookedIds.size);
@@ -127,7 +127,7 @@ function getAvailableCount(resource: Resource, start: Date, end: Date, bookings:
     if (b.status === BookingStatus.Rejected || b.status === BookingStatus.Cancelled || b.status === BookingStatus.Completed) continue;
     const bs = new Date(b.startTime).getTime(), be = new Date(b.endTime).getTime();
     if (be <= sT || bs >= eT) continue;
-    const rIds = b.resourceIds ?? (b.resourceId ? [b.resourceId] : []);
+    const rIds = b.resources?.map(r => r.id) ?? [];
     for (const id of rIds) if (unitSet.has(id)) bookedIds.add(id);
   }
   return Math.max(0, resource.ids.length - bookedIds.size);

@@ -293,7 +293,7 @@ const BookingListView: React.FC<BookingListViewProps> = ({
                             const sc           = cfg(booking.status);
                             const isLast       = idx === group.bookings.length - 1;
 
-                            const resourceLabel = booking.resourceName
+                            const resourceLabel = booking.resources?.[0]?.name
                                 || (booking.quantity != null && booking.quantity > 0 ? `${booking.quantity} unit${booking.quantity > 1 ? 's' : ''}` : 'Resource');
 
                             const totalKept = adjustResGroups.reduce((s, g) => s + (groupKeptQtys[g.key] ?? g.ids.length), 0);
@@ -342,8 +342,8 @@ const BookingListView: React.FC<BookingListViewProps> = ({
                                                     </span>
                                                 )}
                                             </div>
-                                            {booking.resourceIds && booking.resourceIds.length > 1 && (
-                                                <div style={{ fontSize: '0.6rem', color: '#94a3b8' }}>{booking.resourceIds.length} units</div>
+                                            {booking.resources && booking.resources.length > 1 && (
+                                                <div style={{ fontSize: '0.6rem', color: '#94a3b8' }}>{booking.resources.length} units</div>
                                             )}
                                         </div>
 

@@ -244,7 +244,7 @@ const ResourceBooking: React.FC = () => {
         // "Check in" = user returns equipment (InUse → Completed)
         // API: bookingService.checkOut = action=1 (equipment returned)
         const booking = viewBookings.find(b => b.id === bookingId || b.bookingId === bookingId);
-        const resourceId = booking?.resourceIds?.[0] ?? booking?.resourceId ?? '';
+        const resourceId = booking?.resources?.[0]?.id ?? '';
         try {
             await bookingService.checkOut(bookingId, resourceId);
             showToast('Equipment returned.', 'success');
@@ -490,7 +490,7 @@ const ResourceBooking: React.FC = () => {
         if (!targets.length) return;
         setBulkChecking(true);
         try {
-            await Promise.all(targets.map(b => bookingService.checkOut(b.id, b.resourceIds?.[0] ?? '', bulkCheckOutNote.trim() || undefined)));
+            await Promise.all(targets.map(b => bookingService.checkOut(b.id, b.resources?.[0]?.id ?? '', bulkCheckOutNote.trim() || undefined)));
             const n = targets.length;
             showToast(`Check-in recorded for ${n} booking${n > 1 ? 's' : ''}.`, 'success');
             setBulkSelectedIds([]); setBulkCheckOutNote('');

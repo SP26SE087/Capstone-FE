@@ -88,7 +88,7 @@ const AdminBookingPanel: React.FC<AdminBookingPanelProps> = ({
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem' }}>
               <Package size={14} color="#3b82f6" />
-              <span style={{ color: '#475569' }}>Equipment: <span style={{ color: '#0f172a', fontWeight: 600 }}>{booking.resourceName}</span></span>
+              <span style={{ color: '#475569' }}>Equipment: <span style={{ color: '#0f172a', fontWeight: 600 }}>{booking.resources?.[0]?.name ?? booking.title}</span></span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem' }}>
               <User size={14} color="#3b82f6" />

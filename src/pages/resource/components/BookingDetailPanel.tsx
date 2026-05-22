@@ -278,7 +278,7 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
 
     // Derive these before any useEffect that references them to avoid temporal dead zone
     const bookingResources = booking?.resources ?? [];
-    const bookingResourceIds = booking?.resourceIds ?? bookingResources.map((r: any) => r.id);
+    const bookingResourceIds = bookingResources.map((r: any) => r.id);
     const resourceGroups = useMemo(() => groupResources(bookingResources), [bookingResources]);
     const isServerComputeBooking = useMemo(() => {
         return bookingResources.some((r: any) =>

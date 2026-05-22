@@ -150,18 +150,17 @@ function normalizeType(typeName?: string | null): string {
 function getBookingTypeNames(booking: Booking, resources: Resource[]): string[] {
     const names = new Set<string>();
 
+    // Primary: use new resources[] array from list API
     booking.resources?.forEach(r => {
         if (r.resourceTypeName?.trim()) names.add(r.resourceTypeName.trim());
     });
 
-    (booking.resourceIds ?? []).forEach(id => {
-        const resource = resources.find(r => r.id === id || r.ids?.includes(id));
-        if (resource?.resourceTypeName?.trim()) names.add(resource.resourceTypeName.trim());
-    });
-
-    if (names.size === 0 && booking.resourceId) {
-        const resource = resources.find(r => r.id === booking.resourceId || r.ids?.includes(booking.resourceId ?? ''));
-        if (resource?.resourceTypeName?.trim()) names.add(resource.resourceTypeName.trim());
+    // Fallback: look up from full resource list if resourceTypeName not in resources[]
+    if (names.size === 0) {
+        booking.resources?.forEach(r => {
+            const resource = resources.find(x => x.id === r.id || x.ids?.includes(r.id));
+            if (resource?.resourceTypeName?.trim()) names.add(resource.resourceTypeName.trim());
+        });
     }
 
     return Array.from(names);

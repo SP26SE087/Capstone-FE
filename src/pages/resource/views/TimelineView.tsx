@@ -141,7 +141,9 @@ export default function TimelineView({ bookings, resources, onOpenBooking, onNew
         const map: Record<string, Booking[]> = {};
         resources.forEach(r => { map[r.id] = []; });
         bookings.forEach(b => {
-            (b.resourceIds ?? (b.resourceId ? [b.resourceId] : [])).forEach(id => {
+            // Use new resources[] array; fall back gracefully if empty
+            const ids = b.resources?.map(r => r.id) ?? [];
+            ids.forEach(id => {
                 const r = resources.find(x => x.id === id || x.ids?.includes(id));
                 if (r && map[r.id]) map[r.id].push(b);
             });

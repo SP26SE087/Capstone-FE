@@ -91,7 +91,7 @@ const GlobalBookingList: React.FC<GlobalBookingListProps> = ({ bookings, loading
                         </span>
                       )}
                     </div>
-                    {isSplit && <div style={{ fontSize: '0.7rem', color: '#3b82f6', marginTop: '2px', fontWeight: 600 }}>{booking.resourceName}</div>}
+                    {isSplit && <div style={{ fontSize: '0.7rem', color: '#3b82f6', marginTop: '2px', fontWeight: 600 }}>{booking.resources?.[0]?.name}</div>}
                   </td>
                   {!isSplit && (
                     <td style={{ padding: '1rem' }}>
@@ -99,7 +99,7 @@ const GlobalBookingList: React.FC<GlobalBookingListProps> = ({ bookings, loading
                         padding: '4px 10px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 600, 
                         background: '#f1f5f9', color: '#475569'
                       }}>
-                        {booking.resourceName}
+                        {booking.resources?.[0]?.name}
                       </span>
                     </td>
                   )}

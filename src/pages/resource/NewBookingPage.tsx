@@ -72,7 +72,7 @@ function getAvailableCount(resource: Resource, start: Date, end: Date, bookings:
     if (![BookingStatus.Approved, BookingStatus.InUse].includes(b.status)) continue;
     const bs = new Date(b.startTime).getTime(), be = new Date(b.endTime).getTime();
     if (be <= sT || bs >= eT) continue;
-    const rIds = b.resourceIds ?? (b.resourceId ? [b.resourceId] : []);
+    const rIds = b.resources?.map(r => r.id) ?? [];
     for (const id of rIds) if (unitSet.has(id)) bookedIds.add(id);
   }
   return Math.max(0, resource.ids.length - bookedIds.size);
@@ -596,7 +596,7 @@ const NewBookingPage: React.FC = () => {
         const bs = new Date(b.startTime).getTime();
         const be = new Date(b.endTime).getTime();
         if (be <= sT || bs >= eT) continue;
-        const rIds = b.resourceIds ?? (b.resourceId ? [b.resourceId] : []);
+        const rIds = b.resources?.map(r => r.id) ?? [];
         for (const id of rIds) if (allIds.includes(id)) bookedIds.add(id);
       }
       const freeIds = allIds.filter(id => !bookedIds.has(id));

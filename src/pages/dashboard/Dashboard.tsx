@@ -376,7 +376,7 @@ function Dashboard() {
             if (Number.isNaN(start) || start < now || start > horizon) return;
             items.push({
                 id: `booking-${booking.bookingId || booking.id}`,
-                title: booking.title || booking.resourceName || 'Resource Booking',
+                title: booking.title || booking.resources?.[0]?.name || 'Resource Booking',
                 meta: formatBookingTimeRange(booking.startTime, booking.endTime),
                 start,
                 category: 'booking',
@@ -1070,7 +1070,7 @@ function Dashboard() {
                                                         overflow: 'hidden',
                                                         textOverflow: 'ellipsis'
                                                     }}>
-                                                        {booking.title || booking.resourceName || 'Resource Booking'}
+                                                        {booking.title || booking.resources?.[0]?.name || 'Resource Booking'}
                                                     </p>
                                                     <p style={{
                                                         margin: 0,

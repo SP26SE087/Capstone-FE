@@ -51,31 +51,31 @@ export function getResourceTypeMeta(typeName?: string | null): RtMeta {
 
 /** Find the primary resource metadata for a booking, falling back through available fields */
 export function getBookingRtMeta(booking: Booking, resources: Resource[]): RtMeta {
-    // 1. booking.resources[0].resourceTypeName (populated in some endpoints)
+    // 1. booking.resources[0].resourceTypeName (populated in list endpoints)
     if (booking.resources?.[0]?.resourceTypeName) {
         return getResourceTypeMeta(booking.resources[0].resourceTypeName);
     }
-    // 2. look up resource by ID from the full resource list
-    const firstId = booking.resourceIds?.[0] ?? booking.resourceId;
+    // 2. look up resource by ID from the full resource list using resources[]
+    const firstId = booking.resources?.[0]?.id;
     if (firstId) {
         const r = resources.find(x => x.id === firstId || x.ids?.includes(firstId));
         if (r?.resourceTypeName) return getResourceTypeMeta(r.resourceTypeName);
         if (r?.name) return getResourceTypeMeta(r.name);
     }
-    // 3. fall back to resourceName on booking
-    if (booking.resourceName) return getResourceTypeMeta(booking.resourceName);
     return RT_META_DEFAULT;
 }
 
 /** Primary resource display name for a booking */
 export function getBookingResourceLabel(booking: Booking, resources: Resource[]): string {
+    // Primary: new resources[] array from list API
     if (booking.resources?.[0]?.name) return booking.resources[0].name;
-    const firstId = booking.resourceIds?.[0] ?? booking.resourceId;
+    // Fallback: look up from full resource list by id
+    const firstId = booking.resources?.[0]?.id;
     if (firstId) {
         const r = resources.find(x => x.id === firstId || x.ids?.includes(firstId));
         if (r) return r.name;
     }
-    return booking.resourceName ?? 'Unknown resource';
+    return 'Unknown resource';
 }
 
 // ─── Date/time helpers ───────────────────────────────────────────────────────
