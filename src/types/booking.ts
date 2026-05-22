@@ -218,10 +218,16 @@ export interface BasicBookingResponse {
   status: BookingStatus;
   startTime: string;
   endTime: string;
+  title?: string;
+  purpose?: string;
   userId?: string;
+  userName?: string;
+  userFullName?: string;
+  isUrgent?: boolean;
   managerId?: string | null;
   managerFullName?: string;
   managerEmail?: string;
+  resources?: BasicResourceResponse[];
 }
 
 // Compute/Server Resource Types

@@ -8,8 +8,9 @@ import {
 import { Booking, Resource, BookingStatus } from '@/types/booking';
 import {
     STATUS_META, getBookingRtMeta, getBookingResourceLabel,
-    fmtTime, fmtDate, relTime, initials,
+    fmtTime, fmtDate, relTime, initials, groupBookings,
 } from './bookingViewUtils';
+
 
 // ─── Icon by name ─────────────────────────────────────────────────────────────
 function RtIcon({ iconName, size = 13 }: { iconName: string; size?: number }) {
@@ -69,8 +70,10 @@ function WSBookingCard({ booking, resources, onOpen, onApprove, onReject, onChec
             <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: rMeta.color }}>
                 <RtIcon iconName={rMeta.iconName} size={11} />
                 <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {getBookingResourceLabel(booking, resources)}
-                    {(booking.resources?.length ?? 0) > 1 ? ` +${booking.resources!.length - 1}` : ''}
+                    {booking.resources && booking.resources.length > 1
+                        ? booking.resources.map(r => r.name).join(', ')
+                        : getBookingResourceLabel(booking, resources)
+                    }
                 </span>
             </div>
             {/* Time */}
@@ -382,10 +385,12 @@ export default function WorkspaceView({
     const isManager = !!currentUserId && bookings.some(b => b.managerId === currentUserId);
 
     const sortByStart = (a: Booking, b: Booking) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
-    const pending   = filtered.filter(b => b.status === BookingStatus.Pending).sort(sortByStart);
-    const approved  = filtered.filter(b => b.status === BookingStatus.Approved).sort(sortByStart);
-    const inUse     = filtered.filter(b => b.status === BookingStatus.InUse).sort(sortByStart);
-    const completed = filtered.filter(b => b.status === BookingStatus.Completed).sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime()).slice(0, 15);
+    const groupedFiltered = groupBookings(filtered);
+    const pending   = groupedFiltered.filter(b => b.status === BookingStatus.Pending).sort(sortByStart);
+    const approved  = groupedFiltered.filter(b => b.status === BookingStatus.Approved).sort(sortByStart);
+    const inUse     = groupedFiltered.filter(b => b.status === BookingStatus.InUse).sort(sortByStart);
+    const completed = groupedFiltered.filter(b => b.status === BookingStatus.Completed).sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime()).slice(0, 15);
+
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>

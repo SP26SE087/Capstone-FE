@@ -136,3 +136,43 @@ export function bookingsOnDay(bookings: Booking[], date: Date): Booking[] {
                s.getDate() === date.getDate();
     });
 }
+
+// ─── Booking group utility ────────────────────────────────────────────────────
+/**
+ * Merge bookings that share the same (title + userId + startTime + endTime)
+ * into a single virtual Booking with combined resources[].
+ * Bookings that differ in ANY of those fields stay separate.
+ * The merged booking uses the first booking's id (for click → detail).
+ */
+export function groupBookings(bookings: Booking[]): Booking[] {
+    const map = new Map<string, Booking[]>();
+    for (const b of bookings) {
+        // Normalize times to minute precision to avoid sub-second mismatches
+        const start = b.startTime.slice(0, 16);
+        const end   = b.endTime.slice(0, 16);
+        const uid   = b.userId ?? b.userFullName ?? b.userName ?? '';
+        const key   = `${b.title}|${uid}|${start}|${end}|${b.status}`;
+        if (!map.has(key)) map.set(key, []);
+        map.get(key)!.push(b);
+    }
+
+    const result: Booking[] = [];
+    for (const group of map.values()) {
+        if (group.length === 1) {
+            result.push(group[0]);
+            continue;
+        }
+        // Merge: combine all resources[], keep first booking's metadata
+        const allResources = group.flatMap(b => b.resources ?? []);
+        // Deduplicate by resource id
+        const seen = new Set<string>();
+        const mergedResources = allResources.filter(r => {
+            if (seen.has(r.id)) return false;
+            seen.add(r.id);
+            return true;
+        });
+        result.push({ ...group[0], resources: mergedResources });
+    }
+
+    return result;
+}

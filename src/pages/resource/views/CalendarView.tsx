@@ -7,8 +7,8 @@ import {
 import { Booking, Resource, BookingStatus, BasicResourceResponse } from '@/types/booking';
 import {
     STATUS_META, getBookingRtMeta, getBookingResourceLabel,
-    fmtTime, fmtDate, fmtFullDate, sameDay, relTime, initials,
-    buildMonthGrid, bookingsOnDay,
+    fmtTime, fmtDate, fmtFullDate, relTime, initials,
+    sameDay, buildMonthGrid, bookingsOnDay, groupBookings,
 } from './bookingViewUtils';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -644,11 +644,13 @@ function DaySidebar({ selectedDate, bookings, resources, onOpenBooking }: {
     onOpenBooking: (b: Booking) => void;
 }) {
     const visibleBookings = useMemo(
-        () => bookingsOnDay(bookings, selectedDate)
-            .filter(b => b.status !== BookingStatus.Cancelled)
-            .sort(sortByStatusThenBorrowTime),
+        () => groupBookings(
+            bookingsOnDay(bookings, selectedDate)
+                .filter(b => b.status !== BookingStatus.Cancelled)
+        ).sort(sortByStatusThenBorrowTime),
         [bookings, selectedDate]
     );
+
 
     const groupedByStatus = useMemo(
         () => DAY_STATUS_ORDER
@@ -707,7 +709,11 @@ function DaySidebar({ selectedDate, bookings, resources, onOpenBooking }: {
                                                         onMouseEnter={e => { e.currentTarget.style.background = '#f8fafc'; }}
                                                         onMouseLeave={e => { e.currentTarget.style.background = '#fff'; }}>
                                                         <div style={{ display: 'flex', alignItems: 'start', justifyContent: 'space-between', gap: 8, marginBottom: 5 }}>
-                                                            <div style={{ fontSize: 13.5, fontWeight: 800, lineHeight: 1.3 }}>{getBookingResourceLabel(b, resources)}</div>
+                                                            <div style={{ fontSize: 13.5, fontWeight: 800, lineHeight: 1.3 }}>
+                                                                {b.resources && b.resources.length > 1
+                                                                    ? b.resources.map(r => r.name).join(', ')
+                                                                    : getBookingResourceLabel(b, resources)}
+                                                            </div>
                                                             <div style={{
                                                                 fontSize: 11.5,
                                                                 fontWeight: 800,
