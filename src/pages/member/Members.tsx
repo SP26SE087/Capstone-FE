@@ -481,6 +481,7 @@ const Members: React.FC = () => {
         <FaceScannerModal
             isOpen={Boolean(faceScanData)}
             onClose={() => setFaceScanData(null)}
+            onSuccess={fetchMembers}
             initialStudentId={faceScanData?.studentId ?? ''}
             userName={faceScanData?.userName ?? ''}
         />

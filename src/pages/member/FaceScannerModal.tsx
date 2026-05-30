@@ -8,6 +8,7 @@ import { useToastStore } from '@/store/slices/toastSlice';
 interface FaceScannerModalProps {
     isOpen: boolean;
     onClose: () => void;
+    onSuccess?: () => void; // callback để parent refresh list sau khi activate thành công
     initialStudentId: string;
     userName: string;
 }
@@ -15,7 +16,7 @@ interface FaceScannerModalProps {
 const FACE_BASE_URL = (import.meta.env.VITE_FACE_SERVER_URL as string || 'http://localhost:5000').replace(/\/$/, '');
 const FACE_VIDEO_FEED = `${FACE_BASE_URL}/video_feed`;
 
-const FaceScannerModal: React.FC<FaceScannerModalProps> = ({ isOpen, onClose, initialStudentId, userName }) => {
+const FaceScannerModal: React.FC<FaceScannerModalProps> = ({ isOpen, onClose, onSuccess, initialStudentId, userName }) => {
     const [isScanning, setIsScanning] = useState(false);
     const [status, setStatus] = useState<string | null>(null);
     const [videoSrc, setVideoSrc] = useState<string | undefined>(undefined);
@@ -57,6 +58,8 @@ const FaceScannerModal: React.FC<FaceScannerModalProps> = ({ isOpen, onClose, in
                 if (userId) {
                     await userService.updateUser(userId, { isActive: true });
                     addToast('Biometric registered. Account activated successfully.', 'success');
+                    // Refresh list ở parent TRƯỚC khi đóng modal để UI cập nhật đúng
+                    onSuccess?.();
                 } else {
                     addToast('Biometric saved. Could not activate account: user not found.', 'error');
                 }
@@ -64,13 +67,15 @@ const FaceScannerModal: React.FC<FaceScannerModalProps> = ({ isOpen, onClose, in
                 console.error('Failed to activate user account:', updateErr);
                 addToast('Biometric saved but failed to activate account.', 'error');
             }
+            // Tự động đóng modal sau khi hoàn tất
+            onClose();
         } catch (err) {
             console.error('Stop scan failed:', err);
             setIsScanning(false);
             setStatus(null);
             addToast((err as any).message || 'Failed to stop biometric registration.', 'error');
         }
-    }, [stopPolling, initialStudentId, addToast]);
+    }, [stopPolling, initialStudentId, addToast, onSuccess, onClose]);
 
     const startPolling = useCallback((email: string, startTime: number) => {
         pollIntervalRef.current = setInterval(async () => {

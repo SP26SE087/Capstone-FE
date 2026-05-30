@@ -752,6 +752,7 @@ const UserManagement: React.FC = () => {
             <FaceScannerModal
                 isOpen={Boolean(faceScanData)}
                 onClose={() => setFaceScanData(null)}
+                onSuccess={loadMembers}
                 initialStudentId={faceScanData?.studentId ?? ''}
                 userName={faceScanData?.userName ?? ''}
             />
