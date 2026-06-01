@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ChevronRight, Home } from 'lucide-react';
-
+import { useAuth } from '@/hooks/useAuth';
 interface BreadcrumbItem {
     label: string;
     path: string;
@@ -10,7 +10,8 @@ interface BreadcrumbItem {
 
 const Breadcrumbs: React.FC = () => {
     const location = useLocation();
-    const rawSegments = location.pathname.split('/').filter((x) => x);
+    const { user } = useAuth();
+    const role = user ? Number(user.role) : null;
 
     const getLabel = (path: string): string => {
         const labels: Record<string, string> = {
@@ -35,19 +36,33 @@ const Breadcrumbs: React.FC = () => {
         return labels[path] || path.charAt(0).toUpperCase() + path.slice(1);
     };
 
-    const breadcrumbs: BreadcrumbItem[] = [
-        { label: 'LabSync', path: '/dashboard' }
-    ];
+    let breadcrumbs: BreadcrumbItem[] = [];
 
-    rawSegments.forEach((value, index) => {
-        if (value === 'admin') return;
-        const path = `/${rawSegments.slice(0, index + 1).join('/')}`;
-        breadcrumbs.push({
-            label: getLabel(value),
-            path,
-            active: index === rawSegments.length - 1
+    if (location.pathname === '/admin/server-setup-guide') {
+        breadcrumbs = [
+            { label: 'LabSync', path: '/dashboard' }
+        ];
+        if (role === 1) {
+            breadcrumbs.push({ label: 'Compute', path: '/admin/compute' });
+        } else {
+            breadcrumbs.push({ label: 'Bookings', path: '/bookings' });
+        }
+        breadcrumbs.push({ label: 'Server Setup Guide', path: '/admin/server-setup-guide', active: true });
+    } else {
+        const rawSegments = location.pathname.split('/').filter((x) => x);
+        breadcrumbs = [
+            { label: 'LabSync', path: '/dashboard' }
+        ];
+        rawSegments.forEach((value, index) => {
+            if (value === 'admin') return;
+            const path = `/${rawSegments.slice(0, index + 1).join('/')}`;
+            breadcrumbs.push({
+                label: getLabel(value),
+                path,
+                active: index === rawSegments.length - 1
+            });
         });
-    });
+    }
 
     // Don't show on dashboard itself if you want
     if (location.pathname === '/dashboard') return null;
