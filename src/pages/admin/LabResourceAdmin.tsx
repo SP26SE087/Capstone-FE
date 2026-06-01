@@ -363,15 +363,16 @@ const LabResourceAdmin: React.FC<LabResourceAdminProps> = ({ initialTab }) => {
              )}
              {activeTab === 'servers' && (
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <button
+                   <button
                     onClick={() => navigate('/admin/server-setup-guide')}
                     style={{
                       display: 'flex', alignItems: 'center', gap: '6px',
-                      background: 'transparent', color: '#2563eb', border: '1px solid #bfdbfe',
+                      background: 'linear-gradient(135deg, #10b981, #059669)', color: 'white', border: 'none',
                       fontSize: '0.8rem', fontWeight: 600, padding: '8px 14px', borderRadius: '10px', cursor: 'pointer',
+                      boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)'
                     }}
                   >
-                    <BookOpen size={14} /> Setup Guide
+                    <BookOpen size={14} /> First time? Server Setup Guide
                   </button>
                   <button onClick={handleOpenServer} style={{
                     background: 'linear-gradient(135deg, #0ea5e9, #2563eb)', color: 'white', display: 'flex', alignItems: 'center', gap: '6px',
@@ -433,11 +434,11 @@ const LabResourceAdmin: React.FC<LabResourceAdminProps> = ({ initialTab }) => {
                         <Server size={40} style={{ opacity: 0.35 }} />
                         <p style={{ margin: 0, fontWeight: 600, fontSize: '0.9rem' }}>No compute servers registered yet.</p>
                         <div style={{ display: 'flex', gap: '8px' }}>
-                          <button
+                           <button
                             onClick={() => navigate('/admin/server-setup-guide')}
-                            style={{ padding: '8px 16px', borderRadius: '9px', border: '1px solid #bfdbfe', background: '#eff6ff', color: '#2563eb', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                            style={{ padding: '8px 16px', borderRadius: '9px', border: 'none', background: 'linear-gradient(135deg, #10b981, #059669)', color: 'white', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)' }}
                           >
-                            <BookOpen size={13} /> Server Setup Guide
+                            <BookOpen size={13} /> First time? Server Setup Guide
                           </button>
                           <button onClick={handleOpenServer} style={{ padding: '8px 20px', borderRadius: '9px', border: 'none', background: 'linear-gradient(135deg, #0ea5e9, #2563eb)', color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>
                             Register First Server

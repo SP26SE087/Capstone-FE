@@ -7,7 +7,7 @@ interface AuthGuardProps {
 }
 
 // Routes that Admin (role 1) is allowed to access
-const ADMIN_ALLOWED_PATHS = ['/user-management', '/profile', '/admin/compute', '/admin/contactors', '/admin/camera-monitor'];
+const ADMIN_ALLOWED_PATHS = ['/user-management', '/profile', '/admin/compute', '/admin/contactors', '/admin/camera-monitor', '/admin/server-setup-guide'];
 
 const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
     const location = useLocation();

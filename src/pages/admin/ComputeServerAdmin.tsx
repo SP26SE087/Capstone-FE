@@ -143,9 +143,10 @@ export const ComputeServerContent: React.FC = () => {
             onClick={() => navigate('/admin/server-setup-guide')}
             style={{
               display: 'flex', alignItems: 'center', gap: '5px', marginLeft: 'auto',
-              padding: '4px 12px', borderRadius: '8px', border: '1px solid #bfdbfe',
-              background: '#fff', color: '#2563eb', cursor: 'pointer',
-              fontSize: '0.73rem', fontWeight: 700, whiteSpace: 'nowrap' as const,
+              padding: '6px 14px', borderRadius: '8px', border: 'none',
+              background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff', cursor: 'pointer',
+              fontSize: '0.75rem', fontWeight: 700, whiteSpace: 'nowrap' as const,
+              boxShadow: '0 2px 6px rgba(16, 185, 129, 0.35)',
             }}
           >
             <BookOpen size={12} /> First time? Server Setup Guide

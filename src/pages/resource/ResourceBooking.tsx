@@ -1016,13 +1016,13 @@ const ResourceBooking: React.FC = () => {
                                         )}
                                     </div>
                                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                        {mainTab === 'resources' && isServerTab && isLabDirector && (
+                                        {mainTab === 'resources' && isLabDirector && (
                                             <button onClick={() => navigate('/admin/server-setup-guide')} style={{
                                                 display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700,
                                                 padding: '0 14px', height: '32px', borderRadius: '8px', fontSize: '0.8rem',
-                                                background: 'transparent', border: '1px solid #bfdbfe',
-                                                color: '#2563eb', cursor: 'pointer'
-                                            }}><BookOpen size={14} /> Setup Guide</button>
+                                                background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none',
+                                                color: '#fff', cursor: 'pointer', boxShadow: '0 2px 6px rgba(16, 185, 129, 0.35)'
+                                            }}><BookOpen size={14} /> First time? Server Setup Guide</button>
                                         )}
                                         {mainTab === 'resources' && isResourceTypeTab && !isServerTab && isLabDirector && (
                                             <button onClick={handleCreateResourceType} style={{

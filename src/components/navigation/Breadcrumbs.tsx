@@ -10,7 +10,7 @@ interface BreadcrumbItem {
 
 const Breadcrumbs: React.FC = () => {
     const location = useLocation();
-    const pathnames = location.pathname.split('/').filter((x) => x);
+    const rawSegments = location.pathname.split('/').filter((x) => x);
 
     const getLabel = (path: string): string => {
         const labels: Record<string, string> = {
@@ -23,7 +23,8 @@ const Breadcrumbs: React.FC = () => {
             'new': 'New',
             'profile': 'Profile',
             'settings': 'Settings',
-            'users': 'Users'
+            'users': 'Users',
+            'server-setup-guide': 'Server Setup Guide'
         };
         
         // Handle UUIDs or IDs (basic check)
@@ -35,16 +36,18 @@ const Breadcrumbs: React.FC = () => {
     };
 
     const breadcrumbs: BreadcrumbItem[] = [
-        { label: 'LabSync', path: '/dashboard' },
-        ...pathnames.map((value, index) => {
-            const path = `/${pathnames.slice(0, index + 1).join('/')}`;
-            return {
-                label: getLabel(value),
-                path,
-                active: index === pathnames.length - 1
-            };
-        })
+        { label: 'LabSync', path: '/dashboard' }
     ];
+
+    rawSegments.forEach((value, index) => {
+        if (value === 'admin') return;
+        const path = `/${rawSegments.slice(0, index + 1).join('/')}`;
+        breadcrumbs.push({
+            label: getLabel(value),
+            path,
+            active: index === rawSegments.length - 1
+        });
+    });
 
     // Don't show on dashboard itself if you want
     if (location.pathname === '/dashboard') return null;
