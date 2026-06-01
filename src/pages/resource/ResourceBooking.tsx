@@ -35,6 +35,7 @@ import {
     Cpu,
     Server,
     Wifi,
+    BookOpen,
 } from 'lucide-react';
 
 import ResourceListView from './components/ResourceListView';
@@ -1015,6 +1016,14 @@ const ResourceBooking: React.FC = () => {
                                         )}
                                     </div>
                                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                        {mainTab === 'resources' && isServerTab && isLabDirector && (
+                                            <button onClick={() => navigate('/admin/server-setup-guide')} style={{
+                                                display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700,
+                                                padding: '0 14px', height: '32px', borderRadius: '8px', fontSize: '0.8rem',
+                                                background: 'transparent', border: '1px solid #bfdbfe',
+                                                color: '#2563eb', cursor: 'pointer'
+                                            }}><BookOpen size={14} /> Setup Guide</button>
+                                        )}
                                         {mainTab === 'resources' && isResourceTypeTab && !isServerTab && isLabDirector && (
                                             <button onClick={handleCreateResourceType} style={{
                                                 display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700,
