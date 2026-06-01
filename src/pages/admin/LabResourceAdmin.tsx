@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import MainLayout from '@/layout/MainLayout';
 import { useAuth } from '@/hooks/useAuth';
 import ResourceManagement from '@/features/resources/ResourceManagement';
@@ -11,7 +12,7 @@ import { equipmentLogService } from '@/services/equipmentLogService';
 import { userService } from '@/services/userService';
 import { bookingService, BookingResponse } from '@/services/bookingService';
 import { serverService } from '@/services/serverService';
-import { Package, Activity, Loader2, CalendarRange, Search, Plus, ShieldCheck, AlertCircle, Server, Wifi, WifiOff, RefreshCw } from 'lucide-react';
+import { Package, Activity, Loader2, CalendarRange, Search, Plus, ShieldCheck, AlertCircle, Server, Wifi, WifiOff, RefreshCw, BookOpen } from 'lucide-react';
 import { useToastStore } from '@/store/slices/toastSlice';
 import { resourceTypeService, ResourceTypeItem, ResourceTypeCategory } from '@/services/resourceTypeService';
 
@@ -130,6 +131,7 @@ interface ActivePanel {
 const LabResourceAdmin: React.FC<LabResourceAdminProps> = ({ initialTab }) => {
   const { user } = useAuth();
   const { addToast } = useToastStore();
+  const navigate = useNavigate();
   
   // State
   const [activeTab, setActiveTab] = useState<TabType>(initialTab ?? 'inventory');
@@ -360,12 +362,24 @@ const LabResourceAdmin: React.FC<LabResourceAdminProps> = ({ initialTab }) => {
                 </button>
              )}
              {activeTab === 'servers' && (
-                <button onClick={handleOpenServer} style={{ 
-                  background: 'linear-gradient(135deg, #0ea5e9, #2563eb)', color: 'white', display: 'flex', alignItems: 'center', gap: '6px',
-                  fontSize: '0.8rem', fontWeight: 600, padding: '8px 16px', borderRadius: '10px', border: 'none', cursor: 'pointer', boxShadow: '0 4px 12px rgba(14, 165, 233, 0.25)'
-                }}>
-                  <Plus size={14} /> Register Server
-                </button>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <button
+                    onClick={() => navigate('/admin/server-setup-guide')}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '6px',
+                      background: 'transparent', color: '#2563eb', border: '1px solid #bfdbfe',
+                      fontSize: '0.8rem', fontWeight: 600, padding: '8px 14px', borderRadius: '10px', cursor: 'pointer',
+                    }}
+                  >
+                    <BookOpen size={14} /> Setup Guide
+                  </button>
+                  <button onClick={handleOpenServer} style={{
+                    background: 'linear-gradient(135deg, #0ea5e9, #2563eb)', color: 'white', display: 'flex', alignItems: 'center', gap: '6px',
+                    fontSize: '0.8rem', fontWeight: 600, padding: '8px 16px', borderRadius: '10px', border: 'none', cursor: 'pointer', boxShadow: '0 4px 12px rgba(14, 165, 233, 0.25)'
+                  }}>
+                    <Plus size={14} /> Register Server
+                  </button>
+                </div>
              )}
           </div>
         </div>
@@ -418,9 +432,17 @@ const LabResourceAdmin: React.FC<LabResourceAdminProps> = ({ initialTab }) => {
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '60%', gap: '12px', color: '#94a3b8' }}>
                         <Server size={40} style={{ opacity: 0.35 }} />
                         <p style={{ margin: 0, fontWeight: 600, fontSize: '0.9rem' }}>No compute servers registered yet.</p>
-                        <button onClick={handleOpenServer} style={{ padding: '8px 20px', borderRadius: '9px', border: 'none', background: 'linear-gradient(135deg, #0ea5e9, #2563eb)', color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>
-                          Register First Server
-                        </button>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button
+                            onClick={() => navigate('/admin/server-setup-guide')}
+                            style={{ padding: '8px 16px', borderRadius: '9px', border: '1px solid #bfdbfe', background: '#eff6ff', color: '#2563eb', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+                          >
+                            <BookOpen size={13} /> Server Setup Guide
+                          </button>
+                          <button onClick={handleOpenServer} style={{ padding: '8px 20px', borderRadius: '9px', border: 'none', background: 'linear-gradient(135deg, #0ea5e9, #2563eb)', color: '#fff', fontWeight: 700, fontSize: '0.82rem', cursor: 'pointer' }}>
+                            Register First Server
+                          </button>
+                        </div>
                       </div>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>

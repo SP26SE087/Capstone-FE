@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import MainLayout from '@/layout/MainLayout';
 import { useToastStore } from '@/store/slices/toastSlice';
 import { resourceTypeService, ResourceTypeItem, ResourceTypeCategory } from '@/services/resourceTypeService';
@@ -11,7 +12,7 @@ import {
   Server, Layers, Plus, Loader2, Edit2, Trash2, CheckCircle2,
   XCircle, Cpu, MemoryStick, Zap, Users, X, ShieldCheck,
   ChevronRight, Tag, Eye, MapPin, Network, Hash, Key, Mail, UserCircle,
-  Calendar, AlertTriangle,
+  Calendar, AlertTriangle, BookOpen,
 } from 'lucide-react';
 import ConfirmModal from '@/components/common/ConfirmModal';
 import ResourceTypePanel from '@/pages/resource/components/ResourceTypePanel';
@@ -37,6 +38,7 @@ const badge = (label: string, color: string, bg: string) => (
 // ─── Embeddable content (no MainLayout) ────────────────────────────────────
 export const ComputeServerContent: React.FC = () => {
   const { addToast } = useToastStore();
+  const navigate = useNavigate();
   const [tab, setTab] = useState<TabType>('types');
   const [slidePanel, setSlidePanel] = useState<SlidePanel | null>(null);
 
@@ -126,16 +128,28 @@ export const ComputeServerContent: React.FC = () => {
         <div style={{
           display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 16px',
           background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '12px', marginBottom: '20px',
+          flexWrap: 'wrap',
         }}>
           <ShieldCheck size={15} style={{ color: '#2563eb', flexShrink: 0 }} />
           <span style={{ fontSize: '0.78rem', color: '#1d4ed8', fontWeight: 600 }}>Setup flow:</span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: '#3b82f6' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem', color: '#3b82f6', flex: 1 }}>
             <span style={{ padding: '2px 8px', background: '#dbeafe', borderRadius: '6px', fontWeight: 700 }}>Step 1</span>
             Create a ServerCompute resource type
             <ChevronRight size={13} />
             <span style={{ padding: '2px 8px', background: '#dbeafe', borderRadius: '6px', fontWeight: 700 }}>Step 2</span>
             Register a compute server (with SSH credentials)
           </div>
+          <button
+            onClick={() => navigate('/admin/server-setup-guide')}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '5px', marginLeft: 'auto',
+              padding: '4px 12px', borderRadius: '8px', border: '1px solid #bfdbfe',
+              background: '#fff', color: '#2563eb', cursor: 'pointer',
+              fontSize: '0.73rem', fontWeight: 700, whiteSpace: 'nowrap' as const,
+            }}
+          >
+            <BookOpen size={12} /> First time? Server Setup Guide
+          </button>
         </div>
 
         {/* ── Tab bar ── */}

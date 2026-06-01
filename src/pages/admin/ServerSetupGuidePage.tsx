@@ -1,11 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import MainLayout from '@/layout/MainLayout';
-import { useAuth } from '@/hooks/useAuth';
 import {
   Server, ChevronDown, ChevronRight, Copy, Check, Terminal,
   Shield, Cpu, HardDrive, Zap, Settings, CheckCircle2,
-  AlertTriangle, Info, BookOpen, ArrowRight, ExternalLink,
+  AlertTriangle, Info, BookOpen, ExternalLink,
   Clock, User, ToggleLeft, Package, Wrench, RefreshCw,
   Network, Lock, Monitor,
 } from 'lucide-react';
@@ -190,12 +188,6 @@ const P: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 const ServerSetupGuidePage: React.FC = () => {
-  const navigate = useNavigate();
-  const { user } = useAuth();
-  const role = String(user?.role ?? '');
-  const isAdmin = Number(role) === 1 || role === 'Admin';
-  // Admin → /admin/compute, Lab Director → /admin/servers (LabResourceAdmin servers tab)
-  const serverRoute = isAdmin ? '/admin/compute' : '/admin/servers';
   const [activeToc, setActiveToc] = useState('phase-1');
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -568,19 +560,6 @@ sudo userdel -r testuser`} />
             </div>
 
             <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-              <button
-                onClick={() => navigate(serverRoute)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '7px',
-                  padding: '9px 20px', borderRadius: '10px', border: 'none', cursor: 'pointer',
-                  background: 'linear-gradient(135deg, #0ea5e9, #2563eb)', color: '#fff',
-                  fontWeight: 700, fontSize: '0.83rem', boxShadow: '0 4px 16px rgba(37,99,235,0.35)',
-                }}
-              >
-                <Server size={14} />
-                Go to Compute Servers
-                <ArrowRight size={13} />
-              </button>
               <a
                 href="https://docs.docker.com/engine/security/rootless/"
                 target="_blank"
@@ -588,8 +567,9 @@ sudo userdel -r testuser`} />
                 style={{
                   display: 'flex', alignItems: 'center', gap: '7px',
                   padding: '9px 20px', borderRadius: '10px', cursor: 'pointer',
-                  background: 'rgba(255,255,255,0.08)', color: '#cbd5e1', border: '1px solid rgba(255,255,255,0.15)',
+                  background: 'linear-gradient(135deg, #0ea5e9, #2563eb)', color: '#fff',
                   fontWeight: 700, fontSize: '0.83rem', textDecoration: 'none',
+                  boxShadow: '0 4px 16px rgba(37,99,235,0.35)',
                 }}
               >
                 <BookOpen size={14} />
@@ -743,35 +723,7 @@ sudo userdel -r testuser`} />
               </div>
             </div>
 
-            {/* ── CTA ── */}
-            <div style={{
-              background: 'linear-gradient(135deg, #0f172a, #1e293b)',
-              borderRadius: '16px', padding: '24px 28px', marginBottom: '12px',
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '20px', flexWrap: 'wrap',
-            }}>
-              <div>
-                <div style={{ fontWeight: 900, fontSize: '1.1rem', color: '#f1f5f9', marginBottom: '5px' }}>
-                  Ready to register your server?
-                </div>
-                <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
-                  Once the OS is set up, head to Compute Servers to register it in LabSync.
-                </div>
-              </div>
-              <button
-                onClick={() => navigate(serverRoute)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '8px',
-                  padding: '11px 24px', borderRadius: '11px', border: 'none', cursor: 'pointer',
-                  background: 'linear-gradient(135deg, #0ea5e9, #2563eb)', color: '#fff',
-                  fontWeight: 700, fontSize: '0.88rem', boxShadow: '0 4px 16px rgba(37,99,235,0.4)',
-                  flexShrink: 0,
-                }}
-              >
-                <Server size={16} />
-                Register Server Now
-                <ArrowRight size={14} />
-              </button>
-            </div>
+
 
             {/* Footer */}
             <div style={{ textAlign: 'center', padding: '12px', fontSize: '0.72rem', color: '#94a3b8' }}>
