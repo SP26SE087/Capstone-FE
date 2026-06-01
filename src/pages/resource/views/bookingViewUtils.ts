@@ -143,6 +143,12 @@ export function bookingsOnDay(bookings: Booking[], date: Date): Booking[] {
  * into a single virtual Booking with combined resources[].
  * Bookings that differ in ANY of those fields stay separate.
  * The merged booking uses the first booking's id (for click → detail).
+ *
+ * NOTE: Status is intentionally NOT part of the key. When a user books resources
+ * managed by different managers, the backend creates one booking per manager.
+ * Each manager approves independently, so the statuses may differ at any given time
+ * (e.g. one is Approved while another is still Pending). We always group them together
+ * so the UI shows a single coherent card for the whole booking request.
  */
 export function groupBookings(bookings: Booking[]): Booking[] {
     const map = new Map<string, Booking[]>();
@@ -151,7 +157,7 @@ export function groupBookings(bookings: Booking[]): Booking[] {
         const start = b.startTime.slice(0, 16);
         const end   = b.endTime.slice(0, 16);
         const uid   = b.userId ?? b.userFullName ?? b.userName ?? '';
-        const key   = `${b.title}|${uid}|${start}|${end}|${b.status}`;
+        const key   = `${b.title}|${uid}|${start}|${end}`;
         if (!map.has(key)) map.set(key, []);
         map.get(key)!.push(b);
     }
@@ -173,7 +179,23 @@ export function groupBookings(bookings: Booking[]): Booking[] {
         });
         // Store all constituent IDs so approve/reject can act on all of them
         const allIds = group.map(b => b.bookingId || b.id).filter(Boolean) as string[];
-        result.push({ ...group[0], resources: mergedResources, _groupedIds: allIds });
+
+        // When bookings have mixed statuses (e.g. one manager approved, another hasn't),
+        // pick the most "attention-needed" status to surface on the merged card.
+        // Priority: Pending > InUse > Approved > Completed > Rejected/Cancelled
+        const STATUS_PRIORITY: Record<number, number> = {
+            [BookingStatus.Pending]:   0,
+            [BookingStatus.InUse]:     1,
+            [BookingStatus.Approved]:  2,
+            [BookingStatus.Completed]: 3,
+            [BookingStatus.Rejected]:  4,
+            [BookingStatus.Cancelled]: 5,
+        };
+        const representative = group.slice().sort(
+            (a, b) => (STATUS_PRIORITY[a.status] ?? 99) - (STATUS_PRIORITY[b.status] ?? 99)
+        )[0];
+
+        result.push({ ...representative, resources: mergedResources, _groupedIds: allIds });
     }
 
     return result;

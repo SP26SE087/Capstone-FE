@@ -257,6 +257,7 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
     const { user } = useAuth();
     const { addToast } = useToastStore();
     const [booking, setBooking] = useState<Booking | null>(null);
+    const [constituentBookings, setConstituentBookings] = useState<Booking[]>([]);
     const [loading, setLoading] = useState(false);
     const [actionLoading, setActionLoading] = useState(false);
     const [rejectReason, setRejectReason] = useState('');
@@ -294,6 +295,52 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
             r.resourceTypeName?.toLowerCase().includes('gpu rental')
         );
     }, [bookingResources]);
+
+    const uniqueManagers = useMemo(() => {
+        const managersMap = new Map<string, { name: string; email: string; resourceNames: string[] }>();
+        constituentBookings.forEach(b => {
+            const name = b.managerFullName;
+            const email = b.managerEmail;
+            if (name && email) {
+                const key = email.toLowerCase();
+                const existing = managersMap.get(key);
+                const resNames = b.resources?.map(r => r.name) ?? [];
+                if (existing) {
+                    resNames.forEach(rn => {
+                        if (!existing.resourceNames.includes(rn)) {
+                            existing.resourceNames.push(rn);
+                        }
+                    });
+                } else {
+                    managersMap.set(key, { name, email, resourceNames: resNames });
+                }
+            }
+        });
+        return Array.from(managersMap.values());
+    }, [constituentBookings]);
+
+    const uniqueApprovers = useMemo(() => {
+        const approversMap = new Map<string, { name: string; email: string; approvedAt?: string | null; resourceNames: string[] }>();
+        constituentBookings.forEach(b => {
+            const name = b.approvedByName;
+            const email = b.approvedByEmail;
+            if (name && email) {
+                const key = email.toLowerCase();
+                const existing = approversMap.get(key);
+                const resNames = b.resources?.map(r => r.name) ?? [];
+                if (existing) {
+                    resNames.forEach(rn => {
+                        if (!existing.resourceNames.includes(rn)) {
+                            existing.resourceNames.push(rn);
+                        }
+                    });
+                } else {
+                    approversMap.set(key, { name, email, approvedAt: b.approvedAt, resourceNames: resNames });
+                }
+            }
+        });
+        return Array.from(approversMap.values());
+    }, [constituentBookings]);
 
     useEffect(() => {
         if (bookingId) loadBooking();
@@ -358,6 +405,8 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                     })
                 );
                 const results = await Promise.all(fetchPromises);
+                const validResults = results.filter((b): b is Booking => b !== null);
+                setConstituentBookings(validResults);
 
                 const primaryData = results[bookingIdsToFetch.indexOf(bookingId)];
                 if (!primaryData) {
@@ -383,6 +432,7 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                 data.resources = mergedResources;
             } else {
                 data = await primaryPromise;
+                setConstituentBookings([data]);
             }
 
             // Merge extraResources (from grouped bookings) into fetched data as a fallback
@@ -452,7 +502,13 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                 adjustReason: hasAdjustment ? approveAdjustReason.trim() : null,
             });
             // Also approve any other bookings in the same grouped session (no adjustment for them)
-            const otherIds = (groupedBookingIds ?? []).filter(id => id !== bookingId);
+            let otherIds = (groupedBookingIds ?? []).filter(id => id !== bookingId);
+            if (!_isLabDirector) {
+                otherIds = otherIds.filter(id => {
+                    const cb = constituentBookings.find(b => (b.id === id || b.bookingId === id));
+                    return cb && cb.managerId === user?.userId;
+                });
+            }
             if (otherIds.length > 0) {
                 await Promise.allSettled(otherIds.map(id =>
                     bookingService.approve(id, { note: approveNote.trim() || null })
@@ -479,7 +535,13 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
         try {
             await bookingService.reject(bookingId, rejectReason.trim());
             // Also reject any other bookings in the same grouped session
-            const otherIds = (groupedBookingIds ?? []).filter(id => id !== bookingId);
+            let otherIds = (groupedBookingIds ?? []).filter(id => id !== bookingId);
+            if (!_isLabDirector) {
+                otherIds = otherIds.filter(id => {
+                    const cb = constituentBookings.find(b => (b.id === id || b.bookingId === id));
+                    return cb && cb.managerId === user?.userId;
+                });
+            }
             if (otherIds.length > 0) {
                 await Promise.allSettled(otherIds.map(id =>
                     bookingService.reject(id, rejectReason.trim())
@@ -760,28 +822,70 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                         accentBg="#ecfdf5"
                         accentBorder="#a7f3d0"
                     />
-                    {/* Resource Manager */}
-                    <PersonCard
-                        label="Resource Manager"
-                        icon={<Shield size={11} />}
-                        name={booking.managerFullName ?? null}
-                        email={booking.managerEmail ?? null}
-                        accentColor="#7c3aed"
-                        accentBg="#f5f3ff"
-                        accentBorder="#e9d5ff"
-                    />
-                    {/* Approved By — always shown */}
-                    <PersonCard
-                        label="Approved By"
-                        icon={booking.approvedByName ? <UserCheck size={11} /> : <UserX size={11} />}
-                        name={booking.approvedByName ?? null}
-                        email={booking.approvedByEmail ?? null}
-                        sub={booking.approvedAt ? formatDisplayDate(booking.approvedAt) : undefined}
-                        accentColor={booking.approvedByName ? '#2563eb' : '#94a3b8'}
-                        accentBg={booking.approvedByName ? '#eff6ff' : '#f8fafc'}
-                        accentBorder={booking.approvedByName ? '#bfdbfe' : '#e2e8f0'}
-                        placeholder="Not approved yet"
-                    />
+                    {/* Resource Manager(s) */}
+                    {uniqueManagers.length > 1 ? (
+                        uniqueManagers.map((m, mIdx) => (
+                            <PersonCard
+                                key={m.email ?? mIdx}
+                                label={`Resource Manager (${m.resourceNames.join(', ')})`}
+                                icon={<Shield size={11} />}
+                                name={m.name ?? null}
+                                email={m.email ?? null}
+                                accentColor="#7c3aed"
+                                accentBg="#f5f3ff"
+                                accentBorder="#e9d5ff"
+                            />
+                        ))
+                    ) : (
+                        <PersonCard
+                            label="Resource Manager"
+                            icon={<Shield size={11} />}
+                            name={booking.managerFullName ?? null}
+                            email={booking.managerEmail ?? null}
+                            accentColor="#7c3aed"
+                            accentBg="#f5f3ff"
+                            accentBorder="#e9d5ff"
+                        />
+                    )}
+                    {/* Approved By */}
+                    {uniqueApprovers.length > 1 ? (
+                        uniqueApprovers.map((app, appIdx) => (
+                            <PersonCard
+                                key={app.email ?? appIdx}
+                                label={`Approved By (${app.resourceNames.join(', ')})`}
+                                icon={<UserCheck size={11} />}
+                                name={app.name ?? null}
+                                email={app.email ?? null}
+                                sub={app.approvedAt ? formatDisplayDate(app.approvedAt) : undefined}
+                                accentColor="#2563eb"
+                                accentBg="#eff6ff"
+                                accentBorder="#bfdbfe"
+                            />
+                        ))
+                    ) : uniqueApprovers.length === 1 ? (
+                        <PersonCard
+                            label="Approved By"
+                            icon={<UserCheck size={11} />}
+                            name={uniqueApprovers[0].name ?? null}
+                            email={uniqueApprovers[0].email ?? null}
+                            sub={uniqueApprovers[0].approvedAt ? formatDisplayDate(uniqueApprovers[0].approvedAt) : undefined}
+                            accentColor="#2563eb"
+                            accentBg="#eff6ff"
+                            accentBorder="#bfdbfe"
+                        />
+                    ) : (
+                        <PersonCard
+                            label="Approved By"
+                            icon={booking.approvedByName ? <UserCheck size={11} /> : <UserX size={11} />}
+                            name={booking.approvedByName ?? null}
+                            email={booking.approvedByEmail ?? null}
+                            sub={booking.approvedAt ? formatDisplayDate(booking.approvedAt) : undefined}
+                            accentColor={booking.approvedByName ? '#2563eb' : '#94a3b8'}
+                            accentBg={booking.approvedByName ? '#eff6ff' : '#f8fafc'}
+                            accentBorder={booking.approvedByName ? '#bfdbfe' : '#e2e8f0'}
+                            placeholder="Not approved yet"
+                        />
+                    )}
                 </div>
 
                 {/* ═══════════════════════════════════════════
@@ -859,55 +963,102 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                         <div style={{ padding: '24px 0', textAlign: 'center', color: '#94a3b8', fontSize: '0.78rem' }}>
                             No resources.
                         </div>
-                    ) : bookingResources.map((r, idx) => (
-                        <div key={r.id ?? idx} style={{
-                            background: '#fff',
-                            border: `1px solid ${r.isDamaged ? '#fecaca' : '#e8edf3'}`,
-                            borderRadius: 10, padding: '10px 11px',
-                            display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0,
-                            boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-                        }}>
-                            {/* Index + name row */}
-                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 7 }}>
-                                <span style={{
-                                    width: 20, height: 20, borderRadius: 6, flexShrink: 0, marginTop: 1,
-                                    background: '#f1f5f9', border: '1px solid #e2e8f0',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    fontSize: '0.62rem', fontWeight: 800, color: '#64748b',
-                                }}>{idx + 1}</span>
-                                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0f172a', lineHeight: 1.35, wordBreak: 'break-word' as const }}>
-                                    {r.name}
+                    ) : bookingResources.map((r, idx) => {
+                        const parentBooking = constituentBookings.find(b =>
+                            b.resources?.some(res => res.id === r.id)
+                        ) ?? booking;
+                        const s = getStatusConfig(parentBooking.status);
+
+                        return (
+                            <div key={r.id ?? idx} style={{
+                                background: '#fff',
+                                border: `1px solid ${r.isDamaged ? '#fecaca' : '#e8edf3'}`,
+                                borderRadius: 10, padding: '10px 11px',
+                                display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0,
+                                boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                            }}>
+                                {/* Index + name row */}
+                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 7 }}>
+                                    <span style={{
+                                        width: 20, height: 20, borderRadius: 6, flexShrink: 0, marginTop: 1,
+                                        background: '#f1f5f9', border: '1px solid #e2e8f0',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        fontSize: '0.62rem', fontWeight: 800, color: '#64748b',
+                                    }}>{idx + 1}</span>
+                                    <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0f172a', lineHeight: 1.35, wordBreak: 'break-word' as const }}>
+                                        {r.name}
+                                    </div>
+                                </div>
+                                {/* Badges */}
+                                <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 4 }}>
+                                    {r.resourceTypeName && (
+                                        <span style={{ fontSize: '0.58rem', fontWeight: 600, color: '#64748b', background: '#f1f5f9', border: '1px solid #e2e8f0', padding: '1px 6px', borderRadius: 20 }}>
+                                            {r.resourceTypeName}
+                                        </span>
+                                    )}
+                                    {r.location && (
+                                        <span style={{ fontSize: '0.58rem', fontWeight: 600, color: '#475569', display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+                                            <MapPin size={8} /> {r.location}
+                                        </span>
+                                    )}
+                                    {r.isDamaged && (
+                                        <span style={{ fontSize: '0.58rem', fontWeight: 700, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', padding: '1px 6px', borderRadius: 20 }}>
+                                            ⚠ Damaged
+                                        </span>
+                                    )}
+                                </div>
+                                {/* Serial */}
+                                {(r as any).modelSeries && (
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4, paddingTop: 4, borderTop: '1px solid #f1f5f9' }}>
+                                        <span style={{ fontSize: '0.55rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Serial</span>
+                                        <code style={{ fontSize: '0.62rem', fontWeight: 700, color: '#334155', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '1px 6px', borderRadius: 5, letterSpacing: '0.02em' }}>
+                                            {(r as any).modelSeries}
+                                        </code>
+                                    </div>
+                                )}
+                                {/* Booking Status & Manager for this specific resource */}
+                                <div style={{ 
+                                    marginTop: 4, 
+                                    paddingTop: 6, 
+                                    borderTop: '1px dashed #e2e8f0', 
+                                    display: 'flex', 
+                                    flexDirection: 'column', 
+                                    gap: 3 
+                                }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.68rem' }}>
+                                        <span style={{ color: '#64748b', fontWeight: 600 }}>Status:</span>
+                                        <span style={{ 
+                                            fontSize: '0.6rem', 
+                                            fontWeight: 800, 
+                                            color: s.color, 
+                                            background: s.bg, 
+                                            border: `1px solid ${s.border}`, 
+                                            padding: '1px 6px', 
+                                            borderRadius: 8,
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: 2
+                                        }}>
+                                            {s.label}
+                                        </span>
+                                    </div>
+                                    {parentBooking.managerFullName && (
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.68rem', color: '#64748b' }}>
+                                            <span style={{ fontWeight: 600 }}>Manager:</span>
+                                            <span style={{ color: '#0f172a', fontWeight: 600 }} title={parentBooking.managerEmail || ''}>
+                                                {parentBooking.managerFullName}
+                                            </span>
+                                        </div>
+                                    )}
+                                    {parentBooking.status === BookingStatus.Rejected && parentBooking.rejectReason && (
+                                        <div style={{ fontSize: '0.62rem', color: '#b91c1c', background: '#fef2f2', padding: '3px 6px', borderRadius: 4, marginTop: 2, border: '1px solid #fee2e2' }}>
+                                            <strong>Reason:</strong> {parentBooking.rejectReason}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
-                            {/* Badges */}
-                            <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 4 }}>
-                                {r.resourceTypeName && (
-                                    <span style={{ fontSize: '0.58rem', fontWeight: 600, color: '#64748b', background: '#f1f5f9', border: '1px solid #e2e8f0', padding: '1px 6px', borderRadius: 20 }}>
-                                        {r.resourceTypeName}
-                                    </span>
-                                )}
-                                {r.location && (
-                                    <span style={{ fontSize: '0.58rem', fontWeight: 600, color: '#475569', display: 'inline-flex', alignItems: 'center', gap: 2 }}>
-                                        <MapPin size={8} /> {r.location}
-                                    </span>
-                                )}
-                                {r.isDamaged && (
-                                    <span style={{ fontSize: '0.58rem', fontWeight: 700, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', padding: '1px 6px', borderRadius: 20 }}>
-                                        ⚠ Damaged
-                                    </span>
-                                )}
-                            </div>
-                            {/* Serial */}
-                            {(r as any).modelSeries && (
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4, paddingTop: 4, borderTop: '1px solid #f1f5f9' }}>
-                                    <span style={{ fontSize: '0.55rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Serial</span>
-                                    <code style={{ fontSize: '0.62rem', fontWeight: 700, color: '#334155', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '1px 6px', borderRadius: 5, letterSpacing: '0.02em' }}>
-                                        {(r as any).modelSeries}
-                                    </code>
-                                </div>
-                            )}
-                        </div>
-                    ))}
+                        );
+                    })}
 
                     {/* Fallback resource */}
                     {bookingResources.length === 0 && (booking.resourceName || (booking.quantity && booking.quantity > 0)) && (

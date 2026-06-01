@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { Booking, Resource, BookingStatus, BasicResourceResponse } from '@/types/booking';
 import {
-    STATUS_META, getBookingRtMeta, getBookingResourceLabel,
+    STATUS_META, getBookingRtMeta, getBookingResourceLabel, getResourceTypeMeta,
     fmtTime, fmtDate, fmtFullDate, relTime, initials,
     sameDay, buildMonthGrid, bookingsOnDay, groupBookings,
 } from './bookingViewUtils';
@@ -699,6 +699,10 @@ function DaySidebar({ selectedDate, bookings, resources, onOpenBooking }: {
                                             {group.items.map(b => {
                                                 const rMeta = getBookingRtMeta(b, resources);
                                                 const resourceTypeName = b.resources?.[0]?.resourceTypeName;
+                                                // Collect all unique resource type names across all resources in this booking
+                                                const allTypeNames = Array.from(new Set(
+                                                    (b.resources ?? []).map(r => r.resourceTypeName).filter(Boolean) as string[]
+                                                ));
                                                 return (
                                                     <div key={b.id} onClick={() => onOpenBooking(b)}
                                                         style={{
@@ -737,21 +741,42 @@ function DaySidebar({ selectedDate, bookings, resources, onOpenBooking }: {
                                                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 7px', background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', borderRadius: 999, fontSize: 10.5, fontWeight: 700, whiteSpace: 'nowrap' }}>
                                                                 ↓ {fmtTime(b.endTime)}
                                                             </span>
-                                                            {resourceTypeName && (
-                                                                <span style={{
-                                                                    display: 'inline-flex', alignItems: 'center', gap: 3,
-                                                                    padding: '1px 7px',
-                                                                    background: rMeta.bg,
-                                                                    color: rMeta.color,
-                                                                    border: `1px solid ${rMeta.color}33`,
-                                                                    borderRadius: 999,
-                                                                    fontSize: 10.5,
-                                                                    fontWeight: 700,
-                                                                    whiteSpace: 'nowrap',
-                                                                }}>
-                                                                    {resourceTypeName}
-                                                                </span>
-                                                            )}
+                                                            {/* Show ALL unique resource type badges */}
+                                                            {allTypeNames.length > 0
+                                                                ? allTypeNames.map(typeName => {
+                                                                    const tMeta = getResourceTypeMeta(typeName);
+                                                                    return (
+                                                                        <span key={typeName} style={{
+                                                                            display: 'inline-flex', alignItems: 'center', gap: 3,
+                                                                            padding: '1px 7px',
+                                                                            background: tMeta.bg,
+                                                                            color: tMeta.color,
+                                                                            border: `1px solid ${tMeta.color}33`,
+                                                                            borderRadius: 999,
+                                                                            fontSize: 10.5,
+                                                                            fontWeight: 700,
+                                                                            whiteSpace: 'nowrap',
+                                                                        }}>
+                                                                            {typeName}
+                                                                        </span>
+                                                                    );
+                                                                })
+                                                                : resourceTypeName && (
+                                                                    <span style={{
+                                                                        display: 'inline-flex', alignItems: 'center', gap: 3,
+                                                                        padding: '1px 7px',
+                                                                        background: rMeta.bg,
+                                                                        color: rMeta.color,
+                                                                        border: `1px solid ${rMeta.color}33`,
+                                                                        borderRadius: 999,
+                                                                        fontSize: 10.5,
+                                                                        fontWeight: 700,
+                                                                        whiteSpace: 'nowrap',
+                                                                    }}>
+                                                                        {resourceTypeName}
+                                                                    </span>
+                                                                )
+                                                            }
                                                             {b.status === BookingStatus.InUse && (
                                                                 <span style={{
                                                                     display: 'inline-flex', alignItems: 'center', gap: 3,

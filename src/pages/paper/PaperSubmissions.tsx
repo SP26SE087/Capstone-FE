@@ -1969,7 +1969,7 @@ const PaperSubmissions: React.FC = () => {
 
 
                                         {/* Draft: Edit + Submit for Internal Review + Delete */}
-                                        {selectedPaper.status === SubmissionStatus.Draft && (canEdit || isDirectorOfThisProject) && (
+                                        {selectedPaper.status === SubmissionStatus.Draft && (canEdit || isDirectorOfThisProject || isAssignee) && (
                                             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' as const }}>
                                                 {canEdit && (
                                                 <button onClick={() => openEdit(selectedPaper)}

@@ -29,6 +29,7 @@ import LabProjects from '@/pages/project/LabProjects';
 import VisitorRegistrations from '@/pages/schedule/VisitorRegistrations';
 import ContactorsPage from '@/pages/admin/ContactorsPage';
 import CameraMonitorPage from '@/pages/admin/CameraMonitorPage';
+import ServerSetupGuidePage from '@/pages/admin/ServerSetupGuidePage';
 import PublicPapersPage from '@/pages/landing/PublicPapersPage';
 import PublicSeminarsPage from '@/pages/landing/PublicSeminarsPage';
 
@@ -153,6 +154,10 @@ export const router = createBrowserRouter([
     {
         path: '/admin/camera-monitor',
         element: <AuthGuard><RoleGuard allowedRoles={[1, 2]}><CameraMonitorPage /></RoleGuard></AuthGuard>,
+    },
+    {
+        path: '/admin/server-setup-guide',
+        element: <AuthGuard><RoleGuard allowedRoles={[1, 2]}><ServerSetupGuidePage /></RoleGuard></AuthGuard>,
     },
     {
         path: '/public/papers',

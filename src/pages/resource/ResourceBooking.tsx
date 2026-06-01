@@ -85,8 +85,10 @@ const findGroupedBookings = (booking: Booking, allBookings: Booking[]): Booking[
     const start = (booking.startTime || '').slice(0, 16);
     const end = (booking.endTime || '').slice(0, 16);
     const uid = booking.userId ?? booking.userFullName ?? booking.userName ?? '';
-    const status = booking.status;
-
+    // NOTE: Do NOT filter by status — when multiple managers manage different resources
+    // in the same booking request, each booking may have a different status
+    // (e.g. Manager A approved their resource while Manager B's is still pending).
+    // We must group ALL of them together regardless of status.
     return allBookings.filter(b => {
         const bStart = (b.startTime || '').slice(0, 16);
         const bEnd = (b.endTime || '').slice(0, 16);
@@ -94,8 +96,7 @@ const findGroupedBookings = (booking: Booking, allBookings: Booking[]): Booking[
         return b.title === title &&
                bStart === start &&
                bEnd === end &&
-               bUid === uid &&
-               b.status === status;
+               bUid === uid;
     });
 };
 
@@ -218,7 +219,16 @@ const ResourceBooking: React.FC = () => {
 
     const handleViewApprove = async (bookingId: string, note?: string) => {
         // Resolve all grouped IDs (if this card was created by groupBookings)
-        const ids = groupedIdsRef.current.get(bookingId) ?? [bookingId];
+        let ids = groupedIdsRef.current.get(bookingId) ?? [bookingId];
+        if (!isLabDirector) {
+            const myManagedIds = viewBookings
+                .filter(b => ids.includes(b.id || b.bookingId || '') && b.managerId === user?.userId)
+                .map(b => b.id || b.bookingId || '')
+                .filter(Boolean) as string[];
+            if (myManagedIds.length > 0) {
+                ids = myManagedIds;
+            }
+        }
         try {
             await Promise.all(ids.map((id: string) => bookingService.approve(id, { bookingId: id, note })));
             showToast(ids.length > 1 ? `${ids.length} bookings approved.` : 'Booking approved.', 'success');
@@ -253,7 +263,16 @@ const ResourceBooking: React.FC = () => {
 
     const handleViewReject = async (bookingId: string, reason?: string) => {
         // Resolve all grouped IDs (if this card was created by groupBookings)
-        const ids = groupedIdsRef.current.get(bookingId) ?? [bookingId];
+        let ids = groupedIdsRef.current.get(bookingId) ?? [bookingId];
+        if (!isLabDirector) {
+            const myManagedIds = viewBookings
+                .filter(b => ids.includes(b.id || b.bookingId || '') && b.managerId === user?.userId)
+                .map(b => b.id || b.bookingId || '')
+                .filter(Boolean) as string[];
+            if (myManagedIds.length > 0) {
+                ids = myManagedIds;
+            }
+        }
         try {
             await Promise.all(ids.map((id: string) => bookingService.reject(id, reason ?? 'Rejected')));
             showToast(ids.length > 1 ? `${ids.length} bookings rejected.` : 'Booking rejected.', 'success');

@@ -49,19 +49,24 @@ const fmtTime = (s: string) => {
 
 interface BookingGroup {
     key: string; title: string; startTime: string; endTime: string;
-    userFullName?: string; managerFullName?: string | null; anyUrgent: boolean; bookings: Booking[];
+    userFullName?: string; managerFullNames: string[]; anyUrgent: boolean; bookings: Booking[];
 }
 
 function groupBookings(bookings: Booking[]): BookingGroup[] {
     const map = new Map<string, BookingGroup>();
     for (const b of bookings) {
-        const key = `${b.title}||${b.startTime}||${b.endTime}`;
+        // Include userId/assignee in key so bookings for different people are never merged
+        const uid = b.userId ?? b.userFullName ?? b.userName ?? '';
+        const key = `${b.title}||${b.startTime}||${b.endTime}||${uid}`;
         if (!map.has(key))
-            map.set(key, { key, title: b.title, startTime: b.startTime, endTime: b.endTime, userFullName: b.userFullName, managerFullName: b.managerFullName ?? null, anyUrgent: false, bookings: [] });
+            map.set(key, { key, title: b.title, startTime: b.startTime, endTime: b.endTime, userFullName: b.userFullName, managerFullNames: [], anyUrgent: false, bookings: [] });
         const g = map.get(key)!;
         g.bookings.push(b);
         if (b.isUrgent) g.anyUrgent = true;
-        if (!g.managerFullName && b.managerFullName) g.managerFullName = b.managerFullName;
+        // Collect all unique manager names (different resources may have different managers)
+        if (b.managerFullName && !g.managerFullNames.includes(b.managerFullName)) {
+            g.managerFullNames.push(b.managerFullName);
+        }
     }
     return [...map.values()];
 }
@@ -253,9 +258,9 @@ const BookingListView: React.FC<BookingListViewProps> = ({
                                     <User size={9} /> Borrower: {group.userFullName}
                                 </span>
                             )}
-                            {group.managerFullName && (
+                            {group.managerFullNames && group.managerFullNames.length > 0 && (
                                 <span style={{ display: 'flex', alignItems: 'center', gap: '2px', fontWeight: 600, color: '#059669', background: '#f0fdf4', padding: '1px 5px', borderRadius: '4px' }}>
-                                    <User size={9} /> Manager: {group.managerFullName}
+                                    <User size={9} /> Manager{group.managerFullNames.length > 1 ? 's' : ''}: {group.managerFullNames.join(', ')}
                                 </span>
                             )}
                         </div>

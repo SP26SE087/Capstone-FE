@@ -17,6 +17,7 @@ import {
     ContactRound,
     ScanFace,
     Home,
+    BookOpen,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -45,11 +46,15 @@ const Sidebar: React.FC = () => {
         ...((isAdmin || isLabDirector)
             ? [{ icon: <ScanFace size={20} />, label: 'Camera Monitor', path: '/admin/camera-monitor', onNavClick: undefined }]
             : []),
+        ...((isAdmin || isLabDirector)
+            ? [{ icon: <BookOpen size={20} />, label: 'Server Setup Guide', path: '/admin/server-setup-guide', onNavClick: undefined }]
+            : []),
     ];
 
     const adminItems = [
         { icon: <UserCog size={20} />, label: 'User Management', path: '/user-management' },
         { icon: <Server size={20} />, label: 'Compute Servers', path: '/admin/compute' },
+        { icon: <BookOpen size={20} />, label: 'Server Setup Guide', path: '/admin/server-setup-guide' },
         { icon: <ContactRound size={20} />, label: 'Contactors', path: '/admin/contactors' },
         { icon: <ScanFace size={20} />, label: 'Camera Monitor', path: '/admin/camera-monitor' },
     ];
