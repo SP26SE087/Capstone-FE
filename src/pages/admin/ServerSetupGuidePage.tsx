@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MainLayout from '@/layout/MainLayout';
+import { useAuth } from '@/hooks/useAuth';
 import {
   Server, ChevronDown, ChevronRight, Copy, Check, Terminal,
   Shield, Cpu, HardDrive, Zap, Settings, CheckCircle2,
@@ -190,6 +191,11 @@ const P: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 // ─── Main Page ────────────────────────────────────────────────────────────────
 const ServerSetupGuidePage: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const role = String(user?.role ?? '');
+  const isAdmin = Number(role) === 1 || role === 'Admin';
+  // Admin → /admin/compute, Lab Director → /admin/servers (LabResourceAdmin servers tab)
+  const serverRoute = isAdmin ? '/admin/compute' : '/admin/servers';
   const [activeToc, setActiveToc] = useState('phase-1');
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -563,7 +569,7 @@ sudo userdel -r testuser`} />
 
             <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
               <button
-                onClick={() => navigate('/admin/compute')}
+                onClick={() => navigate(serverRoute)}
                 style={{
                   display: 'flex', alignItems: 'center', gap: '7px',
                   padding: '9px 20px', borderRadius: '10px', border: 'none', cursor: 'pointer',
@@ -752,7 +758,7 @@ sudo userdel -r testuser`} />
                 </div>
               </div>
               <button
-                onClick={() => navigate('/admin/compute')}
+                onClick={() => navigate(serverRoute)}
                 style={{
                   display: 'flex', alignItems: 'center', gap: '8px',
                   padding: '11px 24px', borderRadius: '11px', border: 'none', cursor: 'pointer',
