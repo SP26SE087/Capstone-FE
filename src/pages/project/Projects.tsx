@@ -52,6 +52,7 @@ const PROJECT_SORT_ORDER: Record<number, number> = {
     [ProjectStatus.Active as number]: 1,
     [ProjectStatus.Completed as number]: 2,
     [ProjectStatus.Archived as number]: 3,
+    [ProjectStatus.Cancelled as number]: 4,
 };
 
 const Projects: React.FC = () => {
@@ -262,15 +263,27 @@ const Projects: React.FC = () => {
         }
     };
 
-    const filteredProjects = useMemo(() => projects
-        .filter(p => {
-            const name = (p.projectName || (p as any).name || '').toLowerCase();
-            const matchesSearch = name.includes(searchTerm.toLowerCase());
-            const matchesStatus = statusFilter === 'All' || p.status === statusFilter;
-            return matchesSearch && matchesStatus;
-        })
-        .sort((a, b) => (PROJECT_SORT_ORDER[a.status as unknown as number] ?? 1) - (PROJECT_SORT_ORDER[b.status as unknown as number] ?? 1)),
-    [projects, searchTerm, statusFilter]);
+    const filteredProjects = useMemo(() => {
+        const isCancelledFilter = statusFilter === ProjectStatus.Cancelled;
+        return projects
+            .filter(p => {
+                const name = (p.projectName || (p as any).name || '').toLowerCase();
+                const matchesSearch = name.includes(searchTerm.toLowerCase());
+                const matchesStatus = statusFilter === 'All' || p.status === statusFilter;
+                // Ẩn Cancelled theo mặc định, chỉ hiện khi user chọn filter Cancelled
+                const notCancelled = isCancelledFilter || p.status !== ProjectStatus.Cancelled;
+                return matchesSearch && matchesStatus && notCancelled;
+            })
+            .sort((a, b) => {
+                const orderA = PROJECT_SORT_ORDER[a.status as unknown as number] ?? 99;
+                const orderB = PROJECT_SORT_ORDER[b.status as unknown as number] ?? 99;
+                if (orderA !== orderB) return orderA - orderB;
+                // Secondary sort: most recent startDate first
+                const dateA = new Date(a.startDate || a.createdAt || '1970-01-01').getTime();
+                const dateB = new Date(b.startDate || b.createdAt || '1970-01-01').getTime();
+                return dateB - dateA;
+            });
+    }, [projects, searchTerm, statusFilter]);
 
     return (
         <MainLayout role={user.role} userName={user.name}>

@@ -88,6 +88,15 @@ const STATUS: Record<number, { label: string; color: string; bg: string }> = {
 
 const PANEL_HEIGHT = 'calc(100vh - 170px)';
 
+const LAB_PROJECT_SORT_ORDER: Record<number, number> = {
+    2: 0, // Inactive
+    1: 1, // Active
+    4: 2, // Completed
+    3: 3, // Archived
+    5: 4, // Cancelled
+};
+
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 const LabProjects: React.FC = () => {
@@ -112,14 +121,26 @@ const LabProjects: React.FC = () => {
 
     useEffect(() => { fetchProjects(); }, []);
 
-    const filtered = useMemo(() =>
-        projects.filter(p => {
-            const matchSearch = (p.name ?? '').toLowerCase().includes(searchTerm.toLowerCase());
-            const matchStatus = statusFilter === 'All' || p.status === statusFilter;
-            return matchSearch && matchStatus;
-        }),
-        [projects, searchTerm, statusFilter]
-    );
+    const filtered = useMemo(() => {
+        const isCancelledFilter = statusFilter === 5;
+        return projects
+            .filter(p => {
+                const matchSearch = (p.name ?? '').toLowerCase().includes(searchTerm.toLowerCase());
+                const matchStatus = statusFilter === 'All' || p.status === statusFilter;
+                // Ẩn Cancelled theo mặc định, chỉ hiện khi user chọn filter Cancelled
+                const notCancelled = isCancelledFilter || p.status !== 5;
+                return matchSearch && matchStatus && notCancelled;
+            })
+            .sort((a, b) => {
+                const orderA = LAB_PROJECT_SORT_ORDER[a.status] ?? 99;
+                const orderB = LAB_PROJECT_SORT_ORDER[b.status] ?? 99;
+                if (orderA !== orderB) return orderA - orderB;
+                // Secondary sort: most recent startDate first
+                const dateA = new Date(a.startDate || a.createdAt || '1970-01-01').getTime();
+                const dateB = new Date(b.startDate || b.createdAt || '1970-01-01').getTime();
+                return dateB - dateA;
+            });
+    }, [projects, searchTerm, statusFilter]);
 
     const statusOptions = [
         { value: 'All' as const, label: 'All' },

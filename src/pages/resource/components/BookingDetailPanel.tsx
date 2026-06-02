@@ -297,14 +297,18 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
     }, [bookingResources]);
 
     const uniqueManagers = useMemo(() => {
-        const managersMap = new Map<string, { name: string; email: string; resourceNames: string[] }>();
+        // Each constituent booking has its own manager who is responsible ONLY for the resources in that booking.
+        // We group by manager email and collect only the resource names from bookings that manager owns.
+        const managersMap = new Map<string, { name: string; email: string; managerId: string; resourceNames: string[] }>();
         constituentBookings.forEach(b => {
             const name = b.managerFullName;
             const email = b.managerEmail;
+            const managerId = b.managerId ?? '';
             if (name && email) {
                 const key = email.toLowerCase();
                 const existing = managersMap.get(key);
-                const resNames = b.resources?.map(r => r.name) ?? [];
+                // Only attach resources that belong to THIS booking (managed by this specific person)
+                const resNames = (b.resources ?? []).map(r => r.name);
                 if (existing) {
                     resNames.forEach(rn => {
                         if (!existing.resourceNames.includes(rn)) {
@@ -312,7 +316,7 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                         }
                     });
                 } else {
-                    managersMap.set(key, { name, email, resourceNames: resNames });
+                    managersMap.set(key, { name, email, managerId, resourceNames: resNames });
                 }
             }
         });
@@ -686,12 +690,18 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
     const currentUserEmail = (user?.email || '').trim().toLowerCase();
     const bookingUserEmail = (booking.userEmail || '').trim().toLowerCase();
     const isRequester = !!currentUserEmail && !!bookingUserEmail && currentUserEmail === bookingUserEmail;
-    const isBookingManager = !!user?.userId && !!booking.managerId && booking.managerId === user.userId;
-    const canApproveReject = isBookingManager && booking.status === BookingStatus.Pending;
+    // isBookingManager = user is the manager of the primary booking OR any constituent booking in a grouped session
+    const isBookingManager = !!user?.userId && (
+        (!!booking.managerId && booking.managerId === user.userId) ||
+        constituentBookings.some(b => !!b.managerId && b.managerId === user.userId)
+    );
+    // canActAsManager = either directly manages a booking or is a Lab Director (admin override)
+    const canActAsManager = isBookingManager || _isLabDirector;
+    const canApproveReject = canActAsManager && booking.status === BookingStatus.Pending;
     const canCancel = isRequester && booking.status === BookingStatus.Pending;
     // Server compute bookings use auto checkout/checkin — hide manual buttons
-    const canCheckOut = isBookingManager && booking.status === BookingStatus.Approved && !isServerComputeBooking;
-    const canCheckIn = isBookingManager && booking.status === BookingStatus.InUse && !isServerComputeBooking;
+    const canCheckOut = canActAsManager && booking.status === BookingStatus.Approved && !isServerComputeBooking;
+    const canCheckIn = canActAsManager && booking.status === BookingStatus.InUse && !isServerComputeBooking;
 
     // Show compute access panel for approved/in-use bookings with compute resources
     const showComputeAccess = isServerComputeBooking && (
@@ -700,7 +710,7 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
     );
 
     // Admin: show "Provision Server" when public key submitted but not yet provisioned
-    const canProvision = isBookingManager && isServerComputeBooking
+    const canProvision = canActAsManager && isServerComputeBooking
         && booking.status === BookingStatus.Approved
         && !!serverAccess && !serverAccess.isProvisioned
         && serverAccess.status === 'Pending';
