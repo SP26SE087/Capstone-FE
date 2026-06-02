@@ -934,20 +934,6 @@ function PendingQueue({ bookings, resources, onApprove, onReject, onAdjust, onOp
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3, flexWrap: 'wrap' }}>
                                 <Avatar name={b.userFullName ?? b.userName ?? ''} size={22} />
                                 <span style={{ fontSize: 13, color: '#64748b', fontWeight: 500, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.userFullName ?? b.userName}</span>
-                                {onAdjust && (
-                                    <button onClick={e => { e.stopPropagation(); openAction(b, 'adjust'); }}
-                                        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', background: activeType === 'adjust' ? '#fff7ed' : '#fff', color: activeType === 'adjust' ? '#ea580c' : '#64748b', border: `1px solid ${activeType === 'adjust' ? '#f97316' : '#e2e8f0'}`, borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-                                        <SlidersHorizontal size={12} /> Adjust
-                                    </button>
-                                )}
-                                <button onClick={e => { e.stopPropagation(); openAction(b, 'reject'); }}
-                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', background: activeType === 'reject' ? '#fef2f2' : '#fff', color: '#DC2626', border: `1px solid ${activeType === 'reject' ? '#fca5a5' : '#FECACA'}`, borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-                                    <X size={12} /> Reject
-                                </button>
-                                <button onClick={e => { e.stopPropagation(); openAction(b, 'approve'); }}
-                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', background: activeType === 'approve' ? '#1d4ed8' : '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-                                    <Check size={12} /> Approve
-                                </button>
                             </div>
                         </div>
                     );
