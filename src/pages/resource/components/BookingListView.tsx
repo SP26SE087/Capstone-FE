@@ -273,11 +273,38 @@ const BookingListView: React.FC<BookingListViewProps> = ({
                                             )}
                                         </div>
 
-                                        {/* Right: status badge */}
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+                                        {/* Right: status badge & view details */}
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }} onClick={e => e.stopPropagation()}>
                                             <span style={{ fontSize: '0.6rem', fontWeight: 700, color: sc.color, background: sc.bg, border: `1px solid ${sc.border}`, padding: '2px 7px', borderRadius: '7px', display: 'inline-flex', alignItems: 'center', gap: '2px', flexShrink: 0 }}>
                                                 {sc.label}
                                             </span>
+                                            <button onClick={() => onSelect(booking)}
+                                                style={{
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    padding: '4px 10px',
+                                                    background: '#eff6ff',
+                                                    color: '#2563eb',
+                                                    border: '1.5px solid #bfdbfe',
+                                                    borderRadius: 8,
+                                                    fontSize: '0.65rem',
+                                                    fontWeight: 700,
+                                                    cursor: 'pointer',
+                                                    transition: 'all 0.15s ease'
+                                                }}
+                                                onMouseEnter={e => {
+                                                    e.currentTarget.style.background = '#2563eb';
+                                                    e.currentTarget.style.color = '#fff';
+                                                    e.currentTarget.style.borderColor = '#2563eb';
+                                                }}
+                                                onMouseLeave={e => {
+                                                    e.currentTarget.style.background = '#eff6ff';
+                                                    e.currentTarget.style.color = '#2563eb';
+                                                    e.currentTarget.style.borderColor = '#bfdbfe';
+                                                }}
+                                            >
+                                                View Details
+                                            </button>
                                         </div>
                                     </div>
                                 </div>
