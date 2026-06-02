@@ -98,80 +98,7 @@ const BookingListView: React.FC<BookingListViewProps> = ({
         () => new Set(groupBookings(bookings).map(g => g.key))
     );
 
-    const [expandedId, setExpandedId]       = useState<string | null>(null);
-    const [expandMode, setExpandMode]       = useState<ExpandMode | null>(null);
-    const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-    const [approveNote, setApproveNote]   = useState('');
-    const [rejectReason, setRejectReason] = useState('');
-    const [adjustReason, setAdjustReason] = useState('');
-
-    const [detailLoading, setDetailLoading]     = useState(false);
-    const [adjustResGroups, setAdjustResGroups] = useState<ResGroup[]>([]);
-    const [groupKeptQtys, setGroupKeptQtys]     = useState<Record<string, number>>({});
-
-    const collapsePanel = () => {
-        setExpandedId(null); setExpandMode(null);
-        setApproveNote(''); setRejectReason(''); setAdjustReason('');
-        setAdjustResGroups([]); setGroupKeptQtys({});
-    };
-
-    const openApprove = (e: React.MouseEvent, id: string) => {
-        e.stopPropagation();
-        if (expandedId === id && expandMode === 'approve') { collapsePanel(); return; }
-        collapsePanel(); setExpandedId(id); setExpandMode('approve');
-    };
-
-    const openReject = (e: React.MouseEvent, id: string) => {
-        e.stopPropagation();
-        if (expandedId === id && expandMode === 'reject') { collapsePanel(); return; }
-        collapsePanel(); setExpandedId(id); setExpandMode('reject');
-    };
-
-    const openAdjust = async (e: React.MouseEvent, booking: Booking) => {
-        e.stopPropagation();
-        if (expandedId === booking.id && expandMode === 'adjust') { collapsePanel(); return; }
-        collapsePanel(); setExpandedId(booking.id); setExpandMode('adjust');
-
-        let resources = booking.resources?.length ? booking.resources : undefined;
-        if (!resources && onLoadDetail) {
-            setDetailLoading(true);
-            try {
-                const detail = await onLoadDetail(booking.id);
-                resources = detail.resources?.length ? detail.resources : undefined;
-            } catch { /* ignore */ } finally { setDetailLoading(false); }
-        }
-        const rg = groupResources(resources ?? []);
-        setAdjustResGroups(rg);
-        const init: Record<string, number> = {};
-        rg.forEach(g => { init[g.key] = g.ids.length; });
-        setGroupKeptQtys(init);
-    };
-
-    const confirmApprove = async (e: React.MouseEvent, id: string) => {
-        e.stopPropagation();
-        if (!onQuickApprove) return;
-        setActionLoading(id);
-        try { await onQuickApprove(id, { note: approveNote.trim() || undefined }); collapsePanel(); }
-        finally { setActionLoading(null); }
-    };
-
-    const confirmReject = async (e: React.MouseEvent, id: string) => {
-        e.stopPropagation();
-        if (!onQuickReject || !rejectReason.trim()) return;
-        setActionLoading(id);
-        try { await onQuickReject(id, rejectReason.trim()); collapsePanel(); }
-        finally { setActionLoading(null); }
-    };
-
-    const confirmAdjust = async (e: React.MouseEvent, id: string) => {
-        e.stopPropagation();
-        if (!onQuickApprove || !adjustReason.trim()) return;
-        const newResourceIds = adjustResGroups.flatMap(g => g.ids.slice(0, groupKeptQtys[g.key] ?? g.ids.length));
-        setActionLoading(id);
-        try { await onQuickApprove(id, { newResourceIds, adjustReason: adjustReason.trim() }); collapsePanel(); }
-        finally { setActionLoading(null); }
-    };
 
     const toggleGroupCollapse = (key: string) => {
         setCollapsedGroups(prev => {
@@ -293,17 +220,11 @@ const BookingListView: React.FC<BookingListViewProps> = ({
                             const isApproved   = booking.status === BookingStatus.Approved;
                             const isInUse      = booking.status === BookingStatus.InUse;
                             const isSelectable = isPending || isApproved || isInUse;
-                            const isExpanded   = expandedId === booking.id;
-                            const isActLoading = actionLoading === booking.id;
                             const sc           = cfg(booking.status);
                             const isLast       = idx === group.bookings.length - 1;
 
                             const resourceLabel = booking.resources?.[0]?.name
                                 || (booking.quantity != null && booking.quantity > 0 ? `${booking.quantity} unit${booking.quantity > 1 ? 's' : ''}` : 'Resource');
-
-                            const totalKept = adjustResGroups.reduce((s, g) => s + (groupKeptQtys[g.key] ?? g.ids.length), 0);
-                            const totalAll  = adjustResGroups.reduce((s, g) => s + g.ids.length, 0);
-                            const allZero   = isExpanded && expandMode === 'adjust' && totalKept === 0;
 
                             return (
                                 <div
@@ -317,7 +238,7 @@ const BookingListView: React.FC<BookingListViewProps> = ({
                                 >
                                     {/* Row */}
                                     <div
-                                        onClick={() => { collapsePanel(); onSelect(booking); }}
+                                        onClick={() => onSelect(booking)}
                                         style={{ padding: '7px 12px 7px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
                                     >
                                         {/* Checkbox — pending, approved, in-use only */}
@@ -352,149 +273,13 @@ const BookingListView: React.FC<BookingListViewProps> = ({
                                             )}
                                         </div>
 
-                                        {/* Right: action buttons + status badge */}
+                                        {/* Right: status badge */}
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0 }} onClick={e => e.stopPropagation()}>
-                                            {isPending && onQuickApprove && (
-                                                <>
-                                                    <button onClick={e => openApprove(e, booking.id)} disabled={isActLoading}
-                                                        style={{ display: 'flex', alignItems: 'center', gap: '2px', padding: '3px 8px', borderRadius: '5px', border: 'none', background: isExpanded && expandMode === 'approve' ? '#dcfce7' : '#059669', color: isExpanded && expandMode === 'approve' ? '#059669' : '#fff', fontSize: '0.63rem', fontWeight: 700, cursor: 'pointer', outline: isExpanded && expandMode === 'approve' ? '1.5px solid #059669' : 'none' }}>
-                                                        <CheckCircle2 size={9} /> Approve
-                                                    </button>
-                                                    <button onClick={e => openAdjust(e, booking)} disabled={isActLoading}
-                                                        style={{ display: 'flex', alignItems: 'center', gap: '2px', padding: '3px 8px', borderRadius: '5px', border: `1px solid ${isExpanded && expandMode === 'adjust' ? '#f97316' : '#e2e8f0'}`, background: isExpanded && expandMode === 'adjust' ? '#fff7ed' : '#fff', color: isExpanded && expandMode === 'adjust' ? '#ea580c' : '#64748b', fontSize: '0.63rem', fontWeight: 700, cursor: 'pointer' }}>
-                                                        <SlidersHorizontal size={9} /> Adjust
-                                                    </button>
-                                                    <button onClick={e => openReject(e, booking.id)} disabled={isActLoading}
-                                                        style={{ display: 'flex', alignItems: 'center', gap: '2px', padding: '3px 8px', borderRadius: '5px', border: `1px solid ${isExpanded && expandMode === 'reject' ? '#dc2626' : '#e2e8f0'}`, background: isExpanded && expandMode === 'reject' ? '#fef2f2' : '#fff', color: isExpanded && expandMode === 'reject' ? '#dc2626' : '#64748b', fontSize: '0.63rem', fontWeight: 700, cursor: 'pointer' }}>
-                                                        <XCircle size={9} /> Reject
-                                                    </button>
-                                                </>
-                                            )}
                                             <span style={{ fontSize: '0.6rem', fontWeight: 700, color: sc.color, background: sc.bg, border: `1px solid ${sc.border}`, padding: '2px 7px', borderRadius: '7px', display: 'inline-flex', alignItems: 'center', gap: '2px', flexShrink: 0 }}>
                                                 {sc.label}
                                             </span>
                                         </div>
                                     </div>
-
-                                    {/* Inline: Approve */}
-                                    {isExpanded && expandMode === 'approve' && (
-                                        <div onClick={e => e.stopPropagation()} style={{ padding: '8px 12px 10px', background: '#f0fdf4', borderTop: '1px solid #bbf7d0' }}>
-                                            <label style={{ fontSize: '0.63rem', fontWeight: 700, color: '#047857', display: 'block', marginBottom: '4px' }}>Note (optional)</label>
-                                            <textarea autoFocus value={approveNote} onChange={e => setApproveNote(e.target.value)}
-                                                placeholder="Add a note for the requester..."
-                                                style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1.5px solid #a7f3d0', fontSize: '0.75rem', fontFamily: 'inherit', outline: 'none', minHeight: '40px', resize: 'vertical' as const, background: '#fff', boxSizing: 'border-box' as const }} />
-                                            <div style={{ display: 'flex', gap: '5px', marginTop: '6px' }}>
-                                                <button onClick={e => confirmApprove(e, booking.id)} disabled={isActLoading}
-                                                    style={{ display: 'flex', alignItems: 'center', gap: '3px', padding: '4px 12px', borderRadius: '5px', border: 'none', background: '#059669', color: '#fff', fontSize: '0.7rem', fontWeight: 700, cursor: isActLoading ? 'not-allowed' : 'pointer' }}>
-                                                    {isActLoading ? <Loader2 size={10} className="animate-spin" /> : <CheckCircle2 size={10} />} Confirm
-                                                </button>
-                                                <button onClick={e => { e.stopPropagation(); collapsePanel(); }}
-                                                    style={{ padding: '4px 10px', borderRadius: '5px', border: '1px solid #a7f3d0', background: '#fff', color: '#64748b', fontSize: '0.68rem', fontWeight: 700, cursor: 'pointer' }}>Cancel</button>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Inline: Reject */}
-                                    {isExpanded && expandMode === 'reject' && (
-                                        <div onClick={e => e.stopPropagation()} style={{ padding: '8px 12px 10px', background: '#fef2f2', borderTop: '1px solid #fecaca' }}>
-                                            <label style={{ fontSize: '0.63rem', fontWeight: 700, color: '#dc2626', display: 'block', marginBottom: '4px' }}>Rejection reason *</label>
-                                            <textarea autoFocus value={rejectReason} onChange={e => setRejectReason(e.target.value)}
-                                                placeholder="Explain why this booking is rejected..."
-                                                style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1.5px solid #fecaca', fontSize: '0.75rem', fontFamily: 'inherit', outline: 'none', minHeight: '48px', resize: 'vertical' as const, background: '#fff', boxSizing: 'border-box' as const }} />
-                                            <div style={{ display: 'flex', gap: '5px', marginTop: '6px' }}>
-                                                <button onClick={e => confirmReject(e, booking.id)} disabled={!rejectReason.trim() || isActLoading}
-                                                    style={{ display: 'flex', alignItems: 'center', gap: '3px', padding: '4px 12px', borderRadius: '5px', border: 'none', background: !rejectReason.trim() ? '#fca5a5' : '#dc2626', color: '#fff', fontSize: '0.7rem', fontWeight: 700, cursor: !rejectReason.trim() || isActLoading ? 'not-allowed' : 'pointer' }}>
-                                                    {isActLoading ? <Loader2 size={10} className="animate-spin" /> : <XCircle size={10} />} Confirm
-                                                </button>
-                                                <button onClick={e => { e.stopPropagation(); collapsePanel(); }}
-                                                    style={{ padding: '4px 10px', borderRadius: '5px', border: '1px solid #fecaca', background: '#fff', color: '#64748b', fontSize: '0.68rem', fontWeight: 700, cursor: 'pointer' }}>Cancel</button>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Inline: Adjust */}
-                                    {isExpanded && expandMode === 'adjust' && (
-                                        <div onClick={e => e.stopPropagation()} style={{ padding: '8px 12px 10px', background: '#fff7ed', borderTop: '1px solid #fed7aa' }}>
-                                            {detailLoading ? (
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#92400e', fontSize: '0.75rem' }}>
-                                                    <Loader2 size={12} className="animate-spin" /> Loading resources…
-                                                </div>
-                                            ) : (
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                                    {allZero && (
-                                                        <div style={{ padding: '5px 8px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', fontSize: '0.67rem', fontWeight: 700, color: '#dc2626' }}>
-                                                            ⚠ All resources removed — booking will be auto-rejected
-                                                        </div>
-                                                    )}
-                                                    {adjustResGroups.length > 0 ? (
-                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                                                            {adjustResGroups.map(rg => {
-                                                                const kept      = groupKeptQtys[rg.key] ?? rg.ids.length;
-                                                                const isChanged = kept !== rg.ids.length;
-                                                                const isZero    = kept === 0;
-                                                                return (
-                                                                    <div key={rg.key} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 8px', borderRadius: '6px', background: '#fff', border: `1.5px solid ${isZero ? '#fecaca' : isChanged ? '#fdba74' : '#fed7aa'}` }}>
-                                                                        <div style={{ flex: 1, minWidth: 0 }}>
-                                                                            <div style={{ fontSize: '0.73rem', fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{rg.name}</div>
-                                                                            <div style={{ fontSize: '0.6rem', color: '#92400e' }}>
-                                                                                Requested: {rg.ids.length}
-                                                                                {isChanged && !isZero && <span style={{ color: '#f97316', fontWeight: 700 }}> → {kept}</span>}
-                                                                                {isZero && <span style={{ color: '#dc2626', fontWeight: 700 }}> → removed</span>}
-                                                                            </div>
-                                                                            {rg.location && (
-                                                                                <div style={{ fontSize: '0.58rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '2px' }}>
-                                                                                    <MapPin size={7} /> {rg.location}
-                                                                                </div>
-                                                                            )}
-                                                                        </div>
-                                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
-                                                                            <button type="button"
-                                                                                onClick={() => setGroupKeptQtys(p => ({ ...p, [rg.key]: Math.max(0, (p[rg.key] ?? rg.ids.length) - 1) }))}
-                                                                                disabled={kept <= 0}
-                                                                                style={{ width: '22px', height: '22px', borderRadius: '5px', border: '1.5px solid #e2e8f0', background: kept <= 0 ? '#f8fafc' : '#fff', cursor: kept <= 0 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: kept <= 0 ? '#cbd5e1' : '#475569' }}>
-                                                                                <Minus size={9} />
-                                                                            </button>
-                                                                            <span style={{ fontSize: '0.88rem', fontWeight: 800, minWidth: '18px', textAlign: 'center' as const, color: isZero ? '#dc2626' : isChanged ? '#f97316' : '#1e293b' }}>{kept}</span>
-                                                                            <button type="button"
-                                                                                onClick={() => setGroupKeptQtys(p => ({ ...p, [rg.key]: Math.min(rg.ids.length, (p[rg.key] ?? rg.ids.length) + 1) }))}
-                                                                                disabled={kept >= rg.ids.length}
-                                                                                style={{ width: '22px', height: '22px', borderRadius: '5px', border: '1.5px solid #e2e8f0', background: kept >= rg.ids.length ? '#f8fafc' : '#fff', cursor: kept >= rg.ids.length ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: kept >= rg.ids.length ? '#cbd5e1' : '#475569' }}>
-                                                                                <Plus size={9} />
-                                                                            </button>
-                                                                        </div>
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    ) : (
-                                                        <p style={{ fontSize: '0.7rem', color: '#92400e', margin: 0 }}>No resource data available.</p>
-                                                    )}
-                                                    {adjustResGroups.length > 0 && (
-                                                        <div style={{ fontSize: '0.62rem', color: '#92400e', fontWeight: 600 }}>
-                                                            Keeping {totalKept} of {totalAll} unit{totalAll !== 1 ? 's' : ''}
-                                                        </div>
-                                                    )}
-                                                    <div>
-                                                        <label style={{ fontSize: '0.62rem', fontWeight: 700, color: '#92400e', display: 'block', marginBottom: '3px' }}>
-                                                            Reason * {allZero ? '(becomes reject reason)' : ''}
-                                                        </label>
-                                                        <textarea value={adjustReason} onChange={e => setAdjustReason(e.target.value)}
-                                                            placeholder={allZero ? 'Reason for rejection...' : 'Reason for adjusting quantities...'}
-                                                            style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1.5px solid #fed7aa', fontSize: '0.75rem', fontFamily: 'inherit', outline: 'none', minHeight: '40px', resize: 'vertical' as const, background: '#fff', boxSizing: 'border-box' as const }} />
-                                                    </div>
-                                                    <div style={{ display: 'flex', gap: '5px' }}>
-                                                        <button onClick={e => confirmAdjust(e, booking.id)} disabled={!adjustReason.trim() || isActLoading}
-                                                            style={{ display: 'flex', alignItems: 'center', gap: '3px', padding: '4px 12px', borderRadius: '5px', border: 'none', background: !adjustReason.trim() || isActLoading ? '#94a3b8' : allZero ? '#dc2626' : '#059669', color: '#fff', fontSize: '0.7rem', fontWeight: 700, cursor: !adjustReason.trim() || isActLoading ? 'not-allowed' : 'pointer' }}>
-                                                            {isActLoading ? <Loader2 size={10} className="animate-spin" /> : allZero ? <XCircle size={10} /> : <CheckCircle2 size={10} />}
-                                                            {allZero ? 'Confirm Reject' : 'Confirm & Approve'}
-                                                        </button>
-                                                        <button onClick={e => { e.stopPropagation(); collapsePanel(); }}
-                                                            style={{ padding: '4px 10px', borderRadius: '5px', border: '1px solid #fed7aa', background: '#fff', color: '#64748b', fontSize: '0.68rem', fontWeight: 700, cursor: 'pointer' }}>Cancel</button>
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    )}
                                 </div>
                             );
                         })}
