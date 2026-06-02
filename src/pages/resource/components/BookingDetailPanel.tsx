@@ -521,9 +521,10 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
 
     /**
      * getMyBookingIds: returns only the booking IDs that the current user manages.
-     * Filters directly on constituentBookings by managerId to avoid any ID-format
-     * mismatch between groupedBookingIds and fetched booking objects.
-     * Lab Directors can act on ALL bookings in the group.
+     * Compares by email (not managerId) because email is a consistent string on both
+     * the booking object and the auth user — avoids any ID format/type mismatch.
+     * Returns [] if the current user manages no bookings in this group (prevents
+     * accidentally calling another manager's booking and getting 403).
      */
     const getMyBookingIds = (): string[] => {
         if (_isLabDirector) {
@@ -532,18 +533,30 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                 : [bookingId];
         }
 
-        // Filter constituent bookings where this user is the manager, then extract IDs
+        const myEmail = (user?.email || '').trim().toLowerCase();
+        if (!myEmail) return [bookingId]; // unauthenticated fallback
+
         const mine = constituentBookings
-            .filter(b => b.managerId === user?.userId)
+            .filter(b => (b.managerEmail || '').trim().toLowerCase() === myEmail)
             .map(b => (b.id ?? (b as any).bookingId) as string)
             .filter(Boolean);
 
-        // Fallback: single-booking case where constituentBookings may not be populated yet
-        return mine.length > 0 ? mine : [bookingId];
+        // No constituent booking found for this user — they may be the sole manager
+        // of the primary booking (single-booking case). Only fall back if they ARE
+        // actually the manager of the primary booking.
+        if (mine.length === 0) {
+            const primaryManagerEmail = (booking?.managerEmail || '').trim().toLowerCase();
+            if (primaryManagerEmail === myEmail) return [bookingId];
+            // User doesn't manage any booking here — return empty to prevent 403
+            return [];
+        }
+
+        return mine;
     };
 
     const handleApprove = async (_groups: ResourceGroup[]) => {
         const ids = getMyBookingIds();
+        if (ids.length === 0) { addToast('You do not manage any booking in this session.', 'warning'); return; }
         setActionLoading(true);
         try {
             await Promise.all(ids.map(id =>
@@ -563,6 +576,7 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
     const handleReject = async () => {
         if (!rejectReason.trim()) return;
         const ids = getMyBookingIds();
+        if (ids.length === 0) { addToast('You do not manage any booking in this session.', 'warning'); return; }
         setActionLoading(true);
         try {
             await Promise.all(ids.map(id =>
@@ -597,6 +611,7 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
 
     const handleCheckOut = async () => {
         const ids = getMyBookingIds();
+        if (ids.length === 0) { addToast('You do not manage any booking in this session.', 'warning'); return; }
         setActionLoading(true);
         try {
             // checkIn = record pickup (borrower takes the item)
@@ -616,6 +631,7 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
 
     const handleCheckIn = async () => {
         const ids = getMyBookingIds();
+        if (ids.length === 0) { addToast('You do not manage any booking in this session.', 'warning'); return; }
         setActionLoading(true);
         try {
             // checkOut = record return (borrower returns the item)
@@ -646,9 +662,10 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
 
     const handleAdjust = async (groups: ResourceGroup[]) => {
         if (!adjustReason.trim()) { addToast('Adjustment reason is required.', 'warning'); return; }
+        const ids = getMyBookingIds();
+        if (ids.length === 0) { addToast('You do not manage any booking in this session.', 'warning'); return; }
         const totalKeptAdj = groups.reduce((s, g) => s + (adjustKeptQtys[g.key] ?? g.ids.length), 0);
         const newResourceIds = groups.flatMap(g => g.ids.slice(0, adjustKeptQtys[g.key] ?? g.ids.length));
-        const ids = getMyBookingIds();
         setActionLoading(true);
         try {
             if (totalKeptAdj === 0) {
