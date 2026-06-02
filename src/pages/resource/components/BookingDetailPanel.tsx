@@ -520,12 +520,9 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
     };
 
     const handleApprove = async (groups: ResourceGroup[]) => {
+        // No adjustment needed when calling directly (form was removed)
         const hasAdjustment = groupKeptQtys !== null;
-        if (hasAdjustment && !approveAdjustReason.trim()) {
-            addToast('Adjust reason is required when making adjustments.', 'warning');
-            return;
-        }
-        // Build newResourceIds from kept qtys per group
+        // Build newResourceIds from kept qtys per group (only if adjustment was made via Adjust flow)
         let newResourceIds: string[] | undefined;
         if (hasAdjustment && groupKeptQtys) {
             newResourceIds = groups.flatMap(g => g.ids.slice(0, groupKeptQtys[g.key] ?? g.ids.length));
@@ -534,9 +531,9 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
         try {
             // Approve the primary booking
             await bookingService.approve(bookingId, {
-                note: approveNote.trim() || null,
+                note: undefined,
                 newResourceIds: newResourceIds ?? undefined,
-                adjustReason: hasAdjustment ? approveAdjustReason.trim() : null,
+                adjustReason: undefined,
             });
             // Also approve any other bookings in the same grouped session (no adjustment for them)
             let otherIds = (groupedBookingIds ?? []).filter(id => id !== bookingId);
@@ -548,7 +545,7 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
             }
             if (otherIds.length > 0) {
                 await Promise.allSettled(otherIds.map(id =>
-                    bookingService.approve(id, { note: approveNote.trim() || null })
+                    bookingService.approve(id, { note: undefined })
                 ));
             }
             onSaved(false, 'Booking approved successfully.');
@@ -565,6 +562,7 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
             setActionLoading(false);
         }
     };
+
 
     const handleReject = async () => {
         if (!rejectReason.trim()) return;
