@@ -520,26 +520,25 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
     };
 
     /**
-     * myBookingIds: IDs of constituent bookings that the current user manages.
-     * Used by all action handlers so a manager never accidentally acts on
-     * another manager's booking (which would return 403 Forbidden).
+     * getMyBookingIds: returns only the booking IDs that the current user manages.
+     * Filters directly on constituentBookings by managerId to avoid any ID-format
+     * mismatch between groupedBookingIds and fetched booking objects.
      * Lab Directors can act on ALL bookings in the group.
      */
     const getMyBookingIds = (): string[] => {
-        const allIds = (groupedBookingIds && groupedBookingIds.length > 0)
-            ? groupedBookingIds
-            : [bookingId];
+        if (_isLabDirector) {
+            return (groupedBookingIds && groupedBookingIds.length > 0)
+                ? groupedBookingIds
+                : [bookingId];
+        }
 
-        if (_isLabDirector) return allIds;
+        // Filter constituent bookings where this user is the manager, then extract IDs
+        const mine = constituentBookings
+            .filter(b => b.managerId === user?.userId)
+            .map(b => (b.id ?? (b as any).bookingId) as string)
+            .filter(Boolean);
 
-        // Filter to only the bookings where the current user is the manager
-        const mine = allIds.filter(id => {
-            const cb = constituentBookings.find(b => (b.id ?? (b as any).bookingId) === id);
-            return cb ? cb.managerId === user?.userId : id === bookingId;
-        });
-
-        // Fallback: if we couldn't match any constituent booking (single-booking case),
-        // just use the primary bookingId — it will succeed or fail on its own.
+        // Fallback: single-booking case where constituentBookings may not be populated yet
         return mine.length > 0 ? mine : [bookingId];
     };
 
