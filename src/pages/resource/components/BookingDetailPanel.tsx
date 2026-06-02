@@ -519,45 +519,42 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
         }
     };
 
-    const handleApprove = async (groups: ResourceGroup[]) => {
-        // No adjustment needed when calling directly (form was removed)
-        const hasAdjustment = groupKeptQtys !== null;
-        // Build newResourceIds from kept qtys per group (only if adjustment was made via Adjust flow)
-        let newResourceIds: string[] | undefined;
-        if (hasAdjustment && groupKeptQtys) {
-            newResourceIds = groups.flatMap(g => g.ids.slice(0, groupKeptQtys[g.key] ?? g.ids.length));
-        }
+    /**
+     * myBookingIds: IDs of constituent bookings that the current user manages.
+     * Used by all action handlers so a manager never accidentally acts on
+     * another manager's booking (which would return 403 Forbidden).
+     * Lab Directors can act on ALL bookings in the group.
+     */
+    const getMyBookingIds = (): string[] => {
+        const allIds = (groupedBookingIds && groupedBookingIds.length > 0)
+            ? groupedBookingIds
+            : [bookingId];
+
+        if (_isLabDirector) return allIds;
+
+        // Filter to only the bookings where the current user is the manager
+        const mine = allIds.filter(id => {
+            const cb = constituentBookings.find(b => (b.id ?? (b as any).bookingId) === id);
+            return cb ? cb.managerId === user?.userId : id === bookingId;
+        });
+
+        // Fallback: if we couldn't match any constituent booking (single-booking case),
+        // just use the primary bookingId — it will succeed or fail on its own.
+        return mine.length > 0 ? mine : [bookingId];
+    };
+
+    const handleApprove = async (_groups: ResourceGroup[]) => {
+        const ids = getMyBookingIds();
         setActionLoading(true);
         try {
-            // Approve the primary booking
-            await bookingService.approve(bookingId, {
-                note: undefined,
-                newResourceIds: newResourceIds ?? undefined,
-                adjustReason: undefined,
-            });
-            // Also approve any other bookings in the same grouped session (no adjustment for them)
-            let otherIds = (groupedBookingIds ?? []).filter(id => id !== bookingId);
-            if (!_isLabDirector) {
-                otherIds = otherIds.filter(id => {
-                    const cb = constituentBookings.find(b => (b.id === id || b.bookingId === id));
-                    return cb && cb.managerId === user?.userId;
-                });
-            }
-            if (otherIds.length > 0) {
-                await Promise.allSettled(otherIds.map(id =>
-                    bookingService.approve(id, { note: undefined })
-                ));
-            }
+            await Promise.all(ids.map(id =>
+                bookingService.approve(id, { note: undefined, adjustReason: undefined })
+            ));
             onSaved(false, 'Booking approved successfully.');
-            setShowApproveForm(false);
-            setApproveNote('');
-            setApproveAdjustReason('');
             setGroupKeptQtys(null);
-            setShowAdjustments(false);
             loadBooking();
         } catch (err: any) {
-            const msg = err?.response?.data?.message || 'Failed to approve booking.';
-            addToast(msg, 'error');
+            addToast(err?.response?.data?.message || 'Failed to approve booking.', 'error');
         } finally {
             setActionLoading(false);
         }
