@@ -563,29 +563,18 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
 
     const handleReject = async () => {
         if (!rejectReason.trim()) return;
+        const ids = getMyBookingIds();
         setActionLoading(true);
         try {
-            await bookingService.reject(bookingId, rejectReason.trim());
-            // Also reject any other bookings in the same grouped session
-            let otherIds = (groupedBookingIds ?? []).filter(id => id !== bookingId);
-            if (!_isLabDirector) {
-                otherIds = otherIds.filter(id => {
-                    const cb = constituentBookings.find(b => (b.id === id || b.bookingId === id));
-                    return cb && cb.managerId === user?.userId;
-                });
-            }
-            if (otherIds.length > 0) {
-                await Promise.allSettled(otherIds.map(id =>
-                    bookingService.reject(id, rejectReason.trim())
-                ));
-            }
+            await Promise.all(ids.map(id =>
+                bookingService.reject(id, rejectReason.trim())
+            ));
             onSaved(false, 'Booking rejected.');
             setShowRejectForm(false);
             setRejectReason('');
             loadBooking();
         } catch (err: any) {
-            const msg = err?.response?.data?.message || 'Failed to reject booking.';
-            addToast(msg, 'error');
+            addToast(err?.response?.data?.message || 'Failed to reject booking.', 'error');
         } finally {
             setActionLoading(false);
         }
@@ -608,33 +597,41 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
     };
 
     const handleCheckOut = async () => {
+        const ids = getMyBookingIds();
         setActionLoading(true);
         try {
-            await bookingService.checkIn(bookingId, checkOutNote.trim() || undefined);
+            // checkIn = record pickup (borrower takes the item)
+            await Promise.all(ids.map(id =>
+                bookingService.checkIn(id, checkOutNote.trim() || undefined)
+            ));
             onSaved(false, 'Check-out recorded.');
             setShowCheckOutForm(false);
             setCheckOutNote('');
             loadBooking();
         } catch (err: any) {
-            const msg = err?.response?.data?.message || 'Check-out failed.';
-            addToast(msg, 'error');
+            addToast(err?.response?.data?.message || 'Check-out failed.', 'error');
         } finally {
             setActionLoading(false);
         }
     };
 
     const handleCheckIn = async () => {
-        const firstResourceId = bookingResourceIds[0] ?? '';
+        const ids = getMyBookingIds();
         setActionLoading(true);
         try {
-            await bookingService.checkOut(bookingId, firstResourceId, checkInNote.trim() || undefined);
+            // checkOut = record return (borrower returns the item)
+            await Promise.all(ids.map(id => {
+                // Find first resource belonging to this booking to pass as resourceId
+                const cb = constituentBookings.find(b => (b.id ?? (b as any).bookingId) === id);
+                const firstResourceId = cb?.resources?.[0]?.id ?? bookingResourceIds[0] ?? '';
+                return bookingService.checkOut(id, firstResourceId, checkInNote.trim() || undefined);
+            }));
             onSaved(false, 'Check-in recorded.');
             setShowCheckInForm(false);
             setCheckInNote('');
             loadBooking();
         } catch (err: any) {
-            const msg = err?.response?.data?.message || 'Check-in failed.';
-            addToast(msg, 'error');
+            addToast(err?.response?.data?.message || 'Check-in failed.', 'error');
         } finally {
             setActionLoading(false);
         }
@@ -652,17 +649,20 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
         if (!adjustReason.trim()) { addToast('Adjustment reason is required.', 'warning'); return; }
         const totalKeptAdj = groups.reduce((s, g) => s + (adjustKeptQtys[g.key] ?? g.ids.length), 0);
         const newResourceIds = groups.flatMap(g => g.ids.slice(0, adjustKeptQtys[g.key] ?? g.ids.length));
+        const ids = getMyBookingIds();
         setActionLoading(true);
         try {
             if (totalKeptAdj === 0) {
-                await bookingService.reject(bookingId, adjustReason.trim());
+                await Promise.all(ids.map(id => bookingService.reject(id, adjustReason.trim())));
                 onSaved(false, 'Booking rejected (all resources removed).');
             } else {
-                await bookingService.approve(bookingId, {
-                    note: null,
-                    newResourceIds,
-                    adjustReason: adjustReason.trim(),
-                });
+                await Promise.all(ids.map(id =>
+                    bookingService.approve(id, {
+                        note: undefined,
+                        newResourceIds,
+                        adjustReason: adjustReason.trim(),
+                    })
+                ));
                 onSaved(false, 'Resources adjusted and booking approved.');
             }
             setShowAdjustForm(false);
