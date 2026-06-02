@@ -273,26 +273,8 @@ const BookingListView: React.FC<BookingListViewProps> = ({
                                             )}
                                         </div>
 
-                                        {/* Right: view detail button + status badge */}
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }} onClick={e => e.stopPropagation()}>
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); onSelect(booking); }}
-                                                style={{
-                                                    padding: '3px 8px',
-                                                    background: '#fff',
-                                                    color: '#2563eb',
-                                                    border: '1px solid #bfdbfe',
-                                                    borderRadius: '6px',
-                                                    fontSize: '0.63rem',
-                                                    fontWeight: 700,
-                                                    cursor: 'pointer',
-                                                    transition: 'background 0.15s'
-                                                }}
-                                                onMouseEnter={e => { e.currentTarget.style.background = '#eff6ff'; }}
-                                                onMouseLeave={e => { e.currentTarget.style.background = '#fff'; }}
-                                            >
-                                                View Detail
-                                            </button>
+                                        {/* Right: status badge */}
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0 }} onClick={e => e.stopPropagation()}>
                                             <span style={{ fontSize: '0.6rem', fontWeight: 700, color: sc.color, background: sc.bg, border: `1px solid ${sc.border}`, padding: '2px 7px', borderRadius: '7px', display: 'inline-flex', alignItems: 'center', gap: '2px', flexShrink: 0 }}>
                                                 {sc.label}
                                             </span>

@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
     ChevronLeft, ChevronRight, Plus, AlertCircle,
     Database, Cpu, Radio, Monitor, Package,
-    FlaskConical, Microscope, X, Check, SlidersHorizontal, Loader2, Minus
+    FlaskConical, Microscope, X, Check, SlidersHorizontal, Loader2, Minus, Eye
 } from 'lucide-react';
 import { Booking, Resource, BookingStatus, BasicResourceResponse } from '@/types/booking';
 import {
@@ -934,6 +934,38 @@ function PendingQueue({ bookings, resources, onApprove, onReject, onAdjust, onOp
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3, flexWrap: 'wrap' }}>
                                 <Avatar name={b.userFullName ?? b.userName ?? ''} size={22} />
                                 <span style={{ fontSize: 13, color: '#64748b', fontWeight: 500, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.userFullName ?? b.userName}</span>
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onOpen(b);
+                                    }}
+                                    style={{
+                                        padding: '4px 10px',
+                                        background: '#fff',
+                                        color: '#b45309',
+                                        border: '1px solid #fcd34d',
+                                        borderRadius: 8,
+                                        fontSize: 12,
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                        transition: 'all 0.15s',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: 4,
+                                        boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.background = '#fef3c7';
+                                        e.currentTarget.style.borderColor = '#f59e0b';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.background = '#fff';
+                                        e.currentTarget.style.borderColor = '#fcd34d';
+                                    }}
+                                >
+                                    <Eye size={13} />
+                                    View
+                                </button>
                             </div>
                         </div>
                     );

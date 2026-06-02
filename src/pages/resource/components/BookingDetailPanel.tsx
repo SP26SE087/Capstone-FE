@@ -1597,7 +1597,7 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                         )}
                         {constituentBookings.length <= 1 && !anyFormOpen && canApproveReject && (
                             <>
-                                <FooterBtn onClick={() => handleApprove(resourceGroups)} disabled={actionLoading}
+                                <FooterBtn onClick={() => handleApprove()} disabled={actionLoading}
                                     variant="primary" color="#2563eb" shadow="rgba(37,99,235,0.22)"
                                     icon={actionLoading ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} label="Approve" />
                                 <FooterBtn onClick={() => { setShowAdjustForm(true); openAdjustForm(resourceGroups); setShowApproveForm(false); setShowRejectForm(false); setShowCancelForm(false); }}
