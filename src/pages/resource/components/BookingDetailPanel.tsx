@@ -296,32 +296,65 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
         );
     }, [bookingResources]);
 
+    /**
+     * resourceOwnerMap: resourceId → constituent Booking that owns it.
+     *
+     * Root cause: the API response for the PRIMARY booking often includes ALL merged
+     * resources (because the backend aggregates them), whereas secondary (grouped)
+     * bookings only contain their own resources.
+     *
+     * Fix: process non-primary bookings FIRST so their resources are "claimed" before
+     * the primary booking's (potentially over-inclusive) resource list is processed.
+     */
+    const resourceOwnerMap = useMemo(() => {
+        const map = new Map<string, Booking>();
+        // Pass 1 — non-primary bookings get priority (their resource list is accurate)
+        for (const b of constituentBookings) {
+            const bid = (b as any).id ?? (b as any).bookingId ?? '';
+            if (bid === bookingId) continue; // skip primary for now
+            for (const r of b.resources ?? []) {
+                if (!map.has(r.id)) map.set(r.id, b);
+            }
+        }
+        // Pass 2 — primary booking fills in anything still unowned
+        for (const b of constituentBookings) {
+            const bid = (b as any).id ?? (b as any).bookingId ?? '';
+            if (bid !== bookingId) continue;
+            for (const r of b.resources ?? []) {
+                if (!map.has(r.id)) map.set(r.id, b);
+            }
+        }
+        return map;
+    }, [constituentBookings, bookingId]);
+
     const uniqueManagers = useMemo(() => {
-        // Each constituent booking has its own manager who is responsible ONLY for the resources in that booking.
-        // We group by manager email and collect only the resource names from bookings that manager owns.
+        // Build manager → resource names using resourceOwnerMap (avoids cross-booking contamination)
         const managersMap = new Map<string, { name: string; email: string; managerId: string; resourceNames: string[] }>();
-        constituentBookings.forEach(b => {
-            const name = b.managerFullName;
-            const email = b.managerEmail;
-            const managerId = b.managerId ?? '';
-            if (name && email) {
-                const key = email.toLowerCase();
-                const existing = managersMap.get(key);
-                // Only attach resources that belong to THIS booking (managed by this specific person)
-                const resNames = (b.resources ?? []).map(r => r.name);
-                if (existing) {
-                    resNames.forEach(rn => {
-                        if (!existing.resourceNames.includes(rn)) {
-                            existing.resourceNames.push(rn);
-                        }
-                    });
-                } else {
-                    managersMap.set(key, { name, email, managerId, resourceNames: resNames });
+        for (const [, ownerBooking] of resourceOwnerMap) {
+            const name = ownerBooking.managerFullName;
+            const email = ownerBooking.managerEmail;
+            const managerId = ownerBooking.managerId ?? '';
+            if (!name || !email) continue;
+            const key = email.toLowerCase();
+            if (!managersMap.has(key)) {
+                managersMap.set(key, { name, email, managerId, resourceNames: [] });
+            }
+        }
+        // Now attach resource names per manager via the ownership map
+        for (const [, ownerBooking] of resourceOwnerMap) {
+            const email = ownerBooking.managerEmail;
+            if (!email) continue;
+            const entry = managersMap.get(email.toLowerCase());
+            if (!entry) continue;
+            for (const r of ownerBooking.resources ?? []) {
+                // Only attach if THIS booking is the designated owner of this resource
+                if (resourceOwnerMap.get(r.id) === ownerBooking && !entry.resourceNames.includes(r.name)) {
+                    entry.resourceNames.push(r.name);
                 }
             }
-        });
+        }
         return Array.from(managersMap.values());
-    }, [constituentBookings]);
+    }, [resourceOwnerMap]);
 
     const uniqueApprovers = useMemo(() => {
         const approversMap = new Map<string, { name: string; email: string; approvedAt?: string | null; resourceNames: string[] }>();
@@ -974,9 +1007,10 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                             No resources.
                         </div>
                     ) : bookingResources.map((r, idx) => {
-                        const parentBooking = constituentBookings.find(b =>
-                            b.resources?.some(res => res.id === r.id)
-                        ) ?? booking;
+                        // Use resourceOwnerMap for accurate parent booking lookup.
+                        // Naive .find() fails because the primary booking's API response includes
+                        // ALL resources (over-inclusive), so it would always match first.
+                        const parentBooking = resourceOwnerMap.get(r.id) ?? booking;
                         const s = getStatusConfig(parentBooking.status);
 
                         return (
