@@ -1189,67 +1189,7 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                     </div>
                 )}
 
-                {/* ── Approve form ── */}
-                {showApproveForm && canApproveReject && (
-                    <div style={{ padding: '14px 16px', background: '#eff6ff', borderBottom: '1px solid #bfdbfe' }}>
-                        <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#2563eb', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>
-                            <CheckCircle2 size={11} /> Approve Booking
-                        </div>
-                        <textarea
-                            autoFocus
-                            value={approveNote} onChange={e => setApproveNote(e.target.value)}
-                            placeholder="Approval note (optional)..."
-                            style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid #bfdbfe', fontSize: '0.8rem', fontFamily: 'inherit', outline: 'none', minHeight: 52, resize: 'none', background: '#fff', boxSizing: 'border-box', marginBottom: 8 }}
-                        />
-                        {bookingResourceIds.length > 0 && (
-                            <div style={{ marginBottom: 8 }}>
-                                <button type="button" onClick={() => handleToggleAdjustments(resourceGroups)}
-                                    style={{ fontSize: '0.75rem', fontWeight: 700, color: showAdjustments ? '#2563eb' : '#64748b', background: showAdjustments ? '#dbeafe' : '#f1f5f9', border: `1px solid ${showAdjustments ? '#bfdbfe' : '#e2e8f0'}`, borderRadius: 8, padding: '4px 12px', cursor: 'pointer' }}>
-                                    {showAdjustments ? '− Hide Adjustments' : '+ Adjust Quantities'}
-                                </button>
-                                {showAdjustments && groupKeptQtys && (
-                                    <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                        {allRemoved && <div style={{ padding: '6px 10px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 7, fontSize: '0.75rem', fontWeight: 700, color: '#dc2626' }}>⚠ All removed — will auto-reject</div>}
-                                        {resourceGroups.map(g => {
-                                            const kept = groupKeptQtys[g.key] ?? g.ids.length;
-                                            const isZero = kept === 0; const isChanged = kept !== g.ids.length;
-                                            return (
-                                                <div key={g.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', background: '#fff', border: `1.5px solid ${isZero ? '#fecaca' : isChanged ? '#fdba74' : '#fde68a'}`, borderRadius: 8 }}>
-                                                    <div style={{ flex: 1, fontSize: '0.78rem', fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{g.name}</div>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
-                                                        <button type="button" onClick={() => setGroupKeptQtys(p => ({ ...p!, [g.key]: Math.max(0, (p![g.key] ?? g.ids.length) - 1) }))} disabled={kept <= 0}
-                                                            style={{ width: 24, height: 24, borderRadius: 6, border: '1.5px solid #e2e8f0', background: kept <= 0 ? '#f8fafc' : '#fff', cursor: kept <= 0 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: kept <= 0 ? '#cbd5e1' : '#475569' }}>
-                                                            <Minus size={10} />
-                                                        </button>
-                                                        <span style={{ fontSize: '0.85rem', fontWeight: 800, minWidth: 20, textAlign: 'center' as const, color: isZero ? '#dc2626' : isChanged ? '#f97316' : '#1e293b' }}>{kept}</span>
-                                                        <button type="button" onClick={() => setGroupKeptQtys(p => ({ ...p!, [g.key]: Math.min(g.ids.length, (p![g.key] ?? g.ids.length) + 1) }))} disabled={kept >= g.ids.length}
-                                                            style={{ width: 24, height: 24, borderRadius: 6, border: '1.5px solid #e2e8f0', background: kept >= g.ids.length ? '#f8fafc' : '#fff', cursor: kept >= g.ids.length ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: kept >= g.ids.length ? '#cbd5e1' : '#475569' }}>
-                                                            <Plus size={10} />
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                        <textarea value={approveAdjustReason} onChange={e => setApproveAdjustReason(e.target.value)}
-                                            placeholder={`Adjustment reason${allRemoved ? ' (reject reason)' : ''} *`}
-                                            style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1.5px solid #fde68a', fontSize: '0.78rem', fontFamily: 'inherit', outline: 'none', minHeight: 44, resize: 'none', background: '#fffbeb', boxSizing: 'border-box' as const }} />
-                                        {hasChangedQty && <div style={{ fontSize: '0.7rem', color: '#92400e', fontWeight: 600 }}>Keeping {totalKept} of {bookingResourceIds.length} unit(s)</div>}
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                        <div style={{ display: 'flex', gap: 8 }}>
-                            <button onClick={() => handleApprove(resourceGroups)} disabled={actionLoading}
-                                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 16px', borderRadius: 9, border: 'none', background: '#2563eb', color: '#fff', fontSize: '0.8rem', fontWeight: 700, cursor: actionLoading ? 'not-allowed' : 'pointer', opacity: actionLoading ? 0.7 : 1 }}>
-                                {actionLoading ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />} Confirm Approve
-                            </button>
-                            <button onClick={() => { setShowApproveForm(false); setShowAdjustments(false); setGroupKeptQtys(null); }}
-                                style={{ padding: '7px 14px', borderRadius: 9, border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}>
-                                Cancel
-                            </button>
-                        </div>
-                    </div>
-                )}
+
 
                 {/* ── Reject form ── */}
                 {showRejectForm && canApproveReject && (
@@ -1356,9 +1296,9 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                         )}
                         {!anyFormOpen && canApproveReject && (
                             <>
-                                <FooterBtn onClick={() => { setShowApproveForm(true); setShowRejectForm(false); setShowCancelForm(false); setShowAdjustForm(false); }}
+                                <FooterBtn onClick={() => handleApprove(resourceGroups)} disabled={actionLoading}
                                     variant="primary" color="#2563eb" shadow="rgba(37,99,235,0.22)"
-                                    icon={<CheckCircle2 size={14} />} label="Approve" />
+                                    icon={actionLoading ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} label="Approve" />
                                 <FooterBtn onClick={() => { setShowAdjustForm(true); openAdjustForm(resourceGroups); setShowApproveForm(false); setShowRejectForm(false); setShowCancelForm(false); }}
                                     variant="outline" color="#ea580c" borderColor="#fed7aa"
                                     icon={<Info size={14} />} label="Adjust" />
