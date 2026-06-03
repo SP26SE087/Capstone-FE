@@ -122,12 +122,6 @@ const ResourceListView: React.FC<ResourceListViewProps> = ({
         const damagedCount   = resource.damagedQuantity ?? 0;
         const inUseCount     = resource.inUseCount ?? Math.max(0, total - availableCount - damagedCount);
 
-        const overallStatus: UnitStatus =
-            availableCount > 0 ? 'available' :
-            damagedCount > 0   ? 'damaged'   : 'in-use';
-        const osc = STATUS_CFG[overallStatus];
-
-        const availabilityPct = Math.min(100, Math.round((availableCount / total) * 100));
 
         const health = isServer ? getResourceHealth(resource) : null;
         const latencyColor = health?.latencyMs == null ? '#94a3b8'
@@ -196,17 +190,21 @@ const ResourceListView: React.FC<ResourceListViewProps> = ({
                                         )}
                                     </span>
                                 )}
-                                {/* Availability status pill */}
-                                <span style={{
-                                    display: 'inline-flex', alignItems: 'center', gap: '4px',
-                                    fontSize: '0.65rem', fontWeight: 800,
-                                    padding: '2px 8px', borderRadius: '20px',
-                                    color: osc.color, background: osc.bg, border: `1px solid ${osc.border}`,
-                                    whiteSpace: 'nowrap' as const,
-                                }}>
-                                    <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: osc.dot, display: 'inline-block' }} />
-                                    {osc.label}
-                                </span>
+                                {/* Damaged count pill — only show when there are damaged units */}
+                                {damagedCount > 0 && (
+                                    <span style={{
+                                        display: 'inline-flex', alignItems: 'center', gap: '4px',
+                                        fontSize: '0.65rem', fontWeight: 800,
+                                        padding: '2px 8px', borderRadius: '20px',
+                                        color: STATUS_CFG.damaged.color,
+                                        background: STATUS_CFG.damaged.bg,
+                                        border: `1px solid ${STATUS_CFG.damaged.border}`,
+                                        whiteSpace: 'nowrap' as const,
+                                    }}>
+                                        <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: STATUS_CFG.damaged.dot, display: 'inline-block' }} />
+                                        {damagedCount} Damaged
+                                    </span>
+                                )}
                             </div>
                         </div>
 
@@ -249,23 +247,23 @@ const ResourceListView: React.FC<ResourceListViewProps> = ({
                     </div>
                 </div>
 
-                {/* ── Availability bar ── */}
-                <div style={{ marginTop: '9px' }}>
-                    <div style={{ height: '5px', borderRadius: '999px', background: '#e2e8f0', overflow: 'hidden' }}>
-                        <div style={{
-                            width: `${availabilityPct}%`, height: '100%', borderRadius: '999px',
-                            background: availabilityPct > 50 ? '#10b981' : availabilityPct > 20 ? '#f59e0b' : '#ef4444',
-                            transition: 'width 0.2s ease',
-                        }} />
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '3px', fontSize: '0.62rem', color: '#64748b', fontWeight: 600 }}>
-                        <span>Availability</span>
-                        <span style={{ display: 'flex', gap: '6px' }}>
-                            {availableCount > 0 && <span style={{ color: '#16a34a' }}>{availableCount} avail</span>}
-                            {inUseCount > 0     && <span style={{ color: '#b45309' }}>{inUseCount} in-use</span>}
-                            {damagedCount > 0   && <span style={{ color: '#dc2626' }}>{damagedCount} damaged</span>}
-                        </span>
-                    </div>
+                {/* ── Stats summary line ── */}
+                <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' as const, fontSize: '0.65rem', fontWeight: 700 }}>
+                    <span style={{ color: '#475569' }}>Total {total}</span>
+                    <span style={{ color: '#cbd5e1' }}>·</span>
+                    <span style={{ color: '#16a34a' }}>{availableCount + inUseCount} active</span>
+                    {inUseCount > 0 && (
+                        <>
+                            <span style={{ color: '#cbd5e1' }}>·</span>
+                            <span style={{ color: '#b45309' }}>{inUseCount} in use</span>
+                        </>
+                    )}
+                    {damagedCount > 0 && (
+                        <>
+                            <span style={{ color: '#cbd5e1' }}>·</span>
+                            <span style={{ color: '#dc2626' }}>{damagedCount} damaged</span>
+                        </>
+                    )}
                 </div>
             </div>
         );
