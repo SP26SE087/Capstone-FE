@@ -299,11 +299,9 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
     };
 
     useEffect(() => {
-        if (panelTab === 'history') {
-            fetchHistory(targetResource.id, historyPage);
-        }
+        fetchHistory(targetResource.id, historyPage);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [panelTab, historyPage, targetResource.id]);
+    }, [historyPage, targetResource.id]);
 
     const historyStatusCfg: Record<number, { label: string; color: string; bg: string }> = {
         [BookingStatus.Pending]:   { label: 'Pending',   color: '#d97706', bg: '#fef9c3' },
