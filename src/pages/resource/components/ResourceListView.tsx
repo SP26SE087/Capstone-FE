@@ -190,19 +190,7 @@ const ResourceListView: React.FC<ResourceListViewProps> = ({
                                         )}
                                     </span>
                                 )}
-                                {/* Damaged count pill — always visible */}
-                                <span style={{
-                                    display: 'inline-flex', alignItems: 'center', gap: '4px',
-                                    fontSize: '0.65rem', fontWeight: 800,
-                                    padding: '2px 8px', borderRadius: '20px',
-                                    color: damagedCount > 0 ? STATUS_CFG.damaged.color : '#64748b',
-                                    background: damagedCount > 0 ? STATUS_CFG.damaged.bg : '#f1f5f9',
-                                    border: `1px solid ${damagedCount > 0 ? STATUS_CFG.damaged.border : '#e2e8f0'}`,
-                                    whiteSpace: 'nowrap' as const,
-                                }}>
-                                    <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: damagedCount > 0 ? STATUS_CFG.damaged.dot : '#94a3b8', display: 'inline-block' }} />
-                                    {damagedCount} Damaged
-                                </span>
+
                             </div>
                         </div>
 
@@ -253,7 +241,7 @@ const ResourceListView: React.FC<ResourceListViewProps> = ({
                     <span style={{ color: '#cbd5e1' }}>·</span>
                     <span style={{ color: '#b45309' }}>In Use <span style={{ color: '#92400e' }}>{inUseCount}</span></span>
                     <span style={{ color: '#cbd5e1' }}>·</span>
-                    <span style={{ color: damagedCount > 0 ? '#dc2626' : '#94a3b8' }}>Damaged <span style={{ color: damagedCount > 0 ? '#b91c1c' : '#94a3b8' }}>{damagedCount}</span></span>
+                    <span style={{ color: '#dc2626' }}>Damaged <span style={{ color: '#b91c1c' }}>{damagedCount}</span></span>
                 </div>
             </div>
         );
