@@ -1054,63 +1054,8 @@ const ResourceBooking: React.FC = () => {
                         </div>
                     );
                 })()}
-                {/* Search + filter toolbar + stats in one row — hidden on server health tab */}
-                <div style={{ display: isServerTab ? 'none' : 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginBottom: '1rem', flexWrap: 'wrap' as const }}>
-                    {/* Left: stats chips */}
-                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' as const }}>
-                        {isResourceTab && !isResourceTypeTab && [
-                            { label: 'Total', value: resources.length, color: '#3b82f6', icon: <Package size={13} /> },
-                            { label: 'Available', value: availableResourceCount, color: '#10b981', icon: <CheckCircle2 size={13} /> },
-                            { label: 'In Use', value: inUseResourceCount, color: '#f59e0b', icon: <Activity size={13} /> },
-                            { label: 'Damaged', value: damagedResourceCount, color: '#ef4444', icon: <Wrench size={13} /> },
-                        ].map(s => (
-                            <div key={s.label} style={{
-                                display: 'flex', alignItems: 'center', gap: '6px',
-                                padding: '5px 12px', background: '#fff', borderRadius: '8px',
-                                border: '1px solid #e2e8f0', fontSize: '0.78rem', fontWeight: 700, color: '#475569'
-                            }}>
-                                <span style={{ color: s.color }}>{s.icon}</span>
-                                {s.label}: <span style={{ color: '#1e293b' }}>{s.value}</span>
-                            </div>
-                        ))}
-                        {isBookingTab && (() => {
-                            const today = new Date();
-                            today.setHours(0, 0, 0, 0);
-                            const todayEnd = new Date(today); todayEnd.setDate(today.getDate() + 1);
-                            const approvedCount = bookingListForTab.filter(b => b.status === BookingStatus.Approved).length;
-                            const inUseCount = bookingListForTab.filter(b => b.status === BookingStatus.InUse).length;
-                            const todayCount = bookingListForTab.filter(b => {
-                                const s = new Date(b.startTime);
-                                return s >= today && s < todayEnd;
-                            }).length;
-                            return [
-                                { label: 'Total', value: activeTab === 'my_bookings' ? myBookingsTotalCount : bookingListForTab.length, color: '#8b5cf6', icon: <Clock size={13} /> },
-                                { label: 'Pending', value: pendingCount, color: '#f59e0b', icon: <AlertTriangle size={13} /> },
-                                { label: 'Approved', value: approvedCount, color: '#10b981', icon: <CheckCircle2 size={13} /> },
-                                { label: 'In Use', value: inUseCount, color: '#3b82f6', icon: <Activity size={13} /> },
-                                { label: 'Today', value: todayCount, color: '#e8720c', icon: <Calendar size={13} /> },
-                            ].map(s => (
-                                <div key={s.label} style={{
-                                    display: 'flex', alignItems: 'center', gap: '6px',
-                                    padding: '5px 12px', background: '#fff', borderRadius: '8px',
-                                    border: '1px solid #e2e8f0', fontSize: '0.78rem', fontWeight: 700, color: '#475569'
-                                }}>
-                                    <span style={{ color: s.color }}>{s.icon}</span>
-                                    {s.label}: <span style={{ color: '#1e293b' }}>{s.value}</span>
-                                </div>
-                            ));
-                        })()}
-                        {isLogTab && (
-                            <div style={{
-                                display: 'flex', alignItems: 'center', gap: '6px',
-                                padding: '5px 12px', background: '#fff', borderRadius: '8px',
-                                border: '1px solid #e2e8f0', fontSize: '0.78rem', fontWeight: 700, color: '#475569'
-                            }}>
-                                <span style={{ color: '#0ea5e9' }}><ScrollText size={13} /></span>
-                                Entries: <span style={{ color: '#1e293b' }}>{equipmentLogs.length}</span>
-                            </div>
-                        )}
-                    </div>
+                {/* Search + filter toolbar — hidden on server health tab */}
+                <div style={{ display: isServerTab ? 'none' : 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '12px', marginBottom: '1rem', flexWrap: 'wrap' as const }}>
                     {/* Right: search + filter */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <div style={{ position: 'relative' }}>

@@ -307,8 +307,53 @@ const ResourceListView: React.FC<ResourceListViewProps> = ({
                     );
                 })}
             </div>
-
-
+            {/* Summary bar */}
+            <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                gap: '10px', flexWrap: 'wrap' as const,
+                padding: '8px 12px', borderRadius: '10px',
+                border: '1px solid #e2e8f0', background: '#f8fafc',
+            }}>
+                <span style={{ fontSize: '0.72rem', color: '#475569', fontWeight: 700 }}>
+                    {visibleList.length} {visibleList.length === 1 ? 'resource' : 'resources'}
+                </span>
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' as const }}>
+                    {/* Connectivity summary — server tab only */}
+                    {activeTab === 'server' && healthMap.size > 0 && (
+                        <>
+                            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#059669', background: '#ecfdf5', border: '1px solid #a7f3d0', padding: '2px 8px', borderRadius: 999, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <Wifi size={10} /> Online: {serverOnline}
+                            </span>
+                            {serverOffline > 0 && (
+                                <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', padding: '2px 8px', borderRadius: 999, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <WifiOff size={10} /> Offline: {serverOffline}
+                                </span>
+                            )}
+                            <button
+                                onClick={e => { e.stopPropagation(); fetchHealth(); }}
+                                title="Refresh connectivity"
+                                style={{
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    width: '22px', height: '22px', borderRadius: '6px',
+                                    border: '1px solid #e2e8f0', background: '#fff',
+                                    cursor: healthLoading ? 'not-allowed' : 'pointer', color: '#94a3b8',
+                                }}
+                            >
+                                <RefreshCw size={10} style={{ animation: healthLoading ? 'spin 1s linear infinite' : 'none' }} />
+                            </button>
+                        </>
+                    )}
+                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#059669', background: '#ecfdf5', border: '1px solid #a7f3d0', padding: '2px 8px', borderRadius: 999 }}>
+                        Available: {visibleList.reduce((s, r) => s + (r.availableQuantity || 0), 0)}
+                    </span>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', padding: '2px 8px', borderRadius: 999 }}>
+                        In Use: {visibleList.reduce((s, r) => s + (r.inUseCount || 0), 0)}
+                    </span>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#334155', background: '#ffffff', border: '1px solid #cbd5e1', padding: '2px 8px', borderRadius: 999 }}>
+                        Units: {visibleList.reduce((s, r) => s + (r.totalQuantity || 0), 0)}
+                    </span>
+                </div>
+            </div>
 
             {/* Resource cards */}
             {visibleList.length === 0 ? (
