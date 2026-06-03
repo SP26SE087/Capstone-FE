@@ -30,10 +30,8 @@ import {
   ShieldCheck,
   CheckCircle2,
   Users,
-  Plus,
   CloudUpload,
   CalendarDays,
-  X,
 } from 'lucide-react';
 import './CameraMonitorPage.css';
 
@@ -132,15 +130,6 @@ const CameraMonitorPage: React.FC = () => {
   const [whitelist, setWhitelist] = useState<WhitelistByDate>({});
   const [wlLoading, setWlLoading] = useState(false);
   const [wlSyncing, setWlSyncing] = useState(false);
-  const [wlAddOpen, setWlAddOpen] = useState(false);
-  const [wlForm, setWlForm] = useState<{ date: string; fullName: string; image: File | null }>({
-    date: new Date().toISOString().slice(0, 10),
-    fullName: '',
-    image: null,
-  });
-  const [wlFormPreview, setWlFormPreview] = useState<string | null>(null);
-  const [wlSubmitting, setWlSubmitting] = useState(false);
-  const wlFileRef = useRef<HTMLInputElement>(null);
 
   const cameraBase = useMemo(() => {
     return cameraService.getVideoFeedUrl().replace(/\/video_feed$/, '');
@@ -283,34 +272,17 @@ const CameraMonitorPage: React.FC = () => {
   };
 
   const handleClearWhitelist = async (date?: string) => {
+    const confirmMessage = date
+      ? `Are you sure you want to clear all day-passes for ${date}?`
+      : 'Are you sure you want to clear ALL day-passes? This action cannot be undone.';
+    if (!window.confirm(confirmMessage)) return;
+
     try {
       const res = await cameraService.clearWhitelist(date);
       addToast(res.message || (date ? `Cleared passes for ${date}.` : 'All passes cleared.'), 'success');
       await loadWhitelist();
     } catch (err: any) {
       addToast(err?.message || 'Failed to clear whitelist.', 'error');
-    }
-  };
-
-  const handleAddPass = async () => {
-    if (!wlForm.image || !wlForm.date) return;
-    setWlSubmitting(true);
-    try {
-      await cameraService.addWhitelistPass({
-        image: wlForm.image,
-        date: wlForm.date,
-        fullName: wlForm.fullName || undefined,
-      });
-      addToast('Day-pass added.', 'success');
-      setWlAddOpen(false);
-      setWlForm({ date: new Date().toISOString().slice(0, 10), fullName: '', image: null });
-      setWlFormPreview(null);
-      if (wlFileRef.current) wlFileRef.current.value = '';
-      await loadWhitelist();
-    } catch (err: any) {
-      addToast(err?.message || 'Failed to add pass.', 'error');
-    } finally {
-      setWlSubmitting(false);
     }
   };
 
@@ -637,77 +609,8 @@ const CameraMonitorPage: React.FC = () => {
               <button className="btn btn-secondary danger-soft" onClick={() => handleClearWhitelist()}>
                 <Trash2 size={14} /> Clear All
               </button>
-              <button className="btn btn-primary" onClick={() => setWlAddOpen(v => !v)} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Plus size={14} /> Add Pass
-              </button>
             </div>
           </header>
-
-          {/* Add-pass inline form */}
-          {wlAddOpen && (
-            <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--border-color)', background: 'var(--bg-secondary, #f8fafc)', display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)' }}>Date</label>
-                <input
-                  type="date"
-                  value={wlForm.date}
-                  onChange={e => setWlForm(p => ({ ...p, date: e.target.value }))}
-                  style={{ height: 36, borderRadius: 8, border: '1px solid var(--border-color)', padding: '0 10px', fontSize: '0.85rem' }}
-                />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)' }}>Full Name (optional)</label>
-                <input
-                  type="text"
-                  placeholder="Nguyen Van A"
-                  value={wlForm.fullName}
-                  onChange={e => setWlForm(p => ({ ...p, fullName: e.target.value }))}
-                  style={{ height: 36, borderRadius: 8, border: '1px solid var(--border-color)', padding: '0 10px', fontSize: '0.85rem', width: 200 }}
-                />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)' }}>Photo</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  {wlFormPreview && (
-                    <img src={wlFormPreview} alt="preview" style={{ width: 36, height: 36, borderRadius: 6, objectFit: 'cover', border: '1px solid var(--border-color)' }} />
-                  )}
-                  <button
-                    className="btn btn-secondary"
-                    onClick={() => wlFileRef.current?.click()}
-                    style={{ height: 36, fontSize: '0.8rem' }}
-                  >
-                    {wlForm.image ? wlForm.image.name : 'Choose image…'}
-                  </button>
-                  <input
-                    ref={wlFileRef}
-                    type="file"
-                    accept="image/*"
-                    style={{ display: 'none' }}
-                    onChange={e => {
-                      const f = e.target.files?.[0];
-                      if (!f) return;
-                      setWlForm(p => ({ ...p, image: f }));
-                      const url = URL.createObjectURL(f);
-                      setWlFormPreview(prev => { if (prev) URL.revokeObjectURL(prev); return url; });
-                    }}
-                  />
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button className="btn btn-secondary" onClick={() => { setWlAddOpen(false); setWlForm({ date: new Date().toISOString().slice(0, 10), fullName: '', image: null }); setWlFormPreview(null); }}>
-                  <X size={14} /> Cancel
-                </button>
-                <button
-                  className="btn btn-primary"
-                  disabled={!wlForm.image || !wlForm.date || wlSubmitting}
-                  onClick={handleAddPass}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-                >
-                  {wlSubmitting ? 'Adding…' : <><Plus size={14} /> Add Pass</>}
-                </button>
-              </div>
-            </div>
-          )}
 
           {/* Passes list */}
           <div style={{ padding: '1rem 1.25rem' }}>
