@@ -352,7 +352,7 @@ const ResourceListView: React.FC<ResourceListViewProps> = ({
                     {(() => {
                         const totalDamaged = visibleList.reduce((s, r) => s + (r.damagedQuantity || 0), 0);
                         return (
-                            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: totalDamaged > 0 ? '#dc2626' : '#94a3b8', background: totalDamaged > 0 ? '#fee2e2' : '#f8fafc', border: `1px solid ${totalDamaged > 0 ? '#fca5a5' : '#e2e8f0'}`, padding: '2px 8px', borderRadius: 999 }}>
+                            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#dc2626', background: '#fee2e2', border: '1px solid #fca5a5', padding: '2px 8px', borderRadius: 999 }}>
                                 Damaged: {totalDamaged}
                             </span>
                         );
