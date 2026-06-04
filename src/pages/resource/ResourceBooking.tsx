@@ -849,17 +849,12 @@ const ResourceBooking: React.FC = () => {
                         ];
                         return (
                             <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                                <span style={{
-                                    fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8',
-                                    textTransform: 'uppercase', letterSpacing: '0.06em',
-                                    whiteSpace: 'nowrap',
-                                }}>Show:</span>
                                 <div style={{
                                     display: 'flex', alignItems: 'center',
-                                    background: '#f1f5f9',
-                                    border: '1.5px solid #cbd5e1',
-                                    borderRadius: 9, padding: 3, gap: 2,
-                                    boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+                                    background: '#f8fafc',
+                                    border: '2px solid #cbd5e1',
+                                    borderRadius: 12, padding: 3, gap: 4,
+                                    boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)',
                                 }}>
                                     {scopes.map(s => {
                                         const active = viewScope === s.id;
@@ -868,27 +863,40 @@ const ResourceBooking: React.FC = () => {
                                                 key={s.id}
                                                 onClick={() => setViewScope(s.id)}
                                                 style={{
-                                                    display: 'flex', alignItems: 'center', gap: 5,
-                                                    padding: '5px 14px', borderRadius: 6,
+                                                    display: 'flex', alignItems: 'center', gap: 6,
+                                                    padding: '6px 16px', borderRadius: 8,
                                                     border: active ? `1px solid ${s.activeBorder}` : '1px solid transparent',
-                                                    cursor: 'pointer', fontSize: '0.8rem',
-                                                    fontWeight: active ? 700 : 500,
-                                                    background: active ? s.activeBg : 'transparent',
-                                                    color: active ? '#fff' : '#64748b',
-                                                    boxShadow: active ? `0 2px 8px ${s.activeBg}66` : 'none',
-                                                    transition: 'all 0.15s',
+                                                    cursor: 'pointer', fontSize: '0.85rem',
+                                                    fontWeight: 800,
+                                                    background: active ? s.activeBg : '#f1f5f9',
+                                                    color: active ? '#fff' : '#475569',
+                                                    boxShadow: active ? `0 4px 12px ${s.activeBg}55` : 'none',
+                                                    transition: 'all 0.15s ease',
                                                     whiteSpace: 'nowrap' as const,
+                                                }}
+                                                onMouseEnter={e => {
+                                                    if (!active) {
+                                                        e.currentTarget.style.background = '#e2e8f0';
+                                                        e.currentTarget.style.color = '#0f172a';
+                                                    }
+                                                }}
+                                                onMouseLeave={e => {
+                                                    if (!active) {
+                                                        e.currentTarget.style.background = '#f1f5f9';
+                                                        e.currentTarget.style.color = '#475569';
+                                                    }
                                                 }}
                                             >
                                                 {s.label}
                                                 {active && s.id !== 'all' && (
                                                     <span style={{
-                                                        fontSize: '0.68rem',
-                                                        background: 'rgba(255,255,255,0.22)',
+                                                        fontSize: '0.72rem',
+                                                        background: 'rgba(255,255,255,0.25)',
                                                         color: '#fff',
                                                         borderRadius: 10,
                                                         padding: '0 6px',
-                                                        fontWeight: 700,
+                                                        fontWeight: 800,
+                                                        marginLeft: 2,
                                                         minWidth: 18,
                                                         textAlign: 'center',
                                                     }}>
@@ -972,6 +980,7 @@ const ResourceBooking: React.FC = () => {
                         ) : bookingVariant === 'calendar' ? (
                             <CalendarView
                                 bookings={scopedViewBookings} resources={viewResources}
+                                resourceTypes={resourceTypes}
                                 currentUserId={user?.userId}
                                 onOpenBooking={handleViewOpenBooking}
                                 onNewBooking={handleViewNewBooking}
@@ -982,12 +991,14 @@ const ResourceBooking: React.FC = () => {
                         ) : bookingVariant === 'timeline' ? (
                             <TimelineView
                                 bookings={scopedViewBookings} resources={viewResources}
+                                resourceTypes={resourceTypes}
                                 onOpenBooking={handleViewOpenBooking}
                                 onNewBooking={handleViewNewBooking}
                             />
                         ) : (
                             <WorkspaceView
                                 bookings={scopedViewBookings} resources={viewResources}
+                                resourceTypes={resourceTypes}
                                 currentUserId={user?.userId}
                                 isDirector={isDirectorRole}
                                 onOpenBooking={handleViewOpenBooking}
@@ -1158,7 +1169,7 @@ const ResourceBooking: React.FC = () => {
                                 onChange={setFilterType}
                                 options={[
                                     { value: '', label: 'All Types' },
-                                    ...resourceTypes.map(rt => ({ value: rt.id, label: rt.name })),
+                                    ...resourceTypes.filter(rt => rt.isActive !== false || rt.id === filterType).map(rt => ({ value: rt.id, label: rt.name })),
                                 ]}
                             />
                         </div>

@@ -35,6 +35,7 @@ import {
     Wifi,
     WifiOff,
     RefreshCw,
+    Upload,
 } from 'lucide-react';
 
 // ─── Lightweight custom select (open/close toggle like native <select>) ────────
@@ -1058,7 +1059,7 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
                         <TypeSelect
                             value={resourceTypeId}
                             onChange={v => { if (canEdit) setResourceTypeId(v); }}
-                            options={resourceTypes.map(rt => ({ value: rt.id, label: rt.name }))}
+                            options={resourceTypes.filter(rt => rt.isActive !== false || rt.id === resourceTypeId).map(rt => ({ value: rt.id, label: rt.name }))}
                             isDisabled={!canEdit}
                         />
                     </div>
@@ -1111,6 +1112,38 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
                             <Key size={10} style={{ marginRight: 3 }} />Private Key
                         </label>
                         <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                                <span style={{ fontSize: '0.68rem', color: '#64748b' }}>Import key file:</span>
+                                <label style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: '4px',
+                                    padding: '2px 8px', background: '#f1f5f9', border: '1px solid #cbd5e1',
+                                    borderRadius: '6px', fontSize: '0.68rem', fontWeight: 700,
+                                    color: '#475569', cursor: 'pointer', transition: 'all 0.15s'
+                                }}
+                                onMouseEnter={e => e.currentTarget.style.background = '#e2e8f0'}
+                                onMouseLeave={e => e.currentTarget.style.background = '#f1f5f9'}
+                                >
+                                    <Upload size={11} /> Choose file
+                                    <input
+                                        type="file"
+                                        accept=".pem,.key,.txt,text/plain"
+                                        style={{ display: 'none' }}
+                                        onChange={e => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                                const reader = new FileReader();
+                                                reader.onload = (event) => {
+                                                    const text = event.target?.result;
+                                                    if (typeof text === 'string') {
+                                                        setSshPrivateKey(text);
+                                                    }
+                                                };
+                                                reader.readAsText(file);
+                                            }
+                                        }}
+                                    />
+                                </label>
+                            </div>
                             <textarea
                                 style={{ ...inputStyle, minHeight: '80px', resize: 'vertical', fontFamily: 'monospace', fontSize: '0.75rem' }}
                                 value={sshPrivateKey}
@@ -1246,7 +1279,42 @@ const ResourceDetailPanel: React.FC<ResourceDetailPanelProps> = ({
 
                     {/* Private key — always required for creating new units */}
                     <div style={{ marginBottom: '12px' }}>
-                        <label style={{ ...labelStyle, fontSize: '0.65rem' }}><Key size={10} /> SSH Private Key <span style={{ color: '#ef4444' }}>*</span></label>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                            <label style={{ ...labelStyle, fontSize: '0.65rem', marginBottom: 0 }}><Key size={10} /> SSH Private Key <span style={{ color: '#ef4444' }}>*</span></label>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{ fontSize: '0.68rem', color: '#64748b' }}>Or import file:</span>
+                                <label style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: '4px',
+                                    padding: '2px 8px', background: '#f1f5f9', border: '1px solid #cbd5e1',
+                                    borderRadius: '6px', fontSize: '0.68rem', fontWeight: 700,
+                                    color: '#475569', cursor: 'pointer', transition: 'all 0.15s'
+                                }}
+                                onMouseEnter={e => e.currentTarget.style.background = '#e2e8f0'}
+                                onMouseLeave={e => e.currentTarget.style.background = '#f1f5f9'}
+                                >
+                                    <Upload size={11} /> Choose file
+                                    <input
+                                        type="file"
+                                        accept=".pem,.key,.txt,text/plain"
+                                        style={{ display: 'none' }}
+                                        onChange={e => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                                const reader = new FileReader();
+                                                reader.onload = (event) => {
+                                                    const text = event.target?.result;
+                                                    if (typeof text === 'string') {
+                                                        setSplitSshPrivateKey(text);
+                                                        setSplitError('');
+                                                    }
+                                                };
+                                                reader.readAsText(file);
+                                            }
+                                        }}
+                                    />
+                                </label>
+                            </div>
+                        </div>
                         <textarea
                             style={{ ...inputStyle, minHeight: '80px', resize: 'vertical' as const, fontFamily: 'monospace', fontSize: '0.75rem' }}
                             value={splitSshPrivateKey}

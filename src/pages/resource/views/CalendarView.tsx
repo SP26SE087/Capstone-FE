@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { ResourceTypeItem } from '@/services/resourceTypeService';
 import {
     ChevronLeft, ChevronRight, Plus, AlertCircle,
     Database, Cpu, Radio, Monitor, Package,
@@ -170,11 +171,13 @@ function getBookingTypeNames(booking: Booking, resources: Resource[]): string[] 
 function FilterBar({
     filterStatus, setFilterStatus, onNewBooking,
     resources,
+    resourceTypes,
     filterTypes, setFilterTypes,
 }: {
     filterStatus: string; setFilterStatus: (s: string) => void;
     onNewBooking: () => void;
     resources: Resource[];
+    resourceTypes?: ResourceTypeItem[];
     filterTypes: string[]; setFilterTypes: React.Dispatch<React.SetStateAction<string[]>>;
 }) {
     const [typeMenuOpen, setTypeMenuOpen] = useState(false);
@@ -185,22 +188,29 @@ function FilterBar({
 
     const typeOptions = useMemo(() => {
         const byKey = new Map<string, { label: string; count: number }>();
-        resources.forEach(r => {
-            const rawName = r.resourceTypeName?.trim();
-            if (!rawName) return;
-            const key = normalizeType(rawName);
-            const amount = Math.max(r.totalQuantity ?? r.ids?.length ?? 1, 1);
-            const current = byKey.get(key);
-            if (current) {
-                current.count += amount;
-            } else {
-                byKey.set(key, { label: rawName, count: amount });
-            }
-        });
+        resources
+            .filter(r => r.isAvailable !== false || r.isInUse || r.isDamaged) // only resources that exist/are active
+            .forEach(r => {
+                const typeId = r.resourceTypeId;
+                if (resourceTypes && typeId) {
+                    const rt = resourceTypes.find(t => t.id === typeId);
+                    if (rt && rt.isActive === false) return; // skip inactive types
+                }
+                const rawName = r.resourceTypeName?.trim();
+                if (!rawName) return;
+                const key = normalizeType(rawName);
+                const amount = Math.max(r.totalQuantity ?? r.ids?.length ?? 1, 1);
+                const current = byKey.get(key);
+                if (current) {
+                    current.count += amount;
+                } else {
+                    byKey.set(key, { label: rawName, count: amount });
+                }
+            });
         return Array.from(byKey.entries())
             .map(([key, value]) => ({ key, label: value.label, count: value.count }))
             .sort((a, b) => a.label.localeCompare(b.label));
-    }, [resources]);
+    }, [resources, resourceTypes]);
 
     const selectedTypeKeys = useMemo(
         () => new Set(filterTypes.map(type => normalizeType(type))),
@@ -1070,6 +1080,7 @@ function MonthNav({ year, month, setMonth, setYear }: {
 interface CalendarViewProps {
     bookings: Booking[];
     resources: Resource[];
+    resourceTypes?: ResourceTypeItem[];
     currentUserId?: string;
     onOpenBooking: (b: Booking) => void;
     onNewBooking: (resource?: Resource, date?: Date) => void;
@@ -1078,7 +1089,7 @@ interface CalendarViewProps {
     onAdjust?: (id: string, opts: { newResourceIds: string[]; adjustReason: string }) => Promise<void>;
 }
 
-export default function CalendarView({ bookings, resources, currentUserId, onOpenBooking, onNewBooking, onApprove, onReject, onAdjust }: CalendarViewProps) {
+export default function CalendarView({ bookings, resources, resourceTypes, currentUserId, onOpenBooking, onNewBooking, onApprove, onReject, onAdjust }: CalendarViewProps) {
     const today = new Date();
     const [year, setYear] = useState(today.getFullYear());
     const [month, setMonth] = useState(today.getMonth());
@@ -1127,6 +1138,7 @@ export default function CalendarView({ bookings, resources, currentUserId, onOpe
                 filterStatus={filterStatus} setFilterStatus={setFilterStatus}
                 filterTypes={filterTypes} setFilterTypes={setFilterTypes}
                 resources={resources}
+                resourceTypes={resourceTypes}
                 onNewBooking={() => onNewBooking(undefined, selectedDate)}
             />
 

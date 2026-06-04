@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { ResourceTypeItem } from '@/services/resourceTypeService';
 import {
     ChevronLeft, ChevronRight,
     Cpu, Database, Radio, Monitor, Package, FlaskConical, Microscope
@@ -57,11 +58,12 @@ function Segmented<T extends string | number>({ value, onChange, options }: {
 interface TimelineViewProps {
     bookings: Booking[];
     resources: Resource[];
+    resourceTypes?: ResourceTypeItem[];
     onOpenBooking: (b: Booking) => void;
     onNewBooking: (resource?: Resource, date?: Date) => void;
 }
 
-export default function TimelineView({ bookings, resources, onOpenBooking, onNewBooking }: TimelineViewProps) {
+export default function TimelineView({ bookings, resources, resourceTypes, onOpenBooking, onNewBooking }: TimelineViewProps) {
     const today = new Date();
     // Start from Monday of current week
     const dow = (today.getDay() + 6) % 7;
@@ -96,18 +98,25 @@ export default function TimelineView({ bookings, resources, onOpenBooking, onNew
 
     const typeOptions = useMemo(() => {
         const byKey = new Map<string, { label: string; count: number }>();
-        resources.forEach(r => {
-            const name = r.resourceTypeName?.trim();
-            if (!name) return;
-            const key = name.toLowerCase();
-            const qty = Math.max(r.totalQuantity ?? r.ids?.length ?? 1, 1);
-            const cur = byKey.get(key);
-            if (cur) cur.count += qty; else byKey.set(key, { label: name, count: qty });
-        });
+        resources
+            .filter(r => r.isAvailable !== false || r.isInUse || r.isDamaged)
+            .forEach(r => {
+                const typeId = r.resourceTypeId;
+                if (resourceTypes && typeId) {
+                    const rt = resourceTypes.find(t => t.id === typeId);
+                    if (rt && rt.isActive === false) return; // skip inactive types
+                }
+                const name = r.resourceTypeName?.trim();
+                if (!name) return;
+                const key = name.toLowerCase();
+                const qty = Math.max(r.totalQuantity ?? r.ids?.length ?? 1, 1);
+                const cur = byKey.get(key);
+                if (cur) cur.count += qty; else byKey.set(key, { label: name, count: qty });
+            });
         return Array.from(byKey.entries())
             .map(([key, v]) => ({ key, label: v.label, count: v.count }))
             .sort((a, b) => a.label.localeCompare(b.label));
-    }, [resources]);
+    }, [resources, resourceTypes]);
 
     const selectedTypeKeys = useMemo(() => new Set(filterTypes.map(t => t.toLowerCase())), [filterTypes]);
     const filteredTypeOptions = useMemo(() => {

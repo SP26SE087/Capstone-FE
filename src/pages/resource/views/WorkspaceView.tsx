@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { ResourceTypeItem } from '@/services/resourceTypeService';
 import {
     Plus, Search, AlertCircle, CheckCircle2, Activity, Archive,
     Clock, Calendar, Check, LogOut, LogIn, X,
@@ -151,8 +152,9 @@ function KanbanColumn({ title, items, color, accent, icon: Icon, onOpen, onAppro
 }
 
 // ─── Right rail ───────────────────────────────────────────────────────────────
-function RightRail({ bookings, resources, onOpen, onNewBooking: _onNewBooking }: {
+function RightRail({ bookings, resources, resourceTypes, onOpen, onNewBooking: _onNewBooking }: {
     bookings: Booking[]; resources: Resource[];
+    resourceTypes?: ResourceTypeItem[];
     onOpen: (b: Booking) => void; onNewBooking: () => void;
 }) {
     const now = new Date();
@@ -164,16 +166,8 @@ function RightRail({ bookings, resources, onOpen, onNewBooking: _onNewBooking }:
         .filter(b => b.status === BookingStatus.Approved && new Date(b.startTime) > now)
         .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())[0];
 
-    // Availability per resource type
-    const typeNames = useMemo(() => {
-        const seen = new Set<string>();
-        const out: string[] = [];
-        resources.forEach(r => { if (r.resourceTypeName && !seen.has(r.resourceTypeName)) { seen.add(r.resourceTypeName); out.push(r.resourceTypeName); } });
-        return out;
-    }, [resources]);
-
-    const typeAvail = typeNames.map(t => {
-        const rList = resources.filter(r => r.resourceTypeName === t);
+    // Availability per resource
+    const resourceAvail = useMemo(() => {
         const busyIds = new Set<string>();
         bookings.filter(b => [BookingStatus.Approved, BookingStatus.InUse].includes(b.status))
             .filter(b => { const s = new Date(b.startTime), e = new Date(b.endTime); return s < tomorrow && e > today; })
@@ -186,14 +180,24 @@ function RightRail({ bookings, resources, onOpen, onNewBooking: _onNewBooking }:
                 ];
                 ids.forEach(id => busyIds.add(id));
             });
-        const busy = rList.filter(r => {
-            // Match by resource id OR any of its unit ids
-            const unitIds = [r.id, ...(r.ids ?? []), ...(r.availableIds ?? [])];
-            return unitIds.some(id => busyIds.has(id));
-        }).length;
-        const meta = rList[0] ? getBookingRtMeta({ title: '', startTime: '', endTime: '', status: BookingStatus.Pending, createdAt: '' } as any, rList) : null;
-        return { type: t, total: rList.length, free: Math.max(0, rList.length - busy), meta };
-    }).filter(x => x.total > 0);
+
+        return resources
+            .filter(r => {
+                if (resourceTypes && r.resourceTypeId) {
+                    const rt = resourceTypes.find(t => t.id === r.resourceTypeId);
+                    if (rt && rt.isActive === false) return false;
+                }
+                return true;
+            })
+            .map(r => {
+                const unitIds = r.ids?.length ? r.ids : [r.id];
+                const busy = unitIds.filter(id => busyIds.has(id)).length;
+                const total = Math.max(r.totalQuantity ?? unitIds.length, 1);
+                const free = Math.max(0, total - busy);
+                const meta = getBookingRtMeta({ title: '', startTime: '', endTime: '', status: BookingStatus.Pending, createdAt: '' } as any, [r]);
+                return { id: r.id, name: r.name, total, free, meta };
+            });
+    }, [resources, bookings, resourceTypes, today, tomorrow]);
 
     // Expiring soon: InUse bookings whose endTime is within the next 2 hours
     const expiringSoon = useMemo(() => {
@@ -229,18 +233,18 @@ function RightRail({ bookings, resources, onOpen, onNewBooking: _onNewBooking }:
             {/* Today's availability */}
             <div className="bk-card" style={{ padding: 14 }}>
                 <div style={{ fontSize: 11, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>Today's availability</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {typeAvail.map(t => {
-                        const pct = t.total > 0 ? (t.free / t.total) * 100 : 0;
+                <div className="bk-scroll" style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 220, overflowY: 'auto', paddingRight: 4 }}>
+                    {resourceAvail.map(r => {
+                        const pct = r.total > 0 ? (r.free / r.total) * 100 : 0;
                         return (
-                            <div key={t.type}>
+                            <div key={r.id}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                                    <div style={{ width: 18, height: 18, borderRadius: 5, background: t.meta?.bg, color: t.meta?.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                        <RtIcon iconName={t.meta?.iconName ?? 'package'} size={10} />
+                                    <div style={{ width: 18, height: 18, borderRadius: 5, background: r.meta?.bg, color: r.meta?.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <RtIcon iconName={r.meta?.iconName ?? 'package'} size={10} />
                                     </div>
-                                    <span style={{ fontSize: 12, fontWeight: 600, flex: 1, textTransform: 'capitalize' }}>{t.type}</span>
-                                    <span style={{ fontSize: 11, fontWeight: 700, color: t.free === 0 ? '#DC2626' : '#1e293b' }}>
-                                        {t.free}<span style={{ color: '#94a3b8', fontWeight: 500 }}>/{t.total}</span>
+                                    <span style={{ fontSize: 12, fontWeight: 600, flex: 1, textTransform: 'capitalize', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={r.name}>{r.name}</span>
+                                    <span style={{ fontSize: 11, fontWeight: 700, color: r.free === 0 ? '#DC2626' : '#1e293b' }}>
+                                        {r.free}<span style={{ color: '#94a3b8', fontWeight: 500 }}>/{r.total}</span>
                                     </span>
                                 </div>
                                 <div style={{ height: 5, background: '#f1f5f9', borderRadius: 99, overflow: 'hidden' }}>
@@ -249,7 +253,7 @@ function RightRail({ bookings, resources, onOpen, onNewBooking: _onNewBooking }:
                             </div>
                         );
                     })}
-                    {typeAvail.length === 0 && <div style={{ fontSize: 12, color: '#94a3b8' }}>No resources loaded.</div>}
+                    {resourceAvail.length === 0 && <div style={{ fontSize: 12, color: '#94a3b8' }}>No resources loaded.</div>}
                 </div>
             </div>
 
@@ -313,6 +317,7 @@ function _KpiStrip({ bookings }: { bookings: Booking[] }) {
 interface WorkspaceViewProps {
     bookings: Booking[];
     resources: Resource[];
+    resourceTypes?: ResourceTypeItem[];
     currentUserId?: string;
     isDirector?: boolean;
     onOpenBooking: (b: Booking) => void;
@@ -333,7 +338,7 @@ const TIME_RANGE_OPTS: { value: TimeRange; label: string }[] = [
 ];
 
 export default function WorkspaceView({
-    bookings, resources, currentUserId, isDirector,
+    bookings, resources, resourceTypes, currentUserId, isDirector,
     onOpenBooking, onNewBooking,
     onApprove, onReject, onCheckOut, onCheckIn,
 }: WorkspaceViewProps) {
@@ -492,7 +497,7 @@ export default function WorkspaceView({
                         currentUserId={currentUserId} resources={resources}
                         emptyMsg="No recent activity." />
                 </div>
-                <RightRail bookings={bookings} resources={resources} onOpen={onOpenBooking} onNewBooking={onNewBooking} />
+                <RightRail bookings={bookings} resources={resources} resourceTypes={resourceTypes} onOpen={onOpenBooking} onNewBooking={onNewBooking} />
             </div>
         </div>
     );

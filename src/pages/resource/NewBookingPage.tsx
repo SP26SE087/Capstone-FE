@@ -763,7 +763,7 @@ const NewBookingPage: React.FC = () => {
                     background: typeFilter ? 'var(--accent-bg)' : '#fff',
                   }}>
                   <option value="">All types</option>
-                  {resTypes.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  {resTypes.filter(t => t.isActive !== false || t.id === typeFilter).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
 
                 {/* Available only toggle */}
