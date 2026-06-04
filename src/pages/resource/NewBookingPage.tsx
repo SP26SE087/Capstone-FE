@@ -11,6 +11,7 @@ import { resourceService } from '@/services/resourceService';
 import { bookingService } from '@/services/bookingService';
 import { resourceTypeService, ResourceTypeItem, ResourceTypeCategory } from '@/services/resourceTypeService';
 import { useToastStore } from '@/store/slices/toastSlice';
+import AppSelect from '@/components/common/AppSelect';
 import {
   Search, Cpu, Box, Layers, MapPin, Check, X, ChevronLeft,
   Loader2, Calendar, Clock, FileText, Package, AlertTriangle,
@@ -753,18 +754,17 @@ const NewBookingPage: React.FC = () => {
                 })}
 
                 {/* Type dropdown */}
-                <select
-                  value={typeFilter}
-                  onChange={e => setTypeFilter(e.target.value)}
-                  style={{
-                    padding: '4px 8px', borderRadius: 8, border: `1px solid ${typeFilter ? 'var(--accent-color)' : 'var(--border-color)'}`,
-                    fontSize: 11, fontWeight: 600, outline: 'none', fontFamily: 'inherit',
-                    color: typeFilter ? 'var(--accent-color)' : 'var(--text-secondary)', cursor: 'pointer',
-                    background: typeFilter ? 'var(--accent-bg)' : '#fff',
-                  }}>
-                  <option value="">All types</option>
-                  {resTypes.filter(t => t.isActive !== false).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
+                <div style={{ minWidth: '150px' }}>
+                  <AppSelect
+                    size="sm"
+                    value={typeFilter}
+                    onChange={setTypeFilter}
+                    options={[
+                      { value: '', label: 'All types' },
+                      ...resTypes.filter(t => t.isActive !== false).map(t => ({ value: t.id, label: t.name })),
+                    ]}
+                  />
+                </div>
 
                 {/* Available only toggle */}
                 <button type="button" onClick={() => setAvailOnly(v => !v)}
