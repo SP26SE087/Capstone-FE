@@ -78,6 +78,14 @@ const ServerTerminalModal: React.FC<ServerTerminalModalProps> = ({
     return `${hours}h ${minutes}m`;
   };
 
+  const getTimeColor = (expiresAt: string) => {
+    const diffMs = new Date(expiresAt).getTime() - Date.now();
+    if (diffMs <= 0) return '#ef4444';
+    if (diffMs < 10 * 60_000) return '#ef4444';  // < 10 min
+    if (diffMs < 60 * 60_000) return '#f59e0b';  // < 1 h
+    return '#34d399';                              // >= 1 h
+  };
+
   if (!isOpen) return null;
 
   const modalStyle: React.CSSProperties = isFullscreen
@@ -185,9 +193,17 @@ const ServerTerminalModal: React.FC<ServerTerminalModalProps> = ({
                   </button>
                 )}
                 {sessionExpiresAt && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#94a3b8', fontSize: '0.75rem' }}>
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: '0.35rem',
+                    fontSize: '0.75rem',
+                    color: getTimeColor(sessionExpiresAt),
+                    background: `${getTimeColor(sessionExpiresAt)}18`,
+                    border: `1px solid ${getTimeColor(sessionExpiresAt)}40`,
+                    padding: '3px 10px', borderRadius: '20px',
+                  }}>
                     <Clock size={12} />
-                    <span>{formatTimeRemaining(sessionExpiresAt)}</span>
+                    <span style={{ fontWeight: 600 }}>{formatTimeRemaining(sessionExpiresAt)}</span>
+                    <span style={{ opacity: 0.7 }}>remaining</span>
                   </div>
                 )}
               </div>

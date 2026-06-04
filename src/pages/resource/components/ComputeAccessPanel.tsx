@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Server, Terminal, Clock, CheckCircle2, AlertTriangle, Ban, Key, ChevronDown, ChevronUp, Loader2, Upload, RefreshCw, Download, Wifi, WifiOff, Activity } from 'lucide-react';
+import { Server, Terminal, Clock, CheckCircle2, AlertTriangle, Ban, Key, ChevronDown, ChevronUp, Loader2, Upload, RefreshCw, Download, Wifi, WifiOff, Activity, FolderOpen } from 'lucide-react';
 import { ComputeAccess, ComputeAccessStatus } from '@/types/booking';
 import { ServerAccess, ServerHealthStatus, computeService, SubmitPublicKeyRequest } from '@/services/computeService';
 
@@ -124,6 +124,7 @@ const ComputeAccessPanel: React.FC<ComputeAccessPanelProps> = ({
   const [showPrivateKeyForm, setShowPrivateKeyForm] = useState(false);
   const [privateKey, setPrivateKey] = useState('');
   const [privateKeyError, setPrivateKeyError] = useState<string | null>(null);
+  const pemFileInputRef = useRef<HTMLInputElement>(null);
 
   // ── Server health status ─────────────────────────────────────────────
   const [health, setHealth] = useState<ServerHealthStatus | null>(null);
@@ -199,6 +200,22 @@ const ComputeAccessPanel: React.FC<ComputeAccessPanelProps> = ({
     if (!privateKey.trim()) { setPrivateKeyError('SSH private key is required.'); return; }
     setPrivateKeyError(null);
     setShowPrivateKeyForm(false);
+  };
+
+  const handlePemFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      if (text) {
+        setPrivateKey(text.trim());
+        setPrivateKeyError(null);
+      }
+    };
+    reader.readAsText(file);
+    // Reset so same file can be re-selected
+    e.target.value = '';
   };
 
   const handleOpenTerminal = () => {
@@ -440,7 +457,9 @@ const ComputeAccessPanel: React.FC<ComputeAccessPanelProps> = ({
           }}>
             <div style={{ fontSize: '0.68rem', color: '#94a3b8' }}>
               {keyGenerated
-                ? <span style={{ color: '#34d399' }}>✓ Key pair generated — private key downloaded as <code style={{ color: '#a5f3fc' }}>labsync_key.pem</code>. Keep it safe.</span>
+                ? <span style={{ color: '#34d399', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <CheckCircle2 size={12} /> Key pair generated — private key downloaded as <code style={{ color: '#a5f3fc' }}>labsync_key.pem</code>. Keep it safe.
+                  </span>
                 : 'Generate a key pair automatically in the browser, or paste your own below.'}
             </div>
             <button
@@ -507,9 +526,35 @@ const ComputeAccessPanel: React.FC<ComputeAccessPanelProps> = ({
           </div>
 
           <div>
-            <label style={{ fontSize: '0.68rem', color: '#94a3b8', display: 'block', marginBottom: 4 }}>
-              SSH Private Key <span style={{ color: '#ef4444' }}>*</span>
-            </label>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <label style={{ fontSize: '0.68rem', color: '#94a3b8' }}>
+                SSH Private Key <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              {/* Upload .pem file button */}
+              <button
+                type="button"
+                onClick={() => pemFileInputRef.current?.click()}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '5px',
+                  padding: '3px 10px', borderRadius: '6px', border: '1px solid rgba(99,102,241,0.3)',
+                  background: 'rgba(99,102,241,0.08)', color: '#818cf8',
+                  cursor: 'pointer', fontSize: '0.68rem', fontWeight: 600,
+                  transition: 'all 0.15s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(99,102,241,0.18)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(99,102,241,0.08)'; }}
+                title="Load private key from .pem or .key file"
+              >
+                <FolderOpen size={11} /> Load from file
+              </button>
+              <input
+                ref={pemFileInputRef}
+                type="file"
+                accept=".pem,.key,.txt,text/plain"
+                style={{ display: 'none' }}
+                onChange={handlePemFileUpload}
+              />
+            </div>
             <textarea
               style={{ ...textareaStyle, minHeight: '100px' }}
               placeholder={'-----BEGIN RSA PRIVATE KEY-----\n...\n-----END RSA PRIVATE KEY-----'}

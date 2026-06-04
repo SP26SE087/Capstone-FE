@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Folder, FolderOpen, FileText, Download, Trash2, Upload, RefreshCw,
   ChevronRight, Loader2, AlertCircle, Home, X, Plus, FolderPlus,
+  Edit3, Save, Eye, CheckCircle2,
 } from 'lucide-react';
 import { API_BASE_URL } from '@/services/api';
 
@@ -69,6 +70,299 @@ function getFileColor(name: string): string {
   return '#64748b';
 }
 
+/** Returns true for file types that can be opened and edited as plain text */
+const TEXT_EXTENSIONS = new Set([
+  'py', 'js', 'ts', 'tsx', 'jsx', 'sh', 'bash', 'zsh',
+  'json', 'yaml', 'yml', 'toml', 'cfg', 'ini', 'conf', 'env',
+  'txt', 'md', 'markdown', 'log', 'csv', 'tsv',
+  'html', 'css', 'scss', 'xml', 'sql', 'r', 'jl', 'rs', 'go',
+  'c', 'cpp', 'h', 'hpp', 'java', 'kt', 'swift', 'php', 'rb',
+  'dockerfile', 'makefile', 'gitignore', 'editorconfig',
+]);
+
+function isTextFile(name: string): boolean {
+  const lower = name.toLowerCase();
+  // Files with no extension that are commonly text (Dockerfile, Makefile, etc.)
+  const noExtNames = ['dockerfile', 'makefile', '.gitignore', '.env', '.editorconfig', '.bashrc', '.zshrc', 'readme', 'license'];
+  if (noExtNames.some(n => lower.endsWith(n))) return true;
+  const ext = lower.split('.').pop() ?? '';
+  return TEXT_EXTENSIONS.has(ext);
+}
+
+/* -- File Editor Modal ---------------------------------- */
+interface FileEditorModalProps {
+  entry: SftpEntry;
+  filesBase: string;
+  authHeader: Record<string, string>;
+  onClose: () => void;
+  onSaved: () => void;
+}
+
+const FileEditorModal: React.FC<FileEditorModalProps> = ({ entry, filesBase, authHeader, onClose, onSaved }) => {
+  const [content, setContent] = useState<string>('');
+  const [originalContent, setOriginalContent] = useState<string>('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Fetch file content on mount
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    fetch(`${filesBase}/download?path=${encodeURIComponent(entry.fullPath)}`, { headers: authHeader })
+      .then(async res => {
+        if (!res.ok) throw new Error(`Failed to load file (${res.status})`);
+        const blob = await res.blob();
+        const text = await blob.text();
+        if (!cancelled) {
+          setContent(text);
+          setOriginalContent(text);
+        }
+      })
+      .catch(err => { if (!cancelled) setError(err.message || 'Failed to load file'); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [entry.fullPath]);
+
+  // Ctrl+S to save
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); handleSave(); }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [content]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError(null);
+    setSaveSuccess(false);
+    try {
+      const dir = entry.fullPath.substring(0, entry.fullPath.lastIndexOf('/') + 1) || '/';
+      const blob = new Blob([content], { type: 'text/plain' });
+      const file = new File([blob], entry.name, { type: 'text/plain' });
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('path', dir);
+      const res = await fetch(`${filesBase}/upload`, {
+        method: 'POST',
+        headers: authHeader,
+        body: formData,
+      });
+      if (res.status === 401) throw new Error('Token expired.');
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.message || `Save failed (${res.status})`);
+      }
+      setOriginalContent(content);
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 2500);
+      onSaved();
+    } catch (err: any) {
+      setError(err.message || 'Save failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const isDirty = content !== originalContent;
+  const ext = entry.name.split('.').pop()?.toLowerCase() ?? '';
+  const lineCount = content.split('\n').length;
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 1000,
+      background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: '20px',
+    }}>
+      <div style={{
+        background: '#0d1b2e',
+        border: '1px solid #1e3a5f',
+        borderRadius: '14px',
+        width: '100%', maxWidth: '860px',
+        maxHeight: '90vh',
+        display: 'flex', flexDirection: 'column',
+        boxShadow: '0 30px 80px rgba(0,0,0,0.7)',
+        overflow: 'hidden',
+      }}>
+        {/* Header */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: '10px',
+          padding: '12px 18px',
+          background: '#0a1525',
+          borderBottom: '1px solid #1e293b',
+          flexShrink: 0,
+        }}>
+          <Edit3 size={15} style={{ color: '#818cf8', flexShrink: 0 }} />
+          <span style={{
+            flex: 1, color: '#e2e8f0', fontSize: '0.85rem', fontWeight: 600,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
+            {entry.fullPath}
+          </span>
+          {isDirty && (
+            <span style={{
+              fontSize: '0.7rem', color: '#fbbf24', background: 'rgba(251,191,36,0.1)',
+              padding: '2px 8px', borderRadius: '20px', fontWeight: 600, flexShrink: 0,
+            }}>unsaved</span>
+          )}
+          {saveSuccess && (
+            <span style={{
+              display: 'flex', alignItems: 'center', gap: '4px',
+              fontSize: '0.7rem', color: '#34d399', background: 'rgba(52,211,153,0.1)',
+              padding: '2px 8px', borderRadius: '20px', fontWeight: 600, flexShrink: 0,
+            }}><CheckCircle2 size={11} /> saved</span>
+          )}
+          {/* Save button */}
+          <button
+            onClick={handleSave}
+            disabled={saving || loading || !isDirty}
+            title="Save (Ctrl+S)"
+            style={{
+              display: 'flex', alignItems: 'center', gap: '6px',
+              padding: '5px 14px', borderRadius: '7px',
+              border: 'none',
+              background: isDirty ? '#6366f1' : 'rgba(99,102,241,0.15)',
+              color: isDirty ? '#fff' : '#4b5563',
+              cursor: (saving || loading || !isDirty) ? 'not-allowed' : 'pointer',
+              fontSize: '0.78rem', fontWeight: 600,
+              transition: 'all 0.15s',
+              flexShrink: 0,
+            }}
+          >
+            {saving
+              ? <Loader2 size={12} style={{ animation: 'fmSpin 0.8s linear infinite' }} />
+              : <Save size={12} />}
+            Save
+          </button>
+          {/* Close button */}
+          <button
+            onClick={() => {
+              if (isDirty && !window.confirm('You have unsaved changes. Close anyway?')) return;
+              onClose();
+            }}
+            style={{
+              display: 'flex', alignItems: 'center', padding: '5px',
+              borderRadius: '6px', border: 'none',
+              background: 'rgba(255,255,255,0.05)',
+              color: '#64748b', cursor: 'pointer',
+              transition: 'color 0.15s',
+              flexShrink: 0,
+            }}
+            onMouseEnter={e => (e.currentTarget.style.color = '#e2e8f0')}
+            onMouseLeave={e => (e.currentTarget.style.color = '#64748b')}
+          >
+            <X size={15} />
+          </button>
+        </div>
+
+        {/* Error banner */}
+        {error && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '8px',
+            padding: '6px 18px',
+            background: 'rgba(239,68,68,0.09)',
+            borderBottom: '1px solid rgba(239,68,68,0.12)',
+            color: '#f87171', fontSize: '0.78rem', flexShrink: 0,
+          }}>
+            <AlertCircle size={13} />
+            <span style={{ flex: 1 }}>{error}</span>
+            <button onClick={() => setError(null)} style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer' }}>
+              <X size={13} />
+            </button>
+          </div>
+        )}
+
+        {/* Editor area */}
+        {loading ? (
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', color: '#334155' }}>
+            <Loader2 size={18} style={{ animation: 'fmSpin 0.8s linear infinite' }} />
+            <span style={{ fontSize: '0.85rem' }}>Loading file…</span>
+          </div>
+        ) : (
+          <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
+            {/* Line numbers */}
+            <div style={{
+              padding: '14px 10px 14px 14px',
+              background: '#080f1c',
+              borderRight: '1px solid #1e293b',
+              color: '#1e3a5f',
+              fontSize: '0.75rem',
+              lineHeight: '1.6',
+              fontFamily: '"JetBrains Mono", "Fira Code", "Cascadia Code", monospace',
+              userSelect: 'none',
+              overflowY: 'hidden',
+              textAlign: 'right',
+              minWidth: '44px',
+              flexShrink: 0,
+            }}>
+              {Array.from({ length: lineCount }, (_, i) => (
+                <div key={i + 1}>{i + 1}</div>
+              ))}
+            </div>
+            {/* Textarea */}
+            <textarea
+              ref={textareaRef}
+              value={content}
+              onChange={e => setContent(e.target.value)}
+              spellCheck={false}
+              style={{
+                flex: 1,
+                padding: '14px 18px',
+                background: '#0d1b2e',
+                color: '#e2e8f0',
+                border: 'none',
+                outline: 'none',
+                resize: 'none',
+                fontFamily: '"JetBrains Mono", "Fira Code", "Cascadia Code", monospace',
+                fontSize: '0.82rem',
+                lineHeight: '1.6',
+                overflowY: 'auto',
+                whiteSpace: 'pre',
+                overflowX: 'auto',
+                tabSize: 2,
+              }}
+              onKeyDown={e => {
+                // Tab inserts spaces
+                if (e.key === 'Tab') {
+                  e.preventDefault();
+                  const start = e.currentTarget.selectionStart;
+                  const end = e.currentTarget.selectionEnd;
+                  const spaces = '  ';
+                  setContent(prev => prev.substring(0, start) + spaces + prev.substring(end));
+                  requestAnimationFrame(() => {
+                    if (textareaRef.current) {
+                      textareaRef.current.selectionStart = start + spaces.length;
+                      textareaRef.current.selectionEnd = start + spaces.length;
+                    }
+                  });
+                }
+              }}
+            />
+          </div>
+        )}
+
+        {/* Footer / status bar */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '4px 18px',
+          background: '#0a1525',
+          borderTop: '1px solid #0f172a',
+          flexShrink: 0,
+          color: '#1e3a5f', fontSize: '0.68rem',
+        }}>
+          <span>{ext.toUpperCase() || 'TEXT'}</span>
+          <span>{lineCount} lines · {content.length} chars</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 /* -- Inline name-input for create ---------------------- */
 const InlineInput: React.FC<{
   placeholder: string;
@@ -130,6 +424,7 @@ const TerminalFileManager: React.FC<TerminalFileManagerProps> = ({ bookingId, te
   const [creating, setCreating] = useState<'folder' | null>(null);
   const [newMenuOpen, setNewMenuOpen] = useState(false);
   const [hoveredPath, setHoveredPath] = useState<string | null>(null);
+  const [editingEntry, setEditingEntry] = useState<SftpEntry | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const newMenuRef = useRef<HTMLDivElement>(null);
@@ -539,7 +834,11 @@ const TerminalFileManager: React.FC<TerminalFileManagerProps> = ({ bookingId, te
                 >
                   {/* Name */}
                   <button
-                    onClick={() => entry.isDirectory ? listDir(entry.fullPath) : handleDownload(entry)}
+                    onClick={() => {
+                      if (entry.isDirectory) { listDir(entry.fullPath); return; }
+                      if (isTextFile(entry.name)) { setEditingEntry(entry); return; }
+                      handleDownload(entry);
+                    }}
                     style={{
                       display: 'flex', alignItems: 'center', gap: '9px',
                       background: 'none', border: 'none', padding: 0, textAlign: 'left',
@@ -547,7 +846,13 @@ const TerminalFileManager: React.FC<TerminalFileManagerProps> = ({ bookingId, te
                       cursor: 'pointer', fontSize: '0.82rem', fontFamily: 'inherit',
                       minWidth: 0,
                     }}
-                    title={entry.isDirectory ? `Open ${entry.fullPath}` : `Download ${entry.name}`}
+                    title={
+                      entry.isDirectory
+                        ? `Open ${entry.fullPath}`
+                        : isTextFile(entry.name)
+                          ? `Edit ${entry.name}`
+                          : `Download ${entry.name}`
+                    }
                   >
                     {entry.isDirectory
                       ? (isHovered
@@ -576,23 +881,36 @@ const TerminalFileManager: React.FC<TerminalFileManagerProps> = ({ bookingId, te
                     display: 'flex', gap: '4px', justifyContent: 'flex-end',
                     opacity: isHovered ? 1 : 0, transition: 'opacity 0.12s',
                   }}>
-                    {(
+                    {/* Open/Edit button for text files */}
+                    {!entry.isDirectory && isTextFile(entry.name) && (
                       <button
-                        onClick={() => handleDownload(entry)} disabled={isDownloading} title={entry.isDirectory ? 'Download as zip' : 'Download'}
-
+                        onClick={() => setEditingEntry(entry)}
+                        title="Edit file"
                         style={{
                           display: 'flex', alignItems: 'center', padding: '3px 5px',
                           borderRadius: '5px', border: 'none',
-                          background: 'rgba(14,165,233,0.12)', color: '#38bdf8',
-                          cursor: isDownloading ? 'not-allowed' : 'pointer',
+                          background: 'rgba(99,102,241,0.15)', color: '#818cf8',
+                          cursor: 'pointer',
                         }}
                       >
-                        {isDownloading
-                          ? <Loader2 size={11} style={{ animation: 'fmSpin 0.8s linear infinite' }} />
-                          : <Download size={11} />
-                        }
+                        <Edit3 size={11} />
                       </button>
                     )}
+                    {/* Download button */}
+                    <button
+                      onClick={() => handleDownload(entry)} disabled={isDownloading} title={entry.isDirectory ? 'Download as zip' : 'Download'}
+                      style={{
+                        display: 'flex', alignItems: 'center', padding: '3px 5px',
+                        borderRadius: '5px', border: 'none',
+                        background: 'rgba(14,165,233,0.12)', color: '#38bdf8',
+                        cursor: isDownloading ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      {isDownloading
+                        ? <Loader2 size={11} style={{ animation: 'fmSpin 0.8s linear infinite' }} />
+                        : <Download size={11} />
+                      }
+                    </button>
                     <button
                       onClick={() => setConfirmDelete(entry)} disabled={isDeleting} title="Delete"
                       style={{
@@ -625,6 +943,17 @@ const TerminalFileManager: React.FC<TerminalFileManagerProps> = ({ bookingId, te
         <span>{entries.length} item{entries.length !== 1 ? 's' : ''}</span>
         {uploadProgress !== null && <span style={{ color: '#6366f1' }}>Uploading {uploadProgress}%…</span>}
       </div>
+
+      {/* -- File Editor Modal ----------------------------- */}
+      {editingEntry && (
+        <FileEditorModal
+          entry={editingEntry}
+          filesBase={filesBase}
+          authHeader={authHeader}
+          onClose={() => setEditingEntry(null)}
+          onSaved={() => listDir(currentPath)}
+        />
+      )}
 
       {/* -- Delete confirm overlay ------------------------- */}
       {confirmDelete && (

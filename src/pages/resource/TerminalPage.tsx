@@ -52,6 +52,14 @@ const TerminalPage: React.FC = () => {
         return hours > 24 ? `${Math.floor(hours / 24)}d ${hours % 24}h` : `${hours}h ${minutes}m`;
     };
 
+    const getTimeColor = (expiresAt: string) => {
+        const diffMs = new Date(expiresAt).getTime() - Date.now();
+        if (diffMs <= 0) return '#ef4444';
+        if (diffMs < 10 * 60_000) return '#ef4444';    // < 10 min: red
+        if (diffMs < 60 * 60_000) return '#f59e0b';    // < 1 h: amber
+        return '#34d399';                               // >= 1 h: green
+    };
+
     return (
         <div style={{
             position: 'fixed',
@@ -112,10 +120,15 @@ const TerminalPage: React.FC = () => {
                 {sessionExpiresAt && (
                     <div style={{
                         display: 'flex', alignItems: 'center', gap: '5px',
-                        color: '#64748b', fontSize: '0.75rem',
+                        fontSize: '0.75rem',
+                        color: getTimeColor(sessionExpiresAt),
+                        background: `${getTimeColor(sessionExpiresAt)}18`,
+                        border: `1px solid ${getTimeColor(sessionExpiresAt)}40`,
+                        padding: '3px 10px', borderRadius: '20px',
                     }}>
                         <Clock size={13} />
-                        {formatTimeRemaining(sessionExpiresAt)} remaining
+                        <span style={{ fontWeight: 600 }}>{formatTimeRemaining(sessionExpiresAt)}</span>
+                        <span style={{ opacity: 0.7 }}>remaining</span>
                     </div>
                 )}
 
