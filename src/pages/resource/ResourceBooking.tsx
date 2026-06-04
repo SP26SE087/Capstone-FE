@@ -57,6 +57,7 @@ type MainTab = 'resources' | 'bookings' | 'logs';
 type ResourceSubTab = 'all' | 'my_managed' | 'types' | 'server_health';
 type BookingSubTab = 'my' | 'all' | 'managed';
 type TabType = 'resources' | 'my_managed' | 'my_bookings' | 'all_bookings' | 'managed_bookings' | 'equipment_logs' | 'resource_types' | 'server_health';
+type ViewScope = 'all' | 'my' | 'managed';
 
 interface ActivePanel {
     id: string;
@@ -164,6 +165,7 @@ const ResourceBooking: React.FC = () => {
 
     // ─── Booking variant (Calendar / Timeline / Workspace / Management) ──────
     const [bookingVariant, setBookingVariant] = useState<BookingVariant>('calendar');
+    const [viewScope, setViewScope] = useState<ViewScope>('all');
     const [viewBookings, setViewBookings] = useState<Booking[]>([]);
     const [viewResources, setViewResources] = useState<Resource[]>([]);
     const [viewLoading, setViewLoading] = useState(false);
@@ -215,6 +217,7 @@ const ResourceBooking: React.FC = () => {
             setMainTab('resources');
             setResourceSubTab('all');
             setActivePanel(null);
+            setViewScope('all');
         }
     };
 
@@ -729,6 +732,21 @@ const ResourceBooking: React.FC = () => {
     const damagedResourceCount = resources.reduce((sum, r) => sum + (r.damagedQuantity ?? 0), 0);
     const inUseResourceCount = resources.reduce((sum, r) => sum + (r.inUseCount ?? 0), 0);
 
+    // ─── Scoped view bookings (filter for Calendar/Timeline/Workspace) ────────
+    const scopedViewBookings = useMemo(() => {
+        if (viewScope === 'all') return viewBookings;
+        if (viewScope === 'my') return viewBookings.filter(b =>
+            b.userId === user?.userId ||
+            b.userName === user?.email ||
+            b.userFullName === user?.name
+        );
+        if (viewScope === 'managed') return viewBookings.filter(b =>
+            b.managerId === user?.userId ||
+            b.managerEmail === user?.email
+        );
+        return viewBookings;
+    }, [viewBookings, viewScope, user]);
+
     // ─── Style helpers ────────────────────────────────────────────────────────
     const mainTabStyle = (tab: MainTab): React.CSSProperties => {
         const isActive = mainTab === tab;
@@ -822,6 +840,59 @@ const ResourceBooking: React.FC = () => {
                     })}
                     <div style={{ flex: 1 }} />
 
+                    {/* ── Scope toggle — only shown in Calendar/Timeline/Workspace ── */}
+                    {bookingVariant !== 'management' && (() => {
+                        const scopes: { id: ViewScope; label: string; color: string; activeBg: string }[] = [
+                            { id: 'all',     label: 'All',         color: '#64748b', activeBg: '#f1f5f9' },
+                            { id: 'my',      label: 'My Bookings', color: '#4f46e5', activeBg: '#eef2ff' },
+                            { id: 'managed', label: 'My Managed',  color: '#0891b2', activeBg: '#ecfeff' },
+                        ];
+                        return (
+                            <div style={{
+                                display: 'flex', alignItems: 'center',
+                                background: '#f8fafc',
+                                border: '1px solid #e2e8f0',
+                                borderRadius: 8,
+                                padding: 3,
+                                gap: 2,
+                            }}>
+                                {scopes.map(s => {
+                                    const active = viewScope === s.id;
+                                    return (
+                                        <button
+                                            key={s.id}
+                                            onClick={() => setViewScope(s.id)}
+                                            style={{
+                                                padding: '4px 12px', borderRadius: 6, border: 'none',
+                                                cursor: 'pointer', fontSize: '0.78rem',
+                                                fontWeight: active ? 700 : 500,
+                                                background: active ? s.activeBg : 'transparent',
+                                                color: active ? s.color : '#94a3b8',
+                                                transition: 'all 0.15s',
+                                                whiteSpace: 'nowrap' as const,
+                                            }}
+                                        >
+                                            {s.label}
+                                            {active && s.id !== 'all' && (
+                                                <span style={{
+                                                    marginLeft: 5,
+                                                    fontSize: '0.68rem',
+                                                    background: s.color,
+                                                    color: '#fff',
+                                                    borderRadius: 10,
+                                                    padding: '1px 6px',
+                                                    fontWeight: 700,
+                                                }}>
+                                                    {scopedViewBookings.length}
+                                                </span>
+                                            )}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        );
+                    })()}
+
                 </div>
 
                 {/* New Booking opens as a full page at /bookings/new */}
@@ -889,7 +960,7 @@ const ResourceBooking: React.FC = () => {
                             </div>
                         ) : bookingVariant === 'calendar' ? (
                             <CalendarView
-                                bookings={viewBookings} resources={viewResources}
+                                bookings={scopedViewBookings} resources={viewResources}
                                 currentUserId={user?.userId}
                                 onOpenBooking={handleViewOpenBooking}
                                 onNewBooking={handleViewNewBooking}
@@ -899,13 +970,13 @@ const ResourceBooking: React.FC = () => {
                             />
                         ) : bookingVariant === 'timeline' ? (
                             <TimelineView
-                                bookings={viewBookings} resources={viewResources}
+                                bookings={scopedViewBookings} resources={viewResources}
                                 onOpenBooking={handleViewOpenBooking}
                                 onNewBooking={handleViewNewBooking}
                             />
                         ) : (
                             <WorkspaceView
-                                bookings={viewBookings} resources={viewResources}
+                                bookings={scopedViewBookings} resources={viewResources}
                                 currentUserId={user?.userId}
                                 isDirector={isDirectorRole}
                                 onOpenBooking={handleViewOpenBooking}
