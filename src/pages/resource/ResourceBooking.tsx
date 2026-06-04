@@ -1169,7 +1169,7 @@ const ResourceBooking: React.FC = () => {
                                 onChange={setFilterType}
                                 options={[
                                     { value: '', label: 'All Types' },
-                                    ...resourceTypes.filter(rt => rt.isActive !== false || rt.id === filterType).map(rt => ({ value: rt.id, label: rt.name })),
+                                    ...resourceTypes.filter(rt => rt.isActive !== false).map(rt => ({ value: rt.id, label: rt.name })),
                                 ]}
                             />
                         </div>
@@ -1186,8 +1186,8 @@ const ResourceBooking: React.FC = () => {
                                     { value: '2', label: 'Approved' },
                                     { value: '3', label: 'Rejected' },
                                     { value: '4', label: 'Cancelled' },
-                                    { value: '5', label: 'In Use' },
-                                    { value: '6', label: 'Completed' },
+                                    { value: '6', label: 'In Use' },
+                                    { value: '5', label: 'Completed' },
                                 ]}
                             />
                         </div>

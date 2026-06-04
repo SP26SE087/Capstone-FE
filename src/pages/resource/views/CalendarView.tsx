@@ -257,8 +257,8 @@ function FilterBar({
         { value: '',  label: 'All statuses', dot: '#cbd5e1', color: '#64748b' },
         { value: '1', label: 'Pending',       dot: '#f59e0b', color: '#a16207' },
         { value: '2', label: 'Approved',      dot: '#22c55e', color: '#166534' },
-        { value: '5', label: 'In Use',        dot: '#3b82f6', color: '#1d4ed8' },
-        { value: '6', label: 'Completed',     dot: '#9ca3af', color: '#6b7280' },
+        { value: '6', label: 'In Use',        dot: '#3b82f6', color: '#1d4ed8' },
+        { value: '5', label: 'Completed',     dot: '#9ca3af', color: '#6b7280' },
     ];
     const selectedStatusOpt = STATUS_OPTIONS.find(o => o.value === filterStatus) ?? STATUS_OPTIONS[0];
 

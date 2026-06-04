@@ -54,6 +54,14 @@ function Segmented<T extends string | number>({ value, onChange, options }: {
     );
 }
 
+const STATUS_OPTIONS = [
+    { value: '',  label: 'All statuses', dot: '#cbd5e1', color: '#64748b' },
+    { value: '1', label: 'Pending',       dot: '#f59e0b', color: '#a16207' },
+    { value: '2', label: 'Approved',      dot: '#22c55e', color: '#166534' },
+    { value: '6', label: 'In Use',        dot: '#3b82f6', color: '#1d4ed8' },
+    { value: '5', label: 'Completed',     dot: '#9ca3af', color: '#6b7280' },
+];
+
 // ─── Main TimelineView ────────────────────────────────────────────────────────
 interface TimelineViewProps {
     bookings: Booking[];
@@ -78,6 +86,11 @@ export default function TimelineView({ bookings, resources, resourceTypes, onOpe
     const [typeSearch, setTypeSearch] = useState('');
     const typeMenuRef = useRef<HTMLDivElement | null>(null);
 
+    const [filterStatus, setFilterStatus] = useState('');
+    const [statusMenuOpen, setStatusMenuOpen] = useState(false);
+    const statusMenuRef = useRef<HTMLDivElement | null>(null);
+    const selectedStatusOpt = STATUS_OPTIONS.find(o => o.value === filterStatus) ?? STATUS_OPTIONS[0];
+
     useEffect(() => {
         if (!typeMenuOpen) return;
         const handler = (e: MouseEvent) => {
@@ -86,6 +99,15 @@ export default function TimelineView({ bookings, resources, resourceTypes, onOpe
         document.addEventListener('mousedown', handler);
         return () => document.removeEventListener('mousedown', handler);
     }, [typeMenuOpen]);
+
+    useEffect(() => {
+        if (!statusMenuOpen) return;
+        const handler = (e: MouseEvent) => {
+            if (statusMenuRef.current && !statusMenuRef.current.contains(e.target as Node)) setStatusMenuOpen(false);
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, [statusMenuOpen]);
 
     const days = buildDayRange(rangeStart, rangeDays);
     const rangeEnd = new Date(rangeStart);
@@ -150,6 +172,7 @@ export default function TimelineView({ bookings, resources, resourceTypes, onOpe
         const map: Record<string, Booking[]> = {};
         resources.forEach(r => { map[r.id] = []; });
         bookings.forEach(b => {
+            if (filterStatus && String(b.status) !== filterStatus) return;
             // Use new resources[] array; fall back gracefully if empty
             const ids = b.resources?.map(r => r.id) ?? [];
             ids.forEach(id => {
@@ -158,7 +181,7 @@ export default function TimelineView({ bookings, resources, resourceTypes, onOpe
             });
         });
         return map;
-    }, [bookings, resources]);
+    }, [bookings, resources, filterStatus]);
 
     const prevRange = () => { const d = new Date(rangeStart); d.setDate(d.getDate() - rangeDays); setRangeStart(d); };
     const nextRange = () => { const d = new Date(rangeStart); d.setDate(d.getDate() + rangeDays); setRangeStart(d); };
@@ -261,6 +284,58 @@ export default function TimelineView({ bookings, resources, resourceTypes, onOpe
                                     );
                                 })}
                             </div>
+                        </div>
+                    )}
+                </div>
+
+                <div style={{ width: 1, height: 26, background: '#e2e8f0' }} />
+                {/* Status dropdown */}
+                <div ref={statusMenuRef} style={{ position: 'relative' }}>
+                    <button
+                        onClick={() => setStatusMenuOpen(v => !v)}
+                        style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 7,
+                            padding: '7px 12px', fontSize: 13, fontWeight: 700,
+                            background: filterStatus ? '#fff7ed' : '#fff',
+                            color: filterStatus ? selectedStatusOpt.color : '#334155',
+                            border: `1px solid ${filterStatus ? '#fed7aa' : '#e2e8f0'}`,
+                            borderRadius: 999, cursor: 'pointer', outline: 'none',
+                            transition: 'all 0.15s',
+                        }}
+                    >
+                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: selectedStatusOpt.dot, flexShrink: 0 }} />
+                        {selectedStatusOpt.label}
+                        <span style={{ fontSize: 10, color: '#94a3b8', marginLeft: 1 }}>▾</span>
+                    </button>
+                    {statusMenuOpen && (
+                        <div style={{
+                            position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 50,
+                            background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12,
+                            boxShadow: '0 8px 24px rgba(0,0,0,0.1)', minWidth: 170, overflow: 'hidden',
+                        }}>
+                            {STATUS_OPTIONS.map(opt => {
+                                const active = filterStatus === opt.value;
+                                return (
+                                    <button
+                                        key={opt.value}
+                                        onClick={() => { setFilterStatus(opt.value); setStatusMenuOpen(false); }}
+                                        style={{
+                                            display: 'flex', alignItems: 'center', gap: 9, width: '100%',
+                                            padding: '9px 14px', border: 'none', cursor: 'pointer',
+                                            background: active ? '#fff7ed' : 'transparent',
+                                            color: active ? opt.color : '#334155',
+                                            fontSize: 13, fontWeight: active ? 700 : 500,
+                                            textAlign: 'left', transition: 'background 0.1s',
+                                        }}
+                                        onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = '#f8fafc'; }}
+                                        onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                                    >
+                                        <span style={{ width: 9, height: 9, borderRadius: '50%', background: opt.dot, flexShrink: 0 }} />
+                                        {opt.label}
+                                        {active && <span style={{ marginLeft: 'auto', fontSize: 11, color: opt.color }}>✓</span>}
+                                    </button>
+                                );
+                            })}
                         </div>
                     )}
                 </div>
