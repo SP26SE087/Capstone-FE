@@ -842,56 +842,67 @@ const ResourceBooking: React.FC = () => {
 
                     {/* ── Scope toggle — only shown in Calendar/Timeline/Workspace ── */}
                     {bookingVariant !== 'management' && (() => {
-                        const scopes: { id: ViewScope; label: string; color: string; activeBg: string }[] = [
-                            { id: 'all',     label: 'All',         color: '#64748b', activeBg: '#f1f5f9' },
-                            { id: 'my',      label: 'My Bookings', color: '#4f46e5', activeBg: '#eef2ff' },
-                            { id: 'managed', label: 'My Managed',  color: '#0891b2', activeBg: '#ecfeff' },
+                        const scopes: { id: ViewScope; label: string; activeBg: string; activeBorder: string }[] = [
+                            { id: 'all',     label: 'All',         activeBg: '#1e293b', activeBorder: '#334155' },
+                            { id: 'my',      label: 'My Bookings', activeBg: '#4f46e5', activeBorder: '#6366f1' },
+                            { id: 'managed', label: 'My Managed',  activeBg: '#0891b2', activeBorder: '#06b6d4' },
                         ];
                         return (
-                            <div style={{
-                                display: 'flex', alignItems: 'center',
-                                background: '#f8fafc',
-                                border: '1px solid #e2e8f0',
-                                borderRadius: 8,
-                                padding: 3,
-                                gap: 2,
-                            }}>
-                                {scopes.map(s => {
-                                    const active = viewScope === s.id;
-                                    return (
-                                        <button
-                                            key={s.id}
-                                            onClick={() => setViewScope(s.id)}
-                                            style={{
-                                                padding: '4px 12px', borderRadius: 6, border: 'none',
-                                                cursor: 'pointer', fontSize: '0.78rem',
-                                                fontWeight: active ? 700 : 500,
-                                                background: active ? s.activeBg : 'transparent',
-                                                color: active ? s.color : '#94a3b8',
-                                                transition: 'all 0.15s',
-                                                whiteSpace: 'nowrap' as const,
-                                            }}
-                                        >
-                                            {s.label}
-                                            {active && s.id !== 'all' && (
-                                                <span style={{
-                                                    marginLeft: 5,
-                                                    fontSize: '0.68rem',
-                                                    background: s.color,
-                                                    color: '#fff',
-                                                    borderRadius: 10,
-                                                    padding: '1px 6px',
-                                                    fontWeight: 700,
-                                                }}>
-                                                    {scopedViewBookings.length}
-                                                </span>
-                                            )}
-                                        </button>
-                                    );
-                                })}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                                <span style={{
+                                    fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8',
+                                    textTransform: 'uppercase', letterSpacing: '0.06em',
+                                    whiteSpace: 'nowrap',
+                                }}>Show:</span>
+                                <div style={{
+                                    display: 'flex', alignItems: 'center',
+                                    background: '#f1f5f9',
+                                    border: '1.5px solid #cbd5e1',
+                                    borderRadius: 9, padding: 3, gap: 2,
+                                    boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+                                }}>
+                                    {scopes.map(s => {
+                                        const active = viewScope === s.id;
+                                        return (
+                                            <button
+                                                key={s.id}
+                                                onClick={() => setViewScope(s.id)}
+                                                style={{
+                                                    display: 'flex', alignItems: 'center', gap: 5,
+                                                    padding: '5px 14px', borderRadius: 6,
+                                                    border: active ? `1px solid ${s.activeBorder}` : '1px solid transparent',
+                                                    cursor: 'pointer', fontSize: '0.8rem',
+                                                    fontWeight: active ? 700 : 500,
+                                                    background: active ? s.activeBg : 'transparent',
+                                                    color: active ? '#fff' : '#64748b',
+                                                    boxShadow: active ? `0 2px 8px ${s.activeBg}66` : 'none',
+                                                    transition: 'all 0.15s',
+                                                    whiteSpace: 'nowrap' as const,
+                                                }}
+                                            >
+                                                {s.label}
+                                                {active && s.id !== 'all' && (
+                                                    <span style={{
+                                                        fontSize: '0.68rem',
+                                                        background: 'rgba(255,255,255,0.22)',
+                                                        color: '#fff',
+                                                        borderRadius: 10,
+                                                        padding: '0 6px',
+                                                        fontWeight: 700,
+                                                        minWidth: 18,
+                                                        textAlign: 'center',
+                                                    }}>
+                                                        {scopedViewBookings.length}
+                                                    </span>
+                                                )}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
                             </div>
                         );
                     })()}
+
 
                 </div>
 

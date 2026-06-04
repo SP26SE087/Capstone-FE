@@ -177,10 +177,22 @@ function RightRail({ bookings, resources, onOpen, onNewBooking: _onNewBooking }:
         const busyIds = new Set<string>();
         bookings.filter(b => [BookingStatus.Approved, BookingStatus.InUse].includes(b.status))
             .filter(b => { const s = new Date(b.startTime), e = new Date(b.endTime); return s < tomorrow && e > today; })
-            .forEach(b => (b.resourceIds ?? []).forEach(id => busyIds.add(id)));
-        const busy = rList.filter(r => busyIds.has(r.id) || (r.ids ?? []).some(id => busyIds.has(id))).length;
+            .forEach(b => {
+                // Use resources array first, then resourceIds, then single resourceId
+                const ids: string[] = [
+                    ...(b.resources ?? []).map(r => r.id),
+                    ...(b.resourceIds ?? []),
+                    ...(b.resourceId ? [b.resourceId] : []),
+                ];
+                ids.forEach(id => busyIds.add(id));
+            });
+        const busy = rList.filter(r => {
+            // Match by resource id OR any of its unit ids
+            const unitIds = [r.id, ...(r.ids ?? []), ...(r.availableIds ?? [])];
+            return unitIds.some(id => busyIds.has(id));
+        }).length;
         const meta = rList[0] ? getBookingRtMeta({ title: '', startTime: '', endTime: '', status: BookingStatus.Pending, createdAt: '' } as any, rList) : null;
-        return { type: t, total: rList.length, free: rList.length - busy, meta };
+        return { type: t, total: rList.length, free: Math.max(0, rList.length - busy), meta };
     }).filter(x => x.total > 0);
 
     // Expiring soon: InUse bookings whose endTime is within the next 2 hours
