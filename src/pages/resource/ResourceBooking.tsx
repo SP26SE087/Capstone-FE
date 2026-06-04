@@ -656,6 +656,24 @@ const ResourceBooking: React.FC = () => {
         [displayResourceTypes, rtTab]
     );
 
+    const typeOptions = useMemo(() => {
+        const byKey = new Map<string, { id: string; name: string }>();
+        resources.forEach(r => {
+            const typeId = r.resourceTypeId;
+            if (typeId) {
+                const rt = resourceTypes.find(t => t.id === typeId);
+                if (rt && rt.isActive === false) return;
+            }
+            const name = r.resourceTypeName?.trim();
+            if (!name || !r.resourceTypeId) return;
+            const key = name.toLowerCase();
+            if (!byKey.has(key)) {
+                byKey.set(key, { id: r.resourceTypeId, name });
+            }
+        });
+        return Array.from(byKey.values()).sort((a, b) => a.name.localeCompare(b.name));
+    }, [resources, resourceTypes]);
+
     const bookingListForTab: Booking[] = useMemo(() => {
         if (activeTab === 'my_bookings') return myBookings;
         if (activeTab === 'all_bookings') return allBookings;
@@ -1169,7 +1187,7 @@ const ResourceBooking: React.FC = () => {
                                 onChange={setFilterType}
                                 options={[
                                     { value: '', label: 'All Types' },
-                                    ...resourceTypes.filter(rt => rt.isActive !== false).map(rt => ({ value: rt.id, label: rt.name })),
+                                    ...typeOptions.map(t => ({ value: t.id, label: t.name })),
                                 ]}
                             />
                         </div>

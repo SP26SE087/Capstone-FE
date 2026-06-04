@@ -499,6 +499,24 @@ const NewBookingPage: React.FC = () => {
     return d;
   }, [startDate, durationDays, returnMinutes]);
 
+  const typeOptions = useMemo(() => {
+    const byKey = new Map<string, { id: string; name: string }>();
+    resources.forEach(r => {
+      const typeId = r.resourceTypeId;
+      if (typeId) {
+        const rt = resTypes.find(t => t.id === typeId);
+        if (rt && rt.isActive === false) return;
+      }
+      const name = r.resourceTypeName?.trim();
+      if (!name || !r.resourceTypeId) return;
+      const key = name.toLowerCase();
+      if (!byKey.has(key)) {
+        byKey.set(key, { id: r.resourceTypeId, name });
+      }
+    });
+    return Array.from(byKey.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [resources, resTypes]);
+
   const selectedResources = useMemo(() => resources.filter(r => selectedIds.includes(r.id)), [resources, selectedIds]);
 
   const filtered = useMemo(() => {
@@ -761,7 +779,7 @@ const NewBookingPage: React.FC = () => {
                     onChange={setTypeFilter}
                     options={[
                       { value: '', label: 'All types' },
-                      ...resTypes.filter(t => t.isActive !== false).map(t => ({ value: t.id, label: t.name })),
+                      ...typeOptions.map(t => ({ value: t.id, label: t.name })),
                     ]}
                   />
                 </div>
