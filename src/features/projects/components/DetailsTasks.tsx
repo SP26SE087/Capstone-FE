@@ -598,7 +598,12 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                                     position: 'relative', overflow: 'hidden', flexShrink: 0,
                                     display: 'flex', flexDirection: 'column', gap: '8px'
                                 }}>
-                                    <div style={{ fontSize: '0.9rem', fontWeight: 700, color: isActive ? 'var(--primary-color)' : '#1e293b' }}>{task.name}</div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                                        <div style={{ fontSize: '0.9rem', fontWeight: 700, color: isActive ? 'var(--primary-color)' : '#1e293b', flex: 1 }}>{task.name}</div>
+                                        <div style={{ fontSize: '0.65rem', fontWeight: 750, padding: '2px 8px', borderRadius: '6px', background: pStyle.bg, color: pStyle.color, flexShrink: 0 }}>
+                                            {pStyle.label}
+                                        </div>
+                                    </div>
                                     
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                                         {/* Start Date & End Date */}
@@ -618,11 +623,7 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                                         </div>
                                     </div>
 
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2px' }}>
-                                        {/* Priority badge */}
-                                        <div style={{ fontSize: '0.65rem', fontWeight: 750, padding: '2px 8px', borderRadius: '6px', background: pStyle.bg, color: pStyle.color }}>
-                                            {pStyle.label} Priority
-                                        </div>
+                                    <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginTop: '2px' }}>
                                         {/* Status badge */}
                                         <div style={{ fontSize: '0.65rem', fontWeight: 800, padding: '3px 8px', borderRadius: '6px', background: sStyle.bg, color: sStyle.text }}>
                                             {sStyle.label}
