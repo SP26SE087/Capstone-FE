@@ -145,11 +145,11 @@ const UserManagement: React.FC = () => {
         if (fullNameErr) { showToast(`Full name: ${fullNameErr}`, 'error'); return; }
         setActionLoadingId('new');
         try {
-            const newUser = await userService.addUser(formData as AddUserRequest);
-            setMembers(prev => [...prev, newUser]);
+            await userService.addUser(formData as AddUserRequest);
             setFormData({ email: '', fullName: '', role: 4 });
             setShowAddForm(false);
             showToast('User added successfully.');
+            await loadMembers();
         } catch (err: any) {
             showToast(err.response?.data?.message || 'Failed to add user.', 'error');
         } finally { setActionLoadingId(null); }
