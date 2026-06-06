@@ -137,6 +137,18 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
         const matchesMilestone = taskMilestoneFilter.length === 0 || taskMilestoneFilter.includes('all') || taskMilestoneFilter.includes(t.milestoneId || 'ungrouped');
         return matchesSearch && matchesStatus && matchesPriority && matchesMilestone;
     }).sort((a, b) => {
+        const statusOrder: Record<number, number> = {
+            5: 1, // Adjusting
+            4: 2, // Missed
+            2: 3, // InProgress
+            1: 4, // Todo
+            3: 5, // Submitted (In Review)
+            6: 6  // Completed
+        };
+        const orderA = statusOrder[a.status] || 99;
+        const orderB = statusOrder[b.status] || 99;
+        if (orderA !== orderB) return orderA - orderB;
+
         const aTime = a.dueDate ? new Date(a.dueDate).getTime() : Infinity;
         const bTime = b.dueDate ? new Date(b.dueDate).getTime() : Infinity;
         return aTime - bTime;
