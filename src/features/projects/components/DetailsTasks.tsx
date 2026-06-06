@@ -533,7 +533,7 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                     </div>
                 </div>
 
-                <div style={{ flex: 1, minHeight: 0, maxHeight: (viewContext === 'ai-drafts' ? aiTaskDrafts.filter(d => !d._dismissed).length : displayTasks.length) >= 5 ? '520px' : 'calc(100vh - 180px)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', paddingRight: '4px' }} className="custom-scrollbar">
+                <div style={{ flex: 1, minHeight: 'calc(100vh - 180px)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', paddingRight: '4px' }} className="custom-scrollbar">
                     {viewContext === 'ai-drafts' ? (
                         aiTaskDrafts.filter(d => !d._dismissed).length > 0 ? (
                             aiTaskDrafts.filter(d => !d._dismissed).map(draft => {
