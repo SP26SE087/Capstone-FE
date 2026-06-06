@@ -746,6 +746,28 @@ const SeminarPanel: React.FC<SeminarPanelProps> = ({
                     </div>
                 )}
 
+                {/* Seminar Title */}
+                {meeting.title && (
+                    <div style={{ marginBottom: '14px' }}>
+                        <div style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' as const, letterSpacing: '0.7px', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                            <Presentation size={11} /> Seminar Title
+                        </div>
+                        <div style={{
+                            fontSize: '0.92rem',
+                            fontWeight: 800,
+                            color: 'var(--text-primary)',
+                            lineHeight: 1.5,
+                            wordBreak: 'break-word',
+                            background: '#f8fafc',
+                            border: '1px solid #e2e8f0',
+                            borderRadius: '10px',
+                            padding: '10px 12px'
+                        }}>
+                            {meeting.title}
+                        </div>
+                    </div>
+                )}
+
                 {/* Description */}
                 {meeting.description && (
                     <div style={{ marginBottom: '14px' }}>
