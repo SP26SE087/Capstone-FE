@@ -53,6 +53,16 @@ export const getStatusColor = (status: TaskStatus) => {
     }
 };
 
+export const getPriorityStyle = (priority: number) => {
+    switch (priority) {
+        case 1: return { label: 'Low', color: '#64748b', bg: '#f1f5f9' };
+        case 2: return { label: 'Medium', color: '#0284c7', bg: '#f0f9ff' };
+        case 3: return { label: 'High', color: '#ea580c', bg: '#fff7ed' };
+        case 4: return { label: 'Critical', color: '#ef4444', bg: '#fef2f2' };
+        default: return { label: 'Medium', color: '#0284c7', bg: '#f0f9ff' };
+    }
+};
+
 const DetailsTasks: React.FC<DetailsTasksProps> = ({
     tasks: _tasks, filteredTasks, taskSearchQuery, setTaskSearchQuery,
     taskStatusFilter, setTaskStatusFilter, taskPriorityFilter, setTaskPriorityFilter,
@@ -126,6 +136,10 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
         const matchesPriority = taskPriorityFilter.length === 0 || taskPriorityFilter.includes('all') || taskPriorityFilter.includes(t.priority.toString());
         const matchesMilestone = taskMilestoneFilter.length === 0 || taskMilestoneFilter.includes('all') || taskMilestoneFilter.includes(t.milestoneId || 'ungrouped');
         return matchesSearch && matchesStatus && matchesPriority && matchesMilestone;
+    }).sort((a, b) => {
+        const aTime = a.dueDate ? new Date(a.dueDate).getTime() : Infinity;
+        const bTime = b.dueDate ? new Date(b.dueDate).getTime() : Infinity;
+        return aTime - bTime;
     });
 
     const normalizeId = (value: any): string => value === undefined || value === null ? '' : String(value);
@@ -533,7 +547,7 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                     </div>
                 </div>
 
-                <div style={{ flex: 1, minHeight: 'calc(100vh - 180px)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', paddingRight: '4px' }} className="custom-scrollbar">
+                <div style={{ flex: 1, minHeight: 0, maxHeight: (viewContext === 'ai-drafts' ? aiTaskDrafts.filter(d => !d._dismissed).length : displayTasks.length) >= 5 ? '520px' : 'calc(100vh - 180px)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', paddingRight: '4px' }} className="custom-scrollbar">
                     {viewContext === 'ai-drafts' ? (
                         aiTaskDrafts.filter(d => !d._dismissed).length > 0 ? (
                             aiTaskDrafts.filter(d => !d._dismissed).map(draft => {
@@ -544,7 +558,8 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                                         border: `1px solid ${isActive ? 'var(--primary-color)' : '#e2e8f0'}`,
                                         borderRadius: '12px', cursor: 'pointer', transition: 'all 0.2s',
                                         boxShadow: isActive ? '0 4px 12px rgba(0,0,0,0.05)' : 'none',
-                                        opacity: draft._saved ? 0.7 : 1, position: 'relative'
+                                        opacity: draft._saved ? 0.7 : 1, position: 'relative',
+                                        flexShrink: 0
                                     }}>
                                         {draft._saved && <span style={{ position: 'absolute', top: '8px', right: '8px', fontSize: '0.6rem', color: '#10b981', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '3px' }}><CheckCircle2 size={11} /> Saved</span>}
                                         <div style={{ fontSize: '0.9rem', fontWeight: 700, color: isActive ? 'var(--primary-color)' : '#1e293b', marginBottom: '8px', paddingRight: draft._saved ? '52px' : 0 }}>{draft.name}</div>
@@ -568,18 +583,50 @@ const DetailsTasks: React.FC<DetailsTasksProps> = ({
                             const tId = task.taskId || (task as any).id;
                             const isActive = selectedTaskId === tId;
                             const sStyle = getStatusColor(task.status);
+                            const pStyle = getPriorityStyle(task.priority);
+                            
+                            // Resolve Assignee name
+                            const aId = task.memberId || (task as any).assignedToId;
+                            const rawAssigneeName = (task as any).assigneeName || task.assignedToName || task.member?.fullName;
+                            const matchById = projectMembers.find(m => getMemberOptionId(m) === aId);
+                            const assigneeName = matchById?.fullName || matchById?.userName || rawAssigneeName || 'Unassigned';
+
                             return (
                                 <div key={tId} onClick={() => onTaskSelect(task)} style={{
                                     padding: '1rem', background: 'white', border: `1px solid ${isActive ? 'var(--primary-color)' : '#e2e8f0'}`, borderRadius: '12px', cursor: 'pointer',
                                     transition: 'all 0.2s', boxShadow: isActive ? '0 4px 12px rgba(0,0,0,0.05)' : 'none',
-                                    position: 'relative', overflow: 'hidden'
+                                    position: 'relative', overflow: 'hidden', flexShrink: 0,
+                                    display: 'flex', flexDirection: 'column', gap: '8px'
                                 }}>
-                                    <div style={{ fontSize: '0.9rem', fontWeight: 700, color: isActive ? 'var(--primary-color)' : '#1e293b', marginBottom: '8px' }}>{task.name}</div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <div style={{ fontSize: '0.7rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                            <Calendar size={12} /> {formatProjectDate(task.dueDate || undefined)}
+                                    <div style={{ fontSize: '0.9rem', fontWeight: 700, color: isActive ? 'var(--primary-color)' : '#1e293b' }}>{task.name}</div>
+                                    
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                        {/* Start Date & End Date */}
+                                        <div style={{ fontSize: '0.7rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                            <Calendar size={12} style={{ flexShrink: 0 }} />
+                                            <span>
+                                                {formatProjectDate(task.startDate || undefined, 'TBD')} – {formatProjectDate(task.dueDate || undefined, 'TBD')}
+                                            </span>
                                         </div>
-                                        <div style={{ fontSize: '0.65rem', fontWeight: 800, padding: '3px 8px', borderRadius: '6px', background: sStyle.bg, color: sStyle.text }}>{sStyle.label}</div>
+                                        {/* Assignee */}
+                                        <div style={{ fontSize: '0.7rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                            <div style={{ width: '16px', height: '16px', borderRadius: '50%', background: '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.55rem', fontWeight: 700, color: '#64748b', overflow: 'hidden', flexShrink: 0, position: 'relative' }}>
+                                                <span>{assigneeName.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}</span>
+                                                {(matchById?.avatarUrl || matchById?.avatar) && <img src={matchById.avatarUrl || matchById.avatar} alt="" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
+                                            </div>
+                                            <span style={{ fontWeight: 600 }}>{assigneeName}</span>
+                                        </div>
+                                    </div>
+
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2px' }}>
+                                        {/* Priority badge */}
+                                        <div style={{ fontSize: '0.65rem', fontWeight: 750, padding: '2px 8px', borderRadius: '6px', background: pStyle.bg, color: pStyle.color }}>
+                                            {pStyle.label} Priority
+                                        </div>
+                                        {/* Status badge */}
+                                        <div style={{ fontSize: '0.65rem', fontWeight: 800, padding: '3px 8px', borderRadius: '6px', background: sStyle.bg, color: sStyle.text }}>
+                                            {sStyle.label}
+                                        </div>
                                     </div>
                                 </div>
                             );
