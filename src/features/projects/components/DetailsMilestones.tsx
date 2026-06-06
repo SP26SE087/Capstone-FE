@@ -282,6 +282,7 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
         cancelLabel: string;
         variant: 'danger' | 'success' | 'warning' | 'info';
         onConfirm: () => void;
+        singleButton?: boolean;
     }>({
         isOpen: false,
         title: '',
@@ -800,16 +801,11 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                     isOpen: true,
                     title: 'UNFINISHED TASKS',
                     message: `You cannot complete this milestone because "${incompleteTask.name}" is not yet finished. Please complete all tasks first.`,
-                    confirmLabel: 'GO TO TASK',
+                    confirmLabel: 'CLOSE',
                     cancelLabel: 'CANCEL',
                     variant: 'warning',
-                    onConfirm: () => {
-                        setTaskTab('current');
-                        setExpandedTasks([incompleteTask.taskId]);
-                        // Scroll logic if needed
-                        const el = document.querySelector(`[data-task-id="${incompleteTask.taskId}"]`);
-                        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    }
+                    onConfirm: () => {},
+                    singleButton: true
                 });
                 return;
             }
@@ -1117,7 +1113,7 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                         </select>
 
                     </div>
-                    <div ref={milestoneContainerRef} style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem' }} className="custom-scrollbar">
+                    <div ref={milestoneContainerRef} style={{ flex: 1, minHeight: 0, maxHeight: filteredMilestones.length >= 5 ? '520px' : undefined, overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: '0.75rem' }} className="custom-scrollbar">
                         {[...filteredMilestones].sort((a, b) => {
                             const dateA = new Date(a.dueDate).getTime();
                             const dateB = new Date(b.dueDate).getTime();
@@ -1480,7 +1476,7 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                         </div>
 
                         <div
-                            style={{ flex: 1, overflow: 'auto', padding: '1.25rem', minHeight: 0 }}
+                            style={{ flex: 1, overflow: 'auto', padding: '1.25rem', minHeight: 0, maxHeight: (taskTab === 'draft' ? currentDrafts.length : milestoneTasks.length) >= 5 ? '400px' : undefined }}
                             className="custom-scrollbar"
                         >
                             {taskTab === 'draft' ? (
@@ -2191,8 +2187,14 @@ const DetailsMilestones: React.FC<DetailsMilestonesProps> = ({
                             <div style={{ fontWeight: 800, color: '#1e293b', marginBottom: '0.4rem', fontSize: '0.9rem' }}>{confirmState.title}</div>
                             <p style={{ fontSize: '0.75rem', color: '#64748b', margin: '0 0 1.25rem 0', lineHeight: 1.5 }}>{confirmState.message}</p>
                             <div style={{ display: 'flex', gap: '0.6rem' }}>
-                                <button onClick={() => setConfirmState(prev => ({ ...prev, isOpen: false }))} style={{ ...btnSecondary, flex: 1, padding: '0.6rem', fontSize: '0.75rem', borderRadius: '10px' }}>{confirmState.cancelLabel}</button>
-                                <button onClick={() => { confirmState.onConfirm(); setConfirmState(prev => ({ ...prev, isOpen: false })); }} style={{ ...btnPrimary, flex: 1, padding: '0.6rem', fontSize: '0.75rem', background: v.btnBg, borderRadius: '10px' }}>{confirmState.confirmLabel}</button>
+                                {confirmState.singleButton ? (
+                                    <button onClick={() => setConfirmState(prev => ({ ...prev, isOpen: false }))} style={{ ...btnPrimary, flex: 1, padding: '0.6rem', fontSize: '0.75rem', background: v.btnBg, borderRadius: '10px' }}>{confirmState.confirmLabel || 'CLOSE'}</button>
+                                ) : (
+                                    <>
+                                        <button onClick={() => setConfirmState(prev => ({ ...prev, isOpen: false }))} style={{ ...btnSecondary, flex: 1, padding: '0.6rem', fontSize: '0.75rem', borderRadius: '10px' }}>{confirmState.cancelLabel}</button>
+                                        <button onClick={() => { confirmState.onConfirm(); setConfirmState(prev => ({ ...prev, isOpen: false })); }} style={{ ...btnPrimary, flex: 1, padding: '0.6rem', fontSize: '0.75rem', background: v.btnBg, borderRadius: '10px' }}>{confirmState.confirmLabel}</button>
+                                    </>
+                                )}
                             </div>
                         </div>
                     </div>
