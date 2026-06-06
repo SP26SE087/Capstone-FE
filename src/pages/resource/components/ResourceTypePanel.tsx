@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { resourceTypeService, ResourceTypeItem, ResourceTypeCategory } from '@/services/resourceTypeService';
-import { Save, Loader2, Layers, Tag } from 'lucide-react';
+import { Save, Loader2, Layers, Tag, Server, HardDrive } from 'lucide-react';
 
 interface ResourceTypePanelProps {
     editing?: ResourceTypeItem | null;
@@ -141,6 +141,56 @@ const ResourceTypePanel: React.FC<ResourceTypePanelProps> = ({ editing, onClose,
                             onFocus={handleFocus}
                             onBlur={handleBlur}
                         />
+                    </div>
+
+                    {/* Category selector — hiện cả khi tạo lẫn khi sửa */}
+                    <div style={{ marginBottom: '14px' }}>
+                        <label style={{ ...labelStyle, fontSize: '0.68rem' }}>Category *</label>
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                            {[
+                                { value: ResourceTypeCategory.Physical, label: 'Physical', desc: 'Lab equipment, hardware...', icon: <HardDrive size={15} />, color: '#2563eb' },
+                                { value: ResourceTypeCategory.ServerCompute, label: 'Server / Compute', desc: 'GPU nodes, servers...', icon: <Server size={15} />, color: '#7c3aed' },
+                            ].map(opt => {
+                                const active = category === opt.value;
+                                return (
+                                    <button
+                                        key={opt.value}
+                                        type="button"
+                                        onClick={() => setCategory(opt.value)}
+                                        style={{
+                                            flex: 1, display: 'flex', alignItems: 'center', gap: '10px',
+                                            padding: '10px 14px', borderRadius: '10px', cursor: 'pointer',
+                                            border: `1.5px solid ${active ? opt.color : 'var(--border-color)'}`,
+                                            background: active ? `${opt.color}12` : '#fafafa',
+                                            transition: 'all 0.15s', textAlign: 'left' as const,
+                                        }}
+                                    >
+                                        <span style={{
+                                            width: '30px', height: '30px', borderRadius: '8px',
+                                            background: active ? `${opt.color}20` : '#f1f5f9',
+                                            color: active ? opt.color : '#94a3b8',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            flexShrink: 0, transition: 'all 0.15s'
+                                        }}>
+                                            {opt.icon}
+                                        </span>
+                                        <div>
+                                            <div style={{ fontSize: '0.78rem', fontWeight: 700, color: active ? opt.color : 'var(--text-primary)', lineHeight: 1.2 }}>{opt.label}</div>
+                                            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '2px' }}>{opt.desc}</div>
+                                        </div>
+                                        <span style={{
+                                            marginLeft: 'auto', width: '16px', height: '16px', borderRadius: '50%',
+                                            border: `2px solid ${active ? opt.color : '#cbd5e1'}`,
+                                            background: active ? opt.color : '#fff',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            flexShrink: 0, transition: 'all 0.15s'
+                                        }}>
+                                            {active && <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#fff', display: 'block' }} />}
+                                        </span>
+                                    </button>
+                                );
+                            })}
+                        </div>
                     </div>
 
                     {editing && (
