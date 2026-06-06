@@ -576,19 +576,7 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
             {/* Panel Header — only for view/edit mode */}
             {!isCreating && (
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', paddingBottom: '12px', borderBottom: '1px solid var(--border-light)', gap: '12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0, flex: 1 }}>
-                    <div style={{
-                        width: '32px',
-                        height: '32px',
-                        borderRadius: '10px',
-                        background: isCreating ? 'var(--accent-color)' : 'var(--primary-color)',
-                        color: '#fff',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                    }}>
-                        {isCreating ? <Plus size={16} /> : <Calendar size={16} />}
-                    </div>
+                <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={{ minWidth: 0 }}>
                         <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
                             {isCreating ? 'New Schedule' : (meeting?.title || 'Schedule Details')}
