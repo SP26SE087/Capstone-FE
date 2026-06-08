@@ -1053,28 +1053,39 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                                                         border: `1px solid ${res.isDamaged ? '#fecaca' : '#e2e8f0'}`,
                                                         borderRadius: 8,
                                                         display: 'flex',
-                                                        justifyContent: 'space-between',
-                                                        alignItems: 'center'
+                                                        flexDirection: 'column',
+                                                        gap: 4,
                                                     }}>
-                                                        <div>
-                                                            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#1e293b' }}>{res.name}</span>
-                                                            <div style={{ display: 'flex', gap: 6, marginTop: 2 }}>
-                                                                {res.resourceTypeName && (
-                                                                    <span style={{ fontSize: '0.55rem', color: '#64748b', background: '#e2e8f0', padding: '1px 5px', borderRadius: 4 }}>
-                                                                        {res.resourceTypeName}
-                                                                    </span>
-                                                                )}
-                                                                {res.location && (
-                                                                    <span style={{ fontSize: '0.55rem', color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: 2 }}>
-                                                                        <MapPin size={8} /> {res.location}
-                                                                    </span>
-                                                                )}
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                                            <div>
+                                                                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#1e293b' }}>{res.name}</span>
+                                                                <div style={{ display: 'flex', gap: 6, marginTop: 2 }}>
+                                                                    {res.resourceTypeName && (
+                                                                        <span style={{ fontSize: '0.55rem', color: '#64748b', background: '#e2e8f0', padding: '1px 5px', borderRadius: 4 }}>
+                                                                            {res.resourceTypeName}
+                                                                        </span>
+                                                                    )}
+                                                                    {res.location && (
+                                                                        <span style={{ fontSize: '0.55rem', color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+                                                                            <MapPin size={8} /> {res.location}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
                                                             </div>
+                                                            {res.isDamaged && (
+                                                                <span style={{ fontSize: '0.55rem', fontWeight: 700, color: '#dc2626', background: '#fef2f2', padding: '1px 5px', borderRadius: 4, flexShrink: 0 }}>
+                                                                    ⚠ Damaged
+                                                                </span>
+                                                            )}
                                                         </div>
-                                                        {res.isDamaged && (
-                                                            <span style={{ fontSize: '0.55rem', fontWeight: 700, color: '#dc2626', background: '#fef2f2', padding: '1px 5px', borderRadius: 4 }}>
-                                                                ⚠ Damaged
-                                                            </span>
+                                                        {(res as any).modelSeries && (
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 5, paddingTop: 4, borderTop: '1px solid #e2e8f0' }}>
+                                                                <Tag size={9} color="#94a3b8" />
+                                                                <span style={{ fontSize: '0.55rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Serial</span>
+                                                                <code style={{ fontSize: '0.62rem', fontWeight: 700, color: '#334155', background: '#fff', border: '1px solid #e2e8f0', padding: '1px 6px', borderRadius: 5, letterSpacing: '0.02em', marginLeft: 'auto' }}>
+                                                                    {(res as any).modelSeries}
+                                                                </code>
+                                                            </div>
                                                         )}
                                                     </div>
                                                 ))}
