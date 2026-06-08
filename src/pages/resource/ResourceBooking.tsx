@@ -337,24 +337,31 @@ const ResourceBooking: React.FC = () => {
             return;
         }
         
-        let gids = booking._groupedIds;
-        let extraRes = booking.resources;
-
-        if (!gids || gids.length <= 1) {
-            const group = findGroupedBookings(booking, viewBookings);
-            gids = group.map(b => b.bookingId || b.id).filter(Boolean) as string[];
-            
-            const allResources = group.flatMap(b => b.resources ?? []);
-            const seen = new Set<string>();
-            extraRes = allResources.filter(r => {
-                if (seen.has(r.id)) return false;
-                seen.add(r.id);
-                return true;
-            });
+        // Always search the full list of viewBookings to find all constituent bookings (across all managers)
+        const group = findGroupedBookings(booking, viewBookings);
+        
+        // Take the union of IDs from findGroupedBookings and booking._groupedIds (if already grouped in the queue)
+        const groupIdsSet = new Set([
+            ...group.map(b => b.bookingId || b.id),
+            ...(booking._groupedIds ?? [])
+        ].filter(Boolean) as string[]);
+        
+        const finalGids = Array.from(groupIdsSet);
+        if (!finalGids.includes(resolvedBookingId)) {
+            finalGids.push(resolvedBookingId);
         }
 
-        const finalGids = gids && gids.length > 0 ? gids : [resolvedBookingId];
-        const finalExtraRes = extraRes ?? [];
+        // Gather all unique resources from both sources
+        const allResources = [
+            ...(booking.resources ?? []),
+            ...group.flatMap(b => b.resources ?? [])
+        ];
+        const seen = new Set<string>();
+        const finalExtraRes = allResources.filter(r => {
+            if (seen.has(r.id)) return false;
+            seen.add(r.id);
+            return true;
+        });
 
         setViewModalExtraResources(finalExtraRes);
         setViewModalGroupedIds(finalGids);
