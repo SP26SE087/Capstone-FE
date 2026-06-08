@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import AppSelect from '@/components/common/AppSelect';
 import MainLayout from '@/layout/MainLayout';
 import { useAuth } from '@/hooks/useAuth';
@@ -14,6 +14,8 @@ import {
     Briefcase,
     Filter,
     LayoutGrid,
+    LayoutList,
+    CalendarDays as CalendarDaysIcon,
     Target,
     Loader2,
     X,
@@ -22,6 +24,7 @@ import {
     User,
     CalendarDays,
 } from 'lucide-react';
+import ReportList from './components/ReportList';
 import {
     BookingStyleMonthGrid,
     BookingStyleMonthNav,
@@ -34,6 +37,7 @@ import { useToastStore } from '@/store/slices/toastSlice';
 import ReportPanel from './components/ReportPanel';
 
 type TabType = 'my_reports' | 'all_reports' | 'my_assignee';
+type ViewMode = 'calendar' | 'list';
 
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
@@ -55,6 +59,8 @@ const Reports: React.FC = () => {
 
     const [semanticResults, setSemanticResults] = useState<Report[] | null>(null);
     const [isSemanticLoading, setIsSemanticLoading] = useState(false);
+
+    const [viewMode, setViewMode] = useState<ViewMode>('calendar');
 
     const [calYear, setCalYear] = useState(() => new Date().getFullYear());
     const [calMonth, setCalMonth] = useState(() => new Date().getMonth());
@@ -205,6 +211,8 @@ const Reports: React.FC = () => {
                 status: filterStatus !== '' ? Number(filterStatus) : undefined,
             });
             setSemanticResults(Array.isArray(results) ? results : (results?.data || []));
+            // Auto-switch to list view so semantic results are easy to scan
+            setViewMode('list');
         } catch {
             showToast('Semantic search failed.', 'error');
         } finally {
@@ -488,6 +496,42 @@ const Reports: React.FC = () => {
                             {isSemanticLoading ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
                             AI Search
                         </button>
+
+                        {/* View mode toggle */}
+                        <div style={{
+                            display: 'flex', alignItems: 'center', gap: '2px',
+                            background: 'var(--surface-hover)', borderRadius: '10px', padding: '3px',
+                            border: '1px solid var(--border-color)',
+                        }}>
+                            <button
+                                title="Calendar view"
+                                onClick={() => setViewMode('calendar')}
+                                style={{
+                                    height: '34px', width: '38px', borderRadius: '8px', border: 'none',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    cursor: 'pointer', transition: 'all 0.15s',
+                                    background: viewMode === 'calendar' ? '#fff' : 'transparent',
+                                    color: viewMode === 'calendar' ? 'var(--primary-color)' : 'var(--text-muted)',
+                                    boxShadow: viewMode === 'calendar' ? '0 1px 4px rgba(0,0,0,0.10)' : 'none',
+                                }}
+                            >
+                                <CalendarDaysIcon size={16} />
+                            </button>
+                            <button
+                                title="List view"
+                                onClick={() => setViewMode('list')}
+                                style={{
+                                    height: '34px', width: '38px', borderRadius: '8px', border: 'none',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    cursor: 'pointer', transition: 'all 0.15s',
+                                    background: viewMode === 'list' ? '#fff' : 'transparent',
+                                    color: viewMode === 'list' ? 'var(--primary-color)' : 'var(--text-muted)',
+                                    boxShadow: viewMode === 'list' ? '0 1px 4px rgba(0,0,0,0.10)' : 'none',
+                                }}
+                            >
+                                <LayoutList size={16} />
+                            </button>
+                        </div>
                     </div>
 
                     {semanticResults !== null && (
@@ -495,6 +539,9 @@ const Reports: React.FC = () => {
                             <Zap size={14} color="#6366f1" />
                             <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#4f46e5' }}>
                                 AI Search — {semanticResults.length} result{semanticResults.length !== 1 ? 's' : ''}
+                            </span>
+                            <span style={{ fontSize: '0.72rem', color: '#818cf8', fontStyle: 'italic' }}>
+                                Switched to List view for easier reading
                             </span>
                             <button
                                 onClick={() => setSemanticResults(null)}
@@ -583,40 +630,175 @@ const Reports: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Main: Calendar + Day list / Panel */}
-                <div
-                    style={{
-                        display: 'flex',
-                        gap: 14,
-                        alignItems: 'stretch',
-                        height: 'calc(100vh - 310px)',
-                        minHeight: '700px',
-                    }}
-                >
-
-                    {/* Left: Calendar */}
-                    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-                        {loading ? (
-                            <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem', flex: 1 }}>
-                                <Loader2 className="animate-spin" size={28} color="var(--primary-color)" />
-                            </div>
-                        ) : renderCalendar()}
-                    </div>
-
-                    {/* Right: Sidebar (day list) or Report Panel */}
+                {/* Main content area */}
+                {viewMode === 'calendar' ? (
+                    /* Calendar + Day list / Panel */
                     <div
-                        style={
-                            isPanelOpen
-                                ? { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }
-                                : { width: 300, flexShrink: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }
-                        }
+                        style={{
+                            display: 'flex',
+                            gap: 14,
+                            alignItems: 'stretch',
+                            height: 'calc(100vh - 310px)',
+                            minHeight: '700px',
+                        }}
                     >
-                        {loading ? (
-                            <div className="bk-card" style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <Loader2 className="animate-spin" size={24} color="var(--primary-color)" />
+                        {/* Left: Calendar */}
+                        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                            {loading ? (
+                                <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem', flex: 1 }}>
+                                    <Loader2 className="animate-spin" size={28} color="var(--primary-color)" />
+                                </div>
+                            ) : renderCalendar()}
+                        </div>
+
+                        {/* Right: Sidebar (day list) or Report Panel */}
+                        <div
+                            style={
+                                isPanelOpen
+                                    ? { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }
+                                    : { width: 300, flexShrink: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }
+                            }
+                        >
+                            {loading ? (
+                                <div className="bk-card" style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <Loader2 className="animate-spin" size={24} color="var(--primary-color)" />
+                                </div>
+                            ) : isPanelOpen && (isAdding || selectedReportId) ? (
+                                <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+                                    <ReportPanel
+                                        reportId={isAdding ? null : selectedReportId}
+                                        isAdding={isAdding}
+                                        isAuthorFallback={activeTab === 'my_reports'}
+                                        onClose={closePanel}
+                                        onSaved={(_shouldClose, message, newReportId) => {
+                                            if (message) showToast(message, 'success');
+                                            fetchReports();
+                                            if (isAdding && newReportId) {
+                                                setIsAdding(false);
+                                                setSelectedReportId(newReportId);
+                                            } else if (_shouldClose) {
+                                                closePanel();
+                                            }
+                                        }}
+                                    />
+                                </div>
+                            ) : (
+                                <div className="bk-card" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+                                    <div style={{ padding: '14px 16px', borderBottom: '1px solid #f1f5f9' }}>
+                                        <div style={{ fontSize: 11, fontWeight: 800, color: '#E8720C', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                                            {selectedCalDate
+                                                ? (sameDay(selectedCalDate, new Date()) ? 'Today' : 'Selected day')
+                                                : 'Pick a day'
+                                            }
+                                        </div>
+                                        <div style={{ fontSize: 17, fontWeight: 800, marginTop: 2, letterSpacing: '-0.01em' }}>
+                                            {selectedCalDate
+                                                ? selectedCalDate.toLocaleDateString('en-GB', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
+                                                : 'Select a date'
+                                            }
+                                        </div>
+                                        <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+                                            {selectedCalDate
+                                                ? `${selectedDayReports.length} report${selectedDayReports.length !== 1 ? 's' : ''}`
+                                                : 'Click any date on the calendar'
+                                            }
+                                        </div>
+                                    </div>
+
+                                    <div className="bk-scroll" style={{ overflow: 'auto', flex: 1 }}>
+                                        <div style={{ padding: '14px 16px 10px' }}>
+                                            <div style={{ fontSize: 10, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+                                                Reports
+                                            </div>
+
+                                            {selectedCalDay === null ? (
+                                                <div style={{ textAlign: 'center', padding: '18px 6px', color: '#94a3b8' }}>
+                                                    <Target size={34} style={{ opacity: 0.25, marginBottom: 10 }} />
+                                                    <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b' }}>Select a day to view reports</div>
+                                                    <div style={{ fontSize: 11, marginTop: 4 }}>Use the month grid on the left</div>
+                                                </div>
+                                            ) : selectedDayReports.length === 0 ? (
+                                                <div style={{ textAlign: 'center', padding: '18px 6px', color: '#94a3b8' }}>
+                                                    <CalendarDays size={34} style={{ opacity: 0.25, marginBottom: 10 }} />
+                                                    <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b' }}>No reports on this day</div>
+                                                </div>
+                                            ) : (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                                    {selectedDayReports.map(r => renderCard(r, true))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                ) : (
+                    /* List view */
+                    <div
+                        style={{
+                            display: 'flex',
+                            gap: 14,
+                            alignItems: 'stretch',
+                            height: 'calc(100vh - 310px)',
+                            minHeight: '700px',
+                        }}
+                    >
+                        {/* Left: Report list */}
+                        <div style={{
+                            flex: isPanelOpen ? '0 0 360px' : 1,
+                            minWidth: 0,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            minHeight: 0,
+                            background: 'var(--surface-color)',
+                            borderRadius: '14px',
+                            border: '1px solid var(--border-color)',
+                            boxShadow: 'var(--shadow-sm)',
+                            overflow: 'hidden',
+                        }}>
+                            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+                                <div style={{ fontSize: 11, fontWeight: 800, color: '#E8720C', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                                    {semanticResults !== null ? 'AI Search Results' : 'All Reports'}
+                                </div>
+                                <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b', background: '#f1f5f9', padding: '2px 9px', borderRadius: '20px' }}>
+                                    {displayReports.length}
+                                </span>
                             </div>
-                        ) : isPanelOpen && (isAdding || selectedReportId) ? (
-                            <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+                            <div className="bk-scroll" style={{ overflow: 'auto', flex: 1 }}>
+                                {loading ? (
+                                    <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
+                                        <Loader2 className="animate-spin" size={26} color="var(--primary-color)" />
+                                    </div>
+                                ) : displayReports.length === 0 ? (
+                                    <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#94a3b8' }}>
+                                        <FileText size={36} style={{ opacity: 0.25, marginBottom: 12 }} />
+                                        <div style={{ fontSize: 13, fontWeight: 700, color: '#64748b' }}>
+                                            {semanticResults !== null ? 'No matching reports found' : 'No reports available'}
+                                        </div>
+                                        <div style={{ fontSize: 12, marginTop: 4 }}>
+                                            {semanticResults !== null ? 'Try a different search query' : 'Reports will appear here once created'}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div style={{ padding: '10px' }}>
+                                        <ReportList
+                                            reports={displayReports}
+                                            selectedId={selectedReportId}
+                                            onSelect={openReport}
+                                            projectsMap={projectsMap}
+                                            usersMap={usersMap}
+                                            getStatusLabel={getSmartStatus}
+                                            isSplit={isPanelOpen}
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Right: Report panel (shown when a report is selected or creating) */}
+                        {isPanelOpen && (isAdding || selectedReportId) && (
+                            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
                                 <ReportPanel
                                     reportId={isAdding ? null : selectedReportId}
                                     isAdding={isAdding}
@@ -634,57 +816,9 @@ const Reports: React.FC = () => {
                                     }}
                                 />
                             </div>
-                        ) : (
-                            <div className="bk-card" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-                                <div style={{ padding: '14px 16px', borderBottom: '1px solid #f1f5f9' }}>
-                                    <div style={{ fontSize: 11, fontWeight: 800, color: '#E8720C', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                                        {selectedCalDate
-                                            ? (sameDay(selectedCalDate, new Date()) ? 'Today' : 'Selected day')
-                                            : 'Pick a day'
-                                        }
-                                    </div>
-                                    <div style={{ fontSize: 17, fontWeight: 800, marginTop: 2, letterSpacing: '-0.01em' }}>
-                                        {selectedCalDate
-                                            ? selectedCalDate.toLocaleDateString('en-GB', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
-                                            : 'Select a date'
-                                        }
-                                    </div>
-                                    <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
-                                        {selectedCalDate
-                                            ? `${selectedDayReports.length} report${selectedDayReports.length !== 1 ? 's' : ''}`
-                                            : 'Click any date on the calendar'
-                                        }
-                                    </div>
-                                </div>
-
-                                <div className="bk-scroll" style={{ overflow: 'auto', flex: 1 }}>
-                                    <div style={{ padding: '14px 16px 10px' }}>
-                                        <div style={{ fontSize: 10, fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
-                                            Reports
-                                        </div>
-
-                                        {selectedCalDay === null ? (
-                                            <div style={{ textAlign: 'center', padding: '18px 6px', color: '#94a3b8' }}>
-                                                <Target size={34} style={{ opacity: 0.25, marginBottom: 10 }} />
-                                                <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b' }}>Select a day to view reports</div>
-                                                <div style={{ fontSize: 11, marginTop: 4 }}>Use the month grid on the left</div>
-                                            </div>
-                                        ) : selectedDayReports.length === 0 ? (
-                                            <div style={{ textAlign: 'center', padding: '18px 6px', color: '#94a3b8' }}>
-                                                <CalendarDays size={34} style={{ opacity: 0.25, marginBottom: 10 }} />
-                                                <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b' }}>No reports on this day</div>
-                                            </div>
-                                        ) : (
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                                                {selectedDayReports.map(r => renderCard(r, true))}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
                         )}
                     </div>
-                </div>
+                )}
             </div>
 
             <style>{`

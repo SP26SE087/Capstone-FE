@@ -982,7 +982,12 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                             <Shield size={13} style={{ marginRight: 4 }} /> Sub-Bookings by Resource Manager
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                            {constituentBookings.map(subBooking => {
+                            {constituentBookings.filter(subBooking => {
+                                // Exclude the primary booking — it's already shown in the hero header.
+                                // Only show secondary/constituent bookings (each manager's slice).
+                                const subId = subBooking.id ?? (subBooking as any).bookingId;
+                                return subId !== bookingId;
+                            }).map(subBooking => {
                                 const subId = subBooking.id ?? (subBooking as any).bookingId;
                                 const subStatusConfig = getStatusConfig(subBooking.status);
                                 const subResources = subBooking.resources ?? [];
