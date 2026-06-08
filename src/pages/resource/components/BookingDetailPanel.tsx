@@ -1059,10 +1059,26 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                                             <div>
                                                                 <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#1e293b' }}>{res.name}</span>
-                                                                <div style={{ display: 'flex', gap: 6, marginTop: 2 }}>
+                                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 2 }}>
                                                                     {res.resourceTypeName && (
                                                                         <span style={{ fontSize: '0.55rem', color: '#64748b', background: '#e2e8f0', padding: '1px 5px', borderRadius: 4 }}>
                                                                             {res.resourceTypeName}
+                                                                        </span>
+                                                                    )}
+                                                                    {res.modelSeries && (
+                                                                        <span style={{
+                                                                            fontSize: '0.55rem',
+                                                                            fontWeight: 700,
+                                                                            color: '#0369a1',
+                                                                            background: '#e0f2fe',
+                                                                            border: '1px solid #bae6fd',
+                                                                            padding: '1px 5px',
+                                                                            borderRadius: 4,
+                                                                            display: 'inline-flex',
+                                                                            alignItems: 'center',
+                                                                            gap: 2
+                                                                        }}>
+                                                                            <Tag size={8} /> {res.modelSeries}
                                                                         </span>
                                                                     )}
                                                                     {res.location && (
@@ -1078,15 +1094,6 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                                                                 </span>
                                                             )}
                                                         </div>
-                                                        {res.modelSeries && (
-                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 5, paddingTop: 4, borderTop: '1px solid #e2e8f0' }}>
-                                                                <Tag size={9} color="#94a3b8" />
-                                                                <span style={{ fontSize: '0.55rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Serial</span>
-                                                                <code style={{ fontSize: '0.62rem', fontWeight: 700, color: '#334155', background: '#fff', border: '1px solid #e2e8f0', padding: '1px 6px', borderRadius: 5, letterSpacing: '0.02em', marginLeft: 'auto' }}>
-                                                                    {res.modelSeries}
-                                                                </code>
-                                                            </div>
-                                                        )}
                                                     </div>
                                                 ))}
                                             </div>
@@ -1356,6 +1363,22 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                                                 {r.resourceTypeName}
                                             </span>
                                         )}
+                                        {(r as any).modelSeries && (
+                                            <span style={{
+                                                fontSize: '0.58rem',
+                                                fontWeight: 600,
+                                                color: '#0369a1',
+                                                background: '#e0f2fe',
+                                                border: '1px solid #bae6fd',
+                                                padding: '1px 6px',
+                                                borderRadius: 20,
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: 2
+                                            }}>
+                                                <Tag size={8} /> {(r as any).modelSeries}
+                                            </span>
+                                        )}
                                         {r.location && (
                                             <span style={{ fontSize: '0.58rem', fontWeight: 600, color: '#475569', display: 'inline-flex', alignItems: 'center', gap: 2 }}>
                                                 <MapPin size={8} /> {r.location}
@@ -1367,15 +1390,6 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                                             </span>
                                         )}
                                     </div>
-                                    {/* Serial */}
-                                    {(r as any).modelSeries && (
-                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4, paddingTop: 4, borderTop: '1px solid #f1f5f9' }}>
-                                            <span style={{ fontSize: '0.55rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Serial</span>
-                                            <code style={{ fontSize: '0.62rem', fontWeight: 700, color: '#334155', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '1px 6px', borderRadius: 5, letterSpacing: '0.02em' }}>
-                                                {(r as any).modelSeries}
-                                            </code>
-                                        </div>
-                                    )}
                                     {/* Booking Status & Manager for this specific resource */}
                                     <div style={{ 
                                         marginTop: 4, 
