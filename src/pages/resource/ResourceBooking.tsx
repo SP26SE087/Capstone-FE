@@ -337,8 +337,23 @@ const ResourceBooking: React.FC = () => {
             return;
         }
         
-        // Always search the full list of viewBookings to find all constituent bookings (across all managers)
-        const group = findGroupedBookings(booking, viewBookings);
+        // Combine all loaded bookings to search in (e.g. viewBookings, myBookings, allBookings, managedBookings)
+        const allLoadedBookings = [
+            ...viewBookings,
+            ...myBookings,
+            ...allBookings,
+            ...managedBookings
+        ];
+        
+        const uniqueLoadedMap = new Map<string, Booking>();
+        for (const b of allLoadedBookings) {
+            const id = b.id || b.bookingId;
+            if (id) uniqueLoadedMap.set(id, b);
+        }
+        const uniqueLoaded = Array.from(uniqueLoadedMap.values());
+
+        // Always search the full list of loaded bookings to find all constituent bookings (across all managers)
+        const group = findGroupedBookings(booking, uniqueLoaded);
         
         // Take the union of IDs from findGroupedBookings and booking._groupedIds (if already grouped in the queue)
         const groupIdsSet = new Set([
