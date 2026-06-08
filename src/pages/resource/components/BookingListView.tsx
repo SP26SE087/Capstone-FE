@@ -57,7 +57,8 @@ function groupBookings(bookings: Booking[]): BookingGroup[] {
     for (const b of bookings) {
         // Include userId/assignee in key so bookings for different people are never merged
         const uid = b.userId ?? b.userFullName ?? b.userName ?? '';
-        const key = `${b.title}||${b.startTime}||${b.endTime}||${uid}`;
+        // Group by times and user (excluding title/resourceName)
+        const key = `${b.startTime}||${b.endTime}||${uid}`;
         if (!map.has(key))
             map.set(key, { key, title: b.title, startTime: b.startTime, endTime: b.endTime, userFullName: b.userFullName, managerFullNames: [], anyUrgent: false, bookings: [] });
         const g = map.get(key)!;

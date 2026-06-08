@@ -67,13 +67,13 @@ export function getBookingRtMeta(booking: Booking, resources: Resource[]): RtMet
 
 /** Primary resource display name for a booking */
 export function getBookingResourceLabel(booking: Booking, resources: Resource[]): string {
-    // Primary: new resources[] array from list API
-    if (booking.resources?.[0]?.name) return booking.resources[0].name;
-    // Fallback: look up from full resource list by id
-    const firstId = booking.resources?.[0]?.id;
-    if (firstId) {
+    const ids = booking.resources?.map(r => r.id) || booking.resourceIds || [];
+    if (ids.length > 0) {
+        const firstId = ids[0];
         const r = resources.find(x => x.id === firstId || x.ids?.includes(firstId));
-        if (r) return r.name;
+        const firstName = booking.resources?.[0]?.name || r?.name || 'Unknown resource';
+        if (ids.length === 1) return firstName;
+        return `${firstName} (+${ids.length - 1} more)`;
     }
     return 'Unknown resource';
 }
@@ -157,7 +157,8 @@ export function groupBookings(bookings: Booking[]): Booking[] {
         const start = b.startTime.slice(0, 16);
         const end   = b.endTime.slice(0, 16);
         const uid   = b.userId ?? b.userFullName ?? b.userName ?? '';
-        const key   = `${b.title}|${uid}|${start}|${end}`;
+        // Group by user and time window, omitting title/resourceName
+        const key   = `${uid}|${start}|${end}`;
         if (!map.has(key)) map.set(key, []);
         map.get(key)!.push(b);
     }

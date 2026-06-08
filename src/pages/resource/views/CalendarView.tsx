@@ -832,7 +832,10 @@ function PendingQueue({ bookings, resources, onApprove, onReject, onAdjust, onOp
     onOpen: (b: Booking) => void;
 }) {
     type ActionType = 'approve' | 'reject' | 'adjust';
-    const pending = bookings.filter(b => b.status === BookingStatus.Pending);
+    const pending = useMemo(
+        () => groupBookings(bookings.filter(b => b.status === BookingStatus.Pending)),
+        [bookings]
+    );
     const [activeAction, setActiveAction]       = useState<{ id: string; type: ActionType } | null>(null);
     const [actionReason, setActionReason]       = useState('');
     const [adjustResGroups, setAdjustResGroups] = useState<ResGroup[]>([]);
