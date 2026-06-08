@@ -83,22 +83,32 @@ const formatDate = (s: string) => {
 };
 
 const findGroupedBookings = (booking: Booking, allBookings: Booking[]): Booking[] => {
-    const title = booking.title;
-    const start = (booking.startTime || '').slice(0, 16);
-    const end = (booking.endTime || '').slice(0, 16);
-    const uid = booking.userId ?? booking.userFullName ?? booking.userName ?? '';
-    // NOTE: Do NOT filter by status — when multiple managers manage different resources
-    // in the same booking request, each booking may have a different status
-    // (e.g. Manager A approved their resource while Manager B's is still pending).
-    // We must group ALL of them together regardless of status.
+    const parseMinutes = (iso?: string | null): number => {
+        if (!iso) return 0;
+        const d = new Date(iso);
+        return isNaN(d.getTime()) ? 0 : Math.floor(d.getTime() / 60000);
+    };
+
+    const startMin = parseMinutes(booking.startTime);
+    const endMin = parseMinutes(booking.endTime);
+
     return allBookings.filter(b => {
-        const bStart = (b.startTime || '').slice(0, 16);
-        const bEnd = (b.endTime || '').slice(0, 16);
-        const bUid = b.userId ?? b.userFullName ?? b.userName ?? '';
-        return b.title === title &&
-               bStart === start &&
-               bEnd === end &&
-               bUid === uid;
+        const bStartMin = parseMinutes(b.startTime);
+        const bEndMin = parseMinutes(b.endTime);
+
+        if (bStartMin !== startMin || bEndMin !== endMin) return false;
+
+        const hasUser1 = !!(booking.userId || booking.userEmail || booking.userName || booking.userFullName);
+        const hasUser2 = !!(b.userId || b.userEmail || b.userName || b.userFullName);
+
+        if (hasUser1 && hasUser2) {
+            const idMatch = !!booking.userId && !!b.userId && booking.userId === b.userId;
+            const emailMatch = !!booking.userEmail && !!b.userEmail && booking.userEmail.toLowerCase() === b.userEmail.toLowerCase();
+            const nameMatch = !!booking.userName && !!b.userName && booking.userName.toLowerCase() === b.userName.toLowerCase();
+            const fullNameMatch = !!booking.userFullName && !!b.userFullName && booking.userFullName.toLowerCase() === b.userFullName.toLowerCase();
+            return idMatch || emailMatch || nameMatch || fullNameMatch;
+        }
+        return true;
     });
 };
 
