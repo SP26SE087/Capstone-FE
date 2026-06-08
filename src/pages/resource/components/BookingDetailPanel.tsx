@@ -450,7 +450,7 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                 if (!primaryData) {
                     data = await primaryPromise;
                 } else {
-                    data = primaryData;
+                    data = { ...primaryData };
                 }
 
                 // Merge fully populated resources from all successful fetches
