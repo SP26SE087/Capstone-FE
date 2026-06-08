@@ -1078,12 +1078,12 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                                                                 </span>
                                                             )}
                                                         </div>
-                                                        {(res as any).modelSeries && (
+                                                        {res.modelSeries && (
                                                             <div style={{ display: 'flex', alignItems: 'center', gap: 5, paddingTop: 4, borderTop: '1px solid #e2e8f0' }}>
                                                                 <Tag size={9} color="#94a3b8" />
                                                                 <span style={{ fontSize: '0.55rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Serial</span>
                                                                 <code style={{ fontSize: '0.62rem', fontWeight: 700, color: '#334155', background: '#fff', border: '1px solid #e2e8f0', padding: '1px 6px', borderRadius: 5, letterSpacing: '0.02em', marginLeft: 'auto' }}>
-                                                                    {(res as any).modelSeries}
+                                                                    {res.modelSeries}
                                                                 </code>
                                                             </div>
                                                         )}

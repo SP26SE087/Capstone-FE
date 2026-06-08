@@ -52,7 +52,7 @@ export interface BasicResourceResponse {
   resourceTypeCategory?: number; // 1 = Physical, 2 = ServerCompute
   status?: number;
   location?: string | null;
-  modelSeries?: string;
+  modelSeries?: string | null;
   isAvailable?: boolean;
   isDamaged?: boolean;
   isInUse?: boolean;
