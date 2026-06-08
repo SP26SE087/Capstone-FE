@@ -982,19 +982,15 @@ const BookingDetailPanel: React.FC<BookingDetailPanelProps> = ({
                             <Shield size={13} style={{ marginRight: 4 }} /> Sub-Bookings by Resource Manager
                         </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                            {constituentBookings.filter(subBooking => {
-                                // Exclude the primary booking — it's already shown in the hero header.
-                                // Only show secondary/constituent bookings (each manager's slice).
-                                const subId = subBooking.id ?? (subBooking as any).bookingId;
-                                return subId !== bookingId;
-                            }).map(subBooking => {
+                            {constituentBookings.map(subBooking => {
                                 const subId = subBooking.id ?? (subBooking as any).bookingId;
                                 const subStatusConfig = getStatusConfig(subBooking.status);
                                 const subResources = subBooking.resources ?? [];
                                 
                                 const myEmail = (user?.email || '').trim().toLowerCase();
                                 const subManagerEmail = (subBooking.managerEmail || '').trim().toLowerCase();
-                                const isSubManager = !!myEmail && !!subManagerEmail && myEmail === subManagerEmail;
+                                const isSubManager = (!!myEmail && !!subManagerEmail && myEmail === subManagerEmail) ||
+                                                     (!!user?.userId && !!subBooking.managerId && user.userId === subBooking.managerId);
                                 const canSubActAsManager = isSubManager || _isLabDirector;
                                 
                                 const canSubApproveReject = canSubActAsManager && subBooking.status === BookingStatus.Pending;

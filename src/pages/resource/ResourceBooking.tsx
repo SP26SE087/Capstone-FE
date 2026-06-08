@@ -978,7 +978,7 @@ const ResourceBooking: React.FC = () => {
                                         fetchViewData();
                                         fetchData();
                                     }}
-                                    isLabDirector={isLabDirector}
+                                    isLabDirector={isDirectorRole}
                                     isManagedView={activeTab === 'managed_bookings'}
                                     extraResources={viewModalExtraResources}
                                     groupedBookingIds={viewModalGroupedIds}
