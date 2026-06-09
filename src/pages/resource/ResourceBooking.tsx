@@ -188,34 +188,18 @@ const ResourceBooking: React.FC = () => {
     const fetchViewData = useCallback(async () => {
         setViewLoading(true);
         try {
-            const [viewRes] = await Promise.all([
+            const [viewRes, items] = await Promise.all([
                 resourceService.getAllPages(),
+                bookingService.getAllPages(),
             ]);
             setViewResources(viewRes);
-
-            if (isLabDirector) {
-                const items = await bookingService.getAllPages();
-                setViewBookings(items);
-            } else {
-                const [managed, upcoming, history] = await Promise.all([
-                    bookingService.getManagedAllPages(),
-                    bookingService.getMyUpcoming(),
-                    bookingService.getMyHistoryAllPages(),
-                ]);
-                const all = [
-                    ...managed,
-                    ...(upcoming as Booking[]),
-                    ...history,
-                ];
-                const unique = Array.from(new Map(all.map(b => [b.id, b])).values());
-                setViewBookings(unique);
-            }
+            setViewBookings(items);
         } catch (err) {
             console.error('fetchViewData error', err);
         } finally {
             setViewLoading(false);
         }
-    }, [isLabDirector]);
+    }, []);
 
     useEffect(() => {
         if (bookingVariant !== 'management') fetchViewData();
