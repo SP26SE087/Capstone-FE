@@ -660,9 +660,10 @@ const CameraMonitorPage: React.FC = () => {
                               {pass.full_name || <em style={{ color: 'var(--text-muted)' }}>Unknown</em>}
                             </p>
                             <p style={{ margin: '3px 0 0', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                              {new Date(pass.active_from).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                              {new Date(pass.active_from).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' })}
                               {' – '}
-                              {new Date(pass.active_until).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                              {new Date(pass.active_until).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' })}
+                              {' (UTC+7)'}
                             </p>
                           </div>
                         </div>
