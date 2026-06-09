@@ -9,7 +9,7 @@ import {
 import { Booking, Resource, BookingStatus } from '@/types/booking';
 import {
     STATUS_META, getBookingRtMeta, getBookingResourceLabel,
-    fmtTime, fmtDate, relTime, initials, groupBookings,
+    fmtTime, fmtDate, sameDay, relTime, initials, groupBookings,
 } from './bookingViewUtils';
 
 
@@ -80,7 +80,11 @@ function WSBookingCard({ booking, resources, onOpen, onApprove, onReject, onChec
             {/* Time */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#64748b' }}>
                 <Clock size={11} />
-                <span>{fmtDate(booking.startTime)} · {fmtTime(booking.startTime)}–{fmtTime(booking.endTime)}</span>
+                {sameDay(new Date(booking.startTime), new Date(booking.endTime)) ? (
+                    <span>{fmtDate(booking.startTime)} · {fmtTime(booking.startTime)}–{fmtTime(booking.endTime)}</span>
+                ) : (
+                    <span>{fmtDate(booking.startTime)} · {fmtTime(booking.startTime)} – {fmtDate(booking.endTime)} · {fmtTime(booking.endTime)}</span>
+                )}
             </div>
             {/* Bottom: avatar + actions */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
