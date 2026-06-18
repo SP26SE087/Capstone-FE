@@ -16,8 +16,6 @@ services:
     restart: unless-stopped
     ports:
       - "3060:80"
-    environment:
-      - BACKEND_URL=${VITE_API_URL:-https://api.labsyncs.com/}
     logging:
       driver: "json-file"
       options:
