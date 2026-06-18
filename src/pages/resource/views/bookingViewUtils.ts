@@ -82,15 +82,15 @@ export function getBookingResourceLabel(booking: Booking, resources: Resource[])
 
 export function fmtTime(iso: string): string {
     const d = new Date(iso);
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' });
 }
 
 export function fmtDate(iso: string | Date): string {
-    return new Date(iso).toLocaleDateString('en-GB', { month: 'short', day: 'numeric' });
+    return new Date(iso).toLocaleDateString('en-GB', { month: 'short', day: 'numeric', timeZone: 'Asia/Ho_Chi_Minh' });
 }
 
 export function fmtFullDate(iso: string | Date): string {
-    return new Date(iso).toLocaleDateString('en-GB', { weekday: 'short', month: 'short', day: 'numeric' });
+    return new Date(iso).toLocaleDateString('en-GB', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'Asia/Ho_Chi_Minh' });
 }
 
 export function sameDay(a: Date, b: Date): boolean {

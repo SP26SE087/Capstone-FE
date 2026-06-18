@@ -648,8 +648,8 @@ const ServerDetailView: React.FC<{ server: Resource; onEdit: () => void }> = ({ 
       {/* Timestamps */}
       {(d.createdAt || d.updatedAt) && (
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' as const }}>
-          {d.createdAt && detailRow('Created', new Date(d.createdAt).toLocaleString('en-US'), <Calendar size={10} />)}
-          {d.updatedAt && detailRow('Updated', new Date(d.updatedAt).toLocaleString('en-US'), <Calendar size={10} />)}
+          {d.createdAt && detailRow('Created', new Date(d.createdAt).toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }), <Calendar size={10} />)}
+          {d.updatedAt && detailRow('Updated', new Date(d.updatedAt).toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' }), <Calendar size={10} />)}
         </div>
       )}
 

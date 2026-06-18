@@ -78,7 +78,7 @@ interface RespondState {
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
 const formatDt = (iso: string) =>
-    new Date(iso).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
+    new Date(iso).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Ho_Chi_Minh' });
 
 const ERR_MAP: Record<string, string> = {
     US031: 'Invalid status value',
@@ -454,7 +454,7 @@ const VisitorRegistrations: React.FC = () => {
 
     const openApprove = (item: VisitorRegistrationResponse) => {
         setApproveError(null);
-        const apptLocal = item.appointmentDateTime ? new Date(item.appointmentDateTime).toLocaleString('sv-SE', { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }).slice(0, 16) : '';
+        const apptLocal = item.appointmentDateTime ? new Date(item.appointmentDateTime).toLocaleString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' }).slice(0, 16).replace(' ', 'T') : '';
         setApproveState({ registrationId: item.id, fullName: item.fullName, appointmentDateTime: item.appointmentDateTime, reason: '', activeFrom: apptLocal, durationHours: '2' });
     };
     const openReject = (item: VisitorRegistrationResponse) => {
@@ -1480,7 +1480,7 @@ const VisitorRegistrations: React.FC = () => {
                             <label style={labelStyle}>
                                 Lab Access Starts <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(optional — defaults to appointment time)</span>
                             </label>
-                            <input type="datetime-local" value={approveState.activeFrom} min={new Date().toLocaleString('sv-SE', { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }).slice(0, 16)} onChange={e => setApproveState(p => p && ({ ...p, activeFrom: e.target.value }))} style={inputStyle} />
+                            <input type="datetime-local" value={approveState.activeFrom} min={new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' }).slice(0, 16).replace(' ', 'T')} onChange={e => setApproveState(p => p && ({ ...p, activeFrom: e.target.value }))} style={inputStyle} />
                         </div>
                         <div>
                             <label style={labelStyle}>

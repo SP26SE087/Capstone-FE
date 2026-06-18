@@ -373,7 +373,7 @@ const VisitorRegistrationModal: React.FC<Props> = ({ isOpen, onClose }) => {
                         {/* Appointment */}
                         <div>
                             <label style={labelStyle}>Appointment Date & Time <span style={{ color: '#e11d48' }}>*</span></label>
-                            <input name="AppointmentDateTime" type="datetime-local" value={form.AppointmentDateTime} onChange={handleChange} style={inputStyle(errors.AppointmentDateTime)} min={new Date(Date.now() + 60_000).toISOString().slice(0, 16)} />
+                            <input name="AppointmentDateTime" type="datetime-local" value={form.AppointmentDateTime} onChange={handleChange} style={inputStyle(errors.AppointmentDateTime)} min={new Date(Date.now() + 60_000).toLocaleString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' }).slice(0, 16).replace(' ', 'T')} />
                             {errors.AppointmentDateTime && <p style={errorStyle}>{errors.AppointmentDateTime}</p>}
                         </div>
 

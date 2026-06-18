@@ -719,7 +719,7 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
         if (descErr) { addToast(`Description: ${descErr}`, 'error'); return; }
         setSuggestedTasks(prev => prev.map((t, i) => i === idx ? { ...t, _saving: true } : t));
         try {
-            const today = new Date().toISOString().split('T')[0];
+            const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' });
             await taskService.create({
                 name: task.name,
                 description: task.description || '',
@@ -1441,7 +1441,7 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                                     </div>
                                     {!!transcription?.summarizedAt && (
                                         <div style={{ marginTop: '8px', fontSize: '0.72rem', color: '#64748b', fontWeight: 600 }}>
-                                            Summarized at {new Date(transcription.summarizedAt).toLocaleString()}
+                                            Summarized at {new Date(transcription.summarizedAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Ho_Chi_Minh' })}
                                         </div>
                                     )}
                                 </div>
@@ -1752,10 +1752,10 @@ const TranscriptionPanel: React.FC<TranscriptionPanelProps> = ({ onClose, meetin
                                             }}>{t.language.toUpperCase()}</span>
                                         )}
                                         <span style={{ fontSize: '0.62rem', color: '#64748b', fontWeight: 600 }}>
-                                            {new Date(t.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}
+                                            {new Date(t.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Ho_Chi_Minh' })}
                                         </span>
                                         <span style={{ fontSize: '0.62rem', color: '#94a3b8' }}>
-                                            {new Date(t.createdAt).toLocaleDateString('en-US', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                                            {new Date(t.createdAt).toLocaleDateString('en-US', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Ho_Chi_Minh' })}
                                         </span>
                                     </div>
                                     {isFailed && (

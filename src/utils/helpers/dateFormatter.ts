@@ -1,9 +1,32 @@
+const VN_TZ = 'Asia/Ho_Chi_Minh';
+
+// ─── Helper: convert UTC ISO → local datetime string for <input type="datetime-local">
+// datetime-local expects "YYYY-MM-DDTHH:MM" in LOCAL time, not UTC.
+export const toLocalDatetimeInput = (d: Date = new Date()): string => {
+    return d.toLocaleString('sv-SE', { timeZone: VN_TZ }).slice(0, 16).replace(' ', 'T');
+};
+
+// ─── Helper: get VN "today" date string in YYYY-MM-DD (for <input type="date"> min)
+export const getVNTodayDateStr = (): string => {
+    return new Date().toLocaleDateString('en-CA', { timeZone: VN_TZ });
+};
+
 export const formatDate = (dateString: string | null | undefined): string => {
     if (!dateString) return 'TBD';
     return new Date(dateString).toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'short',
-        day: 'numeric'
+        day: 'numeric',
+        timeZone: VN_TZ,
+    });
+};
+
+export const formatDateTime = (dateString: string | null | undefined): string => {
+    if (!dateString) return 'TBD';
+    return new Date(dateString).toLocaleString('en-GB', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+        timeZone: VN_TZ,
     });
 };
 

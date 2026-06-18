@@ -65,8 +65,8 @@ const sectionStyle: React.CSSProperties = {
 
 const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-// Get current date string for min attribute (date only)
-const getMinDate = () => new Date().toISOString().split('T')[0];
+// Get current date string for min attribute (date only) — always in Vietnam timezone (UTC+7)
+const getMinDate = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' });
 
 const CreateSeminarForm: React.FC<CreateSeminarFormProps> = ({
     onClose,

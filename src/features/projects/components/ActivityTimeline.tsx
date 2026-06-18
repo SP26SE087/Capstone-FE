@@ -157,35 +157,33 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
         }
     };
 
-    const [viewStartDate, setViewStartDate] = useState<Date>(() => {
-        const d = new Date();
-        const day = d.getDay();
-        const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-        return new Date(d.setDate(diff));
-    });
+    const getVNWeekMonday = (fromDate: Date): Date => {
+        const vnStr = fromDate.toLocaleString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' });
+        const [datePart] = vnStr.split(' ');
+        const [year, month, day] = datePart.split('-').map(Number);
+        const d = new Date(year, month - 1, day);
+        const dayOfWeek = d.getDay();
+        const diff = d.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+        d.setDate(diff);
+        const pad = (n: number) => n.toString().padStart(2, '0');
+        return new Date(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T00:00:00+07:00`);
+    };
+
+    const [viewStartDate, setViewStartDate] = useState<Date>(() => getVNWeekMonday(new Date()));
 
     const timelineRange = useMemo(() => {
         const start = new Date(viewStartDate);
-        start.setHours(0, 0, 0, 0);
-        const end = new Date(start);
-        end.setDate(start.getDate() + 6);
-        end.setHours(23, 59, 59, 999);
+        const end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000 - 1);
         return { start, end, days: 7 };
     }, [viewStartDate]);
 
     const navigateTimeline = (direction: 'prev' | 'next' | 'today') => {
-        const newStart = new Date(viewStartDate);
         if (direction === 'today') {
-            const d = new Date();
-            const day = d.getDay();
-            const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-            setViewStartDate(new Date(d.setDate(diff)));
+            setViewStartDate(getVNWeekMonday(new Date()));
         } else if (direction === 'next') {
-            newStart.setDate(newStart.getDate() + 7);
-            setViewStartDate(newStart);
+            setViewStartDate(new Date(viewStartDate.getTime() + 7 * 24 * 60 * 60 * 1000));
         } else {
-            newStart.setDate(newStart.getDate() - 7);
-            setViewStartDate(newStart);
+            setViewStartDate(new Date(viewStartDate.getTime() - 7 * 24 * 60 * 60 * 1000));
         }
     };
 
@@ -231,9 +229,10 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
         const days = [];
 
         for (let i = 0; i < 7; i++) {
-            const date = new Date(timelineRange.start);
-            date.setDate(date.getDate() + i);
-            const isToday = date.toDateString() === new Date().toDateString();
+            const date = new Date(timelineRange.start.getTime() + i * 24 * 60 * 60 * 1000);
+            const dateVnStr = date.toLocaleDateString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' }).split(' ')[0];
+            const todayVnStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' }).split(' ')[0];
+            const isToday = dateVnStr === todayVnStr;
 
             days.push(
                 <div key={`day-${i}`} style={{
@@ -249,10 +248,10 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
                     minWidth: 0
                 }}>
                     <span style={{ fontSize: '0.55rem', fontWeight: 800, color: isToday ? '#f59e0b' : '#94a3b8', textTransform: 'uppercase' }}>
-                        {date.toLocaleDateString('en-US', { weekday: 'short' })}
+                        {date.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'Asia/Ho_Chi_Minh' })}
                     </span>
                     <span style={{ fontSize: '0.8rem', fontWeight: 800, color: isToday ? '#f59e0b' : '#1e293b' }}>
-                        {date.getDate()}
+                        {parseInt(date.toLocaleDateString('en-US', { day: 'numeric', timeZone: 'Asia/Ho_Chi_Minh' }))}
                     </span>
                 </div>
             );
@@ -268,7 +267,7 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
                         <span style={{ color: 'var(--primary-color)' }}>ACTIVE WEEK</span>
                         <span style={{ opacity: 0.5 }}>•</span>
                         <span style={{ fontSize: '0.65rem', color: '#64748b' }}>
-                            {startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            {startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Ho_Chi_Minh' })} - {endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Ho_Chi_Minh' })}
                         </span>
                     </div>
                 </div>
@@ -418,14 +417,13 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
                     })}
 
                     {task.startDate && new Date(task.startDate) >= timelineRange.start && new Date(task.startDate) <= timelineRange.end && (() => {
-                        const startUtc7 = new Date(new Date(task.startDate).getTime() + 7 * 60 * 60 * 1000);
-                        const startTooltip = `Plan Start: ${startUtc7.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} ${startUtc7.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })} (UTC+7)`;
+                        const startTooltip = `Plan Start: ${new Date(task.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Asia/Ho_Chi_Minh' })} ${new Date(task.startDate).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Ho_Chi_Minh' })} (UTC+7)`;
                         return (
                             <div title={startTooltip} style={{ position: 'absolute', left: `${getPositionPercent(task.startDate)}%`, top: '22px', transform: 'translateX(-50%)', zIndex: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1px', cursor: 'help' }}>
                                 <span style={{ fontSize: '0.5rem', fontWeight: 900, color: '#64748b', whiteSpace: 'nowrap', background: 'white', padding: '0 3px', lineHeight: 1.3, textTransform: 'uppercase', letterSpacing: '0.04em', borderRadius: '3px' }}>Plan Start</span>
                                 <div style={{ width: '14px', height: '14px', borderRadius: '50%', background: 'white', border: '3px solid #94a3b8', boxShadow: '0 2px 6px rgba(0,0,0,0.12)' }} />
                                 <span style={{ fontSize: '0.52rem', fontWeight: 700, color: '#64748b', whiteSpace: 'nowrap', background: 'white', padding: '0 2px', lineHeight: 1.2 }}>
-                                    {new Date(task.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                    {new Date(task.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Ho_Chi_Minh' })}
                                 </span>
                             </div>
                         );
@@ -442,7 +440,7 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
                         const displayName = isEarlyStart ? 'Early Start' : getStatusName(status);
                         return (
                             <React.Fragment key={log.id}>
-                                <div style={{ position: 'absolute', left: `${posPct}%`, top: '40px', width: '12px', height: '12px', borderRadius: '50%', background: getStatusColor(status), transform: 'translate(-50%, -2.5px)', zIndex: 15, cursor: 'help', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} title={`${log.performedByFullName}: ${log.action}\nTime: ${new Date(log.createdAt).toLocaleString()}`} />
+                                <div style={{ position: 'absolute', left: `${posPct}%`, top: '40px', width: '12px', height: '12px', borderRadius: '50%', background: getStatusColor(status), transform: 'translate(-50%, -2.5px)', zIndex: 15, cursor: 'help', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} title={`${log.performedByFullName}: ${log.action}\nTime: ${new Date(log.createdAt).toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' })}`} />
                                 <span style={{ position: 'absolute', left: `${posPct}%`, top: '52px', transform: 'translateX(-50%)', zIndex: 15, fontSize: '0.45rem', fontWeight: 900, color: getStatusColor(status), whiteSpace: 'nowrap', background: 'white', padding: '0 2px', lineHeight: 1.2, borderRadius: '3px', pointerEvents: 'none' }}>{displayName}</span>
                             </React.Fragment>
                         );
@@ -456,7 +454,7 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
                                 <span style={{ fontSize: '8px', fontWeight: 900, color: '#ef4444', lineHeight: 1 }}>!</span>
                             </div>
                             <span style={{ fontSize: '0.52rem', fontWeight: 700, color: '#ef4444', whiteSpace: 'nowrap', background: 'white', padding: '0 2px', lineHeight: 1.2 }}>
-                                {new Date(task.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                {new Date(task.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Ho_Chi_Minh' })}
                             </span>
                         </div>
                     )}
@@ -472,7 +470,7 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
                         const posPct = getPositionPercent(completionDate);
                         return (<>
                             <span style={{ position: 'absolute', left: `${posPct}%`, top: '27px', transform: 'translateX(-50%)', zIndex: 11, fontSize: '0.5rem', fontWeight: 900, color: '#10b981', whiteSpace: 'nowrap', background: 'white', padding: '0 3px', lineHeight: 1.3, textTransform: 'uppercase', letterSpacing: '0.04em', borderRadius: '3px', pointerEvents: 'none' }}>Completed</span>
-                            <div title={`Completed on: ${cd.toLocaleString()}`} style={{ position: 'absolute', left: `${posPct}%`, top: '40px', width: '16px', height: '16px', borderRadius: '50%', background: 'white', border: '3.5px solid #10b981', transform: 'translate(-50%, -5px)', zIndex: 11, boxShadow: '0 2px 6px rgba(0,0,0,0.1)', pointerEvents: 'none' }} />
+                            <div title={`Completed on: ${cd.toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' })}`} style={{ position: 'absolute', left: `${posPct}%`, top: '40px', width: '16px', height: '16px', borderRadius: '50%', background: 'white', border: '3.5px solid #10b981', transform: 'translate(-50%, -5px)', zIndex: 11, boxShadow: '0 2px 6px rgba(0,0,0,0.1)', pointerEvents: 'none' }} />
                         </>);
                     })()}
                 </div>
@@ -614,7 +612,7 @@ const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
                                             <div>
                                                 <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#334155' }}>{log.action}</div>
                                                 <div style={{ fontSize: '0.65rem', color: '#64748b', marginTop: '2px' }}>
-                                                    <span>{log.performedByFullName}</span> • <span>{new Date(log.createdAt).toLocaleString()}</span>
+                                                    <span>{log.performedByFullName}</span> • <span>{new Date(log.createdAt).toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' })}</span>
                                                 </div>
                                             </div>
                                         </div>

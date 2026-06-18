@@ -1,4 +1,4 @@
-﻿// =============================================================================
+// =============================================================================
 // DetailsBookingPlan — Project Resource Booking Plan  (Redesigned)
 // Split-panel layout: SchedulePanel (left 60%) always visible +
 //   PlanBuilderPanel (right 40%) in planning mode
@@ -49,16 +49,36 @@ const ITEM_STATUS_META: Record<PlanItemStatus, { label: string; color: string; b
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+const getVNMidnight = (fromDate: Date = new Date()): Date => {
+  const vnStr = fromDate.toLocaleString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' });
+  const [datePart] = vnStr.split(' ');
+  const [year, month, day] = datePart.split('-').map(Number);
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return new Date(`${year}-${pad(month)}-${pad(day)}T00:00:00+07:00`);
+};
+
+const getVNDayOfWeek = (date: Date): number => {
+  const vnDayStr = date.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'Asia/Ho_Chi_Minh' });
+  const mapping: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  return mapping[vnDayStr] ?? date.getDay();
+};
+
+const getVNWeekStart = (date: Date): Date => {
+  const mid = getVNMidnight(date);
+  const dow = (getVNDayOfWeek(mid) + 6) % 7;
+  return new Date(mid.getTime() - dow * 24 * 60 * 60 * 1000);
+};
+
 function fmtDate(iso: string) {
   if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Ho_Chi_Minh' });
 }
 
 function fmtDatetimeLocal(iso: string) {
   if (!iso) return '';
   const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const s = d.toLocaleString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' });
+  return s.slice(0, 16).replace(' ', 'T');
 }
 
 function fmtDuration(start: string, end: string): string {
@@ -289,7 +309,7 @@ const ResourcePickerCard: React.FC<ResourcePickerCardProps> = ({
                 const da = getDayAvailableCount(r, day, allBookings);
                 const dc = da >= total ? '#10b981' : da === 0 ? '#ef4444' : '#f59e0b';
                 return (
-                  <div key={i} title={`${day.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' })}: ${da}/${total}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+                  <div key={i} title={`${day.toLocaleDateString('en-GB', { month: 'short', day: 'numeric', timeZone: 'Asia/Ho_Chi_Minh' })}: ${da}/${total}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
                     <span style={{ fontSize: 7, fontWeight: 800, color: dc, lineHeight: 1, opacity: da >= total ? 0.6 : 1 }}>{da}</span>
                     <div style={{ width: '100%', height: 4, borderRadius: 2, background: dc, opacity: 0.7 + (da >= total ? 0.3 : 0), outline: i === 0 ? '2px solid #94a3b8' : 'none', outlineOffset: 1 }} />
                   </div>
@@ -323,13 +343,8 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
   resources, allBookings, manualItems, activeItemKey, onSlotClick, mode, plan,
   highlightRange, navigateTo,
 }) => {
-  const todayMidnight = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }, []);
-  const weekStart = useMemo(() => {
-    const d = new Date(todayMidnight);
-    const dow = (d.getDay() + 6) % 7;
-    d.setDate(d.getDate() - dow);
-    return d;
-  }, [todayMidnight]);
+  const todayMidnight = useMemo(() => getVNMidnight(), []);
+  const weekStart = useMemo(() => getVNWeekStart(todayMidnight), [todayMidnight]);
 
   const [rangeStart, setRangeStart] = useState(weekStart);
   const [rangeDays, setRangeDays]   = useState<7 | 14>(14);
@@ -342,7 +357,7 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
   const days = useMemo(() => {
     const arr: Date[] = [];
     for (let i = 0; i < rangeDays; i++) {
-      const d = new Date(rangeStart); d.setDate(rangeStart.getDate() + i);
+      const d = new Date(rangeStart.getTime() + i * 24 * 60 * 60 * 1000);
       arr.push(d);
     }
     return arr;
@@ -361,10 +376,10 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
     return base.filter(r => r.name.toLowerCase().includes(q) || (r.resourceTypeName ?? '').toLowerCase().includes(q));
   }, [resources, filterQ, mode, plan]);
 
-  const rangeLabel = `${rangeStart.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} – ${days[days.length - 1].toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}`;
+  const rangeLabel = `${rangeStart.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: 'Asia/Ho_Chi_Minh' })} – ${days[days.length - 1].toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Ho_Chi_Minh' })}`;
 
-  const prev    = () => { const d = new Date(rangeStart); d.setDate(d.getDate() - rangeDays); setRangeStart(d); };
-  const next    = () => { const d = new Date(rangeStart); d.setDate(d.getDate() + rangeDays); setRangeStart(d); };
+  const prev    = () => { setRangeStart(prevDate => new Date(prevDate.getTime() - rangeDays * 24 * 60 * 60 * 1000)); };
+  const next    = () => { setRangeStart(prevDate => new Date(prevDate.getTime() + rangeDays * 24 * 60 * 60 * 1000)); };
   const goToday = () => setRangeStart(weekStart);
 
   // Click handler: find day from pixel offset
@@ -374,31 +389,29 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
     const x = e.clientX - rect.left;
     const dayIndex = Math.floor(x / DAY_W);
     if (dayIndex < 0 || dayIndex >= rangeDays) return;
-    const clicked = new Date(rangeStart);
-    clicked.setDate(rangeStart.getDate() + dayIndex);
-    clicked.setHours(8, 0, 0, 0);
+    const baseDate = new Date(rangeStart.getTime() + dayIndex * 24 * 60 * 60 * 1000);
+    const vnStr = baseDate.toLocaleString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' });
+    const [datePart] = vnStr.split(' ');
+    const clicked = new Date(`${datePart}T08:00:00+07:00`);
     onSlotClick(resource, clicked);
   };
 
   // Auto-navigate to show selected date
   useEffect(() => {
     if (!navigateTo) return;
-    const d = new Date(navigateTo);
-    const dow = (d.getDay() + 6) % 7;
-    d.setDate(d.getDate() - dow);
-    d.setHours(0, 0, 0, 0);
-    setRangeStart(d);
+    setRangeStart(getVNWeekStart(new Date(navigateTo)));
   }, [navigateTo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Pre-compute highlighted midnight timestamp set
   const hlMidSet = useMemo(() => {
     if (!highlightRange) return null;
     const set = new Set<number>();
-    const cur = new Date(highlightRange.start);
-    cur.setHours(0, 0, 0, 0);
-    const endMid = new Date(highlightRange.end);
-    endMid.setHours(0, 0, 0, 0);
-    while (cur <= endMid) { set.add(cur.getTime()); cur.setDate(cur.getDate() + 1); }
+    const cur = getVNMidnight(highlightRange.start);
+    const endMid = getVNMidnight(highlightRange.end);
+    while (cur <= endMid) {
+      set.add(cur.getTime());
+      cur.setTime(cur.getTime() + 24 * 60 * 60 * 1000);
+    }
     return set;
   }, [highlightRange]);
 
@@ -466,14 +479,16 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
             <div style={{ display: 'flex' }}>
               {days.map((d, i) => {
                 const isToday = d.getTime() === todayMidnight.getTime();
-                const isWe    = d.getDay() === 0 || d.getDay() === 6;
+                const vnDow   = getVNDayOfWeek(d);
+                const isWe    = vnDow === 0 || vnDow === 6;
                 const isHl    = hlMidSet?.has(d.getTime()) ?? false;
+                const dDate   = parseInt(d.toLocaleDateString('en-US', { day: 'numeric', timeZone: 'Asia/Ho_Chi_Minh' }));
                 return (
                   <div key={i} style={{ width: DAY_W, flexShrink: 0, padding: '5px 3px', textAlign: 'center', borderRight: '1px solid #f1f5f9', background: isHl ? 'rgba(14,165,233,0.14)' : isToday ? '#fff7ed' : isWe ? '#f8fafc' : '#fff' }}>
-                    <div style={{ fontSize: 9, fontWeight: 700, color: isToday ? '#e8720c' : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{d.toLocaleDateString('en-US', { weekday: 'short' })}</div>
+                    <div style={{ fontSize: 9, fontWeight: 700, color: isToday ? '#e8720c' : '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{d.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'Asia/Ho_Chi_Minh' })}</div>
                     <div style={{ fontSize: 13, fontWeight: isToday ? 800 : 600, color: isToday ? '#e8720c' : '#1e293b' }}>
-                      {d.getDate()}
-                      {d.getDate() === 1 && <span style={{ fontSize: 8, color: '#94a3b8', marginLeft: 2 }}>{d.toLocaleDateString('en-US', { month: 'short' })}</span>}
+                      {dDate}
+                      {dDate === 1 && <span style={{ fontSize: 8, color: '#94a3b8', marginLeft: 2 }}>{d.toLocaleDateString('en-US', { month: 'short', timeZone: 'Asia/Ho_Chi_Minh' })}</span>}
                     </div>
                   </div>
                 );
@@ -508,7 +523,8 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                   >
                     {/* Day grid lines */}
                     {days.map((d, i) => {
-                      const isWe = d.getDay() === 0 || d.getDay() === 6;
+                      const vnDow = getVNDayOfWeek(d);
+                      const isWe = vnDow === 0 || vnDow === 6;
                       const isHl = hlMidSet?.has(d.getTime()) ?? false;
                       return <div key={i} style={{ position: 'absolute', left: i * DAY_W, top: 0, bottom: 0, width: DAY_W, borderRight: `1px solid ${isHl ? 'rgba(14,165,233,0.3)' : '#f1f5f9'}`, background: isHl ? 'rgba(14,165,233,0.1)' : isWe ? 'rgba(241,245,249,0.4)' : 'transparent', pointerEvents: 'none' }} />;
                     })}
@@ -521,7 +537,7 @@ const SchedulePanel: React.FC<SchedulePanelProps> = ({
                       const fillPct = tot > 0 ? (av / tot) * 100 : 0;
                       return (
                         <div key={`strip-${i}`}
-                          title={`${day.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' })}: ${av}/${tot} available`}
+                          title={`${day.toLocaleDateString('en-GB', { month: 'short', day: 'numeric', timeZone: 'Asia/Ho_Chi_Minh' })}: ${av}/${tot} available`}
                           style={{ position: 'absolute', left: i * DAY_W + 1, top: 4, bottom: 0, width: DAY_W - 2, pointerEvents: 'none', zIndex: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', gap: 2, padding: '0 0 4px' }}
                         >
                           {/* 'avail' label */}
@@ -630,9 +646,9 @@ const ItemEditForm: React.FC<ItemEditFormProps> = ({ item, resources, allBooking
   const [search, setSearch] = useState('');
   const [showPicker, setShowPicker] = useState(!item.resourceId);
 
-  const today = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }, []);
+  const today = useMemo(() => getVNMidnight(), []);
   const stripDays = useMemo(() =>
-    Array.from({ length: 14 }, (_, i) => { const d = new Date(today); d.setDate(d.getDate() + i); return d; }),
+    Array.from({ length: 14 }, (_, i) => new Date(today.getTime() + i * 24 * 60 * 60 * 1000)),
     [today],
   );
 
@@ -1088,9 +1104,9 @@ const ProjectResourcesPanel: React.FC<{ projectId: string; onNavigateBooking?: (
                   {r.startTime && r.endTime && (
                     <span style={{ fontSize: '0.67rem', color: '#64748b', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4 }}>
                       <CalendarRange size={10} style={{ color: '#94a3b8' }} />
-                      {new Date(r.startTime).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })}
+                      {new Date(r.startTime).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' })}
                       {' → '}
-                      {new Date(r.endTime).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })}
+                      {new Date(r.endTime).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit', timeZone: 'Asia/Ho_Chi_Minh' })}
                     </span>
                   )}
                 </div>
@@ -1453,9 +1469,9 @@ const BulkConfirmModal: React.FC<BulkConfirmModalProps> = ({
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8 }}>
                     <Clock size={12} style={{ color: '#1d4ed8', flexShrink: 0 }} />
                     <span style={{ flex: 1, fontSize: '0.72rem', fontWeight: 700, color: '#1d4ed8' }}>
-                      {startObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} {fmtConfirmMins(startMins)}
+                      {startObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: 'Asia/Ho_Chi_Minh' })} {fmtConfirmMins(startMins)}
                       {' → '}
-                      {endDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })} {fmtConfirmMins(returnMins)}
+                      {endDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: 'Asia/Ho_Chi_Minh' })} {fmtConfirmMins(returnMins)}
                     </span>
                     <span style={{ fontSize: '0.68rem', fontWeight: 800, color: '#1d4ed8', background: '#fff', border: '1px solid #bfdbfe', padding: '2px 8px', borderRadius: 99, whiteSpace: 'nowrap' }}>{durLabel}</span>
                   </div>
@@ -1518,7 +1534,7 @@ const PlanReviewPanel: React.FC<PlanReviewPanelProps> = ({
       {/* Header */}
       <div style={{ padding: '12px 16px', background: '#fafafa', borderBottom: '1px solid #f1f5f9', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-          <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Generated {new Date(plan.generatedAt).toLocaleString()}</span>
+          <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>Generated {new Date(plan.generatedAt).toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' })}</span>
           {canManage && isPlanActive && plan.items.some(i => i.status === PlanItemStatus.Pending) && (
             <button onClick={onOpenBulkConfirm}
               style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 7, border: 'none', background: '#16a34a', color: '#fff', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>

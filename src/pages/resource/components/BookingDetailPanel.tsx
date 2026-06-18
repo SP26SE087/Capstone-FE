@@ -80,24 +80,26 @@ const getStatusConfig = (status: BookingStatus) => {
 const formatDisplayDate = (dateStr: string) => {
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return 'N/A';
-    const day = d.getDate().toString().padStart(2, '0');
-    const month = (d.getMonth() + 1).toString().padStart(2, '0');
-    const year = d.getFullYear();
-    const hours = d.getHours().toString().padStart(2, '0');
-    const minutes = d.getMinutes().toString().padStart(2, '0');
+    const s = d.toLocaleString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' });
+    const [datePart, timePart] = s.split(' ');
+    const [year, month, day] = datePart.split('-');
+    const [hours, minutes] = timePart.split(':');
     return `${day}/${month}/${year} ${hours}:${minutes}`;
 };
 
 const formatDateShort = (dateStr: string) => {
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return 'N/A';
-    return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Ho_Chi_Minh' });
 };
 
 const formatTimeOnly = (dateStr: string) => {
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return '';
-    return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+    const s = d.toLocaleString('sv-SE', { timeZone: 'Asia/Ho_Chi_Minh' });
+    const [, timePart] = s.split(' ');
+    const [hours, minutes] = timePart.split(':');
+    return `${hours}:${minutes}`;
 };
 
 const calcDuration = (start: string, end: string) => {
