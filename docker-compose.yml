@@ -6,8 +6,8 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: ${VITE_API_URL:-https://api.labsyncs.com/}
-        VITE_SERVER_URL: ${VITE_SERVER_URL:-https://api.labsyncs.com/}
+        VITE_API_URL: ${VITE_API_URL:-https://api-labsyncs.aitalab.net/}
+        VITE_SERVER_URL: ${VITE_SERVER_URL:-https://api-labsyncs.aitalab.net/}
         VITE_FACE_SERVER_URL: ${VITE_FACE_SERVER_URL:-https://api-camera.labsyncs.com/}
         VITE_CAMERA_API_KEY: ${VITE_CAMERA_API_KEY:-labsync-camera-2026-secret}
         VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-1098514682427-r1r34l12eq5l8psgsikl9ik0eoohml9q.apps.googleusercontent.com}
